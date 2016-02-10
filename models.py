@@ -146,10 +146,12 @@ class Decoder(Chain):
             all this imply that the sequences of the minibatch should be sorted from longest to shortest
             
         mask is as in the description of Encoder.
+        
+        * it is up to the user to add an EOS token to the data.
                
         Return a loss and the attention model values
     """
-    def __init__(self, Vo, Eo, Ho, Ha, Hi, Hl): #, bos_idx = 0, eos_idx = 1):
+    def __init__(self, Vo, Eo, Ho, Ha, Hi, Hl):
         super(Decoder, self).__init__(
             emb = L.EmbedID(Vo, Eo),
             gru = L.GRU(Ho, Eo + Hi),
@@ -161,14 +163,11 @@ class Decoder(Chain):
         )
         self.add_param("initial_state", (1, Ho))
         self.add_param("bos_embeding", (1, Eo))
-#         self.Ha = Ha
         self.Hi = Hi
         self.Ho = Ho
         self.Eo = Eo
         self.initial_state.data[...] = np.random.randn(Ho)
         self.bos_embeding.data[...] = np.random.randn(Eo)
-#         self.bos_idx = bos_idx
-#         self.eos_idx = eos_idx
         
     def advance_one_step(self, fb_concat, previous_state, prev_y, compute_ctxt):
 
@@ -240,12 +239,10 @@ class Decoder(Chain):
             if previous_word is not None: #else we are using the initial prev_y
                 prev_y = self.emb(previous_word)
             assert previous_state.data.shape[0] == current_mb_size
-#             print "i", i
             
             new_state, logits, attn = self.advance_one_step(fb_concat, previous_state, prev_y, 
                                                       compute_ctxt)
 
-#             print type(logits.data), type(targets[i].data)
             local_loss = F.softmax_cross_entropy(logits, targets[i])   
             
             total_nb_predictions += current_mb_size

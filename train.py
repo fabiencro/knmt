@@ -63,26 +63,9 @@ def make_batch_src_tgt(training_data, eos_idx = 1, padding_idx = 0, gpu = None):
     max_tgt_size = max(len(y) for x, y  in training_data)
     mb_size = len(training_data)
     
-#     src_batch = [np.empty((mb_size,), dtype = np.int32) for _ in xrange(max_src_size + 1)]
-#     tgt_batch = [] #[np.empty((mb_size,), dtype = np.int32) for _ in xrange(max_tgt_size + 1)]
-#     src_mask = [np.empty((mb_size,), dtype = np.bool) for _ in xrange(max_src_size + 1)]
-    
     src_batch, src_mask = make_batch_src(
                 [x for x,y in training_data], eos_idx = eos_idx, padding_idx = padding_idx, gpu = gpu)
     
-#     for num_ex in xrange(mb_size):
-#         this_src_len = len(training_data[num_ex][0])
-#         for i in xrange(max_src_size + 1):
-#             if i < this_src_len:
-#                 src_batch[i][num_ex] = training_data[num_ex][0][i]
-#                 src_mask[i][num_ex] = True
-# #             elif i == this_src_len:
-# #                 src_batch[i][num_ex] = eos_idx
-# #                 src_mask[i][num_ex] = True
-#             else:
-#                 src_batch[i][num_ex] = padding_idx
-#                 src_mask[i][num_ex] = False
-            
     lengths_list = []
     lowest_non_finished = mb_size -1
     for pos in xrange(max_tgt_size + 1):
@@ -99,7 +82,6 @@ def make_batch_src_tgt(training_data, eos_idx = 1, padding_idx = 0, gpu = None):
         assert current_mb_size > 0
         tgt_batch.append(np.empty((current_mb_size,), dtype = np.int32))
         for num_ex in xrange(current_mb_size):
-#             print num_ex, training_data[num_ex][1]
             assert len(training_data[num_ex][1]) >= i
             if len(training_data[num_ex][1]) == i:
                 tgt_batch[-1][num_ex] = eos_idx
@@ -112,10 +94,6 @@ def make_batch_src_tgt(training_data, eos_idx = 1, padding_idx = 0, gpu = None):
         tgt_batch_v = [Variable(x) for x in tgt_batch]
     
     return src_batch, tgt_batch_v, src_mask
-#         return ([Variable(cuda.to_gpu(x, gpu)) for x in src_batch], [Variable(cuda.to_gpu(x, gpu)) for x in tgt_batch],
-#                 [Variable(cuda.to_gpu(x, gpu)) for x in src_mask])
-#     else:
-#         return [Variable(x) for x in src_batch], [Variable(x) for x in tgt_batch], [Variable(x) for x in src_mask]
 
 def greedy_batch_translate(encdec, eos_idx, src_data, batch_size = 80, gpu = None):
     nb_ex = len(src_data)
@@ -172,7 +150,6 @@ def minibatch_looper(data, mb_size, loop = True, avoid_copy = False):
         yield training_data_sampled
         
 def batch_sort_and_split(batch, size_parts, sort_key = lambda x:len(x[1]), inplace = False):
-#             training_data_sampled = training_data[current_start:current_start + mb_size * nb_mb_for_sorting]
     if not inplace:
         batch = list(batch)
     batch.sort(key = sort_key)
@@ -203,8 +180,6 @@ def compute_bleu_with_unk_as_wrong(references, candidates, unk_id, new_unk_id_re
     for ref, cand in zip(references, candidates):
         ref_mod = tuple((x if x != unk_id else new_unk_id_ref) for x in ref)
         cand_mod = tuple((int(x) if int(x) != unk_id else new_unk_id_cand) for x in cand)
-#         print ref_mod, type(ref_mod)
-#         print cand_mod, type(cand_mod)
         bc.update(ref_mod, cand_mod)
     return bc
         
@@ -225,12 +200,8 @@ def train_on_data(encdec, optimizer, training_data, output_files_dict,
             fn_save = output_files_dict["model_ckpt"]
         else:
             assert False
-#         fn_save = save_prefix + ".model." + suffix + ".npz"
         log.info("saving model to %s" % fn_save)
         serializers.save_npz(fn_save, encdec)
-#         optimizer_fn_save = save_prefix + ".optim.ckpt.npz"
-#         log.info("saving optimizer state to %s" % optimizer_fn_save)
-#         serializers.save_npz(optimizer_fn_save, optimizer)
         
     def train_once(src_batch, tgt_batch, src_mask):
         encdec.zerograds()
@@ -395,23 +366,8 @@ def train_on_data(encdec, optimizer, training_data, output_files_dict,
                     
             if i%1000 == 0:       
                 save_model("ckpt")
-                
-#                 fn_save = save_prefix + ".model.ckpt.npz"
-#                 log.info("saving model to %s" % fn_save)
-#                 serializers.save_npz(fn_save, encdec)
-#                 optimizer_fn_save = save_prefix + ".optim.ckpt.npz"
-#                 log.info("saving optimizer state to %s" % optimizer_fn_save)
-#                 serializers.save_npz(optimizer_fn_save, optimizer)
-#                 print sample
-#                 print score
     finally:
         save_model("final")
-#         fn_save = save_prefix + ".model.final.npz"
-#         log.info("saving model to %s"% fn_save)
-#         serializers.save_npz(fn_save, encdec)
-#         optimizer_fn_save = save_prefix + ".optim.final.npz"
-#         log.info("saving optimizer state to %s" % optimizer_fn_save)
-#         serializers.save_npz(optimizer_fn_save, optimizer)
 
 
 def command_line():
@@ -484,7 +440,6 @@ def command_line():
     save_train_config_fn = output_files_dict["train_config"]
     log.info("Saving training config to %s" % save_train_config_fn)
     json.dump(config_training, open(save_train_config_fn, "w"), indent=2, separators=(',', ': '))
-#     Ei = 620, Eo = 620, Hi = 1000, Ho = 1000, Ha = 1000, Hl = 500
     
     eos_idx = Vo
     encdec = models.EncoderDecoder(Vi, args.Ei, args.Hi, Vo + 1, args.Eo, args.Ho, args.Ha, args.Hl)
@@ -505,14 +460,11 @@ def command_line():
         serializers.load_npz(args.load_optimizer_state, optimizer)    
     
     with cuda.cupy.cuda.Device(args.gpu):
-#     with cuda.get_device(args.gpu)
         train_on_data(encdec, optimizer, training_data, output_files_dict,
                       src_voc + ["#S_UNK#"], tgt_voc + ["#T_UNK#"], eos_idx = eos_idx, 
                       mb_size = args.mb_size,
                       nb_of_batch_to_sort = args.nb_batch_to_sort,
                       test_data = test_data, gpu = args.gpu)
-    
-#     test_double(args.gpu)
 
 if __name__ == '__main__':
     command_line()
