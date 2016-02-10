@@ -21,3 +21,11 @@ python make_data.py /path/train/ja /path/train/en /path_to_experiment_dir/prefix
 python train.py /path_to_experiment_dir/prefix /path_to_experiment_dir/prefix_train --gpu 0
 
 ```
+
+## More options
+
+run:
+
+python make_data.py --help
+
+python train.py --help
