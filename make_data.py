@@ -15,20 +15,13 @@ import exceptions
 import itertools, operator
 import os.path
 import gzip
+
+from utils import ensure_path
 # import h5py
 
 logging.basicConfig()
 log = logging.getLogger("rnns:make_data")
 log.setLevel(logging.INFO)
-
-def ensure_path(path):
-    import os
-    try: 
-        os.makedirs(path)
-        log.info("Created directory %s" % path)
-    except OSError:
-        if not os.path.isdir(path):
-            raise
 
 class Indexer(object):
     def __init__(self):
@@ -64,6 +57,14 @@ class Indexer(object):
     def __len__(self):
         assert len(self.dic) == len(self.lst)
         return len(self.lst)
+    
+    @staticmethod
+    def make_from_list(voc_lst):
+        res = Indexer()
+        res.lst = list(voc_lst)
+        for idx, w in enumerate(voc_lst):
+            res.dic[w] = idx
+        return res
 
 def build_index(fn, voc_limit = None, max_nb_ex = None):
     f = codecs.open(fn, encoding= "utf8")
@@ -87,7 +88,42 @@ def build_index(fn, voc_limit = None, max_nb_ex = None):
     
     return res
     
+def build_dataset_one_side(src_fn, src_voc_limit = None, max_nb_ex = None, dic_src = None):
+    if dic_src is None:
+        log.info("building src_dic")
+        dic_src = build_index(src_fn, src_voc_limit, max_nb_ex)
     
+    log.info("start indexing")
+    
+    src = codecs.open(src_fn, encoding= "utf8")
+    
+    res = []
+    
+    num_ex = 0
+    total_token_src = 0
+    total_count_unk_src = 0
+    while 1:
+        if max_nb_ex is not None and num_ex >= max_nb_ex:
+            break
+        
+        line_src = src.readline()
+        
+        if len(line_src) == 0:
+            break
+        
+        line_src = line_src.strip().split(" ")
+        
+        seq_src, unk_cnt_src= dic_src.convert_with_unk_count(line_src)
+
+        total_count_unk_src += unk_cnt_src
+        
+        total_token_src += len(seq_src)
+
+        res.append(seq_src)
+        num_ex += 1
+        
+    return res, dic_src, total_count_unk_src, total_token_src, num_ex
+ 
 def build_dataset(src_fn, tgt_fn, src_voc_limit = None, tgt_voc_limit = None, max_nb_ex = None, dic_src = None, dic_tgt = None):
     if dic_src is None:
         log.info("building src_dic")

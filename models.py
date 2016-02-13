@@ -181,7 +181,7 @@ class Decoder(Chain):
         
         return new_state, logits, attn
           
-    def sample(self, fb_concat, nb_steps, compute_ctxt, mb_size, best = False):
+    def sample(self, fb_concat, nb_steps, compute_ctxt, mb_size, best = False, keep_attn_values = False):
         previous_state = F.broadcast_to(self.initial_state, (mb_size, self.Ho))
 #         previous_word = Variable(np.array([self.bos_idx] * mb_size, dtype = np.int32))
         xp = cuda.get_array_module(self.initial_state.data)
@@ -192,12 +192,15 @@ class Decoder(Chain):
             prev_y = F.broadcast_to(self.bos_embeding, (mb_size, self.Eo))
         score = 0
         sequences = []
+        attn_list = []
         for i in xrange(nb_steps):
 #             print "i", i
             if previous_word is not None: #else we are using the initial prev_y
                 prev_y = self.emb(previous_word)
             new_state, logits, attn = self.advance_one_step(fb_concat, previous_state, prev_y, 
                                                       compute_ctxt)
+            if keep_attn_values:
+                attn_list.append(attn)
 #             print logits.data.shape
             probs = F.softmax(logits)
             if best:
@@ -214,9 +217,9 @@ class Decoder(Chain):
             previous_word = Variable(curr_idx)
             previous_state = new_state
             
-        return sequences, score
-            
-    def compute_loss(self, fb_concat, targets, compute_ctxt, raw_loss_info = False):
+        return sequences, score, attn_list
+    
+    def compute_loss(self, fb_concat, targets, compute_ctxt, raw_loss_info = False, keep_attn_values = False):
         loss = None
         current_mb_size = targets[0].data.shape[0]
 #         previous_state = F.concat( [self.initial_state] * current_mb_size, 0)
@@ -243,6 +246,9 @@ class Decoder(Chain):
             new_state, logits, attn = self.advance_one_step(fb_concat, previous_state, prev_y, 
                                                       compute_ctxt)
 
+            if keep_attn_values:
+                attn_list.append(attn)
+                
             local_loss = F.softmax_cross_entropy(logits, targets[i])   
             
             total_nb_predictions += current_mb_size
@@ -261,16 +267,19 @@ class Decoder(Chain):
             loss = loss / total_nb_predictions
             return loss, attn_list
     
-    def __call__(self, fb_concat, targets, mask, use_best_for_sample = False, raw_loss_info = False):
+    def __call__(self, fb_concat, targets, mask, use_best_for_sample = False, raw_loss_info = False,
+                    keep_attn_values = False):
         mb_size, nb_elems, Hi = fb_concat.data.shape
         assert Hi == self.Hi, "%i != %i"%(Hi, self.Hi)
     
         compute_ctxt = self.attn_module(fb_concat, mask)
 
         if isinstance(targets, int):
-            return self.sample(fb_concat, targets, compute_ctxt, mb_size, best = use_best_for_sample)
+            return self.sample(fb_concat, targets, compute_ctxt, mb_size, best = use_best_for_sample,
+                               keep_attn_values = keep_attn_values)
         else:
-            return self.compute_loss(fb_concat, targets, compute_ctxt, raw_loss_info = raw_loss_info)     
+            return self.compute_loss(fb_concat, targets, compute_ctxt, raw_loss_info = raw_loss_info,
+                                     keep_attn_values = keep_attn_values)     
         
 class EncoderDecoder(Chain):
     """ Do RNNSearch Encoding/Decoding
@@ -282,18 +291,23 @@ class EncoderDecoder(Chain):
         return loss and attention values
     """
     def __init__(self, Vi, Ei, Hi, Vo, Eo, Ho, Ha, Hl):
+        log.info("constructing encoder decoder with Vi:%i Ei:%i Hi:%i Vo:%i Eo:%i Ho:%i Ha:%i Hl:%i" % 
+                                        (Vi, Ei, Hi, Vo, Eo, Ho, Ha, Hl))
         super(EncoderDecoder, self).__init__(
             enc = Encoder(Vi, Ei, Hi),
             dec = Decoder(Vo, Eo, Ho, Ha, 2 * Hi, Hl)
         )
         
+        
     def __call__(self, src_batch, tgt_batch, src_mask, use_best_for_sample = False, display_attn = False,
-                 raw_loss_info = False):
+                 raw_loss_info = False, keep_attn_values = False):
         fb_src = self.enc(src_batch, src_mask)
-        loss = self.dec(fb_src, tgt_batch, src_mask, use_best_for_sample = use_best_for_sample, raw_loss_info = raw_loss_info)
+        loss = self.dec(fb_src, tgt_batch, src_mask, use_best_for_sample = use_best_for_sample, raw_loss_info = raw_loss_info,
+                        keep_attn_values = keep_attn_values)
         return loss
     
-    def sample(self, src_batch, src_mask, nb_steps, use_best_for_sample):
+    def sample(self, src_batch, src_mask, nb_steps, use_best_for_sample, keep_attn_values = False):
         fb_src = self.enc(src_batch, src_mask)
-        samp = self.dec.sample(self, fb_src, nb_steps, src_mask, use_best_for_sample = use_best_for_sample)
+        samp = self.dec.sample(self, fb_src, nb_steps, src_mask, use_best_for_sample = use_best_for_sample,
+                        keep_attn_values = keep_attn_values)
         return samp
