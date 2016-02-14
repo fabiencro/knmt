@@ -38,7 +38,7 @@ def translate_to_file(encdec, eos_idx, test_src_data, mb_size, tgt_voc,
     log.info("writing translation of set to %s"% translations_fn)
     out = codecs.open(translations_fn, "w", encoding = "utf8")
     for t in translations:
-        out.write(convert_idx_to_string(t, tgt_voc) + "\n")
+        out.write(convert_idx_to_string(t[:-1], tgt_voc) + "\n")
     
     if control_src_fn is not None:
         assert src_voc is not None
@@ -51,7 +51,7 @@ def translate_to_file(encdec, eos_idx, test_src_data, mb_size, tgt_voc,
         unk_id = len(tgt_voc) - 1
         new_unk_id_ref = unk_id + 7777
         new_unk_id_cand = unk_id + 9999
-        bc = compute_bleu_with_unk_as_wrong(test_references, translations, unk_id, new_unk_id_ref, new_unk_id_cand)
+        bc = compute_bleu_with_unk_as_wrong(test_references, [t[:-1] for t in translations], unk_id, new_unk_id_ref, new_unk_id_cand)
         log.info("bleu: %r"%bc)
         return bc
     else:
@@ -85,64 +85,27 @@ def greedy_batch_translate(encdec, eos_idx, src_data, batch_size = 80, gpu = Non
         if get_attention:
             deb_attn = de_batch(attn_list, mask = None, eos_idx = None, is_variable = True, raw = True)
             attn_all += deb_attn 
-#         for sent_num in xrange(len(src_batch[0].data)):
-#             res.append([])
-#             for smp_pos in range(len(sample_greedy)):
-#                 idx_smp = cuda.to_cpu(sample_greedy[smp_pos][sent_num])
-#                 if idx_smp == eos_idx:
-#                     break
-#                 res[-1].append(idx_smp)
     if get_attention:
         return res, attn_all
     else:
         return res
      
-# def greedy_batch_translate_with_attn(encdec, eos_idx, src_data, batch_size = 80, gpu = None):
-#     nb_ex = len(src_data)
-#     nb_batch = nb_ex / batch_size + (1 if nb_ex % batch_size != 0 else 0)
-#     res = []
-#     attn_all = []
-#     for i in range(nb_batch):
-#         current_batch_raw_data = src_data[i * batch_size : (i + 1) * batch_size]
-#         src_batch, src_mask = make_batch_src(current_batch_raw_data, eos_idx = eos_idx, gpu = gpu, volatile = "auto")
-#         
-#         sample_greedy, score, attn_list = encdec(src_batch, 50, src_mask, use_best_for_sample = True, 
-#                                                  keep_attn_values = True)
-#         deb = de_batch(sample_greedy, mask = None, eos_idx = eos_idx, is_variable = False)
-#         res += deb
-#         deb_attn = de_batch(attn_list, mask = None, eos_idx = None, is_variable = True, raw = True)
-#         attn_all += deb_attn
-#         de_batch(batch, mask, eos_idx, is_variable)
-#         for sent_num in xrange(len(src_batch[0].data)):
-#             res.append([])
-#             for smp_pos in range(len(sample_greedy)):
-#                 idx_smp = cuda.to_cpu(sample_greedy[smp_pos][sent_num])
-#                 if idx_smp == eos_idx:
-#                     break
-#                 
-#                 attention_vals = cuda.to_cpu(attn_list[smp_pos].data[sent_num])
-#                 res[-1].append((idx_smp, attention_vals))
-    return res, attn_all
    
 def batch_align(encdec, eos_idx, src_tgt_data, batch_size = 80, gpu = None):
     nb_ex = len(src_tgt_data)
     nb_batch = nb_ex / batch_size + (1 if nb_ex % batch_size != 0 else 0)
-    res = []
+    sum_loss = 0
+    attn_all = []
     for i in range(nb_batch):
         current_batch_raw_data = src_tgt_data[i * batch_size : (i + 1) * batch_size]
+#         print current_batch_raw_data
         src_batch, tgt_batch, src_mask = make_batch_src_tgt(current_batch_raw_data, eos_idx = eos_idx, gpu = gpu, volatile = "auto")
         
         loss, attn_list = encdec(src_batch, tgt_batch, src_mask, keep_attn_values = True)
-        for sent_num in xrange(len(src_batch[0].data)):
-            res.append([])
-            for smp_pos in range(len(tgt_batch)):
-                idx_smp = cuda.to_cpu(tgt_batch[smp_pos][sent_num])
-                if idx_smp == eos_idx:
-                    break
-                
-                attention_vals = cuda.to_cpu(attn_list[smp_pos].data[sent_num])
-                res[-1].append((idx_smp, attention_vals))
-    return res
+        deb_attn = de_batch(attn_list, mask = None, eos_idx = None, is_variable = True, raw = True)
+        attn_all += deb_attn 
+        sum_loss += loss.data
+    return sum_loss, attn_all
             
 def convert_idx_to_string(seq, voc, eos_idx = None):
     trans = []
@@ -232,6 +195,7 @@ def commandline():
         
     src_indexer = Indexer.make_from_list(src_voc)
     
+    
     log.info("opening source file %s" % args.src_fn)
     src_data, dic_src, total_count_unk_src, total_token_src, num_ex = build_dataset_one_side(args.src_fn, 
                                     src_voc_limit = None, max_nb_ex = args.max_nb_ex, dic_src = src_indexer)
@@ -241,11 +205,22 @@ def commandline():
                                                                  float(total_count_unk_src * 100) / total_token_src))
     assert dic_src == src_indexer
     
-    log.info("writing translation of test set to %s"% args.dest_fn)
+    tgt_data = None
+    if args.tgt_fn is not None:
+        log.info("opening target file %s" % args.tgt_fn)
+        tgt_indexer = Indexer.make_from_list(tgt_voc)
+        tgt_data, dic_tgt, total_count_unk_tgt, total_token_tgt, num_ex = build_dataset_one_side(args.tgt_fn, 
+                                    src_voc_limit = None, max_nb_ex = args.max_nb_ex, dic_src = tgt_indexer)
+        log.info("%i sentences loaded"%num_ex)
+        log.info("#tokens tgt: %i   of which %i (%f%%) are unknown"%(total_token_tgt, total_count_unk_tgt, 
+                                                                     float(total_count_unk_tgt * 100) / total_token_tgt))
+        assert dic_tgt == tgt_indexer
+
+    
 #     translations = greedy_batch_translate(encdec, eos_idx, src_data, batch_size = args.mb_size, gpu = args.gpu)
     
-    
     if args.mode == "translate":
+        log.info("writing translation of to %s"% args.dest_fn)
         translations = greedy_batch_translate(
                                         encdec, eos_idx, src_data, batch_size = args.mb_size, gpu = args.gpu)
         out = codecs.open(args.dest_fn, "w", encoding = "utf8")
@@ -254,6 +229,7 @@ def commandline():
             out.write(ct + "\n")
 
     elif args.mode == "translate_attn":
+        log.info("writing translation + attention as html to %s"% args.dest_fn)
         translations, attn_all = greedy_batch_translate(
                                         encdec, eos_idx, src_data, batch_size = args.mb_size, gpu = args.gpu,
                                         get_attention = True)
@@ -291,7 +267,47 @@ def commandline():
         p_all = visualisation.vplot(*plots_list)
         visualisation.output_file(args.dest_fn)
         visualisation.show(p_all)
+        
+    elif args.mode == "align":
+        assert tgt_data is not None
+        assert len(tgt_data) == len(src_data)
+        log.info("writing alignment as html to %s"% args.dest_fn)
+        loss, attn_all = batch_align(
+                                        encdec, eos_idx, zip(src_data, tgt_data), batch_size = args.mb_size, gpu = args.gpu)
+        tgt_voc_with_unk = tgt_voc + ["#T_UNK#"]
+        src_voc_with_unk = src_voc + ["#S_UNK#"]
+        
+        assert len(attn_all) == len(src_data)
+        plots_list = []
+        for num_t in xrange(len(src_data)):
+            src_idx_list = src_data[num_t]
+            tgt_idx_list = tgt_data[num_t]
+            attn = attn_all[num_t]
+#             assert len(attn) == len(tgt_idx_list)
             
+            alignment = np.zeros((len(src_idx_list) + 1, len(tgt_idx_list)))
+            sum_al =[0] * len(tgt_idx_list)
+            for i in xrange(len(src_idx_list)):
+                for j in xrange(len(tgt_idx_list)):
+                    alignment[i,j] = attn[j][i]
+                    sum_al[j] += alignment[i,j]
+            for j in xrange(len(tgt_idx_list)):        
+                alignment[len(src_idx_list), j] =  sum_al[j]
+            src_w = [src_voc_with_unk[idx] for idx in src_idx_list] + ["SUM_ATTN"]
+            tgt_w = [tgt_voc_with_unk[idx] for idx in tgt_idx_list]
+#             for j in xrange(len(tgt_idx_list)):
+#                 tgt_idx_list.append(tgt_voc_with_unk[t_and_attn[j][0]])
+#             
+            import visualisation
+    #         print [src_voc_with_unk[idx] for idx in src_idx_list], tgt_idx_list
+            p1 = visualisation.make_alignment_figure(
+                            src_w, tgt_w, alignment)
+#             p2 = visualisation.make_alignment_figure(
+#                             [src_voc_with_unk[idx] for idx in src_idx_list], tgt_idx_list, alignment)
+            plots_list.append(p1)
+        p_all = visualisation.vplot(*plots_list)
+        visualisation.output_file(args.dest_fn)
+        visualisation.show(p_all)
 #     for t in translations_with_attn:
 #         for x, attn in t:
 #             print x, attn

@@ -152,6 +152,7 @@ def de_batch(batch, mask = None, eos_idx = None, is_variable = False, raw = Fals
         res.append([])
         for src_pos in range(len(batch)):
             if mask is None or mask[src_pos].data[sent_num]:
+#                 print sent_num, src_pos, batch[src_pos].data
                 idx = batch[src_pos].data[sent_num] if is_variable else batch[src_pos][sent_num]
                 if not raw:
                     idx = int(cuda.to_cpu(idx))

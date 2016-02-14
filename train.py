@@ -24,7 +24,7 @@ import gzip
 
 from utils import ensure_path, make_batch_src_tgt, make_batch_src, minibatch_provider, compute_bleu_with_unk_as_wrong,de_batch
 from eval import (
-                  greedy_batch_translate, convert_idx_to_string, greedy_batch_translate_with_attn, 
+                  greedy_batch_translate, convert_idx_to_string, 
                   compute_loss_all, translate_to_file, sample_once)
 
 logging.basicConfig()
@@ -102,7 +102,6 @@ def train_on_data(encdec, optimizer, training_data, output_files_dict,
         for i in xrange(100000):
             print i,
             src_batch, tgt_batch, src_mask = mb_provider.next()
-            train_once(src_batch, tgt_batch, src_mask)
 #             if i%100 == 0:
 #                 print "valid", 
 #                 compute_valid()
@@ -133,9 +132,12 @@ def train_on_data(encdec, optimizer, training_data, output_files_dict,
                         best_dev_bleu = bc_dev.bleu()
                         log.info("saving best model %f" % best_dev_bleu)
                         save_model("best")
-                    
             if i%1000 == 0:       
                 save_model("ckpt")
+                                        
+            train_once(src_batch, tgt_batch, src_mask)
+                    
+
     finally:
         save_model("final")
 
@@ -158,6 +160,10 @@ def command_line():
     parser.add_argument("--mb_size", type = int, default= 80, help = "Minibatch size")
     parser.add_argument("--nb_batch_to_sort", type = int, default= 20, help = "Sort this many batches by size.")
     parser.add_argument("--l2_gradient_clipping", type = float, help = "L2 gradient clipping")
+    parser.add_argument("--optimizer", choices=["sgd", "rmsprop", "rmspropgraves", 
+                            "momentum", "nesterov", "adam", "adagrad", "adadelta"], 
+                        default = "adadelta")
+    parser.add_argument("--learning_rate", type = float, default= 0.01, help = "Learning Rate")
     args = parser.parse_args()
     
     output_files_dict = {}
@@ -230,7 +236,12 @@ def command_line():
     if args.gpu is not None:
         encdec = encdec.to_gpu(args.gpu)
     
-    optimizer = optimizers.AdaDelta()
+    if args.optimizer == "adadelta":
+        optimizer = optimizers.AdaDelta()
+    elif args.optimizer == "sgd":
+        optimizer = optimizers.SGD(lr = args.learning_rate)
+    else:
+        raise NotImplemented
     optimizer.setup(encdec)
     
     if args.l2_gradient_clipping is not None:
