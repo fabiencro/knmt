@@ -83,6 +83,14 @@ def make_batch_src_tgt(training_data, eos_idx = 1, padding_idx = 0, gpu = None, 
     
     return src_batch, tgt_batch_v, src_mask
 
+def minibatch_looper_random(data, mb_size):
+    while 1:
+        training_data_sampled = [None] * mb_size
+        r = np.random.randint(0,len(data), size = (mb_size,))
+        for i in range(mb_size):
+            training_data_sampled[i] = data[r[i]]
+        yield training_data_sampled
+
 def minibatch_looper(data, mb_size, loop = True, avoid_copy = False):
     current_start = 0
     data_exhausted = False
@@ -120,8 +128,10 @@ def batch_sort_and_split(batch, size_parts, sort_key = lambda x:len(x[1]), inpla
         mb_raw = batch[num_batch * size_parts : (num_batch + 1) * size_parts]
         yield mb_raw
         
-def minibatch_provider(data, eos_idx, mb_size, nb_mb_for_sorting = 1, loop = True, inplace_sorting = False, gpu = None):
+def minibatch_provider(data, eos_idx, mb_size, nb_mb_for_sorting = 1, loop = True, inplace_sorting = False, gpu = None,
+                       randomized = False):
     if nb_mb_for_sorting == -1:
+        assert not randomized
         assert loop == False
         for mb_raw in batch_sort_and_split(data, mb_size, inplace = inplace_sorting):
             src_batch, tgt_batch, src_mask = make_batch_src_tgt(mb_raw, eos_idx = eos_idx, gpu = gpu)
@@ -129,7 +139,12 @@ def minibatch_provider(data, eos_idx, mb_size, nb_mb_for_sorting = 1, loop = Tru
     else:
         assert nb_mb_for_sorting > 0
         required_data = nb_mb_for_sorting * mb_size
-        for large_batch in minibatch_looper(data, required_data, loop = loop, avoid_copy = False):
+        if randomized:
+#             assert not loop
+            looper = minibatch_looper_random(data, required_data)
+        else:
+            looper = minibatch_looper(data, required_data, loop = loop, avoid_copy = False)
+        for large_batch in looper:
             # ok to sort in place since minibatch_looper will return copies
             for mb_raw in batch_sort_and_split(large_batch, mb_size, inplace = True):
                 src_batch, tgt_batch, src_mask = make_batch_src_tgt(mb_raw, eos_idx = eos_idx, gpu = gpu)

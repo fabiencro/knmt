@@ -1,3 +1,11 @@
+#!/usr/bin/env python
+"""make_data.py: prepare data for training"""
+__author__ = "Fabien Cromieres"
+__license__ = "undecided"
+__version__ = "1.0"
+__email__ = "fabien.cromieres@gmail.com"
+__status__ = "Development"
+
 import numpy as np
 
 from bokeh.plotting import figure, output_file, show
