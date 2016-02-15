@@ -9,7 +9,7 @@ __status__ = "Development"
 import numpy as np
 import chainer
 from chainer import cuda, Function, gradient_check, Variable, optimizers, serializers, utils
-
+import time
 import models
 
 import collections
@@ -34,9 +34,10 @@ log.setLevel(logging.INFO)
 def train_on_data(encdec, optimizer, training_data, output_files_dict,
                   src_voc, tgt_voc, eos_idx, mb_size = 80,
                   nb_of_batch_to_sort = 20,
-                  test_data = None, dev_data = None, gpu = None):
+                  test_data = None, dev_data = None, gpu = None, report_every = 200, randomized = False):
     
-    mb_provider = minibatch_provider(training_data, eos_idx, mb_size, nb_of_batch_to_sort, gpu = gpu)
+    mb_provider = minibatch_provider(training_data, eos_idx, mb_size, nb_of_batch_to_sort, gpu = gpu,
+                                     randomized = randomized)
     
     def save_model(suffix):
         if suffix == "final":
@@ -51,11 +52,18 @@ def train_on_data(encdec, optimizer, training_data, output_files_dict,
         serializers.save_npz(fn_save, encdec)
         
     def train_once(src_batch, tgt_batch, src_mask):
+        t0 = time.clock()
         encdec.zerograds()
+        t1 = time.clock()
         loss, attn = encdec(src_batch, tgt_batch, src_mask)
-        print loss.data
+        t2 = time.clock()
+        print "loss:", loss.data,
         loss.backward()
+        t3 = time.clock()
         optimizer.update()
+        t4 = time.clock()
+        print " time %f zgrad:%f fwd:%f bwd:%f upd:%f"%(t4-t0, t1-t0, t2-t1, t3-t2, t4-t3)
+        
         
     if test_data is not None:
         test_src_data = [x for x,y in test_data]
@@ -99,6 +107,8 @@ def train_on_data(encdec, optimizer, training_data, output_files_dict,
     
     try:
         best_dev_bleu = 0
+        prev_time = time.clock()
+        prev_i = None
         for i in xrange(100000):
             print i,
             src_batch, tgt_batch, src_mask = mb_provider.next()
@@ -106,14 +116,26 @@ def train_on_data(encdec, optimizer, training_data, output_files_dict,
 #                 print "valid", 
 #                 compute_valid()
             if i%200 == 0:
-                sample_once(encdec, src_batch, tgt_batch, src_mask, src_voc, tgt_voc, eos_idx)
+                sample_once(encdec, src_batch, tgt_batch, src_mask, src_voc, tgt_voc, eos_idx,
+                            max_nb = 20)
                 
-            if i%200 == 0:
+            if i%report_every == 0:
+                current_time = time.clock()
+                if prev_i is not None:
+                    avg_time = (current_time - prev_time) /(i-prev_i)
+                else:
+                    avg_time = 0
+                prev_i = i
+                
+                
+                print "avg time:", avg_time
+                
                 bc_test = translate_test()
                 test_loss = compute_test_loss()
                 bc_dev = translate_dev()
                 dev_loss = compute_dev_loss()
                 if bc_test is not None:
+                    
                     assert test_loss is not None
                     import sqlite3, datetime
                     db_path = output_files_dict["sqlite_db"]
@@ -121,10 +143,10 @@ def train_on_data(encdec, optimizer, training_data, output_files_dict,
                     db_connection = sqlite3.connect(db_path)
                     db_cursor = db_connection.cursor()
                     db_cursor.execute('''CREATE TABLE IF NOT EXISTS exp_data 
-                             (date text, bleu_info text, iteration real, loss real, bleu real, dev_loss real, dev_bleu real)''')
+                        (date text, bleu_info text, iteration real, loss real, bleu real, dev_loss real, dev_bleu real, avg_time real)''')
                     infos = (datetime.datetime.now().strftime("%I:%M%p %B %d, %Y"), 
-                             repr(bc_test), i, float(test_loss), bc_test.bleu(), float(dev_loss), bc_dev.bleu())
-                    db_cursor.execute("INSERT INTO exp_data VALUES (?,?,?,?,?,?,?)", infos)
+                             repr(bc_test), i, float(test_loss), bc_test.bleu(), float(dev_loss), bc_dev.bleu(), avg_time)
+                    db_cursor.execute("INSERT INTO exp_data VALUES (?,?,?,?,?,?,?,?)", infos)
                     db_connection.commit()
                     db_connection.close()
                     
@@ -132,6 +154,7 @@ def train_on_data(encdec, optimizer, training_data, output_files_dict,
                         best_dev_bleu = bc_dev.bleu()
                         log.info("saving best model %f" % best_dev_bleu)
                         save_model("best")
+                prev_time = time.clock()
             if i%1000 == 0:       
                 save_model("ckpt")
                                         
@@ -164,6 +187,10 @@ def command_line():
                             "momentum", "nesterov", "adam", "adagrad", "adadelta"], 
                         default = "adadelta")
     parser.add_argument("--learning_rate", type = float, default= 0.01, help = "Learning Rate")
+    parser.add_argument("--momentum", type = float, default= 0.9, help = "Momentum term")
+    parser.add_argument("--report_every", type = int, default = 200, help = "report every x iterations")
+    parser.add_argument("--randomized_data", default = False, action = "store_true")
+    
     args = parser.parse_args()
     
     output_files_dict = {}
@@ -240,6 +267,12 @@ def command_line():
         optimizer = optimizers.AdaDelta()
     elif args.optimizer == "sgd":
         optimizer = optimizers.SGD(lr = args.learning_rate)
+    elif args.optimizer == "momentum":
+        optimizer = optimizers.MomentumSGD(lr = args.learning_rate,
+                                           momentum = args.momentum)
+    elif args.optimizer == "nesterov":
+        optimizer = optimizers.NesterovAG(lr = args.learning_rate,
+                                           momentum = args.momentum)
     else:
         raise NotImplemented
     optimizer.setup(encdec)
@@ -255,7 +288,8 @@ def command_line():
                       src_voc + ["#S_UNK#"], tgt_voc + ["#T_UNK#"], eos_idx = eos_idx, 
                       mb_size = args.mb_size,
                       nb_of_batch_to_sort = args.nb_batch_to_sort,
-                      test_data = test_data, dev_data = dev_data, gpu = args.gpu)
+                      test_data = test_data, dev_data = dev_data, gpu = args.gpu, report_every = args.report_every,
+                      randomized = args.randomized_data)
 
 if __name__ == '__main__':
     command_line()

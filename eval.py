@@ -119,7 +119,7 @@ def convert_idx_to_string(seq, voc, eos_idx = None):
                 trans.append(voc[idx_tgt])
     return " ".join(trans)
 
-def sample_once(encdec, src_batch, tgt_batch, src_mask, src_voc, tgt_voc, eos_idx):
+def sample_once(encdec, src_batch, tgt_batch, src_mask, src_voc, tgt_voc, eos_idx, max_nb = None):
     print "sample"
     sample_greedy, score, attn_list = encdec(src_batch, 50, src_mask, use_best_for_sample = True)
 #                 sample, score = encdec(src_batch, 50, src_mask, use_best_for_sample = False)
@@ -131,6 +131,8 @@ def sample_once(encdec, src_batch, tgt_batch, src_mask, src_voc, tgt_voc, eos_id
     debatched_sample = de_batch(sample_greedy, eos_idx = eos_idx)
     
     for sent_num in xrange(len(debatched_src)):
+        if max_nb is not None and sent_num > max_nb:
+            break
         src_idx_seq = debatched_src[sent_num]
         tgt_idx_seq = debatched_tgt[sent_num]
         sample_idx_seq = debatched_sample[sent_num]
