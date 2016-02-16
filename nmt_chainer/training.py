@@ -22,9 +22,8 @@ import os.path
 import gzip
 # import h5py
 
-from utils import ensure_path, make_batch_src_tgt, make_batch_src, minibatch_provider, compute_bleu_with_unk_as_wrong,de_batch
-from evaluation import (
-                  greedy_batch_translate, convert_idx_to_string, 
+from utils import minibatch_provider
+from evaluation import ( 
                   compute_loss_all, translate_to_file, sample_once)
 
 logging.basicConfig()

@@ -123,7 +123,9 @@ class AttentionModule(Chain):
             a_coeffs = F.reshape(self.al_lin_o(F.reshape(F.tanh(state_al_factor_bc + al_factor), 
                             (current_mb_size* nb_elems, self.Ha))), (current_mb_size, nb_elems))
             
-            a_coeffs = a_coeffs - 10000 * (1-used_concatenated_mask.data) 
+            
+            with cuda.get_device(used_concatenated_mask.data):
+                a_coeffs = a_coeffs - 10000 * (1-used_concatenated_mask.data) 
             
             attn = F.softmax(a_coeffs)
             

@@ -45,8 +45,13 @@ def make_batch_src(src_data, padding_idx = 0, gpu = None, volatile = "off"):
     else:
         return [Variable(x, volatile = volatile) for x in src_batch], [Variable(x, volatile = volatile) for x in src_mask]                
                 
-def make_batch_src_tgt(training_data, eos_idx = 1, padding_idx = 0, gpu = None, volatile = "off"):
-    training_data = sorted(training_data, key = lambda x:len(x[1]), reverse = True)
+def make_batch_src_tgt(training_data, eos_idx = 1, padding_idx = 0, gpu = None, volatile = "off", need_arg_sort = False):
+    if need_arg_sort:
+        training_data_with_argsort = zip(training_data, range(len(training_data)))
+        training_data_with_argsort.sort(key = lambda x:len(x[0][1]), reverse = True)
+        training_data, argsort = zip(*training_data_with_argsort)
+    else:
+        training_data = sorted(training_data, key = lambda x:len(x[1]), reverse = True)
 #     max_src_size = max(len(x) for x, y  in training_data)
     max_tgt_size = max(len(y) for x, y  in training_data)
     mb_size = len(training_data)
@@ -81,7 +86,10 @@ def make_batch_src_tgt(training_data, eos_idx = 1, padding_idx = 0, gpu = None, 
     else:
         tgt_batch_v = [Variable(x, volatile = volatile) for x in tgt_batch]
     
-    return src_batch, tgt_batch_v, src_mask
+    if need_arg_sort:
+        return src_batch, tgt_batch_v, src_mask, argsort
+    else:
+        return src_batch, tgt_batch_v, src_mask
 
 def minibatch_looper_random(data, mb_size):
     while 1:
@@ -166,7 +174,8 @@ def de_batch(batch, mask = None, eos_idx = None, is_variable = False, raw = Fals
     for sent_num in xrange(mb_size):
         res.append([])
         for src_pos in range(len(batch)):
-            if mask is None or mask[src_pos].data[sent_num]:
+            current_batch_size = batch[src_pos].data.shape[0] if is_variable else batch[src_pos].shape[0]
+            if (mask is None or mask[src_pos].data[sent_num]) and current_batch_size > sent_num:
 #                 print sent_num, src_pos, batch[src_pos].data
                 idx = batch[src_pos].data[sent_num] if is_variable else batch[src_pos][sent_num]
                 if not raw:
