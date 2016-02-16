@@ -108,7 +108,8 @@ def commandline():
     
     if args.mode == "translate":
         log.info("writing translation of to %s"% args.dest_fn)
-        translations = greedy_batch_translate(
+        with cuda.cupy.cuda.Device(args.gpu):
+             translations = greedy_batch_translate(
                                         encdec, eos_idx, src_data, batch_size = args.mb_size, gpu = args.gpu)
         out = codecs.open(args.dest_fn, "w", encoding = "utf8")
         for t in translations:
@@ -117,7 +118,8 @@ def commandline():
 
     elif args.mode == "translate_attn":
         log.info("writing translation + attention as html to %s"% args.dest_fn)
-        translations, attn_all = greedy_batch_translate(
+        with cuda.cupy.cuda.Device(args.gpu):
+             translations, attn_all = greedy_batch_translate(
                                         encdec, eos_idx, src_data, batch_size = args.mb_size, gpu = args.gpu,
                                         get_attention = True)
         tgt_voc_with_unk = tgt_voc + ["#T_UNK#"]
@@ -159,7 +161,8 @@ def commandline():
         assert tgt_data is not None
         assert len(tgt_data) == len(src_data)
         log.info("writing alignment as html to %s"% args.dest_fn)
-        loss, attn_all = batch_align(
+        with cuda.cupy.cuda.Device(args.gpu):
+            loss, attn_all = batch_align(
                                         encdec, eos_idx, zip(src_data, tgt_data), batch_size = args.mb_size, gpu = args.gpu)
         tgt_voc_with_unk = tgt_voc + ["#T_UNK#"]
         src_voc_with_unk = src_voc + ["#S_UNK#"]

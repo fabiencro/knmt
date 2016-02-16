@@ -77,7 +77,7 @@ def greedy_batch_translate(encdec, eos_idx, src_data, batch_size = 80, gpu = Non
     attn_all = []
     for i in range(nb_batch):
         current_batch_raw_data = src_data[i * batch_size : (i + 1) * batch_size]
-        src_batch, src_mask = make_batch_src(current_batch_raw_data, gpu = gpu, volatile = "auto")
+        src_batch, src_mask = make_batch_src(current_batch_raw_data, gpu = gpu, volatile = "on")
         sample_greedy, score, attn_list = encdec(src_batch, 50, src_mask, use_best_for_sample = True, 
                                                  keep_attn_values = get_attention)
         deb = de_batch(sample_greedy, mask = None, eos_idx = eos_idx, is_variable = False)
@@ -100,7 +100,7 @@ def batch_align(encdec, eos_idx, src_tgt_data, batch_size = 80, gpu = None):
         current_batch_raw_data = src_tgt_data[i * batch_size : (i + 1) * batch_size]
 #         print current_batch_raw_data
         src_batch, tgt_batch, src_mask, arg_sort = make_batch_src_tgt(
-                    current_batch_raw_data, eos_idx = eos_idx, gpu = gpu, volatile = "auto", need_arg_sort = True)
+                    current_batch_raw_data, eos_idx = eos_idx, gpu = gpu, volatile = "on", need_arg_sort = True)
         loss, attn_list = encdec(src_batch, tgt_batch, src_mask, keep_attn_values = True)
         deb_attn = de_batch(attn_list, mask = None, eos_idx = None, is_variable = True, raw = True)
         
@@ -128,7 +128,7 @@ def convert_idx_to_string(seq, voc, eos_idx = None):
 
 def sample_once(encdec, src_batch, tgt_batch, src_mask, src_voc, tgt_voc, eos_idx, max_nb = None):
     print "sample"
-    sample_greedy, score, attn_list = encdec(src_batch, 50, src_mask, use_best_for_sample = True)
+    sample_greedy, score, attn_list = encdec(src_batch, 50, src_mask, use_best_for_sample = True, need_score = True)
 #                 sample, score = encdec(src_batch, 50, src_mask, use_best_for_sample = False)
     assert len(src_batch[0].data) == len(tgt_batch[0].data)
     assert len(sample_greedy[0]) == len(src_batch[0].data)

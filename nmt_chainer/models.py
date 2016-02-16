@@ -183,7 +183,8 @@ class Decoder(Chain):
         
         return new_state, logits, attn
           
-    def sample(self, fb_concat, nb_steps, compute_ctxt, mb_size, best = False, keep_attn_values = False):
+    def sample(self, fb_concat, nb_steps, compute_ctxt, mb_size, best = False, keep_attn_values = False,
+               need_score = False):
         previous_state = F.broadcast_to(self.initial_state, (mb_size, self.Ho))
 #         previous_word = Variable(np.array([self.bos_idx] * mb_size, dtype = np.int32))
         xp = cuda.get_array_module(self.initial_state.data)
@@ -213,10 +214,11 @@ class Decoder(Chain):
                 for i in xrange(mb_size):
                     sampler = chainer.utils.WalkerAlias(probs_data[i])
                     curr_idx[i] =  sampler.sample(1)[0]
-#             score = score + np.log(cuda.to_cpu(probs.data)[range(mb_size),curr_idx])
+            if need_score:
+                score = score + np.log(cuda.to_cpu(probs.data)[np.arange(mb_size),cuda.to_cpu(curr_idx)])
             sequences.append(curr_idx)
             
-            previous_word = Variable(curr_idx)
+            previous_word = Variable(curr_idx, volatile = "auto")
             previous_state = new_state
             
         return sequences, score, attn_list
@@ -270,7 +272,7 @@ class Decoder(Chain):
             return loss, attn_list
     
     def __call__(self, fb_concat, targets, mask, use_best_for_sample = False, raw_loss_info = False,
-                    keep_attn_values = False):
+                    keep_attn_values = False, need_score = False):
         mb_size, nb_elems, Hi = fb_concat.data.shape
         assert Hi == self.Hi, "%i != %i"%(Hi, self.Hi)
     
@@ -278,7 +280,7 @@ class Decoder(Chain):
 
         if isinstance(targets, int):
             return self.sample(fb_concat, targets, compute_ctxt, mb_size, best = use_best_for_sample,
-                               keep_attn_values = keep_attn_values)
+                               keep_attn_values = keep_attn_values, need_score = need_score)
         else:
             return self.compute_loss(fb_concat, targets, compute_ctxt, raw_loss_info = raw_loss_info,
                                      keep_attn_values = keep_attn_values)     
@@ -302,14 +304,14 @@ class EncoderDecoder(Chain):
         
         
     def __call__(self, src_batch, tgt_batch, src_mask, use_best_for_sample = False, display_attn = False,
-                 raw_loss_info = False, keep_attn_values = False):
+                 raw_loss_info = False, keep_attn_values = False, need_score = False):
         fb_src = self.enc(src_batch, src_mask)
         loss = self.dec(fb_src, tgt_batch, src_mask, use_best_for_sample = use_best_for_sample, raw_loss_info = raw_loss_info,
-                        keep_attn_values = keep_attn_values)
+                        keep_attn_values = keep_attn_values, need_score = need_score)
         return loss
     
-    def sample(self, src_batch, src_mask, nb_steps, use_best_for_sample, keep_attn_values = False):
+    def sample(self, src_batch, src_mask, nb_steps, use_best_for_sample, keep_attn_values = False, need_score = False):
         fb_src = self.enc(src_batch, src_mask)
         samp = self.dec.sample(self, fb_src, nb_steps, src_mask, use_best_for_sample = use_best_for_sample,
-                        keep_attn_values = keep_attn_values)
+                        keep_attn_values = keep_attn_values, need_score = need_score)
         return samp
