@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""make_data.py: prepare data for training"""
+"""visualisation.py: visualize attention model"""
 __author__ = "Fabien Cromieres"
 __license__ = "undecided"
 __version__ = "1.0"
