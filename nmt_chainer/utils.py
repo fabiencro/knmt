@@ -23,7 +23,7 @@ def ensure_path(path):
         if not os.path.isdir(path):
             raise
         
-def make_batch_src(src_data, eos_idx, padding_idx = 0, gpu = None, volatile = "off"):
+def make_batch_src(src_data, padding_idx = 0, gpu = None, volatile = "off"):
     max_src_size = max(len(x) for x  in src_data)
     mb_size = len(src_data)
     src_batch = [np.empty((mb_size,), dtype = np.int32) for _ in xrange(max_src_size + 1)]
@@ -52,7 +52,7 @@ def make_batch_src_tgt(training_data, eos_idx = 1, padding_idx = 0, gpu = None, 
     mb_size = len(training_data)
     
     src_batch, src_mask = make_batch_src(
-                [x for x,y in training_data], eos_idx = eos_idx, padding_idx = padding_idx, gpu = gpu)
+                [x for x,y in training_data], padding_idx = padding_idx, gpu = gpu)
     
     lengths_list = []
     lowest_non_finished = mb_size -1
