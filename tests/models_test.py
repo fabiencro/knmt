@@ -304,7 +304,34 @@ class TestEncoderDecoder:
         
         assert np.allclose(loss.data, loss_naive.data)
         
-#     def test_multibatch(self):
-#         pass
+    def test_multibatch(self):
+        Vi, Ei, Hi, Vo, Eo, Ho, Ha, Hl = 29, 37, 13, 17, 7, 12, 19, 33
+        encdec = EncoderDecoderNaive(Vi, Ei, Hi, Vo, Eo, Ho, Ha, Hl)
+        eos_idx = Vo -1
         
+        raw_seq1 = [2, 5, 0, 3], [4,6]
+        raw_seq2 = [2, 5, 4, 3, 0, 0, 1, 11, 3], [4,8,9, 12, 0]
+        raw_seq3 = [2, 5, 4, 3, 0, 11, 3], [5,7,1,4,4,1, 0, 0, 5, 5,3, 4, 6, 7, 8]
+        raw_seq4 = [5, 3, 0, 0, 1, 11, 3], [0, 0, 1, 1]
+        
+        trg_data = [raw_seq1, raw_seq2, raw_seq3, raw_seq4]
+        src_batch, tgt_batch, src_mask = utils.make_batch_src_tgt(trg_data, eos_idx = eos_idx)
+        
+        loss,  attn = encdec(src_batch, tgt_batch, src_mask)
+        
+        total_loss_naive = 0
+        total_length = 0
+        for i in xrange(len(trg_data)): 
+            raw_s_raw = trg_data[i]
+            raw_s = [raw_s_raw[0], raw_s_raw[1] + [eos_idx]]
+            input_seq = [Variable(np.array([v], dtype = np.int32)) for v in raw_s[0]]
+            tgt_seq = [Variable(np.array([v], dtype = np.int32)) for v in raw_s[1]]
+            loss_naive, attn_naive = encdec.naive_call(input_seq, tgt_seq, None)
+            total_loss_naive += float(loss_naive.data) * len(raw_s[1])
+            total_length += len(raw_s[1])
+            
+        assert abs(total_loss_naive / total_length - float(loss.data)) < 1e-6
+        
+
+           
         
