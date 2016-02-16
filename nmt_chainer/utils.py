@@ -57,7 +57,7 @@ def make_batch_src_tgt(training_data, eos_idx = 1, padding_idx = 0, gpu = None, 
     mb_size = len(training_data)
     
     src_batch, src_mask = make_batch_src(
-                [x for x,y in training_data], padding_idx = padding_idx, gpu = gpu)
+                [x for x,y in training_data], padding_idx = padding_idx, gpu = gpu, volatile = volatile)
     
     lengths_list = []
     lowest_non_finished = mb_size -1
