@@ -13,7 +13,7 @@ from chainer import cuda, Function, gradient_check, Variable, optimizers, serial
 
 import models
 from make_data import Indexer, build_dataset_one_side
-from utils import make_batch_src, make_batch_src_tgt, minibatch_provider, compute_bleu_with_unk_as_wrong, de_batch
+# from utils import make_batch_src, make_batch_src_tgt, minibatch_provider, compute_bleu_with_unk_as_wrong, de_batch
 from evaluation import greedy_batch_translate, convert_idx_to_string, batch_align
 
 import collections

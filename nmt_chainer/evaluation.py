@@ -99,12 +99,19 @@ def batch_align(encdec, eos_idx, src_tgt_data, batch_size = 80, gpu = None):
     for i in range(nb_batch):
         current_batch_raw_data = src_tgt_data[i * batch_size : (i + 1) * batch_size]
 #         print current_batch_raw_data
-        src_batch, tgt_batch, src_mask = make_batch_src_tgt(current_batch_raw_data, eos_idx = eos_idx, gpu = gpu, volatile = "auto")
-        
+        src_batch, tgt_batch, src_mask, arg_sort = make_batch_src_tgt(
+                    current_batch_raw_data, eos_idx = eos_idx, gpu = gpu, volatile = "auto", need_arg_sort = True)
         loss, attn_list = encdec(src_batch, tgt_batch, src_mask, keep_attn_values = True)
         deb_attn = de_batch(attn_list, mask = None, eos_idx = None, is_variable = True, raw = True)
-        attn_all += deb_attn 
-        sum_loss += loss.data
+        
+        assert len(arg_sort) == len(deb_attn)
+        de_sorted_attn = [None] * len(deb_attn)
+        for xpos in xrange(len(arg_sort)):
+            original_pos = arg_sort[xpos]
+            de_sorted_attn[original_pos] = deb_attn[xpos]
+        
+        attn_all += de_sorted_attn 
+        sum_loss += float(loss.data)
     return sum_loss, attn_all
             
 def convert_idx_to_string(seq, voc, eos_idx = None):
