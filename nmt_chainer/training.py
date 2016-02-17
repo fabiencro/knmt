@@ -74,7 +74,7 @@ def train_on_data(encdec, optimizer, training_data, output_files_dict,
             control_src_fn = output_files_dict["test_src_output"] #save_prefix + ".test.src.out"
             return translate_to_file(encdec, eos_idx, test_src_data, mb_size, tgt_voc, 
                    translations_fn, test_references = test_references, control_src_fn = control_src_fn,
-                   src_voc = src_voc, gpu = gpu)
+                   src_voc = src_voc, gpu = gpu, nb_steps = 50)
         def compute_test_loss():
             log.info("computing test loss")
             test_loss = compute_loss_all(encdec, test_data, eos_idx, mb_size, gpu = gpu)
@@ -94,7 +94,7 @@ def train_on_data(encdec, optimizer, training_data, output_files_dict,
             control_src_fn = output_files_dict["dev_src_output"] #save_prefix + ".test.src.out"
             return translate_to_file(encdec, eos_idx, dev_src_data, mb_size, tgt_voc, 
                    translations_fn, test_references = dev_references, control_src_fn = control_src_fn,
-                   src_voc = src_voc, gpu = gpu)
+                   src_voc = src_voc, gpu = gpu, nb_steps = 50)
         def compute_dev_loss():
             log.info("computing dev loss")
             dev_loss = compute_loss_all(encdec, dev_data, eos_idx, mb_size, gpu = gpu)
@@ -119,9 +119,12 @@ def train_on_data(encdec, optimizer, training_data, output_files_dict,
 #                 print "valid", 
 #                 compute_valid()
             if i%200 == 0:
+                for v in src_batch + tgt_batch + src_mask:
+                    v.volatile = "on"
                 sample_once(encdec, src_batch, tgt_batch, src_mask, src_voc, tgt_voc, eos_idx,
                             max_nb = 20)
-                
+                for v in src_batch + tgt_batch + src_mask:
+                    v.volatile = "off"
             if i%report_every == 0:
                 current_time = time.clock()
                 if prev_i is not None:
