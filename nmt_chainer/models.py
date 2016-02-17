@@ -6,6 +6,8 @@ __version__ = "1.0"
 __email__ = "fabien.cromieres@gmail.com"
 __status__ = "Development"
 
+from _collections import defaultdict
+from operator import itemgetter
 import numpy as np
 import chainer
 from chainer import cuda, Function, gradient_check, Variable, optimizers, serializers, utils
@@ -171,7 +173,7 @@ class Decoder(Chain):
         self.initial_state.data[...] = np.random.randn(Ho)
         self.bos_embeding.data[...] = np.random.randn(Eo)
         
-    def advance_one_step(self, fb_concat, previous_state, prev_y, compute_ctxt):
+    def advance_one_step(self, previous_state, prev_y, compute_ctxt):
 
         ci, attn = compute_ctxt(previous_state)
         concatenated = F.concat( (prev_y, ci) )
@@ -183,7 +185,7 @@ class Decoder(Chain):
         
         return new_state, logits, attn
           
-    def sample(self, fb_concat, nb_steps, compute_ctxt, mb_size, best = False, keep_attn_values = False,
+    def sample(self, nb_steps, compute_ctxt, mb_size, best = False, keep_attn_values = False,
                need_score = False):
         previous_state = F.broadcast_to(self.initial_state, (mb_size, self.Ho))
 #         previous_word = Variable(np.array([self.bos_idx] * mb_size, dtype = np.int32))
@@ -200,7 +202,7 @@ class Decoder(Chain):
 #             print "i", i
             if previous_word is not None: #else we are using the initial prev_y
                 prev_y = self.emb(previous_word)
-            new_state, logits, attn = self.advance_one_step(fb_concat, previous_state, prev_y, 
+            new_state, logits, attn = self.advance_one_step(previous_state, prev_y, 
                                                       compute_ctxt)
             if keep_attn_values:
                 attn_list.append(attn)
@@ -223,7 +225,74 @@ class Decoder(Chain):
             
         return sequences, score, attn_list
     
-    def compute_loss(self, fb_concat, targets, compute_ctxt, raw_loss_info = False, keep_attn_values = False):
+    def beam_search(self, fb_concat, mask, nb_steps, eos_idx, beam_width = 20):
+        mb_size, nb_elems, Hi = fb_concat.data.shape
+        assert Hi == self.Hi, "%i != %i"%(Hi, self.Hi)
+        compute_ctxt = self.attn_module(fb_concat, mask)
+        
+        assert mb_size == 1
+        finished_translations = []
+        current_translations = [(F.reshape(self.initial_state, (1, -1)), [([], 0.0)])]
+        xp = cuda.get_array_module(self.initial_state.data)
+        for i in xrange(nb_steps):
+            next_translations = []
+            for current_state, candidates in current_translations:
+                ci, attn = compute_ctxt(current_state)
+                for t, score in candidates:
+                    if len(t) > 0:
+                        with cuda.get_device(self.initial_state.data):
+                            prev_w = xp.array([t[-1]], dtype = xp.int32)
+                        prev_w_v = Variable(prev_w, volatile = "auto")
+                        prev_y = self.emb(prev_w_v)
+                    else:
+                        prev_y = F.reshape(self.bos_embeding, (1, -1))
+                
+                    concatenated = F.concat( (prev_y, ci) )
+                    new_state = self.gru(current_state, concatenated)
+                
+                    all_concatenated = F.concat((concatenated, new_state))
+                    logits = self.lin_o(self.maxo(all_concatenated))
+                
+                    probs = cuda.to_cpu(F.softmax(logits).data).reshape((-1,))
+                    best_idx = np.argpartition(- probs, beam_width)[:beam_width].astype(np.int32)
+                    
+                    cand_list = []
+                    for num in xrange(len(best_idx)):
+                        idx = best_idx[num]
+                        sc = np.log(probs[idx])
+                        if idx == eos_idx:
+                            finished_translations.append((t, score + sc))
+                        else:
+                            cand_list.append((t + [idx], score + sc))
+                
+                    next_translations.append((new_state, cand_list))
+                
+            # pruning
+            coord_next_t = []
+            for num_st in xrange(len(next_translations)):
+                for num_cand in xrange(len(next_translations[num_st][1])):
+                    score = next_translations[num_st][1][num_cand][1]
+                    coord_next_t.append((score, num_st, num_cand))
+            coord_next_t.sort(reverse = True)
+            next_translations_pruned = []
+            
+            next_translations_pruned_dict = defaultdict(list)
+            for score, num_st, num_cand in coord_next_t[:beam_width]:
+                next_translations_pruned_dict[num_st].append(num_cand)
+                
+            next_translations_pruned = []
+            for num_st, num_cand_list in  next_translations_pruned_dict.iteritems():
+                state = next_translations[num_st][0]
+                cand_list = []
+                for num_cand in num_cand_list:
+                    cand_list.append(next_translations[num_st][1][num_cand])
+                next_translations_pruned.append((state, cand_list))
+            current_translations = next_translations_pruned
+        if len (finished_translations) == 0:
+            finished_translations.append(([], 0))
+        return finished_translations
+    
+    def compute_loss(self, targets, compute_ctxt, raw_loss_info = False, keep_attn_values = False):
         loss = None
         current_mb_size = targets[0].data.shape[0]
 #         previous_state = F.concat( [self.initial_state] * current_mb_size, 0)
@@ -247,7 +316,7 @@ class Decoder(Chain):
                 prev_y = self.emb(previous_word)
             assert previous_state.data.shape[0] == current_mb_size
             
-            new_state, logits, attn = self.advance_one_step(fb_concat, previous_state, prev_y, 
+            new_state, logits, attn = self.advance_one_step(previous_state, prev_y, 
                                                       compute_ctxt)
 
             if keep_attn_values:
@@ -279,10 +348,10 @@ class Decoder(Chain):
         compute_ctxt = self.attn_module(fb_concat, mask)
 
         if isinstance(targets, int):
-            return self.sample(fb_concat, targets, compute_ctxt, mb_size, best = use_best_for_sample,
+            return self.sample(targets, compute_ctxt, mb_size, best = use_best_for_sample,
                                keep_attn_values = keep_attn_values, need_score = need_score)
         else:
-            return self.compute_loss(fb_concat, targets, compute_ctxt, raw_loss_info = raw_loss_info,
+            return self.compute_loss(targets, compute_ctxt, raw_loss_info = raw_loss_info,
                                      keep_attn_values = keep_attn_values)     
         
 class EncoderDecoder(Chain):
@@ -315,3 +384,10 @@ class EncoderDecoder(Chain):
         samp = self.dec.sample(self, fb_src, nb_steps, src_mask, use_best_for_sample = use_best_for_sample,
                         keep_attn_values = keep_attn_values, need_score = need_score)
         return samp
+    
+    def beam_search(self, src_batch, src_mask, nb_steps, eos_idx, beam_width = 20):
+        fb_src = self.enc(src_batch, src_mask)
+        return self.dec.beam_search(fb_src, src_mask, nb_steps, eos_idx = eos_idx, beam_width = beam_width)
+        
+        
+        

@@ -14,7 +14,7 @@ from chainer import cuda, Function, gradient_check, Variable, optimizers, serial
 import models
 from make_data import Indexer, build_dataset_one_side
 # from utils import make_batch_src, make_batch_src_tgt, minibatch_provider, compute_bleu_with_unk_as_wrong, de_batch
-from evaluation import greedy_batch_translate, convert_idx_to_string, batch_align
+from evaluation import greedy_batch_translate, convert_idx_to_string, batch_align, beam_search_translate
 
 import collections
 import logging
@@ -41,11 +41,13 @@ def commandline():
     
     parser.add_argument("--tgt_fn", help = "target text")
     parser.add_argument("--mode", default = "translate", 
-                        choices = ["translate", "align", "translate_attn"], help = "target text")
+                        choices = ["translate", "align", "translate_attn", "beam_search"], help = "target text")
     parser.add_argument("--gpu", type = int, help = "specify gpu number to use, if any")
     
     parser.add_argument("--max_nb_ex", type = int, help = "only use the first MAX_NB_EX examples")
     parser.add_argument("--mb_size", type = int, default= 80, help = "Minibatch size")
+    parser.add_argument("--beam_width", type = int, default= 20, help = "beam width")
+    parser.add_argument("--nb_steps", type = int, default= 50, help = "nb_steps used in generation")
     parser.add_argument("--nb_batch_to_sort", type = int, default= 20, help = "Sort this many batches by size.")
     args = parser.parse_args()
     
@@ -110,18 +112,36 @@ def commandline():
         log.info("writing translation of to %s"% args.dest_fn)
         with cuda.cupy.cuda.Device(args.gpu):
              translations = greedy_batch_translate(
-                                        encdec, eos_idx, src_data, batch_size = args.mb_size, gpu = args.gpu)
+                                        encdec, eos_idx, src_data, batch_size = args.mb_size, gpu = args.gpu, nb_steps = args.nb_steps)
         out = codecs.open(args.dest_fn, "w", encoding = "utf8")
         for t in translations:
             ct = convert_idx_to_string(t[:-1], tgt_voc + ["#T_UNK#"])
             out.write(ct + "\n")
 
+    elif args.mode == "beam_search":
+        log.info("writing translation of to %s"% args.dest_fn)
+        out = codecs.open(args.dest_fn, "w", encoding = "utf8")
+        with cuda.cupy.cuda.Device(args.gpu):
+            translations_gen = beam_search_translate(encdec, eos_idx, src_data, beam_width = args.beam_width, nb_steps = args.nb_steps, 
+                                                 gpu = args.gpu)
+            
+    #         for num_t in range(len(translations)):
+    #             print num_t
+    #             for t, score in translations[num_t]:
+    #                 ct = convert_idx_to_string(t[:-1], tgt_voc + ["#T_UNK#"])
+    #                 print ct, score
+    #                 out.write(ct + "\n")
+            for bests in translations_gen:
+                t, score = bests[1]
+                ct = convert_idx_to_string(t, tgt_voc + ["#T_UNK#"])
+                out.write(ct + "\n")
+            
     elif args.mode == "translate_attn":
         log.info("writing translation + attention as html to %s"% args.dest_fn)
         with cuda.cupy.cuda.Device(args.gpu):
-             translations, attn_all = greedy_batch_translate(
+            translations, attn_all = greedy_batch_translate(
                                         encdec, eos_idx, src_data, batch_size = args.mb_size, gpu = args.gpu,
-                                        get_attention = True)
+                                        get_attention = True, nb_steps = args.nb_steps)
         tgt_voc_with_unk = tgt_voc + ["#T_UNK#"]
         src_voc_with_unk = src_voc + ["#S_UNK#"]
         assert len(translations) == len(src_data)

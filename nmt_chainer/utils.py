@@ -137,12 +137,12 @@ def batch_sort_and_split(batch, size_parts, sort_key = lambda x:len(x[1]), inpla
         yield mb_raw
         
 def minibatch_provider(data, eos_idx, mb_size, nb_mb_for_sorting = 1, loop = True, inplace_sorting = False, gpu = None,
-                       randomized = False):
+                       randomized = False, volatile = "off"):
     if nb_mb_for_sorting == -1:
         assert not randomized
         assert loop == False
         for mb_raw in batch_sort_and_split(data, mb_size, inplace = inplace_sorting):
-            src_batch, tgt_batch, src_mask = make_batch_src_tgt(mb_raw, eos_idx = eos_idx, gpu = gpu)
+            src_batch, tgt_batch, src_mask = make_batch_src_tgt(mb_raw, eos_idx = eos_idx, gpu = gpu, volatile = volatile)
             yield src_batch, tgt_batch, src_mask
     else:
         assert nb_mb_for_sorting > 0
@@ -155,7 +155,7 @@ def minibatch_provider(data, eos_idx, mb_size, nb_mb_for_sorting = 1, loop = Tru
         for large_batch in looper:
             # ok to sort in place since minibatch_looper will return copies
             for mb_raw in batch_sort_and_split(large_batch, mb_size, inplace = True):
-                src_batch, tgt_batch, src_mask = make_batch_src_tgt(mb_raw, eos_idx = eos_idx, gpu = gpu)
+                src_batch, tgt_batch, src_mask = make_batch_src_tgt(mb_raw, eos_idx = eos_idx, gpu = gpu, volatile = volatile)
                 yield src_batch, tgt_batch, src_mask
              
 def compute_bleu_with_unk_as_wrong(references, candidates, unk_id, new_unk_id_ref, new_unk_id_cand):
@@ -179,7 +179,7 @@ def de_batch(batch, mask = None, eos_idx = None, is_variable = False, raw = Fals
 #                 print sent_num, src_pos, batch[src_pos].data
                 idx = batch[src_pos].data[sent_num] if is_variable else batch[src_pos][sent_num]
                 if not raw:
-                    idx = int(cuda.to_cpu(idx))
+                    idx = int(idx)
                 res[sent_num].append(None)
                 res[sent_num][src_pos]  = idx
                 if eos_idx is not None and idx == eos_idx:

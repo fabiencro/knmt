@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 """eval.py: Use a RNNSearch Model"""
+from operator import itemgetter
 __author__ = "Fabien Cromieres"
 __license__ = "undecided"
 __version__ = "1.0"
@@ -30,10 +31,10 @@ log = logging.getLogger("rnns:evaluation")
 log.setLevel(logging.INFO)
 
 def translate_to_file(encdec, eos_idx, test_src_data, mb_size, tgt_voc, 
-                   translations_fn, test_references = None, control_src_fn = None, src_voc = None, gpu = None):
+                   translations_fn, test_references = None, control_src_fn = None, src_voc = None, gpu = None, nb_steps = 50):
     
     log.info("computing translations")
-    translations = greedy_batch_translate(encdec, eos_idx, test_src_data, batch_size = mb_size, gpu = gpu)
+    translations = greedy_batch_translate(encdec, eos_idx, test_src_data, batch_size = mb_size, gpu = gpu, nb_steps = nb_steps)
     
     log.info("writing translation of set to %s"% translations_fn)
     out = codecs.open(translations_fn, "w", encoding = "utf8")
@@ -60,7 +61,7 @@ def translate_to_file(encdec, eos_idx, test_src_data, mb_size, tgt_voc,
 
 def compute_loss_all(encdec, test_data, eos_idx, mb_size, gpu = None):
     mb_provider_test = minibatch_provider(test_data, eos_idx, mb_size, nb_mb_for_sorting = -1, loop = False,
-                                          gpu = gpu)
+                                          gpu = gpu, volatile = "on")
     test_loss = 0
     test_nb_predictions = 0
     for src_batch, tgt_batch, src_mask in mb_provider_test:
@@ -70,7 +71,7 @@ def compute_loss_all(encdec, test_data, eos_idx, mb_size, gpu = None):
     test_loss /= test_nb_predictions
     return test_loss
 
-def greedy_batch_translate(encdec, eos_idx, src_data, batch_size = 80, gpu = None, get_attention = False):
+def greedy_batch_translate(encdec, eos_idx, src_data, batch_size = 80, gpu = None, get_attention = False, nb_steps = 50):
     nb_ex = len(src_data)
     nb_batch = nb_ex / batch_size + (1 if nb_ex % batch_size != 0 else 0)
     res = []
@@ -78,7 +79,7 @@ def greedy_batch_translate(encdec, eos_idx, src_data, batch_size = 80, gpu = Non
     for i in range(nb_batch):
         current_batch_raw_data = src_data[i * batch_size : (i + 1) * batch_size]
         src_batch, src_mask = make_batch_src(current_batch_raw_data, gpu = gpu, volatile = "on")
-        sample_greedy, score, attn_list = encdec(src_batch, 50, src_mask, use_best_for_sample = True, 
+        sample_greedy, score, attn_list = encdec(src_batch, nb_steps, src_mask, use_best_for_sample = True, 
                                                  keep_attn_values = get_attention)
         deb = de_batch(sample_greedy, mask = None, eos_idx = eos_idx, is_variable = False)
         res += deb
@@ -90,6 +91,21 @@ def greedy_batch_translate(encdec, eos_idx, src_data, batch_size = 80, gpu = Non
     else:
         return res
      
+def beam_search_translate(encdec, eos_idx, src_data, beam_width = 20, nb_steps = 50, gpu = None):
+    nb_ex = len(src_data)
+#     res = []
+    for i in range(nb_ex):
+        src_batch, src_mask = make_batch_src([src_data[i]], gpu = gpu, volatile = "on")
+        translations = encdec.beam_search(src_batch, src_mask, nb_steps = nb_steps, eos_idx = eos_idx, beam_width = beam_width)
+        
+        bests = []
+        translations.sort(key = itemgetter(1), reverse = True)
+        bests.append(translations[0])
+        translations.sort(key = lambda x:x[1]/(len(x[0])+1), reverse = True)
+        bests.append(translations[0])
+        yield bests
+#         res.append(bests)
+#     return res
    
 def batch_align(encdec, eos_idx, src_tgt_data, batch_size = 80, gpu = None):
     nb_ex = len(src_tgt_data)
