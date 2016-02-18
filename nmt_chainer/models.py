@@ -333,17 +333,18 @@ class Decoder(Chain):
     def beam_search_opt(self, fb_concat, mask, nb_steps, eos_idx, beam_width = 20):
         mb_size, nb_elems, Hi = fb_concat.data.shape
         assert Hi == self.Hi, "%i != %i"%(Hi, self.Hi)
+        xp = cuda.get_array_module(self.initial_state.data)
+        
         compute_ctxt = self.attn_module.compute_ctxt_demux(fb_concat, mask)
         
         assert mb_size == 1
         finished_translations = []
         current_translations_states = (
                                 [[]], 
-                                np.array([0]),
+                                xp.array([0]),
                                 F.reshape(self.initial_state, (1, -1)), 
                                 None
                                 )
-        xp = cuda.get_array_module(self.initial_state.data)
         for i in xrange(nb_steps):
             current_translations, current_scores, current_states, current_words = current_translations_states
             
@@ -376,11 +377,13 @@ class Decoder(Chain):
             
 #             new_scores = current_scores[:, np.newaxis] + cuda.to_cpu(log_probs_v.data)
 #             new_scores_flattened =  new_scores.flatten()
-            new_scores = F.broadcast_to(F.reshape(current_scores, (-1, 1)), (nb_cases, v_size)) + log_probs_v.data
-            new_scores_flattened =  cuda.to_cpu(new_scores).flatten()
+#             new_scores = F.broadcast_to(F.reshape(current_scores, (-1, 1)), (nb_cases, v_size)) + log_probs_v.data
+#             new_scores = F.broadcast_to(F.reshape(current_scores, (-1, 1)), (nb_cases, v_size)) + log_probs_v.data
+            new_scores = current_scores[:, xp.newaxis] + log_probs_v.data
+            new_costs_flattened =  cuda.to_cpu( - new_scores).flatten()
 #             best_idx = np.argpartition( - probs_flattened, beam_width)[:beam_width]
 #             best_idx = np.argsort( - new_scores_flattened)
-            best_idx = np.argpartition( - new_scores_flattened, beam_width)[:beam_width]
+            best_idx = np.argpartition( new_costs_flattened, beam_width)[:beam_width]
             
             
             next_states_list = []
@@ -393,11 +396,11 @@ class Decoder(Chain):
                 idx_in_case = idx % v_size
                 if idx_in_case == eos_idx:
                     finished_translations.append((current_translations[num_case], 
-                                                  new_scores_flattened[idx]))
+                                                  -new_costs_flattened[idx]))
                 else:
                     next_states_list.append(Variable(new_state.data[num_case].reshape(1,-1), volatile = "auto"))
                     next_words_list.append(idx_in_case)
-                    next_score_list.append(new_scores_flattened[idx])
+                    next_score_list.append(-new_costs_flattened[idx])
                     next_translations_list.append(current_translations[num_case] + [idx_in_case])
                     if len(next_states_list) >= beam_width:
                         break
