@@ -374,8 +374,10 @@ class Decoder(Chain):
             nb_cases, v_size = probs_v.data.shape
             assert nb_cases <= beam_width
             
-            new_scores = current_scores[:, np.newaxis] + cuda.to_cpu(log_probs_v.data)
-            new_scores_flattened =  new_scores.flatten()
+#             new_scores = current_scores[:, np.newaxis] + cuda.to_cpu(log_probs_v.data)
+#             new_scores_flattened =  new_scores.flatten()
+            new_scores = F.broadcast_to(F.reshape(current_scores, (-1, 1)), (nb_cases, v_size)) + log_probs_v.data
+            new_scores_flattened =  cuda.to_cpu(new_scores).flatten()
 #             best_idx = np.argpartition( - probs_flattened, beam_width)[:beam_width]
 #             best_idx = np.argsort( - new_scores_flattened)
             best_idx = np.argpartition( - new_scores_flattened, beam_width)[:beam_width]
@@ -403,7 +405,7 @@ class Decoder(Chain):
             if len(next_states_list) == 0:
                 break
             current_translations_states = (next_translations_list,
-                                        np.array(next_score_list),
+                                        xp.array(next_score_list),
                                         F.concat(next_states_list, axis = 0),
                                         Variable(cuda.to_gpu(np.array(next_words_list, dtype = np.int32)), volatile = "auto")
                                         )
