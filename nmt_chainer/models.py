@@ -14,6 +14,7 @@ from chainer import cuda, Function, gradient_check, Variable, optimizers, serial
 from chainer import Link, Chain, ChainList
 import chainer.functions as F
 import chainer.links as L
+import math
 
 import logging
 logging.basicConfig()
@@ -137,6 +138,43 @@ class AttentionModule(Chain):
         
         return compute_ctxt
     
+    def compute_ctxt_demux(self, fb_concat, mask):
+        mb_size, nb_elems, Hi = fb_concat.data.shape
+        assert Hi == self.Hi
+        assert mb_size == 1
+        
+        precomputed_al_factor = F.reshape(self.al_lin_h(
+                        F.reshape(fb_concat, (mb_size * nb_elems, self.Hi)))
+                                          , (mb_size, nb_elems, self.Ha))
+        
+        concatenated_mask = F.concat([F.reshape(mask_elem, (mb_size, 1)) for mask_elem in mask], 1)  
+        
+        def compute_ctxt(previous_state):
+            current_mb_size = previous_state.data.shape[0]
+                
+            al_factor = F.broadcast_to(precomputed_al_factor, (current_mb_size, nb_elems, self.Ha))
+#             used_fb_concat = F.broadcast_to(fb_concat, (current_mb_size, nb_elems, Hi))
+            used_concatenated_mask = F.broadcast_to(concatenated_mask, (current_mb_size, nb_elems))
+                
+            state_al_factor = self.al_lin_s(previous_state)
+            state_al_factor_bc = F.broadcast_to(F.reshape(state_al_factor, (current_mb_size, 1, self.Ha)), (current_mb_size, nb_elems, self.Ha) )
+            a_coeffs = F.reshape(self.al_lin_o(F.reshape(F.tanh(state_al_factor_bc + al_factor), 
+                            (current_mb_size* nb_elems, self.Ha))), (current_mb_size, nb_elems))
+            
+            
+            with cuda.get_device(used_concatenated_mask.data):
+                a_coeffs = a_coeffs - 10000 * (1-used_concatenated_mask.data) 
+            
+            attn = F.softmax(a_coeffs)
+            
+#             ci = F.reshape(F.batch_matmul(attn, used_fb_concat, transa = True), (current_mb_size, self.Hi))
+            
+            ci = F.reshape(F.matmul(attn, F.reshape(fb_concat, (nb_elems, Hi))), (current_mb_size, self.Hi))
+            
+            return ci, attn
+        
+        return compute_ctxt
+          
 class Decoder(Chain):
     """ Decoder for RNNSearch. 
         The __call_ takes 3 required parameters: fb_concat, targets, mask.
@@ -292,6 +330,89 @@ class Decoder(Chain):
             finished_translations.append(([], 0))
         return finished_translations
     
+    def beam_search_opt(self, fb_concat, mask, nb_steps, eos_idx, beam_width = 20):
+        mb_size, nb_elems, Hi = fb_concat.data.shape
+        assert Hi == self.Hi, "%i != %i"%(Hi, self.Hi)
+        compute_ctxt = self.attn_module.compute_ctxt_demux(fb_concat, mask)
+        
+        assert mb_size == 1
+        finished_translations = []
+        current_translations_states = (
+                                [[]], 
+                                np.array([0]),
+                                F.reshape(self.initial_state, (1, -1)), 
+                                None
+                                )
+        xp = cuda.get_array_module(self.initial_state.data)
+        for i in xrange(nb_steps):
+            current_translations, current_scores, current_states, current_words = current_translations_states
+            
+#             if current_states.data.shape[0] > 1:
+#                 nb_st = current_states.data.shape[0]
+#                 ci_list = []
+#                 for st in F.split_axis(current_states, nb_st, axis = 0):
+#                     ci0, attn = compute_ctxt(st)
+#                     ci_list.append(ci0)
+#                 ci = F.concat(ci_list, 0)
+#             else:
+            ci, attn = compute_ctxt(current_states)
+            if current_words is not None:
+#                 with cuda.get_device(self.initial_state.data):
+#                     prev_w = xp.array([t[-1]], dtype = xp.int32)
+#                 prev_w_v = Variable(prev_w, volatile = "auto")
+                prev_y = self.emb(current_words)
+            else:
+                prev_y = F.reshape(self.bos_embeding, (1, -1))
+                    
+            concatenated = F.concat( (prev_y, ci) )
+            new_state = self.gru(current_states, concatenated)
+        
+            all_concatenated = F.concat((concatenated, new_state))
+            logits = self.lin_o(self.maxo(all_concatenated))
+            probs_v = F.softmax(logits)
+            log_probs_v = F.log(probs_v) # TODO replace wit a logsoftmax if implemented
+            nb_cases, v_size = probs_v.data.shape
+            assert nb_cases <= beam_width
+            
+            new_scores = current_scores[:, np.newaxis] + cuda.to_cpu(log_probs_v.data)
+            new_scores_flattened =  new_scores.flatten()
+#             best_idx = np.argpartition( - probs_flattened, beam_width)[:beam_width]
+#             best_idx = np.argsort( - new_scores_flattened)
+            best_idx = np.argpartition( - new_scores_flattened, beam_width)[:beam_width]
+            
+            
+            next_states_list = []
+            next_words_list = []
+            next_score_list = []
+            next_translations_list = []
+            for num in xrange(len(best_idx)):
+                idx = best_idx[num]
+                num_case = idx / v_size
+                idx_in_case = idx % v_size
+                if idx_in_case == eos_idx:
+                    finished_translations.append((current_translations[num_case], 
+                                                  new_scores_flattened[idx]))
+                else:
+                    next_states_list.append(Variable(new_state.data[num_case].reshape(1,-1), volatile = "auto"))
+                    next_words_list.append(idx_in_case)
+                    next_score_list.append(new_scores_flattened[idx])
+                    next_translations_list.append(current_translations[num_case] + [idx_in_case])
+                    if len(next_states_list) >= beam_width:
+                        break
+                
+            if len(next_states_list) == 0:
+                break
+            current_translations_states = (next_translations_list,
+                                        np.array(next_score_list),
+                                        F.concat(next_states_list, axis = 0),
+                                        Variable(cuda.to_gpu(np.array(next_words_list, dtype = np.int32)), volatile = "auto")
+                                        )
+            
+        if len (finished_translations) == 0:
+            finished_translations.append(([], 0))
+        return finished_translations
+    
+    
     def compute_loss(self, targets, compute_ctxt, raw_loss_info = False, keep_attn_values = False):
         loss = None
         current_mb_size = targets[0].data.shape[0]
@@ -371,7 +492,6 @@ class EncoderDecoder(Chain):
             dec = Decoder(Vo, Eo, Ho, Ha, 2 * Hi, Hl)
         )
         
-        
     def __call__(self, src_batch, tgt_batch, src_mask, use_best_for_sample = False, display_attn = False,
                  raw_loss_info = False, keep_attn_values = False, need_score = False):
         fb_src = self.enc(src_batch, src_mask)
@@ -385,9 +505,12 @@ class EncoderDecoder(Chain):
                         keep_attn_values = keep_attn_values, need_score = need_score)
         return samp
     
-    def beam_search(self, src_batch, src_mask, nb_steps, eos_idx, beam_width = 20):
+    def beam_search(self, src_batch, src_mask, nb_steps, eos_idx, beam_width = 20, beam_opt = False):
         fb_src = self.enc(src_batch, src_mask)
-        return self.dec.beam_search(fb_src, src_mask, nb_steps, eos_idx = eos_idx, beam_width = beam_width)
+        if beam_opt:
+            return self.dec.beam_search_opt(fb_src, src_mask, nb_steps, eos_idx = eos_idx, beam_width = beam_width)
+        else:
+            return self.dec.beam_search(fb_src, src_mask, nb_steps, eos_idx = eos_idx, beam_width = beam_width)
         
         
         

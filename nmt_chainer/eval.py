@@ -49,6 +49,7 @@ def commandline():
     parser.add_argument("--beam_width", type = int, default= 20, help = "beam width")
     parser.add_argument("--nb_steps", type = int, default= 50, help = "nb_steps used in generation")
     parser.add_argument("--nb_batch_to_sort", type = int, default= 20, help = "Sort this many batches by size.")
+    parser.add_argument("--beam_opt", default = False, action = "store_true")
     args = parser.parse_args()
     
     config_training_fn = args.training_config #args.model_prefix + ".train.config"
@@ -123,7 +124,7 @@ def commandline():
         out = codecs.open(args.dest_fn, "w", encoding = "utf8")
         with cuda.cupy.cuda.Device(args.gpu):
             translations_gen = beam_search_translate(encdec, eos_idx, src_data, beam_width = args.beam_width, nb_steps = args.nb_steps, 
-                                                 gpu = args.gpu)
+                                                 gpu = args.gpu, beam_opt = args.beam_opt)
             
     #         for num_t in range(len(translations)):
     #             print num_t
@@ -134,6 +135,8 @@ def commandline():
             for bests in translations_gen:
                 t, score = bests[1]
                 ct = convert_idx_to_string(t, tgt_voc + ["#T_UNK#"])
+                print convert_idx_to_string(bests[0][0], tgt_voc + ["#T_UNK#"]) , bests[0][1]
+                print convert_idx_to_string(bests[1][0], tgt_voc + ["#T_UNK#"]), bests[1][1], bests[1][1] / len(bests[1][0])
                 out.write(ct + "\n")
             
     elif args.mode == "translate_attn":
