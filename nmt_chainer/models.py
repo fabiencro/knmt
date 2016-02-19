@@ -380,11 +380,15 @@ class Decoder(Chain):
 #             new_scores = F.broadcast_to(F.reshape(current_scores, (-1, 1)), (nb_cases, v_size)) + log_probs_v.data
 #             new_scores = F.broadcast_to(F.reshape(current_scores, (-1, 1)), (nb_cases, v_size)) + log_probs_v.data
             new_scores = current_scores[:, xp.newaxis] + log_probs_v.data
-            new_costs_flattened =  cuda.to_cpu( - new_scores).flatten()
+            new_costs_flattened =  cuda.to_cpu( - new_scores).ravel()
 #             best_idx = np.argpartition( - probs_flattened, beam_width)[:beam_width]
 #             best_idx = np.argsort( - new_scores_flattened)
+
+            # TODO replace wit a cupy argpartition when/if implemented
             best_idx = np.argpartition( new_costs_flattened, beam_width)[:beam_width]
             
+            all_num_cases = best_idx / v_size
+            all_idx_in_cases = best_idx % v_size
             
             next_states_list = []
             next_words_list = []
@@ -392,8 +396,8 @@ class Decoder(Chain):
             next_translations_list = []
             for num in xrange(len(best_idx)):
                 idx = best_idx[num]
-                num_case = idx / v_size
-                idx_in_case = idx % v_size
+                num_case = all_num_cases[num]
+                idx_in_case = all_idx_in_cases[num]
                 if idx_in_case == eos_idx:
                     finished_translations.append((current_translations[num_case], 
                                                   -new_costs_flattened[idx]))
