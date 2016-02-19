@@ -99,12 +99,13 @@ def beam_search_translate(encdec, eos_idx, src_data, beam_width = 20, nb_steps =
         translations = encdec.beam_search(src_batch, src_mask, nb_steps = nb_steps, eos_idx = eos_idx, beam_width = beam_width,
                                           beam_opt = beam_opt)
 #         print "nb_trans", len(translations), [score for _, score in translations]
-        bests = []
-        translations.sort(key = itemgetter(1), reverse = True)
-        bests.append(translations[0])
+#         bests = []
+#         translations.sort(key = itemgetter(1), reverse = True)
+#         bests.append(translations[0])
         translations.sort(key = lambda x:x[1]/(len(x[0])+1), reverse = True)
-        bests.append(translations[0])
-        yield bests
+#         bests.append(translations[0])
+#         yield bests
+        yield translations[0]
 #         res.append(bests)
 #     return res
    

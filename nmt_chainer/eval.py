@@ -132,11 +132,11 @@ def commandline():
     #                 ct = convert_idx_to_string(t[:-1], tgt_voc + ["#T_UNK#"])
     #                 print ct, score
     #                 out.write(ct + "\n")
-            for bests in translations_gen:
-                t, score = bests[1]
+            for t, score in translations_gen:
+#                 t, score = bests[1]
                 ct = convert_idx_to_string(t, tgt_voc + ["#T_UNK#"])
-                print convert_idx_to_string(bests[0][0], tgt_voc + ["#T_UNK#"]) , bests[0][1]
-                print convert_idx_to_string(bests[1][0], tgt_voc + ["#T_UNK#"]), bests[1][1], bests[1][1] / len(bests[1][0])
+#                 print convert_idx_to_string(bests[0][0], tgt_voc + ["#T_UNK#"]) , bests[0][1]
+#                 print convert_idx_to_string(bests[1][0], tgt_voc + ["#T_UNK#"]), bests[1][1], bests[1][1] / len(bests[1][0])
                 out.write(ct + "\n")
             
     elif args.mode == "translate_attn":
