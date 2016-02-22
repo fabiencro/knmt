@@ -1,0 +1,5 @@
+*.pyc
+.project
+.pydevproject
+.cache
+nmt_chainer.egg-info
