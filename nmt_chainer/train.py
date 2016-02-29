@@ -51,7 +51,10 @@ def command_line():
     parser.add_argument("--Hl", type = int, default= 500, help = "Maxout output size.")
     parser.add_argument("--mb_size", type = int, default= 80, help = "Minibatch size")
     parser.add_argument("--nb_batch_to_sort", type = int, default= 20, help = "Sort this many batches by size.")
+    
     parser.add_argument("--l2_gradient_clipping", type = float, help = "L2 gradient clipping")
+    parser.add_argument("--weight_decay", type = float, help = "weight decay")
+    
     parser.add_argument("--optimizer", choices=["sgd", "rmsprop", "rmspropgraves", 
                             "momentum", "nesterov", "adam", "adagrad", "adadelta"], 
                         default = "adadelta")
@@ -59,6 +62,11 @@ def command_line():
     parser.add_argument("--momentum", type = float, default= 0.9, help = "Momentum term")
     parser.add_argument("--report_every", type = int, default = 200, help = "report every x iterations")
     parser.add_argument("--randomized_data", default = False, action = "store_true")
+    parser.add_argument("--use_accumulated_attn", default = False, action = "store_true")
+    
+    parser.add_argument("--shuffle_training_data", default = False, action = "store_true")
+    
+    parser.add_argument("--init_orth", default = False, action = "store_true")
     
     args = parser.parse_args()
     
@@ -115,6 +123,13 @@ def command_line():
     log.info("loading voc from %s"% voc_fn)
     src_voc, tgt_voc = json.load(open(voc_fn))
     
+    if args.shuffle_training_data:
+        log.info("shuffling")
+        import random
+        random.shuffle(training_data)
+        log.info("done")
+    
+    
     Vi = len(src_voc) + 1 # + UNK
     Vo = len(tgt_voc) + 1 # + UNK
     
@@ -124,7 +139,14 @@ def command_line():
     json.dump(config_training, open(save_train_config_fn, "w"), indent=2, separators=(',', ': '))
     
     eos_idx = Vo
-    encdec = models.EncoderDecoder(Vi, args.Ei, args.Hi, Vo + 1, args.Eo, args.Ho, args.Ha, args.Hl)
+    
+    if args.use_accumulated_attn:
+        encdec = models.EncoderDecoder(Vi, args.Ei, args.Hi, Vo + 1, args.Eo, args.Ho, args.Ha, args.Hl,
+                                       attn_cls= models.AttentionModuleAcumulated,
+                                       init_orth = args.init_orth)
+    else:
+        encdec = models.EncoderDecoder(Vi, args.Ei, args.Hi, Vo + 1, args.Eo, args.Ho, args.Ha, args.Hl,
+                                       init_orth = args.init_orth)
     
     if args.load_model is not None:
         serializers.load_npz(args.load_model, encdec)
@@ -148,8 +170,8 @@ def command_line():
                                            momentum = args.momentum)
     elif args.optimizer == "rmsprop":
         optimizer = optimizers.RMSprop(lr = args.learning_rate)
-    elif args.optimizer == "RMSpropGraves":
-        optimizer = optimizers.RMSprop(lr = args.learning_rate,
+    elif args.optimizer == "rmspropgraves":
+        optimizer = optimizers.RMSpropGraves(lr = args.learning_rate,
                                            momentum = args.momentum)    
     else:
         raise NotImplemented
@@ -157,6 +179,9 @@ def command_line():
     
     if args.l2_gradient_clipping is not None:
         optimizer.add_hook(chainer.optimizer.GradientClipping(args.l2_gradient_clipping))
+
+    if args.weight_decay is not None:
+        optimizer.add_hook(chainer.optimizer.WeightDecay(args.weight_decay))
 
     if args.load_optimizer_state is not None:
         serializers.load_npz(args.load_optimizer_state, optimizer)    

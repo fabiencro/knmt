@@ -14,7 +14,11 @@ from chainer import cuda, Function, gradient_check, Variable, optimizers, serial
 import models
 from make_data import Indexer, build_dataset_one_side
 # from utils import make_batch_src, make_batch_src_tgt, minibatch_provider, compute_bleu_with_unk_as_wrong, de_batch
-from evaluation import greedy_batch_translate, convert_idx_to_string, batch_align, beam_search_translate
+from evaluation import (greedy_batch_translate, 
+                        convert_idx_to_string, 
+                        batch_align, 
+                        beam_search_translate, 
+                        convert_idx_to_string_with_attn)
 
 import collections
 import logging
@@ -124,7 +128,8 @@ def commandline():
         out = codecs.open(args.dest_fn, "w", encoding = "utf8")
         with cuda.cupy.cuda.Device(args.gpu):
             translations_gen = beam_search_translate(encdec, eos_idx, src_data, beam_width = args.beam_width, nb_steps = args.nb_steps, 
-                                                 gpu = args.gpu, beam_opt = args.beam_opt)
+                                                 gpu = args.gpu, beam_opt = args.beam_opt,
+                                                 need_attention = True)
             
     #         for num_t in range(len(translations)):
     #             print num_t
@@ -132,9 +137,10 @@ def commandline():
     #                 ct = convert_idx_to_string(t[:-1], tgt_voc + ["#T_UNK#"])
     #                 print ct, score
     #                 out.write(ct + "\n")
-            for t, score in translations_gen:
+            for t, score, attn in translations_gen:
 #                 t, score = bests[1]
-                ct = convert_idx_to_string(t, tgt_voc + ["#T_UNK#"])
+#                 ct = convert_idx_to_string(t, tgt_voc + ["#T_UNK#"])
+                ct = convert_idx_to_string_with_attn(t, tgt_voc, attn, unk_idx = len(tgt_voc))
 #                 print convert_idx_to_string(bests[0][0], tgt_voc + ["#T_UNK#"]) , bests[0][1]
 #                 print convert_idx_to_string(bests[1][0], tgt_voc + ["#T_UNK#"]), bests[1][1], bests[1][1] / len(bests[1][0])
                 out.write(ct + "\n")

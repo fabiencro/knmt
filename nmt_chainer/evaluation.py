@@ -91,13 +91,14 @@ def greedy_batch_translate(encdec, eos_idx, src_data, batch_size = 80, gpu = Non
     else:
         return res
      
-def beam_search_translate(encdec, eos_idx, src_data, beam_width = 20, nb_steps = 50, gpu = None, beam_opt = False):
+def beam_search_translate(encdec, eos_idx, src_data, beam_width = 20, nb_steps = 50, gpu = None, beam_opt = False,
+                          need_attention = False):
     nb_ex = len(src_data)
 #     res = []
     for i in range(nb_ex):
         src_batch, src_mask = make_batch_src([src_data[i]], gpu = gpu, volatile = "on")
         translations = encdec.beam_search(src_batch, src_mask, nb_steps = nb_steps, eos_idx = eos_idx, beam_width = beam_width,
-                                          beam_opt = beam_opt)
+                                          beam_opt = beam_opt, need_attention = need_attention)
 #         print "nb_trans", len(translations), [score for _, score in translations]
 #         bests = []
 #         translations.sort(key = itemgetter(1), reverse = True)
@@ -137,6 +138,21 @@ def convert_idx_to_string(seq, voc, eos_idx = None):
     for idx_tgt in seq:
         if eos_idx is not None and idx_tgt == eos_idx:
             trans.append("#EOS#")
+        else:
+            if idx_tgt >= len(voc):
+                log.warn("found unknown idx in tgt : %i / %i"% (idx_tgt, len(voc)))
+            else:
+                trans.append(voc[idx_tgt])
+    return " ".join(trans)
+
+def convert_idx_to_string_with_attn(seq, voc, attn, unk_idx, unk_pattern = "#T_UNK_%i#"):
+    trans = []
+    for num, idx_tgt in enumerate(seq):
+        if idx_tgt == unk_idx:
+            a = attn[num]
+            xp = cuda.get_array_module(a)
+            src_pos = int(xp.argmax(a))
+            trans.append(unk_pattern%src_pos)
         else:
             if idx_tgt >= len(voc):
                 log.warn("found unknown idx in tgt : %i / %i"% (idx_tgt, len(voc)))

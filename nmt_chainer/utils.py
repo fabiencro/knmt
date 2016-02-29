@@ -185,3 +185,27 @@ def de_batch(batch, mask = None, eos_idx = None, is_variable = False, raw = Fals
                 if eos_idx is not None and idx == eos_idx:
                     break
     return res
+
+def gen_ortho(shape):
+    # adapted from code in the lasagne nn library
+    a = np.random.randn(*shape)
+    u, _, v = np.linalg.svd(a, full_matrices=False)
+    # pick the one with the correct shape
+    q = u if u.shape == a.shape else v
+    return q.astype(np.float32)
+
+def ortho_init(link):
+    import chainer
+    if isinstance(link, chainer.links.Linear):
+        print "init ortho", link
+        link.W.data[...] = gen_ortho(link.W.data.shape)
+    elif isinstance(link, chainer.links.GRU):
+        print "init ortho", link
+        for name_lin in "W_r U_r W_z U_z W U".split(" "):
+            print "case", name_lin, getattr(link, name_lin)
+            ortho_init(getattr(link, name_lin))
+    elif isinstance(link, chainer.links.Maxout):
+        print "init ortho", link
+        ortho_init(link.linear)
+    else:
+        raise NotImplemented

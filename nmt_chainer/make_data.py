@@ -196,6 +196,8 @@ def cmdline():
     
     parser.add_argument("--dev_src", help = "specify a source dev set")
     parser.add_argument("--dev_tgt", help = "specify a target dev set")
+    
+    parser.add_argument("--use_voc", help = "specify an exisiting vocabulary file")
     args = parser.parse_args()
     
     if not ((args.test_src is None) == (args.test_tgt is None)):
@@ -208,6 +210,7 @@ def cmdline():
     
     save_prefix_dir, save_prefix_fn = os.path.split(args.save_prefix)
     ensure_path(save_prefix_dir)
+    
     
     config_fn = args.save_prefix + ".data.config"
     voc_fn = args.save_prefix + ".voc"
@@ -243,8 +246,17 @@ def cmdline():
         
         return training_data, dic_src, dic_tgt
     
+    dic_src = None
+    dic_tgt = None
+    if args.use_voc is not None:  
+        log.info("loading voc from %s"% args.use_voc)
+        src_voc, tgt_voc = json.load(open(args.use_voc))
+        dic_src = Indexer.make_from_list(src_voc)
+        dic_tgt = Indexer.make_from_list(tgt_voc)
+    
     log.info("loading training data from %s and %s"%(args.src_fn, args.tgt_fn))
-    training_data, dic_src, dic_tgt = load_data(args.src_fn, args.tgt_fn, max_nb_ex = args.max_nb_ex)
+    training_data, dic_src, dic_tgt = load_data(args.src_fn, args.tgt_fn, max_nb_ex = args.max_nb_ex,
+                                                dic_src = dic_src, dic_tgt = dic_tgt)
     
     test_data = None
     if args.test_src is not None:
