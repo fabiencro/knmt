@@ -6,20 +6,11 @@ __version__ = "1.0"
 __email__ = "fabien.cromieres@gmail.com"
 __status__ = "Development"
 
-import numpy as np
-import chainer
-from chainer import cuda, Function, gradient_check, Variable, optimizers, serializers, utils
+from chainer import serializers
 import time
-import models
 
-import collections
 import logging
-import codecs
-import json
-import exceptions
-import itertools, operator
-import os.path
-import gzip
+import sys
 # import h5py
 
 from utils import minibatch_provider
@@ -45,6 +36,8 @@ def train_on_data(encdec, optimizer, training_data, output_files_dict,
             fn_save = output_files_dict["model_ckpt"]
         elif suffix =="best":
             fn_save = output_files_dict["model_best"]
+        elif suffix =="best_loss":
+            fn_save = output_files_dict["model_best_loss"]
         else:
             assert False
         log.info("saving model to %s" % fn_save)
@@ -108,11 +101,12 @@ def train_on_data(encdec, optimizer, training_data, output_files_dict,
     
     try:
         best_dev_bleu = 0
+        best_dev_loss = None
         prev_time = time.clock()
         prev_i = None
         total_loss_this_interval = 0 
         total_nb_predictions_this_interval = 0
-        for i in xrange(100000):
+        for i in xrange(sys.maxint):
             print i,
             src_batch, tgt_batch, src_mask = mb_provider.next()
 #             if i%100 == 0:
@@ -150,6 +144,12 @@ def train_on_data(encdec, optimizer, training_data, output_files_dict,
                 test_loss = compute_test_loss()
                 bc_dev = translate_dev()
                 dev_loss = compute_dev_loss()
+                
+                if best_dev_loss is None or dev_loss >= best_dev_loss:
+                    best_dev_loss = dev_loss
+                    log.info("saving best loss model %f" % best_dev_loss)
+                    save_model("best_loss")
+                    
                 if bc_test is not None:
                     
                     assert test_loss is not None
