@@ -7,12 +7,10 @@ __email__ = "fabien.cromieres@gmail.com"
 __status__ = "Development"
 
 import collections
-import numpy as np
 import logging
 import codecs
 import json
-import exceptions
-import itertools, operator
+import operator
 import os.path
 import gzip
 

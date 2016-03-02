@@ -9,6 +9,7 @@ __status__ = "Development"
 import os
 import logging
 import numpy as np
+import chainer
 from chainer import Variable, cuda
 
 logging.basicConfig()
@@ -53,7 +54,7 @@ def make_batch_src_tgt(training_data, eos_idx = 1, padding_idx = 0, gpu = None, 
     else:
         training_data = sorted(training_data, key = lambda x:len(x[1]), reverse = True)
 #     max_src_size = max(len(x) for x, y  in training_data)
-    max_tgt_size = max(len(y) for x, y  in training_data)
+    max_tgt_size = max(len(y) for _, y  in training_data)
     mb_size = len(training_data)
     
     src_batch, src_mask = make_batch_src(
@@ -195,7 +196,6 @@ def gen_ortho(shape):
     return q.astype(np.float32)
 
 def ortho_init(link):
-    import chainer
     if isinstance(link, chainer.links.Linear):
         print "init ortho", link
         link.W.data[...] = gen_ortho(link.W.data.shape)

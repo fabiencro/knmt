@@ -1,29 +1,17 @@
 #!/usr/bin/env python
 """eval.py: Use a RNNSearch Model"""
-from operator import itemgetter
+
 __author__ = "Fabien Cromieres"
 __license__ = "undecided"
 __version__ = "1.0"
 __email__ = "fabien.cromieres@gmail.com"
 __status__ = "Development"
 
-import json
-import numpy as np
-import chainer
-from chainer import cuda, Function, gradient_check, Variable, optimizers, serializers, utils
+from chainer import cuda
 
-import models
-from make_data import Indexer, build_dataset_one_side
 from utils import make_batch_src, make_batch_src_tgt, minibatch_provider, compute_bleu_with_unk_as_wrong, de_batch
-
-
-import collections
 import logging
 import codecs
-import exceptions
-import itertools, operator
-import os.path
-import gzip
 # import h5py
 
 logging.basicConfig()

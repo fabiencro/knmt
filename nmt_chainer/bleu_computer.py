@@ -10,7 +10,6 @@ import argparse, os
 
 from collections import defaultdict
 import math, codecs
-import sys, random
 from itertools import izip
        
 class BleuComputer(object):

@@ -8,8 +8,7 @@ __status__ = "Development"
 
 import json
 import numpy as np
-import chainer
-from chainer import cuda, Function, gradient_check, Variable, optimizers, serializers, utils
+from chainer import cuda, serializers
 
 import models
 from make_data import Indexer, build_dataset_one_side
@@ -20,13 +19,10 @@ from evaluation import (greedy_batch_translate,
                         beam_search_translate, 
                         convert_idx_to_string_with_attn)
 
-import collections
+import visualisation
+
 import logging
 import codecs
-import exceptions
-import itertools, operator
-import os.path
-import gzip
 # import h5py
 
 logging.basicConfig()
@@ -116,7 +112,7 @@ def commandline():
     if args.mode == "translate":
         log.info("writing translation of to %s"% args.dest_fn)
         with cuda.cupy.cuda.Device(args.gpu):
-             translations = greedy_batch_translate(
+            translations = greedy_batch_translate(
                                         encdec, eos_idx, src_data, batch_size = args.mb_size, gpu = args.gpu, nb_steps = args.nb_steps)
         out = codecs.open(args.dest_fn, "w", encoding = "utf8")
         for t in translations:
@@ -175,7 +171,6 @@ def commandline():
 #             for j in xrange(len(tgt_idx_list)):
 #                 tgt_idx_list.append(tgt_voc_with_unk[t_and_attn[j][0]])
 #             
-            import visualisation
     #         print [src_voc_with_unk[idx] for idx in src_idx_list], tgt_idx_list
             p1 = visualisation.make_alignment_figure(
                             src_w, tgt_w, alignment)
@@ -217,7 +212,6 @@ def commandline():
 #             for j in xrange(len(tgt_idx_list)):
 #                 tgt_idx_list.append(tgt_voc_with_unk[t_and_attn[j][0]])
 #             
-            import visualisation
     #         print [src_voc_with_unk[idx] for idx in src_idx_list], tgt_idx_list
             p1 = visualisation.make_alignment_figure(
                             src_w, tgt_w, alignment)

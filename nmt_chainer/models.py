@@ -7,10 +7,9 @@ __email__ = "fabien.cromieres@gmail.com"
 __status__ = "Development"
 
 from _collections import defaultdict
-from operator import itemgetter
 import numpy as np
 import chainer
-from chainer import cuda, Function, gradient_check, Variable, optimizers, serializers, utils
+from chainer import cuda, Variable
 from chainer import Link, Chain, ChainList
 import chainer.functions as F
 import chainer.links as L

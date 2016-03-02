@@ -6,20 +6,14 @@ __version__ = "1.0"
 __email__ = "fabien.cromieres@gmail.com"
 __status__ = "Development"
 
-import numpy as np
 import chainer
-from chainer import cuda, Function, gradient_check, Variable, optimizers, serializers, utils
-import time
+from chainer import cuda, optimizers, serializers
 
 import models
 from training import train_on_data
 
-import collections
 import logging
-import codecs
 import json
-import exceptions
-import itertools, operator
 import os.path
 import gzip
 # import h5py
@@ -75,6 +69,7 @@ def command_line():
     output_files_dict["model_ckpt"] = args.save_prefix + ".model." + "ckpt" + ".npz"
     output_files_dict["model_final"] = args.save_prefix + ".model." + "final" + ".npz"
     output_files_dict["model_best"] = args.save_prefix + ".model." + "best" + ".npz"
+    output_files_dict["model_best_loss"] = args.save_prefix + ".model." + "best_loss" + ".npz"
     
     output_files_dict["test_translation_output"] = args.save_prefix + ".test.out"
     output_files_dict["test_src_output"] = args.save_prefix + ".test.src.out"
