@@ -8,7 +8,7 @@ __status__ = "Development"
 
 import numpy as np
 import chainer
-from chainer import cuda, Function, gradient_check, Variable, optimizers, serializers, utils
+from chainer import cuda, Function, gradient_check, Variable, optimizers, serializers
 from chainer import Link, Chain, ChainList
 import chainer.functions as F
 import chainer.links as L
@@ -66,7 +66,7 @@ class TestEncoder:
         enc = EncoderNaive(Vi, Ei, Hi)
         raw_seq = [2, 5, 4, 3, 0, 0, 1, 11, 3]
         input_seq = [Variable(np.array([v], dtype = np.int32)) for v in raw_seq]
-        mask = [Variable(np.array([True], dtype = np.bool)) for v in raw_seq]
+        mask = [np.array([True], dtype = np.bool) for v in raw_seq]
         
         fb_naive = enc.naive_call(input_seq, None)
         
@@ -110,10 +110,16 @@ class TestEncoder:
         
         src_data = [raw_seq1, raw_seq2, raw_seq3, raw_seq4]
         src_batch, src_mask = utils.make_batch_src(src_data)
-        src_mask[7].data[2] = True
+        
+        assert len(src_mask) == 5
+        print [e.data for e in src_mask]
+        
+        src_mask[0][0] = True
+        print [e.data for e in src_mask]
+        
         fb = enc(src_batch, src_mask)
         
-        i = 2
+        i = 0
         raw_s = src_data[i]
         input_seq = [Variable(np.array([v], dtype = np.int32)) for v in raw_s]
         fb_naive = enc.naive_call(input_seq, None)
@@ -185,7 +191,7 @@ class TestAttention:
         
         raw_seq = [2, 5, 4, 3, 0, 0, 1, 11, 3]
         input_seq = [Variable(np.array([v], dtype = np.int32)) for v in raw_seq]
-        mask = [Variable(np.array([True], dtype = np.bool)) for v in raw_seq]
+        mask = [np.array([True], dtype = np.bool) for v in raw_seq]
         
         fb_naive = enc.naive_call(input_seq, None)
         compute_ctxt_naive = attn_model.naive_call(fb_naive, None)
@@ -294,7 +300,7 @@ class TestEncoderDecoder:
         encdec = EncoderDecoderNaive(Vi, Ei, Hi, Vo, Eo, Ho, Ha, Hl)
         raw_seq = [2, 5, 4, 3, 0, 0, 1, 11, 3]
         input_seq = [Variable(np.array([v], dtype = np.int32)) for v in raw_seq]
-        mask = [Variable(np.array([True], dtype = np.bool)) for v in raw_seq]
+        mask = [np.array([True], dtype = np.bool) for v in raw_seq]
         
         raw_seq_tgt = [2, 12, 4, 0, 1, 11, 3]
         tgt_batch = [Variable(np.array([v], dtype = np.int32)) for v in raw_seq_tgt]
@@ -332,6 +338,18 @@ class TestEncoderDecoder:
             
         assert abs(total_loss_naive / total_length - float(loss.data)) < 1e-6
         
-
+class TestBeamSearch:
+    def test_1(self):
+        import nmt_chainer.evaluation as evaluation
+        Vi, Ei, Hi, Vo, Eo, Ho, Ha, Hl = 29, 37, 13, 53, 7, 12, 19, 33
+        encdec = models.EncoderDecoder(Vi, Ei, Hi, Vo, Eo, Ho, Ha, Hl)
+        eos_idx = Vo - 1
+        src_data = [[2,3,3,4, 4, 5], [1,3, 8, 9,2]]
+        best1_gen = evaluation.beam_search_translate(encdec, eos_idx, src_data, beam_width = 10, nb_steps = 15, gpu = None, beam_opt = False,
+                          need_attention = False)
+        best2_gen = evaluation.beam_search_translate(encdec, eos_idx, src_data, beam_width = 10, nb_steps = 15, gpu = None, beam_opt = True,
+                          need_attention = False)
+        res1a, res1b = next(best1_gen), next(best2_gen)
+        res2a, res2b = next(best1_gen), next(best2_gen)
            
         

@@ -48,6 +48,7 @@ def commandline():
     parser.add_argument("--mb_size", type = int, default= 80, help = "Minibatch size")
     parser.add_argument("--beam_width", type = int, default= 20, help = "beam width")
     parser.add_argument("--nb_steps", type = int, default= 50, help = "nb_steps used in generation")
+    parser.add_argument("--nb_steps_ratio", type = float, help = "nb_steps used in generation as a ratio of input length")
     parser.add_argument("--nb_batch_to_sort", type = int, default= 20, help = "Sort this many batches by size.")
     parser.add_argument("--beam_opt", default = False, action = "store_true")
     args = parser.parse_args()
@@ -123,8 +124,9 @@ def commandline():
         log.info("writing translation of to %s"% args.dest_fn)
         out = codecs.open(args.dest_fn, "w", encoding = "utf8")
         with cuda.cupy.cuda.Device(args.gpu):
-            translations_gen = beam_search_translate(encdec, eos_idx, src_data, beam_width = args.beam_width, nb_steps = args.nb_steps, 
-                                                 gpu = args.gpu, beam_opt = args.beam_opt,
+            translations_gen = beam_search_translate(
+                        encdec, eos_idx, src_data, beam_width = args.beam_width, nb_steps = args.nb_steps, 
+                                                 gpu = args.gpu, beam_opt = args.beam_opt, nb_steps_ratio = args.nb_steps_ratio,
                                                  need_attention = True)
             
     #         for num_t in range(len(translations)):

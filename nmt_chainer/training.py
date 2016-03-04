@@ -27,7 +27,11 @@ def train_on_data(encdec, optimizer, training_data, output_files_dict,
                   test_data = None, dev_data = None, gpu = None, report_every = 200, randomized = False):
     
     mb_provider = minibatch_provider(training_data, eos_idx, mb_size, nb_of_batch_to_sort, gpu = gpu,
-                                     randomized = randomized)
+                                     randomized = randomized, sort_key = lambda x:len(x[0]))
+    
+#     mb_provider = minibatch_provider(training_data, eos_idx, mb_size, nb_of_batch_to_sort, gpu = gpu,
+#                                      randomized = randomized, sort_key = lambda x:len(x[1]))
+    
     
     def save_model(suffix):
         if suffix == "final":
@@ -58,6 +62,19 @@ def train_on_data(encdec, optimizer, training_data, output_files_dict,
         print " time %f zgrad:%f fwd:%f bwd:%f upd:%f"%(t4-t0, t1-t0, t2-t1, t3-t2, t4-t3)
         return float(total_loss.data), total_nb_predictions
         
+#     def train_once_optim(src_batch, tgt_batch, src_mask):
+#         t0 = time.clock()
+#         encdec.zerograds()
+#         t1 = time.clock()
+#         total_loss, total_nb_predictions = encdec.compute_loss_and_backward(src_batch, tgt_batch, src_mask, raw_loss_info = True)
+#         loss = total_loss / total_nb_predictions
+#         t2 = time.clock()
+#         print "loss:", loss,
+#         t3 = time.clock()
+#         optimizer.update()
+#         t4 = time.clock()
+#         print " time %f zgrad:%f fwd:%f bwd:%f upd:%f"%(t4-t0, t1-t0, t2-t1, t3-t2, t4-t3)
+#         return total_loss, total_nb_predictions    
         
     if test_data is not None:
         test_src_data = [x for x,y in test_data]
@@ -113,11 +130,11 @@ def train_on_data(encdec, optimizer, training_data, output_files_dict,
 #                 print "valid", 
 #                 compute_valid()
             if i%200 == 0:
-                for v in src_batch + tgt_batch + src_mask:
+                for v in src_batch + tgt_batch:
                     v.volatile = "on"
                 sample_once(encdec, src_batch, tgt_batch, src_mask, src_voc, tgt_voc, eos_idx,
                             max_nb = 20)
-                for v in src_batch + tgt_batch + src_mask:
+                for v in src_batch + tgt_batch:
                     v.volatile = "off"
             if i%report_every == 0:
                 current_time = time.clock()
@@ -175,6 +192,8 @@ def train_on_data(encdec, optimizer, training_data, output_files_dict,
                 save_model("ckpt")
                                         
             total_loss, total_nb_predictions = train_once(src_batch, tgt_batch, src_mask)
+#             total_loss, total_nb_predictions = train_once_optim(src_batch, tgt_batch, src_mask)
+            
             total_loss_this_interval += total_loss
             total_nb_predictions_this_interval += total_nb_predictions
     finally:
