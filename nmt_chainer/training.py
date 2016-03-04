@@ -162,7 +162,7 @@ def train_on_data(encdec, optimizer, training_data, output_files_dict,
                 bc_dev = translate_dev()
                 dev_loss = compute_dev_loss()
                 
-                if best_dev_loss is None or dev_loss >= best_dev_loss:
+                if best_dev_loss is None or dev_loss <= best_dev_loss:
                     best_dev_loss = dev_loss
                     log.info("saving best loss model %f" % best_dev_loss)
                     save_model("best_loss")
