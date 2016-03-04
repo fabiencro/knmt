@@ -73,12 +73,22 @@ class Encoder(Chain):
             forward_seq.append(prev_state)
             
 #         self.gru_b.reset_state()
+
+        mask_length = len(mask)
+        seq_length = len(sequence)
+        assert mask_length <= seq_length
+        mask_offset = seq_length - mask_length
+        
         prev_state = mb_initial_state_b
         backward_seq = []
         for pos, x in reversed(list(enumerate(embedded_seq))):
-            prev_state = F.where(F.broadcast_to(
-                                F.reshape(mask[pos], (mb_size, 1)), (mb_size, self.Hi)),
+            if pos < mask_offset:
+                prev_state = self.gru_b(prev_state, x)
+            else:
+                prev_state = F.where(F.broadcast_to(
+                                Variable(self.xp.reshape(mask[pos - mask_offset], (mb_size, 1)), volatile = "auto"), (mb_size, self.Hi)),
                                 self.gru_b(prev_state, x), mb_initial_state_b) #TODO: optimize?
+            
             backward_seq.append(prev_state)
         
         assert len(backward_seq) == len(forward_seq)
@@ -118,27 +128,50 @@ class AttentionModule(Chain):
                         F.reshape(fb_concat, (mb_size * nb_elems, self.Hi)))
                                           , (mb_size, nb_elems, self.Ha))
         
-        concatenated_mask = F.concat([F.reshape(mask_elem, (mb_size, 1)) for mask_elem in mask], 1)
+        mask_length = len(mask)
+        seq_length = nb_elems
+        assert mask_length <= seq_length
+        mask_offset = seq_length - mask_length
+        
+#         concatenated_mask = F.concat([F.reshape(mask_elem, (mb_size, 1)) for mask_elem in mask], 1)
+        
+        if mask_length > 0:
+            with cuda.get_device(mask[0]):
+                if mask_offset > 0:
+                    concatenated_penalties = self.xp.concatenate(
+                                    [
+                                    self.xp.zeros((mb_size, mask_offset), dtype = self.xp.float32),
+                                    -10000 * (1-self.xp.concatenate([
+                            self.xp.reshape(mask_elem, (mb_size, 1)).astype(self.xp.float32) for mask_elem in mask], 1))
+                                    ], 1
+                                    )
+                else:
+                    concatenated_penalties =  -10000 * (1-self.xp.concatenate([
+                            self.xp.reshape(mask_elem, (mb_size, 1)).astype(self.xp.float32) for mask_elem in mask], 1))
+                                    
+        
         
         def compute_ctxt(previous_state):
             current_mb_size = previous_state.data.shape[0]
             if current_mb_size < mb_size:
                 al_factor, _ = F.split_axis(precomputed_al_factor, (current_mb_size,), 0)
                 used_fb_concat, _ = F.split_axis(fb_concat, (current_mb_size,), 0)
-                used_concatenated_mask, _ = F.split_axis(concatenated_mask, (current_mb_size,), 0)
+                if mask_length > 0:
+                    used_concatenated_penalties = concatenated_penalties[:current_mb_size]
             else:
                 al_factor = precomputed_al_factor
                 used_fb_concat = fb_concat
-                used_concatenated_mask = concatenated_mask
+                if mask_length > 0:
+                    used_concatenated_penalties = concatenated_penalties
                 
             state_al_factor = self.al_lin_s(previous_state)
             state_al_factor_bc = F.broadcast_to(F.reshape(state_al_factor, (current_mb_size, 1, self.Ha)), (current_mb_size, nb_elems, self.Ha) )
             a_coeffs = F.reshape(self.al_lin_o(F.reshape(F.tanh(state_al_factor_bc + al_factor), 
                             (current_mb_size* nb_elems, self.Ha))), (current_mb_size, nb_elems))
             
-            
-            with cuda.get_device(used_concatenated_mask.data):
-                a_coeffs = a_coeffs - 10000 * (1-used_concatenated_mask.data) 
+            if mask_length > 0:
+                with cuda.get_device(used_concatenated_penalties):
+                    a_coeffs = a_coeffs + used_concatenated_penalties# - 10000 * (1-used_concatenated_mask.data) 
             
             attn = F.softmax(a_coeffs)
             
@@ -152,19 +185,20 @@ class AttentionModule(Chain):
         mb_size, nb_elems, Hi = fb_concat.data.shape
         assert Hi == self.Hi
         assert mb_size == 1
+        assert len(mask) == 0
         
         precomputed_al_factor = F.reshape(self.al_lin_h(
                         F.reshape(fb_concat, (mb_size * nb_elems, self.Hi)))
                                           , (mb_size, nb_elems, self.Ha))
         
-        concatenated_mask = F.concat([F.reshape(mask_elem, (mb_size, 1)) for mask_elem in mask], 1)  
+#         concatenated_mask = F.concat([F.reshape(mask_elem, (mb_size, 1)) for mask_elem in mask], 1)  
         
         def compute_ctxt(previous_state):
             current_mb_size = previous_state.data.shape[0]
                 
             al_factor = F.broadcast_to(precomputed_al_factor, (current_mb_size, nb_elems, self.Ha))
 #             used_fb_concat = F.broadcast_to(fb_concat, (current_mb_size, nb_elems, Hi))
-            used_concatenated_mask = F.broadcast_to(concatenated_mask, (current_mb_size, nb_elems))
+#             used_concatenated_mask = F.broadcast_to(concatenated_mask, (current_mb_size, nb_elems))
                 
             state_al_factor = self.al_lin_s(previous_state)
             state_al_factor_bc = F.broadcast_to(F.reshape(state_al_factor, (current_mb_size, 1, self.Ha)), (current_mb_size, nb_elems, self.Ha) )
@@ -172,8 +206,8 @@ class AttentionModule(Chain):
                             (current_mb_size* nb_elems, self.Ha))), (current_mb_size, nb_elems))
             
             
-            with cuda.get_device(used_concatenated_mask.data):
-                a_coeffs = a_coeffs - 10000 * (1-used_concatenated_mask.data) 
+#             with cuda.get_device(used_concatenated_mask.data):
+#                 a_coeffs = a_coeffs - 10000 * (1-used_concatenated_mask.data) 
             
             attn = F.softmax(a_coeffs)
             
@@ -184,108 +218,108 @@ class AttentionModule(Chain):
             return ci, attn
         
         return compute_ctxt
-          
-class AttentionModuleAcumulated(Chain):
-    """ Attention Module for computing the current context during decoding. 
-        The __call_ takes 2 parameters: fb_concat and mask.
-        
-        fb_concat should be the result of a call to Encoder.
-        mask is as in the description of Encoder
-               
-        Return a chainer variable of shape (mb_size, Hi) and type float32
-    """
-    def __init__(self, Hi, Ha, Ho):
-        super(AttentionModuleAcumulated, self).__init__(
-            al_lin_h = L.Linear(Hi, Ha, nobias = False),
-            al_lin_s = L.Linear(Ho, Ha, nobias = True),
-            al_lin_o = L.Linear(Ha, 1, nobias = True)                                     
-        )
-        self.Hi = Hi
-        self.Ha = Ha
-        
-    def __call__(self, fb_concat, mask):
-        mb_size, nb_elems, Hi = fb_concat.data.shape
-        assert Hi == self.Hi
-        precomputed_al_factor = F.reshape(self.al_lin_h(
-                        F.reshape(fb_concat, (mb_size * nb_elems, self.Hi)))
-                                          , (mb_size, nb_elems, self.Ha))
-        
-        concatenated_mask = F.concat([F.reshape(mask_elem, (mb_size, 1)) for mask_elem in mask], 1)
-        
-        accumulation = [Variable(self.xp.zeros((mb_size, nb_elems), dtype = self.xp.float32), volatile = "auto")]
-        
-        def compute_ctxt(previous_state):
-            current_mb_size = previous_state.data.shape[0]
-            if current_mb_size < mb_size:
-                al_factor, _ = F.split_axis(precomputed_al_factor, (current_mb_size,), 0)
-                used_fb_concat, _ = F.split_axis(fb_concat, (current_mb_size,), 0)
-                used_concatenated_mask, _ = F.split_axis(concatenated_mask, (current_mb_size,), 0)
-                
-                # Warning: here we are actually changing the global accumulation
-                if current_mb_size < accumulation[0].data.shape[0]:
-                    accumulation[0], _ = F.split_axis(accumulation[0], (current_mb_size,), 0)
-            else:
-                al_factor = precomputed_al_factor
-                used_fb_concat = fb_concat
-                used_concatenated_mask = concatenated_mask
-                
-            state_al_factor = self.al_lin_s(previous_state)
-            state_al_factor_bc = F.broadcast_to(F.reshape(state_al_factor, (current_mb_size, 1, self.Ha)), (current_mb_size, nb_elems, self.Ha) )
-            a_coeffs = F.reshape(self.al_lin_o(F.reshape(F.tanh(state_al_factor_bc + al_factor), 
-                            (current_mb_size* nb_elems, self.Ha))), (current_mb_size, nb_elems))
-            
-            a_coeffs_mods = a_coeffs -  accumulation[0]
-            accumulation[0] += a_coeffs
-            
-            with cuda.get_device(used_concatenated_mask.data):
-                a_coeffs_mods = a_coeffs_mods - 50000 * (1-used_concatenated_mask.data) 
-            
-            attn = F.softmax(a_coeffs_mods)
-            
-            ci = F.reshape(F.batch_matmul(attn, used_fb_concat, transa = True), (current_mb_size, self.Hi))
-            
-            return ci, attn
-        
-        return compute_ctxt
-    
-    def compute_ctxt_demux(self, fb_concat, mask):
-        raise NotImplemented
-        mb_size, nb_elems, Hi = fb_concat.data.shape
-        assert Hi == self.Hi
-        assert mb_size == 1
-        
-        precomputed_al_factor = F.reshape(self.al_lin_h(
-                        F.reshape(fb_concat, (mb_size * nb_elems, self.Hi)))
-                                          , (mb_size, nb_elems, self.Ha))
-        
-        concatenated_mask = F.concat([F.reshape(mask_elem, (mb_size, 1)) for mask_elem in mask], 1)  
-        
-        
-        def compute_ctxt(previous_state):
-            current_mb_size = previous_state.data.shape[0]
-                
-            al_factor = F.broadcast_to(precomputed_al_factor, (current_mb_size, nb_elems, self.Ha))
-#             used_fb_concat = F.broadcast_to(fb_concat, (current_mb_size, nb_elems, Hi))
-            used_concatenated_mask = F.broadcast_to(concatenated_mask, (current_mb_size, nb_elems))
-                
-            state_al_factor = self.al_lin_s(previous_state)
-            state_al_factor_bc = F.broadcast_to(F.reshape(state_al_factor, (current_mb_size, 1, self.Ha)), (current_mb_size, nb_elems, self.Ha) )
-            a_coeffs = F.reshape(self.al_lin_o(F.reshape(F.tanh(state_al_factor_bc + al_factor), 
-                            (current_mb_size* nb_elems, self.Ha))), (current_mb_size, nb_elems))
-            
-            
-            with cuda.get_device(used_concatenated_mask.data):
-                a_coeffs = a_coeffs - 10000 * (1-used_concatenated_mask.data) 
-            
-            attn = F.softmax(a_coeffs)
-            
+#           
+# class AttentionModuleAcumulated(Chain):
+#     """ Attention Module for computing the current context during decoding. 
+#         The __call_ takes 2 parameters: fb_concat and mask.
+#         
+#         fb_concat should be the result of a call to Encoder.
+#         mask is as in the description of Encoder
+#                
+#         Return a chainer variable of shape (mb_size, Hi) and type float32
+#     """
+#     def __init__(self, Hi, Ha, Ho):
+#         super(AttentionModuleAcumulated, self).__init__(
+#             al_lin_h = L.Linear(Hi, Ha, nobias = False),
+#             al_lin_s = L.Linear(Ho, Ha, nobias = True),
+#             al_lin_o = L.Linear(Ha, 1, nobias = True)                                     
+#         )
+#         self.Hi = Hi
+#         self.Ha = Ha
+#         
+#     def __call__(self, fb_concat, mask):
+#         mb_size, nb_elems, Hi = fb_concat.data.shape
+#         assert Hi == self.Hi
+#         precomputed_al_factor = F.reshape(self.al_lin_h(
+#                         F.reshape(fb_concat, (mb_size * nb_elems, self.Hi)))
+#                                           , (mb_size, nb_elems, self.Ha))
+#         
+#         concatenated_mask = F.concat([F.reshape(mask_elem, (mb_size, 1)) for mask_elem in mask], 1)
+#         
+#         accumulation = [Variable(self.xp.zeros((mb_size, nb_elems), dtype = self.xp.float32), volatile = "auto")]
+#         
+#         def compute_ctxt(previous_state):
+#             current_mb_size = previous_state.data.shape[0]
+#             if current_mb_size < mb_size:
+#                 al_factor, _ = F.split_axis(precomputed_al_factor, (current_mb_size,), 0)
+#                 used_fb_concat, _ = F.split_axis(fb_concat, (current_mb_size,), 0)
+#                 used_concatenated_mask, _ = F.split_axis(concatenated_mask, (current_mb_size,), 0)
+#                 
+#                 # Warning: here we are actually changing the global accumulation
+#                 if current_mb_size < accumulation[0].data.shape[0]:
+#                     accumulation[0], _ = F.split_axis(accumulation[0], (current_mb_size,), 0)
+#             else:
+#                 al_factor = precomputed_al_factor
+#                 used_fb_concat = fb_concat
+#                 used_concatenated_mask = concatenated_mask
+#                 
+#             state_al_factor = self.al_lin_s(previous_state)
+#             state_al_factor_bc = F.broadcast_to(F.reshape(state_al_factor, (current_mb_size, 1, self.Ha)), (current_mb_size, nb_elems, self.Ha) )
+#             a_coeffs = F.reshape(self.al_lin_o(F.reshape(F.tanh(state_al_factor_bc + al_factor), 
+#                             (current_mb_size* nb_elems, self.Ha))), (current_mb_size, nb_elems))
+#             
+#             a_coeffs_mods = a_coeffs -  accumulation[0]
+#             accumulation[0] += a_coeffs
+#             
+#             with cuda.get_device(used_concatenated_mask.data):
+#                 a_coeffs_mods = a_coeffs_mods - 50000 * (1-used_concatenated_mask.data) 
+#             
+#             attn = F.softmax(a_coeffs_mods)
+#             
 #             ci = F.reshape(F.batch_matmul(attn, used_fb_concat, transa = True), (current_mb_size, self.Hi))
-            
-            ci = F.reshape(F.matmul(attn, F.reshape(fb_concat, (nb_elems, Hi))), (current_mb_size, self.Hi))
-            
-            return ci, attn
-        
-        return compute_ctxt
+#             
+#             return ci, attn
+#         
+#         return compute_ctxt
+#     
+#     def compute_ctxt_demux(self, fb_concat, mask):
+#         raise NotImplemented
+#         mb_size, nb_elems, Hi = fb_concat.data.shape
+#         assert Hi == self.Hi
+#         assert mb_size == 1
+#         
+#         precomputed_al_factor = F.reshape(self.al_lin_h(
+#                         F.reshape(fb_concat, (mb_size * nb_elems, self.Hi)))
+#                                           , (mb_size, nb_elems, self.Ha))
+#         
+#         concatenated_mask = F.concat([F.reshape(mask_elem, (mb_size, 1)) for mask_elem in mask], 1)  
+#         
+#         
+#         def compute_ctxt(previous_state):
+#             current_mb_size = previous_state.data.shape[0]
+#                 
+#             al_factor = F.broadcast_to(precomputed_al_factor, (current_mb_size, nb_elems, self.Ha))
+# #             used_fb_concat = F.broadcast_to(fb_concat, (current_mb_size, nb_elems, Hi))
+#             used_concatenated_mask = F.broadcast_to(concatenated_mask, (current_mb_size, nb_elems))
+#                 
+#             state_al_factor = self.al_lin_s(previous_state)
+#             state_al_factor_bc = F.broadcast_to(F.reshape(state_al_factor, (current_mb_size, 1, self.Ha)), (current_mb_size, nb_elems, self.Ha) )
+#             a_coeffs = F.reshape(self.al_lin_o(F.reshape(F.tanh(state_al_factor_bc + al_factor), 
+#                             (current_mb_size* nb_elems, self.Ha))), (current_mb_size, nb_elems))
+#             
+#             
+#             with cuda.get_device(used_concatenated_mask.data):
+#                 a_coeffs = a_coeffs - 10000 * (1-used_concatenated_mask.data) 
+#             
+#             attn = F.softmax(a_coeffs)
+#             
+# #             ci = F.reshape(F.batch_matmul(attn, used_fb_concat, transa = True), (current_mb_size, self.Hi))
+#             
+#             ci = F.reshape(F.matmul(attn, F.reshape(fb_concat, (nb_elems, Hi))), (current_mb_size, self.Hi))
+#             
+#             return ci, attn
+#         
+#         return compute_ctxt
           
 class Decoder(Chain):
     """ Decoder for RNNSearch. 
@@ -409,8 +443,10 @@ class Decoder(Chain):
                     logits = self.lin_o(self.maxo(all_concatenated))
                 
                     probs = cuda.to_cpu(F.softmax(logits).data).reshape((-1,))
+#                     if len(probs) > beam_width:
                     best_idx = np.argpartition(- probs, beam_width)[:beam_width].astype(np.int32)
-                    
+#                     else:
+                        
                     cand_list = []
                     for num in xrange(len(best_idx)):
                         idx = best_idx[num]
@@ -521,10 +557,15 @@ class Decoder(Chain):
                 
             if len(next_states_list) == 0:
                 break
+            
+            next_words_array = np.array(next_words_list, dtype = np.int32)
+            if self.xp is not np:
+                next_words_array = cuda.to_gpu(next_words_array)
+                
             current_translations_states = (next_translations_list,
                                         xp.array(next_score_list),
                                         F.concat(next_states_list, axis = 0),
-                                        Variable(cuda.to_gpu(np.array(next_words_list, dtype = np.int32)), volatile = "auto"),
+                                        Variable(next_words_array, volatile = "auto"),
                                         next_attentions_list
                                         )
             
@@ -584,6 +625,60 @@ class Decoder(Chain):
             loss = loss / total_nb_predictions
             return loss, attn_list
     
+#     def compute_loss_and_backward(self, fb_concat, targets, mask, raw_loss_info = False):
+#         
+#         compute_ctxt = self.attn_module(fb_concat, mask)
+#         loss = None
+#         current_mb_size = targets[0].data.shape[0]
+#         previous_state = F.broadcast_to(self.initial_state, (current_mb_size, self.Ho))
+#         xp = cuda.get_array_module(self.initial_state.data)
+#         previous_word = None
+#         with cuda.get_device(self.initial_state.data):
+#             prev_y = F.broadcast_to(self.bos_embeding, (current_mb_size, self.Eo))
+#             
+#         total_nb_predictions = 0
+#         for i in xrange(len(targets)):
+#             current_mb_size = targets[i].data.shape[0]
+#             total_nb_predictions += current_mb_size
+#             
+#         for i in xrange(len(targets)):
+#             assert i == 0 or previous_state.data.shape[0] == previous_word.data.shape[0]
+#             current_mb_size = targets[i].data.shape[0]
+#             if current_mb_size < len(previous_state.data):
+#                 previous_state, _ = F.split_axis(previous_state, (current_mb_size,), 0)
+#                 if previous_word is not None:
+#                     previous_word, _ = F.split_axis(previous_word, (current_mb_size,), 0 )
+#             if previous_word is not None: #else we are using the initial prev_y
+#                 prev_y = self.emb(previous_word)
+#             assert previous_state.data.shape[0] == current_mb_size
+#             
+#             new_state, logits, attn = self.advance_one_step(previous_state, prev_y, 
+#                                                       compute_ctxt)
+# 
+#             del attn
+#             local_loss = F.softmax_cross_entropy(logits, targets[i])
+#             local_loss_scaled = local_loss * (current_mb_size/ float(total_nb_predictions))
+#             local_loss_scaled.backward()
+#             del local_loss_scaled
+#             total_loss = local_loss.data * current_mb_size
+#             
+#             loss = loss + total_loss if loss is not None else total_loss
+#             del local_loss
+#             del logits
+#             
+#             previous_word = targets[i]
+# #             prev_y = self.emb(previous_word)
+#             previous_state = new_state
+# #             attn_list.append(attn)
+# 
+#         loss = float(loss)
+#         if raw_loss_info:
+#             return (loss, total_nb_predictions)
+#         else:
+#             loss = loss / total_nb_predictions
+#             return loss
+    
+    
     def __call__(self, fb_concat, targets, mask, use_best_for_sample = False, raw_loss_info = False,
                     keep_attn_values = False, need_score = False):
         mb_size, nb_elems, Hi = fb_concat.data.shape
@@ -621,6 +716,11 @@ class EncoderDecoder(Chain):
         loss = self.dec(fb_src, tgt_batch, src_mask, use_best_for_sample = use_best_for_sample, raw_loss_info = raw_loss_info,
                         keep_attn_values = keep_attn_values, need_score = need_score)
         return loss
+    
+#     def compute_loss_and_backward(self, src_batch, tgt_batch, src_mask, raw_loss_info = False):
+#         fb_src = self.enc(src_batch, src_mask)
+#         loss = self.dec.compute_loss_and_backward(fb_src, tgt_batch, src_mask, raw_loss_info = raw_loss_info)
+#         return loss
     
     def sample(self, src_batch, src_mask, nb_steps, use_best_for_sample, keep_attn_values = False, need_score = False):
         fb_src = self.enc(src_batch, src_mask)

@@ -80,11 +80,14 @@ def greedy_batch_translate(encdec, eos_idx, src_data, batch_size = 80, gpu = Non
         return res
      
 def beam_search_translate(encdec, eos_idx, src_data, beam_width = 20, nb_steps = 50, gpu = None, beam_opt = False,
-                          need_attention = False):
+                          need_attention = False, nb_steps_ratio = None):
     nb_ex = len(src_data)
 #     res = []
     for i in range(nb_ex):
         src_batch, src_mask = make_batch_src([src_data[i]], gpu = gpu, volatile = "on")
+        assert len(src_mask) == 0
+        if nb_steps_ratio is not None:
+            nb_steps = int(len(src_data[i]) * nb_steps_ratio) + 1
         translations = encdec.beam_search(src_batch, src_mask, nb_steps = nb_steps, eos_idx = eos_idx, beam_width = beam_width,
                                           beam_opt = beam_opt, need_attention = need_attention)
 #         print "nb_trans", len(translations), [score for _, score in translations]

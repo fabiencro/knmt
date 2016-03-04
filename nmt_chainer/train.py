@@ -46,6 +46,9 @@ def command_line():
     parser.add_argument("--mb_size", type = int, default= 80, help = "Minibatch size")
     parser.add_argument("--nb_batch_to_sort", type = int, default= 20, help = "Sort this many batches by size.")
     
+    
+    parser.add_argument("--max_src_tgt_length", type = int, help = "Limit length of training sentences")
+    
     parser.add_argument("--l2_gradient_clipping", type = float, help = "L2 gradient clipping")
     parser.add_argument("--weight_decay", type = float, help = "weight decay")
     
@@ -117,6 +120,18 @@ def command_line():
         
     log.info("loading voc from %s"% voc_fn)
     src_voc, tgt_voc = json.load(open(voc_fn))
+    
+    if args.max_src_tgt_length is not None:
+        log.info("filtering sentences of length larger than %i"%(args.max_src_tgt_length))
+        filtered_training_data = []
+        nb_filtered = 0
+        for src, tgt in training_data:
+            if len(src) <= args.max_src_tgt_length and len(tgt) <= args.max_src_tgt_length:
+                filtered_training_data.append((src, tgt))
+            else:
+                nb_filtered += 1
+        log.info("filtered %i sentences of length larger than %i"%(nb_filtered, args.max_src_tgt_length))
+        training_data = filtered_training_data
     
     if args.shuffle_training_data:
         log.info("shuffling")

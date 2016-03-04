@@ -26,25 +26,29 @@ def ensure_path(path):
         
 def make_batch_src(src_data, padding_idx = 0, gpu = None, volatile = "off"):
     max_src_size = max(len(x) for x  in src_data)
+    min_src_size = min(len(x) for x  in src_data)
     mb_size = len(src_data)
-    src_batch = [np.empty((mb_size,), dtype = np.int32) for _ in xrange(max_src_size + 1)]
-    src_mask = [np.empty((mb_size,), dtype = np.bool) for _ in xrange(max_src_size + 1)]
+    
+    src_batch = [np.empty((mb_size,), dtype = np.int32) for _ in xrange(max_src_size)]
+    src_mask = [np.empty((mb_size,), dtype = np.bool) for _ in xrange(max_src_size - min_src_size)]
     
     for num_ex in xrange(mb_size):
         this_src_len = len(src_data[num_ex])
-        for i in xrange(max_src_size + 1):
+        for i in xrange(max_src_size):
             if i < this_src_len:
                 src_batch[i][num_ex] = src_data[num_ex][i]
-                src_mask[i][num_ex] = True
+                if i >= min_src_size:
+                    src_mask[i - min_src_size][num_ex] = True
             else:
                 src_batch[i][num_ex] = padding_idx
-                src_mask[i][num_ex] = False
+                assert i >= min_src_size
+                src_mask[i - min_src_size][num_ex] = False
 
     if gpu is not None:
         return ([Variable(cuda.to_gpu(x, gpu), volatile = volatile) for x in src_batch],
-                [Variable(cuda.to_gpu(x, gpu), volatile = volatile) for x in src_mask])
+                [cuda.to_gpu(x, gpu) for x in src_mask])
     else:
-        return [Variable(x, volatile = volatile) for x in src_batch], [Variable(x, volatile = volatile) for x in src_mask]                
+        return [Variable(x, volatile = volatile) for x in src_batch], src_mask              
                 
 def make_batch_src_tgt(training_data, eos_idx = 1, padding_idx = 0, gpu = None, volatile = "off", need_arg_sort = False):
     if need_arg_sort:
@@ -138,11 +142,11 @@ def batch_sort_and_split(batch, size_parts, sort_key = lambda x:len(x[1]), inpla
         yield mb_raw
         
 def minibatch_provider(data, eos_idx, mb_size, nb_mb_for_sorting = 1, loop = True, inplace_sorting = False, gpu = None,
-                       randomized = False, volatile = "off"):
+                       randomized = False, volatile = "off", sort_key = lambda x:len(x[1])):
     if nb_mb_for_sorting == -1:
         assert not randomized
         assert loop == False
-        for mb_raw in batch_sort_and_split(data, mb_size, inplace = inplace_sorting):
+        for mb_raw in batch_sort_and_split(data, mb_size, inplace = inplace_sorting, sort_key = sort_key):
             src_batch, tgt_batch, src_mask = make_batch_src_tgt(mb_raw, eos_idx = eos_idx, gpu = gpu, volatile = volatile)
             yield src_batch, tgt_batch, src_mask
     else:
@@ -155,7 +159,7 @@ def minibatch_provider(data, eos_idx, mb_size, nb_mb_for_sorting = 1, loop = Tru
             looper = minibatch_looper(data, required_data, loop = loop, avoid_copy = False)
         for large_batch in looper:
             # ok to sort in place since minibatch_looper will return copies
-            for mb_raw in batch_sort_and_split(large_batch, mb_size, inplace = True):
+            for mb_raw in batch_sort_and_split(large_batch, mb_size, inplace = True, sort_key = sort_key):
                 src_batch, tgt_batch, src_mask = make_batch_src_tgt(mb_raw, eos_idx = eos_idx, gpu = gpu, volatile = volatile)
                 yield src_batch, tgt_batch, src_mask
              
@@ -170,13 +174,23 @@ def compute_bleu_with_unk_as_wrong(references, candidates, unk_id, new_unk_id_re
     return bc
 
 def de_batch(batch, mask = None, eos_idx = None, is_variable = False, raw = False):
+    """ Utility function for "de-batching".
+        batch is a list of Variable/numpy/cupy of shape[0] <= mb_size
+        
+        returns a list of the sequences in the batch
+    
+    """
     res = []  
     mb_size = len(batch[0].data) if is_variable else len(batch[0])
+    if mask is not None:
+        mask_offset = len(batch) - len(mask)
+        assert mask_offset >= 0
     for sent_num in xrange(mb_size):
         res.append([])
         for src_pos in range(len(batch)):
             current_batch_size = batch[src_pos].data.shape[0] if is_variable else batch[src_pos].shape[0]
-            if (mask is None or mask[src_pos].data[sent_num]) and current_batch_size > sent_num:
+            if (mask is None or 
+                    (src_pos < mask_offset or mask[src_pos - mask_offset][sent_num])) and current_batch_size > sent_num:
 #                 print sent_num, src_pos, batch[src_pos].data
                 idx = batch[src_pos].data[sent_num] if is_variable else batch[src_pos][sent_num]
                 if not raw:
