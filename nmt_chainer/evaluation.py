@@ -19,15 +19,20 @@ log = logging.getLogger("rnns:evaluation")
 log.setLevel(logging.INFO)
 
 def translate_to_file(encdec, eos_idx, test_src_data, mb_size, tgt_voc, 
-                   translations_fn, test_references = None, control_src_fn = None, src_voc = None, gpu = None, nb_steps = 50):
+                   translations_fn, test_references = None, control_src_fn = None, src_voc = None, gpu = None, nb_steps = 50,
+                   reverse_src = False, reverse_tgt = False):
     
     log.info("computing translations")
-    translations = greedy_batch_translate(encdec, eos_idx, test_src_data, batch_size = mb_size, gpu = gpu, nb_steps = nb_steps)
+    translations = greedy_batch_translate(encdec, eos_idx, test_src_data, 
+                        batch_size = mb_size, gpu = gpu, nb_steps = nb_steps, 
+                        reverse_src = reverse_src, reverse_tgt = reverse_tgt)
     
     log.info("writing translation of set to %s"% translations_fn)
     out = codecs.open(translations_fn, "w", encoding = "utf8")
     for t in translations:
-        out.write(convert_idx_to_string(t[:-1], tgt_voc) + "\n")
+        if t[-1] == eos_idx:
+            t = t[:-1]
+        out.write(convert_idx_to_string(t, tgt_voc) + "\n")
     
     if control_src_fn is not None:
         assert src_voc is not None
@@ -47,9 +52,10 @@ def translate_to_file(encdec, eos_idx, test_src_data, mb_size, tgt_voc,
         return None
 
 
-def compute_loss_all(encdec, test_data, eos_idx, mb_size, gpu = None):
+def compute_loss_all(encdec, test_data, eos_idx, mb_size, gpu = None, reverse_src = False, reverse_tgt = False):
     mb_provider_test = minibatch_provider(test_data, eos_idx, mb_size, nb_mb_for_sorting = -1, loop = False,
-                                          gpu = gpu, volatile = "on")
+                                          gpu = gpu, volatile = "on",
+                                          reverse_src = reverse_src, reverse_tgt = reverse_tgt)
     test_loss = 0
     test_nb_predictions = 0
     for src_batch, tgt_batch, src_mask in mb_provider_test:
@@ -59,22 +65,43 @@ def compute_loss_all(encdec, test_data, eos_idx, mb_size, gpu = None):
     test_loss /= test_nb_predictions
     return test_loss
 
-def greedy_batch_translate(encdec, eos_idx, src_data, batch_size = 80, gpu = None, get_attention = False, nb_steps = 50):
+def greedy_batch_translate(encdec, eos_idx, src_data, batch_size = 80, gpu = None, get_attention = False, nb_steps = 50,
+                           reverse_src = False, reverse_tgt = False):
     nb_ex = len(src_data)
     nb_batch = nb_ex / batch_size + (1 if nb_ex % batch_size != 0 else 0)
     res = []
     attn_all = []
     for i in range(nb_batch):
         current_batch_raw_data = src_data[i * batch_size : (i + 1) * batch_size]
+        
+        if reverse_src:
+            current_batch_raw_data_new = []
+            for src_side in current_batch_raw_data:
+                current_batch_raw_data_new.append(src_side[::-1])
+            current_batch_raw_data = current_batch_raw_data_new
+            
         src_batch, src_mask = make_batch_src(current_batch_raw_data, gpu = gpu, volatile = "on")
         sample_greedy, score, attn_list = encdec(src_batch, nb_steps, src_mask, use_best_for_sample = True, 
                                                  keep_attn_values = get_attention)
         deb = de_batch(sample_greedy, mask = None, eos_idx = eos_idx, is_variable = False)
         res += deb
         if get_attention:
-            deb_attn = de_batch(attn_list, mask = None, eos_idx = None, is_variable = True, raw = True)
+            deb_attn = de_batch(attn_list, mask = None, eos_idx = None, is_variable = True, raw = True,
+                       reverse = reverse_tgt)
             attn_all += deb_attn 
+            
+    if reverse_tgt:
+        new_res = []
+        for t in res:
+            if t[-1] == eos_idx:
+                new_res.append(t[:-1][::-1] + [t[-1]])
+            else:
+                new_res.append(t[::-1])
+                
+        res = new_res
+        
     if get_attention:
+        assert not reverse_tgt, "not implemented"
         return res, attn_all
     else:
         return res

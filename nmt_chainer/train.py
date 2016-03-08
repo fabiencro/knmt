@@ -65,6 +65,9 @@ def command_line():
     
     parser.add_argument("--init_orth", default = False, action = "store_true")
     
+    parser.add_argument("--reverse_src", default = False, action = "store_true")
+    parser.add_argument("--reverse_tgt", default = False, action = "store_true")
+    
     args = parser.parse_args()
     
     output_files_dict = {}
@@ -202,7 +205,7 @@ def command_line():
                       mb_size = args.mb_size,
                       nb_of_batch_to_sort = args.nb_batch_to_sort,
                       test_data = test_data, dev_data = dev_data, gpu = args.gpu, report_every = args.report_every,
-                      randomized = args.randomized_data)
+                      randomized = args.randomized_data, reverse_src = args.reverse_src, reverse_tgt = args.reverse_tgt)
 
 if __name__ == '__main__':
     command_line()

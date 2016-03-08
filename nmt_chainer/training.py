@@ -24,10 +24,12 @@ log.setLevel(logging.INFO)
 def train_on_data(encdec, optimizer, training_data, output_files_dict,
                   src_voc, tgt_voc, eos_idx, mb_size = 80,
                   nb_of_batch_to_sort = 20,
-                  test_data = None, dev_data = None, gpu = None, report_every = 200, randomized = False):
+                  test_data = None, dev_data = None, gpu = None, report_every = 200, randomized = False,
+                  reverse_src = False, reverse_tgt = False):
     
     mb_provider = minibatch_provider(training_data, eos_idx, mb_size, nb_of_batch_to_sort, gpu = gpu,
-                                     randomized = randomized, sort_key = lambda x:len(x[0]))
+                                     randomized = randomized, sort_key = lambda x:len(x[0]),
+                                     reverse_src = reverse_src, reverse_tgt = reverse_tgt)
     
 #     mb_provider = minibatch_provider(training_data, eos_idx, mb_size, nb_of_batch_to_sort, gpu = gpu,
 #                                      randomized = randomized, sort_key = lambda x:len(x[1]))
@@ -84,10 +86,11 @@ def train_on_data(encdec, optimizer, training_data, output_files_dict,
             control_src_fn = output_files_dict["test_src_output"] #save_prefix + ".test.src.out"
             return translate_to_file(encdec, eos_idx, test_src_data, mb_size, tgt_voc, 
                    translations_fn, test_references = test_references, control_src_fn = control_src_fn,
-                   src_voc = src_voc, gpu = gpu, nb_steps = 50)
+                   src_voc = src_voc, gpu = gpu, nb_steps = 50, reverse_src = reverse_src, reverse_tgt = reverse_tgt)
         def compute_test_loss():
             log.info("computing test loss")
-            test_loss = compute_loss_all(encdec, test_data, eos_idx, mb_size, gpu = gpu)
+            test_loss = compute_loss_all(encdec, test_data, eos_idx, mb_size, gpu = gpu,
+                                         reverse_src = reverse_src, reverse_tgt = reverse_tgt)
             log.info("test loss: %f" % test_loss)
             return test_loss
     else:
@@ -104,10 +107,11 @@ def train_on_data(encdec, optimizer, training_data, output_files_dict,
             control_src_fn = output_files_dict["dev_src_output"] #save_prefix + ".test.src.out"
             return translate_to_file(encdec, eos_idx, dev_src_data, mb_size, tgt_voc, 
                    translations_fn, test_references = dev_references, control_src_fn = control_src_fn,
-                   src_voc = src_voc, gpu = gpu, nb_steps = 50)
+                   src_voc = src_voc, gpu = gpu, nb_steps = 50, reverse_src = reverse_src, reverse_tgt = reverse_tgt)
         def compute_dev_loss():
             log.info("computing dev loss")
-            dev_loss = compute_loss_all(encdec, dev_data, eos_idx, mb_size, gpu = gpu)
+            dev_loss = compute_loss_all(encdec, dev_data, eos_idx, mb_size, gpu = gpu,
+                                         reverse_src = reverse_src, reverse_tgt = reverse_tgt)
             log.info("dev loss: %f" % dev_loss)
             return dev_loss
     else:
