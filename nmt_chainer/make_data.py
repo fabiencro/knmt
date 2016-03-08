@@ -64,6 +64,13 @@ class Indexer(object):
             res.dic[w] = idx
         return res
 
+
+MakeDataInfosOneSide = collections.namedtuple("MakeDataInfosOneSide", ["total_count_unk", "total_token", "num_ex"])
+
+MakeDataInfos = collections.namedtuple("MakeDataInfos", ["total_count_unk_src", "total_count_unk_tgt", "total_token_src", 
+                                         "total_token_tgt", "num_ex"])
+
+
 def build_index(fn, voc_limit = None, max_nb_ex = None):
     f = codecs.open(fn, encoding= "utf8")
     counts = collections.defaultdict(int)
@@ -120,7 +127,10 @@ def build_dataset_one_side(src_fn, src_voc_limit = None, max_nb_ex = None, dic_s
         res.append(seq_src)
         num_ex += 1
         
-    return res, dic_src, total_count_unk_src, total_token_src, num_ex
+    return res, dic_src, MakeDataInfosOneSide(total_count_unk_src, 
+                                                total_token_src, 
+                                                num_ex
+                                                )
  
 def build_dataset(src_fn, tgt_fn, src_voc_limit = None, tgt_voc_limit = None, max_nb_ex = None, dic_src = None, dic_tgt = None):
     if dic_src is None:
@@ -170,7 +180,12 @@ def build_dataset(src_fn, tgt_fn, src_voc_limit = None, tgt_voc_limit = None, ma
         res.append((seq_src, seq_tgt))
         num_ex += 1
         
-    return res, dic_src, dic_tgt, total_count_unk_src, total_count_unk_tgt, total_token_src, total_token_tgt, num_ex
+    return res, dic_src, dic_tgt, MakeDataInfos(total_count_unk_src, 
+                                                total_count_unk_tgt, 
+                                                total_token_src, 
+                                                total_token_tgt, 
+                                                num_ex
+                                                )
 
 def cmdline():
     import sys
@@ -226,21 +241,25 @@ def cmdline():
         
     def load_data(src_fn, tgt_fn, max_nb_ex = None, dic_src = None, dic_tgt = None):
         
-        training_data, dic_src, dic_tgt, total_count_unk_src, total_count_unk_tgt, total_token_src, total_token_tgt, nb_ex = build_dataset(
+        training_data, dic_src, dic_tgt, make_data_infos = build_dataset(
                                             src_fn, tgt_fn, src_voc_limit = args.src_voc_size, 
                                             tgt_voc_limit = args.tgt_voc_size, max_nb_ex = max_nb_ex, 
                                             dic_src = dic_src, dic_tgt = dic_tgt)
         
-        log.info("%i sentences loaded"%nb_ex)
+        log.info("%i sentences loaded"%make_data_infos.nb_ex)
         
         log.info("size dic src: %i"%len(dic_src))
         log.info("size dic tgt: %i"%len(dic_tgt))
         
-        log.info("#tokens src: %i   of which %i (%f%%) are unknown"%(total_token_src, total_count_unk_src, 
-                                                                     float(total_count_unk_src * 100) / total_token_src))
+        log.info("#tokens src: %i   of which %i (%f%%) are unknown"%(make_data_infos.total_token_src, 
+                                                                     make_data_infos.total_count_unk_src, 
+                                                                     float(make_data_infos.total_count_unk_src * 100) / 
+                                                                     make_data_infos.total_token_src))
         
-        log.info("#tokens tgt: %i   of which %i (%f%%) are unknown"%(total_token_tgt, total_count_unk_tgt, 
-                                                                 float(total_count_unk_tgt * 100) / total_token_tgt))
+        log.info("#tokens tgt: %i   of which %i (%f%%) are unknown"%(make_data_infos.total_token_tgt, 
+                                                                     make_data_infos.total_count_unk_tgt, 
+                                                                 float(make_data_infos.total_count_unk_tgt * 100) / 
+                                                                 make_data_infos.total_token_tgt))
         
         return training_data, dic_src, dic_tgt
     

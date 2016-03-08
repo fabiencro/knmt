@@ -88,23 +88,26 @@ def commandline():
     
     
     log.info("opening source file %s" % args.src_fn)
-    src_data, dic_src, total_count_unk_src, total_token_src, num_ex = build_dataset_one_side(args.src_fn, 
+    src_data, dic_src, make_data_infos = build_dataset_one_side(args.src_fn, 
                                     src_voc_limit = None, max_nb_ex = args.max_nb_ex, dic_src = src_indexer)
-    
-    log.info("%i sentences loaded"%num_ex)
-    log.info("#tokens src: %i   of which %i (%f%%) are unknown"%(total_token_src, total_count_unk_src, 
-                                                                 float(total_count_unk_src * 100) / total_token_src))
+    log.info("%i sentences loaded"%make_data_infos.num_ex)
+    log.info("#tokens src: %i   of which %i (%f%%) are unknown"%(make_data_infos.total_token, 
+                                                                 make_data_infos.total_count_unk, 
+                                                                 float(make_data_infos.total_count_unk * 100) / 
+                                                                    make_data_infos.total_token))
     assert dic_src == src_indexer
     
     tgt_data = None
     if args.tgt_fn is not None:
         log.info("opening target file %s" % args.tgt_fn)
         tgt_indexer = Indexer.make_from_list(tgt_voc)
-        tgt_data, dic_tgt, total_count_unk_tgt, total_token_tgt, num_ex = build_dataset_one_side(args.tgt_fn, 
+        tgt_data, dic_tgt, make_data_infos = build_dataset_one_side(args.tgt_fn, 
                                     src_voc_limit = None, max_nb_ex = args.max_nb_ex, dic_src = tgt_indexer)
-        log.info("%i sentences loaded"%num_ex)
-        log.info("#tokens tgt: %i   of which %i (%f%%) are unknown"%(total_token_tgt, total_count_unk_tgt, 
-                                                                     float(total_count_unk_tgt * 100) / total_token_tgt))
+        log.info("%i sentences loaded"%make_data_infos.num_ex)
+        log.info("#tokens src: %i   of which %i (%f%%) are unknown"%(make_data_infos.total_token, 
+                                                                 make_data_infos.total_count_unk, 
+                                                                 float(make_data_infos.total_count_unk * 100) / 
+                                                                    make_data_infos.total_token))
         assert dic_tgt == tgt_indexer
 
     
