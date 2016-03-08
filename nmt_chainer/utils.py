@@ -140,13 +140,29 @@ def batch_sort_and_split(batch, size_parts, sort_key = lambda x:len(x[1]), inpla
     for num_batch in xrange(nb_mb_for_sorting):
         mb_raw = batch[num_batch * size_parts : (num_batch + 1) * size_parts]
         yield mb_raw
-        
+     
+def mb_reverser(mb_raw, reverse_src = False, reverse_tgt = False):
+    if reverse_src or reverse_tgt:
+        mb_raw_new = []
+        for src_side, tgt_side in mb_raw:
+            if reverse_src:
+                src_side = src_side[::-1]
+            if reverse_tgt:
+                tgt_side = tgt_side[::-1]
+            mb_raw_new.append((src_side, tgt_side))
+        return mb_raw_new
+    else:
+        return mb_raw
+    
 def minibatch_provider(data, eos_idx, mb_size, nb_mb_for_sorting = 1, loop = True, inplace_sorting = False, gpu = None,
-                       randomized = False, volatile = "off", sort_key = lambda x:len(x[1])):
+                       randomized = False, volatile = "off", sort_key = lambda x:len(x[1]),
+                       reverse_src = False, reverse_tgt = False
+                       ):
     if nb_mb_for_sorting == -1:
         assert not randomized
         assert loop == False
         for mb_raw in batch_sort_and_split(data, mb_size, inplace = inplace_sorting, sort_key = sort_key):
+            mb_raw = mb_reverser(mb_raw, reverse_src = reverse_src, reverse_tgt = reverse_tgt)
             src_batch, tgt_batch, src_mask = make_batch_src_tgt(mb_raw, eos_idx = eos_idx, gpu = gpu, volatile = volatile)
             yield src_batch, tgt_batch, src_mask
     else:
@@ -160,6 +176,7 @@ def minibatch_provider(data, eos_idx, mb_size, nb_mb_for_sorting = 1, loop = Tru
         for large_batch in looper:
             # ok to sort in place since minibatch_looper will return copies
             for mb_raw in batch_sort_and_split(large_batch, mb_size, inplace = True, sort_key = sort_key):
+                mb_raw = mb_reverser(mb_raw, reverse_src = reverse_src, reverse_tgt = reverse_tgt)
                 src_batch, tgt_batch, src_mask = make_batch_src_tgt(mb_raw, eos_idx = eos_idx, gpu = gpu, volatile = volatile)
                 yield src_batch, tgt_batch, src_mask
              
@@ -186,6 +203,7 @@ def de_batch(batch, mask = None, eos_idx = None, is_variable = False, raw = Fals
         mask_offset = len(batch) - len(mask)
         assert mask_offset >= 0
     for sent_num in xrange(mb_size):
+        assert sent_num == len(res)
         res.append([])
         for src_pos in range(len(batch)):
             current_batch_size = batch[src_pos].data.shape[0] if is_variable else batch[src_pos].shape[0]
