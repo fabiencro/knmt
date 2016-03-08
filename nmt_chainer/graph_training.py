@@ -67,7 +67,7 @@ def commandline():
             name = 'test_loss',
                 line = dict(
             color = ('rgb(205, 12, 24)'),
-            width = 4)
+            width = 2)
         )
         trace1 = go.Scatter(
 #             x = random_x,
@@ -78,7 +78,7 @@ def commandline():
             text = text_bleu,
                 line = dict(
         color = ('rgb(205, 12, 24)'),
-        width = 4)
+        width = 2)
         )
         trace2 = go.Scatter(
 #             x = random_x,
@@ -87,7 +87,7 @@ def commandline():
             name = 'dev_loss',
                 line = dict(
         color = ('rgb(22, 96, 167)'),
-        width = 4,)
+        width = 2,)
         )
         trace3 = go.Scatter(
 #             x = random_x,
@@ -97,7 +97,7 @@ def commandline():
             yaxis='y2',
                 line = dict(
         color = ('rgb(22, 96, 167)'),
-        width = 4,)
+        width = 2,)
         )
 
         trace4 = go.Scatter(
@@ -114,7 +114,8 @@ def commandline():
         layout = go.Layout(
             title='Training evolution',
             yaxis=dict(
-                title='loss'
+                title='loss',
+                gridcolor='#bdbdbd'
             ),
             yaxis2=dict(
                 title='bleu',
