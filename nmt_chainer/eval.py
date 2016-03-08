@@ -14,10 +14,11 @@ import models
 from make_data import Indexer, build_dataset_one_side
 # from utils import make_batch_src, make_batch_src_tgt, minibatch_provider, compute_bleu_with_unk_as_wrong, de_batch
 from evaluation import (greedy_batch_translate, 
-                        convert_idx_to_string, 
+#                         convert_idx_to_string, 
                         batch_align, 
                         beam_search_translate, 
-                        convert_idx_to_string_with_attn)
+#                         convert_idx_to_string_with_attn
+                        )
 
 import visualisation
 
@@ -62,8 +63,17 @@ def commandline():
     log.info("loading voc from %s"% voc_fn)
     src_voc, tgt_voc = json.load(open(voc_fn))
     
-    Vi = len(src_voc) + 1 # + UNK
-    Vo = len(tgt_voc) + 1 # + UNK
+    src_indexer = Indexer.make_from_serializable(src_voc)
+    tgt_indexer = Indexer.make_from_serializable(tgt_voc)
+    tgt_voc = None
+    src_voc = None
+    
+    
+#     Vi = len(src_voc) + 1 # + UNK
+#     Vo = len(tgt_voc) + 1 # + UNK
+    
+    Vi = len(src_indexer) # + UNK
+    Vo = len(tgt_indexer) # + UNK
     
     print config_training
     
@@ -84,8 +94,7 @@ def commandline():
         encdec = encdec.to_gpu(args.gpu)
         
         
-    src_indexer = Indexer.make_from_list(src_voc)
-    
+
     
     log.info("opening source file %s" % args.src_fn)
     src_data, dic_src, make_data_infos = build_dataset_one_side(args.src_fn, 
@@ -100,7 +109,6 @@ def commandline():
     tgt_data = None
     if args.tgt_fn is not None:
         log.info("opening target file %s" % args.tgt_fn)
-        tgt_indexer = Indexer.make_from_list(tgt_voc)
         tgt_data, dic_tgt, make_data_infos = build_dataset_one_side(args.tgt_fn, 
                                     src_voc_limit = None, max_nb_ex = args.max_nb_ex, dic_src = tgt_indexer)
         log.info("%i sentences loaded"%make_data_infos.num_ex)
@@ -115,18 +123,21 @@ def commandline():
     
     if args.mode == "translate":
         log.info("writing translation of to %s"% args.dest_fn)
-        with cuda.cupy.cuda.Device(args.gpu):
+        with cuda.get_device(args.gpu):
             translations = greedy_batch_translate(
                                         encdec, eos_idx, src_data, batch_size = args.mb_size, gpu = args.gpu, nb_steps = args.nb_steps)
         out = codecs.open(args.dest_fn, "w", encoding = "utf8")
         for t in translations:
-            ct = convert_idx_to_string(t[:-1], tgt_voc + ["#T_UNK#"])
+            if t[-1] == eos_idx:
+                t = t[:-1]
+            ct = " ".join(tgt_indexer.deconvert(t, unk_tag = "#T_UNK#"))
+#             ct = convert_idx_to_string(t, tgt_voc + ["#T_UNK#"])
             out.write(ct + "\n")
 
     elif args.mode == "beam_search":
         log.info("writing translation of to %s"% args.dest_fn)
         out = codecs.open(args.dest_fn, "w", encoding = "utf8")
-        with cuda.cupy.cuda.Device(args.gpu):
+        with cuda.get_device(args.gpu):
             translations_gen = beam_search_translate(
                         encdec, eos_idx, src_data, beam_width = args.beam_width, nb_steps = args.nb_steps, 
                                                  gpu = args.gpu, beam_opt = args.beam_opt, nb_steps_ratio = args.nb_steps_ratio,
@@ -141,19 +152,29 @@ def commandline():
             for t, score, attn in translations_gen:
 #                 t, score = bests[1]
 #                 ct = convert_idx_to_string(t, tgt_voc + ["#T_UNK#"])
-                ct = convert_idx_to_string_with_attn(t, tgt_voc, attn, unk_idx = len(tgt_voc))
+#                 ct = convert_idx_to_string_with_attn(t, tgt_voc, attn, unk_idx = len(tgt_voc))
+                
+                def unk_replacer(num_pos):
+                    unk_pattern = "#T_UNK_%i#"
+                    a = attn[num_pos]
+                    xp = cuda.get_array_module(a)
+                    src_pos = int(xp.argmax(a))
+                    return unk_pattern%src_pos
+                
+                ct = " ".join(tgt_indexer.deconvert(t, unk_tag = unk_replacer))
+                
 #                 print convert_idx_to_string(bests[0][0], tgt_voc + ["#T_UNK#"]) , bests[0][1]
 #                 print convert_idx_to_string(bests[1][0], tgt_voc + ["#T_UNK#"]), bests[1][1], bests[1][1] / len(bests[1][0])
                 out.write(ct + "\n")
             
     elif args.mode == "translate_attn":
         log.info("writing translation + attention as html to %s"% args.dest_fn)
-        with cuda.cupy.cuda.Device(args.gpu):
+        with cuda.get_device(args.gpu):
             translations, attn_all = greedy_batch_translate(
                                         encdec, eos_idx, src_data, batch_size = args.mb_size, gpu = args.gpu,
                                         get_attention = True, nb_steps = args.nb_steps)
-        tgt_voc_with_unk = tgt_voc + ["#T_UNK#"]
-        src_voc_with_unk = src_voc + ["#S_UNK#"]
+#         tgt_voc_with_unk = tgt_voc + ["#T_UNK#"]
+#         src_voc_with_unk = src_voc + ["#S_UNK#"]
         assert len(translations) == len(src_data)
         assert len(attn_all) == len(src_data)
         plots_list = []
@@ -171,8 +192,11 @@ def commandline():
                     sum_al[j] += alignment[i,j]
             for j in xrange(len(tgt_idx_list)):        
                 alignment[len(src_idx_list), j] =  sum_al[j]
-            src_w = [src_voc_with_unk[idx] for idx in src_idx_list] + ["SUM_ATTN"]
-            tgt_w = [tgt_voc_with_unk[idx] for idx in tgt_idx_list]
+                
+            src_w = src_indexer.deconvert(src_idx_list, unk_tag = "#S_UNK#") + ["SUM_ATTN"]
+            tgt_w = tgt_indexer.deconvert(tgt_idx_list, unk_tag = "#T_UNK#")
+#             src_w = [src_voc_with_unk[idx] for idx in src_idx_list] + ["SUM_ATTN"]
+#             tgt_w = [tgt_voc_with_unk[idx] for idx in tgt_idx_list]
 #             for j in xrange(len(tgt_idx_list)):
 #                 tgt_idx_list.append(tgt_voc_with_unk[t_and_attn[j][0]])
 #             
@@ -190,11 +214,11 @@ def commandline():
         assert tgt_data is not None
         assert len(tgt_data) == len(src_data)
         log.info("writing alignment as html to %s"% args.dest_fn)
-        with cuda.cupy.cuda.Device(args.gpu):
+        with cuda.get_device(args.gpu):
             loss, attn_all = batch_align(
                                         encdec, eos_idx, zip(src_data, tgt_data), batch_size = args.mb_size, gpu = args.gpu)
-        tgt_voc_with_unk = tgt_voc + ["#T_UNK#"]
-        src_voc_with_unk = src_voc + ["#S_UNK#"]
+#         tgt_voc_with_unk = tgt_voc + ["#T_UNK#"]
+#         src_voc_with_unk = src_voc + ["#S_UNK#"]
         
         assert len(attn_all) == len(src_data)
         plots_list = []
@@ -212,8 +236,11 @@ def commandline():
                     sum_al[j] += alignment[i,j]
             for j in xrange(len(tgt_idx_list)):        
                 alignment[len(src_idx_list), j] =  sum_al[j]
-            src_w = [src_voc_with_unk[idx] for idx in src_idx_list] + ["SUM_ATTN"]
-            tgt_w = [tgt_voc_with_unk[idx] for idx in tgt_idx_list]
+                
+            src_w = src_indexer.deconvert(src_idx_list, unk_tag = "#S_UNK#") + ["SUM_ATTN"]
+            tgt_w = tgt_indexer.deconvert(tgt_idx_list, unk_tag = "#T_UNK#")
+#             src_w = [src_voc_with_unk[idx] for idx in src_idx_list] + ["SUM_ATTN"]
+#             tgt_w = [tgt_voc_with_unk[idx] for idx in tgt_idx_list]
 #             for j in xrange(len(tgt_idx_list)):
 #                 tgt_idx_list.append(tgt_voc_with_unk[t_and_attn[j][0]])
 #             

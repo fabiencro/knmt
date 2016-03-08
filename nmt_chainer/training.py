@@ -22,10 +22,10 @@ log = logging.getLogger("rnns:training")
 log.setLevel(logging.INFO)
 
 def train_on_data(encdec, optimizer, training_data, output_files_dict,
-                  src_voc, tgt_voc, eos_idx, mb_size = 80,
+                  src_indexer, tgt_indexer, eos_idx, mb_size = 80,
                   nb_of_batch_to_sort = 20,
                   test_data = None, dev_data = None, gpu = None, report_every = 200, randomized = False,
-                  reverse_src = False, reverse_tgt = False):
+                  reverse_src = False, reverse_tgt = False, max_nb_iters = None):
     
     mb_provider = minibatch_provider(training_data, eos_idx, mb_size, nb_of_batch_to_sort, gpu = gpu,
                                      randomized = randomized, sort_key = lambda x:len(x[0]),
@@ -84,9 +84,9 @@ def train_on_data(encdec, optimizer, training_data, output_files_dict,
         def translate_test():
             translations_fn = output_files_dict["test_translation_output"] #save_prefix + ".test.out"
             control_src_fn = output_files_dict["test_src_output"] #save_prefix + ".test.src.out"
-            return translate_to_file(encdec, eos_idx, test_src_data, mb_size, tgt_voc, 
+            return translate_to_file(encdec, eos_idx, test_src_data, mb_size, tgt_indexer, 
                    translations_fn, test_references = test_references, control_src_fn = control_src_fn,
-                   src_voc = src_voc, gpu = gpu, nb_steps = 50, reverse_src = reverse_src, reverse_tgt = reverse_tgt)
+                   src_indexer = src_indexer, gpu = gpu, nb_steps = 50, reverse_src = reverse_src, reverse_tgt = reverse_tgt)
         def compute_test_loss():
             log.info("computing test loss")
             test_loss = compute_loss_all(encdec, test_data, eos_idx, mb_size, gpu = gpu,
@@ -96,8 +96,10 @@ def train_on_data(encdec, optimizer, training_data, output_files_dict,
     else:
         def translate_test():
             log.info("translate_test: No test data given")
+            return None
         def compute_test_loss():
             log.info("compute_test_loss: No test data given")
+            return None
             
     if dev_data is not None:
         dev_src_data = [x for x,y in dev_data]
@@ -105,9 +107,9 @@ def train_on_data(encdec, optimizer, training_data, output_files_dict,
         def translate_dev():
             translations_fn = output_files_dict["dev_translation_output"] #save_prefix + ".test.out"
             control_src_fn = output_files_dict["dev_src_output"] #save_prefix + ".test.src.out"
-            return translate_to_file(encdec, eos_idx, dev_src_data, mb_size, tgt_voc, 
+            return translate_to_file(encdec, eos_idx, dev_src_data, mb_size, tgt_indexer, 
                    translations_fn, test_references = dev_references, control_src_fn = control_src_fn,
-                   src_voc = src_voc, gpu = gpu, nb_steps = 50, reverse_src = reverse_src, reverse_tgt = reverse_tgt)
+                   src_indexer = src_indexer, gpu = gpu, nb_steps = 50, reverse_src = reverse_src, reverse_tgt = reverse_tgt)
         def compute_dev_loss():
             log.info("computing dev loss")
             dev_loss = compute_loss_all(encdec, dev_data, eos_idx, mb_size, gpu = gpu,
@@ -117,8 +119,10 @@ def train_on_data(encdec, optimizer, training_data, output_files_dict,
     else:
         def translate_dev():
             log.info("translate_dev: No dev data given")
+            return None
         def compute_dev_loss():
-            log.info("compute_dev_loss: No dev data given")        
+            log.info("compute_dev_loss: No dev data given")
+            return None     
     
     try:
         best_dev_bleu = 0
@@ -128,6 +132,9 @@ def train_on_data(encdec, optimizer, training_data, output_files_dict,
         total_loss_this_interval = 0 
         total_nb_predictions_this_interval = 0
         for i in xrange(sys.maxint):
+            if max_nb_iters is not None and max_nb_iters <= i:
+                break
+            
             print i,
             src_batch, tgt_batch, src_mask = mb_provider.next()
 #             if i%100 == 0:
@@ -136,7 +143,7 @@ def train_on_data(encdec, optimizer, training_data, output_files_dict,
             if i%200 == 0:
                 for v in src_batch + tgt_batch:
                     v.volatile = "on"
-                sample_once(encdec, src_batch, tgt_batch, src_mask, src_voc, tgt_voc, eos_idx,
+                sample_once(encdec, src_batch, tgt_batch, src_mask, src_indexer, tgt_indexer, eos_idx,
                             max_nb = 20)
                 for v in src_batch + tgt_batch:
                     v.volatile = "off"
@@ -166,7 +173,7 @@ def train_on_data(encdec, optimizer, training_data, output_files_dict,
                 bc_dev = translate_dev()
                 dev_loss = compute_dev_loss()
                 
-                if best_dev_loss is None or dev_loss <= best_dev_loss:
+                if dev_loss is not None and (best_dev_loss is None or dev_loss <= best_dev_loss):
                     best_dev_loss = dev_loss
                     log.info("saving best loss model %f" % best_dev_loss)
                     save_model("best_loss")

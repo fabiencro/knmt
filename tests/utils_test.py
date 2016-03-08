@@ -15,11 +15,6 @@ import chainer.links as L
 import nmt_chainer.models as models
 import nmt_chainer.utils as utils
 
-import logging
-logging.basicConfig()
-log = logging.getLogger("rnns:utils_test")
-log.setLevel(logging.INFO)
-
 from nmt_chainer.utils import de_batch
 
 class TestDeBatch:
@@ -71,4 +66,24 @@ class TestDeBatch:
 #         print seq_list
 #         print seq_list == [[1,1,[7,9],10], [3,5,[5,8]], [4,6], [8,9]]
 #         assert np.all(seq_list == [[1,1,[7,9],10], [3,5,[5,8]], [4,6], [8,9]])
+
+import nmt_chainer.make_data as make_data
+import nmt_chainer.train as train
+import os.path
+
+# test_data_dir = "tests_data"
+
+class TestMakeData:
+    def test_data_creation(self, tmpdir):
+        test_data_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "tests_data")
+        train_dir = tmpdir.mkdir("train")
+        data_prefix = str(train_dir.join("test1.data"))
+        train_prefix = str(train_dir.join("test1.train"))
+        args = [os.path.join(test_data_dir, "src.txt"), os.path.join(test_data_dir, "tgt.txt"), data_prefix ]
+        make_data.cmdline(arguments = args)
+        
+        args_train = [data_prefix, train_prefix] + "--max_nb_iters 5 --mb_size 2 --Ei 10 --Eo 12 --Hi 30 --Ha 70 --Ho 15 --Hl 23".split(" ")
+        train.command_line(arguments = args_train)
+        
+        
         
