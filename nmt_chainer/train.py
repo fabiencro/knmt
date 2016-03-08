@@ -11,6 +11,7 @@ from chainer import cuda, optimizers, serializers
 
 import models
 from training import train_on_data
+from make_data import Indexer
 
 import logging
 import json
@@ -28,7 +29,7 @@ logging.basicConfig()
 log = logging.getLogger("rnns:train")
 log.setLevel(logging.INFO)
 
-def command_line():
+def command_line(arguments = None):
     import argparse
     parser = argparse.ArgumentParser(description= "Train a RNNSearch model", 
                                      formatter_class=argparse.ArgumentDefaultsHelpFormatter)
@@ -46,6 +47,8 @@ def command_line():
     parser.add_argument("--mb_size", type = int, default= 80, help = "Minibatch size")
     parser.add_argument("--nb_batch_to_sort", type = int, default= 20, help = "Sort this many batches by size.")
     
+    
+    parser.add_argument("--max_nb_iters", type = int, default= None, help = "maximum number of iterations")
     
     parser.add_argument("--max_src_tgt_length", type = int, help = "Limit length of training sentences")
     
@@ -68,7 +71,7 @@ def command_line():
     parser.add_argument("--reverse_src", default = False, action = "store_true")
     parser.add_argument("--reverse_tgt", default = False, action = "store_true")
     
-    args = parser.parse_args()
+    args = parser.parse_args(args = arguments)
     
     output_files_dict = {}
     output_files_dict["train_config"] = args.save_prefix + ".train.config"
@@ -124,6 +127,19 @@ def command_line():
     log.info("loading voc from %s"% voc_fn)
     src_voc, tgt_voc = json.load(open(voc_fn))
     
+    src_indexer = Indexer.make_from_serializable(src_voc)
+    tgt_indexer = Indexer.make_from_serializable(tgt_voc)
+    tgt_voc = None
+    src_voc = None
+    
+    
+#     Vi = len(src_voc) + 1 # + UNK
+#     Vo = len(tgt_voc) + 1 # + UNK
+    
+    Vi = len(src_indexer) # + UNK
+    Vo = len(tgt_indexer) # + UNK
+    
+    
     if args.max_src_tgt_length is not None:
         log.info("filtering sentences of length larger than %i"%(args.max_src_tgt_length))
         filtered_training_data = []
@@ -142,9 +158,9 @@ def command_line():
         random.shuffle(training_data)
         log.info("done")
     
-    
-    Vi = len(src_voc) + 1 # + UNK
-    Vo = len(tgt_voc) + 1 # + UNK
+#     
+#     Vi = len(src_voc) + 1 # + UNK
+#     Vo = len(tgt_voc) + 1 # + UNK
     
     config_training = {"command_line" : args.__dict__, "Vi": Vi, "Vo" : Vo, "voc" : voc_fn, "data" : data_fn}
     save_train_config_fn = output_files_dict["train_config"]
@@ -199,13 +215,14 @@ def command_line():
     if args.load_optimizer_state is not None:
         serializers.load_npz(args.load_optimizer_state, optimizer)    
     
-    with cuda.cupy.cuda.Device(args.gpu):
+    with cuda.get_device(args.gpu):
         train_on_data(encdec, optimizer, training_data, output_files_dict,
-                      src_voc + ["#S_UNK#"], tgt_voc + ["#T_UNK#"], eos_idx = eos_idx, 
+                      src_indexer, tgt_indexer, eos_idx = eos_idx, 
                       mb_size = args.mb_size,
                       nb_of_batch_to_sort = args.nb_batch_to_sort,
                       test_data = test_data, dev_data = dev_data, gpu = args.gpu, report_every = args.report_every,
-                      randomized = args.randomized_data, reverse_src = args.reverse_src, reverse_tgt = args.reverse_tgt)
+                      randomized = args.randomized_data, reverse_src = args.reverse_src, reverse_tgt = args.reverse_tgt,
+                      max_nb_iters = args.max_nb_iters)
 
 if __name__ == '__main__':
     command_line()

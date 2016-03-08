@@ -25,50 +25,105 @@ class Indexer(object):
     def __init__(self):
         self.dic = {}
         self.lst = []
+        self.finalized = False
+        
+    def add_word(self, w, should_be_new = False):
+        assert not self.finalized
+        assert w is not None
+        if w not in self.dic:
+            new_idx = len(self.lst)
+            self.dic[w] = new_idx
+            self.lst.append(w)
+            assert len(self.lst) == len(self.dic)
+        else:
+            assert not should_be_new
+        
+    def finalize(self):
+        assert not self.finalized
+        self.dic[None] = len(self.lst)
+        self.lst.append(None)
+        self.finalized = True
+        
+    def get_unk_idx(self):
+        assert self.finalized
+        return self.dic[None]
         
     def convert(self, seq):
+        assert self.finalized
         assert len(self.dic) == len(self.lst)
-        unk_idx = len(self.lst)
+        unk_idx = self.get_unk_idx()
 #         res = np.empty( (len(seq),), dtype = np.int32)
         res = [None] * len(seq)
         for pos, w in enumerate(seq):
-            if w in self.dic:
-                idx = self.dic.get(w, unk_idx)
-                res[pos] = idx
+            assert w is not None
+            idx = self.dic.get(w, unk_idx)
+            res[pos] = idx
         return res
     
-    def convert_with_unk_count(self, seq):
-        assert len(self.dic) == len(self.lst)
-        unk_idx = len(self.lst)
-#         res = np.empty( (len(seq),), dtype = np.int32)
-        res = [None] * len(seq)
-        unk_count = 0
-        for pos, w in enumerate(seq):
-            if w in self.dic:
-                idx = self.dic[w]
+    def deconvert(self, seq, unk_tag = "#UNK#", no_oov = True, eos_idx = None):
+        assert self.finalized
+        assert eos_idx is None or eos_idx >= len(self.lst)
+        res = []
+        for num, idx in enumerate(seq):
+            if idx >= len(self.lst):
+                if eos_idx is not None and eos_idx == idx:
+                    w = "#EOS#"
+                elif no_oov:
+                    raise KeyError()
+                else:
+                    log.warn("unknown idx: %i / %i"%(idx, len(self.lst)))
+                    continue
             else:
-                idx = unk_idx
-                unk_count += 1
-            res[pos] = idx
-        return res, unk_count
+                w = self.lst[idx]
+            if w is None:
+                if callable(unk_tag):
+                    w = unk_tag(num)
+                else:
+                    w = unk_tag
+            res.append(w)
+        return res
+            
+    
+    def get_special_id(self, special_id = 0):
+        assert self.finalized
+        return len(self.lst) + special_id
+    
+#     def convert_with_unk_count(self, seq):
+#         assert len(self.dic) == len(self.lst)
+#         unk_idx = len(self.lst)
+# #         res = np.empty( (len(seq),), dtype = np.int32)
+#         res = [None] * len(seq)
+#         unk_count = 0
+#         for pos, w in enumerate(seq):
+#             if w in self.dic:
+#                 idx = self.dic[w]
+#             else:
+#                 idx = unk_idx
+#                 unk_count += 1
+#             res[pos] = idx
+#         return res, unk_count
     
     def __len__(self):
         assert len(self.dic) == len(self.lst)
         return len(self.lst)
     
+    def to_serializable(self):
+        return self.lst
+    
     @staticmethod
-    def make_from_list(voc_lst):
+    def make_from_serializable(voc_lst):
         res = Indexer()
         res.lst = list(voc_lst)
         for idx, w in enumerate(voc_lst):
             res.dic[w] = idx
+        res.finalized = True
         return res
 
 
-MakeDataInfosOneSide = collections.namedtuple("MakeDataInfosOneSide", ["total_count_unk", "total_token", "num_ex"])
+MakeDataInfosOneSide = collections.namedtuple("MakeDataInfosOneSide", ["total_count_unk", "total_token", "nb_ex"])
 
 MakeDataInfos = collections.namedtuple("MakeDataInfos", ["total_count_unk_src", "total_count_unk_tgt", "total_token_src", 
-                                         "total_token_tgt", "num_ex"])
+                                         "total_token_tgt", "nb_ex"])
 
 
 def build_index(fn, voc_limit = None, max_nb_ex = None):
@@ -86,10 +141,9 @@ def build_index(fn, voc_limit = None, max_nb_ex = None):
     
     res = Indexer()
     
-    for idx,(w, cnt) in enumerate(sorted_counts[:voc_limit]):
-        res.dic[w] = idx
-        res.lst.append(w)
-        assert len(res.lst) == len(res.dic)
+    for w, _ in sorted_counts[:voc_limit]:
+        res.add_word(w, should_be_new = True)
+    res.finalize()
     
     return res
     
@@ -118,7 +172,8 @@ def build_dataset_one_side(src_fn, src_voc_limit = None, max_nb_ex = None, dic_s
         
         line_src = line_src.strip().split(" ")
         
-        seq_src, unk_cnt_src= dic_src.convert_with_unk_count(line_src)
+        seq_src = dic_src.convert(line_src)
+        unk_cnt_src = sum(w == dic_src.get_unk_idx() for w in seq_src)
 
         total_count_unk_src += unk_cnt_src
         
@@ -168,8 +223,11 @@ def build_dataset(src_fn, tgt_fn, src_voc_limit = None, tgt_voc_limit = None, ma
         line_src = line_src.strip().split(" ")
         line_tgt = line_tgt.strip().split(" ")
         
-        seq_src, unk_cnt_src= dic_src.convert_with_unk_count(line_src)
-        seq_tgt, unk_cnt_tgt = dic_tgt.convert_with_unk_count(line_tgt)
+        seq_src = dic_src.convert(line_src)
+        unk_cnt_src = sum(w == dic_src.get_unk_idx() for w in seq_src)
+        
+        seq_tgt = dic_tgt.convert(line_tgt)
+        unk_cnt_tgt = sum(w == dic_tgt.get_unk_idx() for w in seq_tgt)
 
         total_count_unk_src += unk_cnt_src
         total_count_unk_tgt += unk_cnt_tgt
@@ -187,7 +245,7 @@ def build_dataset(src_fn, tgt_fn, src_voc_limit = None, tgt_voc_limit = None, ma
                                                 num_ex
                                                 )
 
-def cmdline():
+def cmdline(arguments = None):
     import sys
     import argparse
     parser = argparse.ArgumentParser(description= "Prepare training data.", 
@@ -211,7 +269,7 @@ def cmdline():
     parser.add_argument("--dev_tgt", help = "specify a target dev set")
     
     parser.add_argument("--use_voc", help = "specify an exisiting vocabulary file")
-    args = parser.parse_args()
+    args = parser.parse_args(args = arguments)
     
     if not ((args.test_src is None) == (args.test_tgt is None)):
         print >>sys.stderr, "Command Line Error: either specify both --test_src and --test_tgt or neither"
@@ -301,7 +359,7 @@ def cmdline():
     json.dump(args.__dict__, open(config_fn, "w"), indent=2, separators=(',', ': '))
 
     log.info("saving voc to %s"%voc_fn)
-    json.dump([dic_src.lst, dic_tgt.lst], open(voc_fn, "w"))
+    json.dump([dic_src.to_serializable(), dic_tgt.to_serializable()], open(voc_fn, "w"))
     
     log.info("saving train_data to %s"%data_fn)
     data_all = {"train": training_data}

@@ -18,8 +18,8 @@ logging.basicConfig()
 log = logging.getLogger("rnns:evaluation")
 log.setLevel(logging.INFO)
 
-def translate_to_file(encdec, eos_idx, test_src_data, mb_size, tgt_voc, 
-                   translations_fn, test_references = None, control_src_fn = None, src_voc = None, gpu = None, nb_steps = 50,
+def translate_to_file(encdec, eos_idx, test_src_data, mb_size, tgt_indexer, 
+                   translations_fn, test_references = None, control_src_fn = None, src_indexer = None, gpu = None, nb_steps = 50,
                    reverse_src = False, reverse_tgt = False):
     
     log.info("computing translations")
@@ -32,17 +32,20 @@ def translate_to_file(encdec, eos_idx, test_src_data, mb_size, tgt_voc,
     for t in translations:
         if t[-1] == eos_idx:
             t = t[:-1]
-        out.write(convert_idx_to_string(t, tgt_voc) + "\n")
+#         out.write(convert_idx_to_string(t, tgt_voc) + "\n")
+        out.write(" ".join(tgt_indexer.deconvert(t, unk_tag = "#T_UNK#")) + "\n")
+        
     
     if control_src_fn is not None:
-        assert src_voc is not None
+        assert src_indexer is not None
         control_out = codecs.open(control_src_fn, "w", encoding = "utf8")
         log.info("writing src of test set to %s"% control_src_fn)
         for s in test_src_data:
-            control_out.write(convert_idx_to_string(s, src_voc) + "\n")
+#             control_out.write(convert_idx_to_string(s, src_voc) + "\n")
+            control_out.write(" ".join(src_indexer.deconvert(s, unk_tag = "#S_UNK#")) + "\n")
         
     if test_references is not None:
-        unk_id = len(tgt_voc) - 1
+        unk_id = tgt_indexer.get_unk_idx()  #len(tgt_voc) - 1
         new_unk_id_ref = unk_id + 7777
         new_unk_id_cand = unk_id + 9999
         bc = compute_bleu_with_unk_as_wrong(test_references, [t[:-1] for t in translations], unk_id, new_unk_id_ref, new_unk_id_cand)
@@ -151,34 +154,34 @@ def batch_align(encdec, eos_idx, src_tgt_data, batch_size = 80, gpu = None):
         sum_loss += float(loss.data)
     return sum_loss, attn_all
             
-def convert_idx_to_string(seq, voc, eos_idx = None):
-    trans = []
-    for idx_tgt in seq:
-        if eos_idx is not None and idx_tgt == eos_idx:
-            trans.append("#EOS#")
-        else:
-            if idx_tgt >= len(voc):
-                log.warn("found unknown idx in tgt : %i / %i"% (idx_tgt, len(voc)))
-            else:
-                trans.append(voc[idx_tgt])
-    return " ".join(trans)
+# def convert_idx_to_string(seq, voc, eos_idx = None):
+#     trans = []
+#     for idx_tgt in seq:
+#         if eos_idx is not None and idx_tgt == eos_idx:
+#             trans.append("#EOS#")
+#         else:
+#             if idx_tgt >= len(voc):
+#                 log.warn("found unknown idx in tgt : %i / %i"% (idx_tgt, len(voc)))
+#             else:
+#                 trans.append(voc[idx_tgt])
+#     return " ".join(trans)
+# 
+# def convert_idx_to_string_with_attn(seq, voc, attn, unk_idx, unk_pattern = "#T_UNK_%i#"):
+#     trans = []
+#     for num, idx_tgt in enumerate(seq):
+#         if idx_tgt == unk_idx:
+#             a = attn[num]
+#             xp = cuda.get_array_module(a)
+#             src_pos = int(xp.argmax(a))
+#             trans.append(unk_pattern%src_pos)
+#         else:
+#             if idx_tgt >= len(voc):
+#                 log.warn("found unknown idx in tgt : %i / %i"% (idx_tgt, len(voc)))
+#             else:
+#                 trans.append(voc[idx_tgt])
+#     return " ".join(trans)
 
-def convert_idx_to_string_with_attn(seq, voc, attn, unk_idx, unk_pattern = "#T_UNK_%i#"):
-    trans = []
-    for num, idx_tgt in enumerate(seq):
-        if idx_tgt == unk_idx:
-            a = attn[num]
-            xp = cuda.get_array_module(a)
-            src_pos = int(xp.argmax(a))
-            trans.append(unk_pattern%src_pos)
-        else:
-            if idx_tgt >= len(voc):
-                log.warn("found unknown idx in tgt : %i / %i"% (idx_tgt, len(voc)))
-            else:
-                trans.append(voc[idx_tgt])
-    return " ".join(trans)
-
-def sample_once(encdec, src_batch, tgt_batch, src_mask, src_voc, tgt_voc, eos_idx, max_nb = None):
+def sample_once(encdec, src_batch, tgt_batch, src_mask, src_indexer, tgt_indexer, eos_idx, max_nb = None):
     print "sample"
     sample_greedy, score, attn_list = encdec(src_batch, 50, src_mask, use_best_for_sample = True, need_score = True)
 #                 sample, score = encdec(src_batch, 50, src_mask, use_best_for_sample = False)
@@ -197,8 +200,8 @@ def sample_once(encdec, src_batch, tgt_batch, src_mask, src_voc, tgt_voc, eos_id
         sample_idx_seq = debatched_sample[sent_num]
         print "sent num", sent_num
         print "src idx:", src_idx_seq
-        print "src:", convert_idx_to_string(src_idx_seq, src_voc)
+        print "src:", " ".join(src_indexer.deconvert(src_idx_seq, unk_tag = "#S_UNK#")) #convert_idx_to_string(src_idx_seq, src_voc)
         print "tgt idx:", tgt_idx_seq
-        print "tgt:", convert_idx_to_string(tgt_idx_seq, tgt_voc, eos_idx = eos_idx)
+        print "tgt:", " ".join(tgt_indexer.deconvert(tgt_idx_seq, unk_tag = "#T_UNK#", eos_idx = eos_idx)) # convert_idx_to_string(tgt_idx_seq, tgt_voc, eos_idx = eos_idx)
         print "sample idx:", sample_idx_seq
-        print "sample:", convert_idx_to_string(sample_idx_seq, tgt_voc, eos_idx = eos_idx)
+        print "sample:", " ".join(tgt_indexer.deconvert(sample_idx_seq, unk_tag = "#T_UNK#", eos_idx = eos_idx)) #convert_idx_to_string(sample_idx_seq, tgt_voc, eos_idx = eos_idx)
