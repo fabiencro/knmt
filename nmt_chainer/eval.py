@@ -154,7 +154,7 @@ def commandline():
 #                 ct = convert_idx_to_string(t, tgt_voc + ["#T_UNK#"])
 #                 ct = convert_idx_to_string_with_attn(t, tgt_voc, attn, unk_idx = len(tgt_voc))
                 
-                def unk_replacer(num_pos):
+                def unk_replacer(num_pos, unk_id):
                     unk_pattern = "#T_UNK_%i#"
                     a = attn[num_pos]
                     xp = cuda.get_array_module(a)

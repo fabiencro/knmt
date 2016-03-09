@@ -45,10 +45,10 @@ def translate_to_file(encdec, eos_idx, test_src_data, mb_size, tgt_indexer,
             control_out.write(" ".join(src_indexer.deconvert(s, unk_tag = "#S_UNK#")) + "\n")
         
     if test_references is not None:
-        unk_id = tgt_indexer.get_unk_idx()  #len(tgt_voc) - 1
-        new_unk_id_ref = unk_id + 7777
-        new_unk_id_cand = unk_id + 9999
-        bc = compute_bleu_with_unk_as_wrong(test_references, [t[:-1] for t in translations], unk_id, new_unk_id_ref, new_unk_id_cand)
+#         unk_id = tgt_indexer.get_unk_idx()  #len(tgt_voc) - 1
+        new_unk_id_ref = len(tgt_indexer) + 7777
+        new_unk_id_cand = len(tgt_indexer) + 9999
+        bc = compute_bleu_with_unk_as_wrong(test_references, [t[:-1] for t in translations], tgt_indexer.is_unk_idx, new_unk_id_ref, new_unk_id_cand)
         log.info("bleu: %r"%bc)
         return bc
     else:
