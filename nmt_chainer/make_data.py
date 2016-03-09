@@ -133,13 +133,15 @@ class Indexer(object):
         
     def finalize(self):
         assert not self.finalized
+        assert len(self.dic) == len(self.lst)
         self.add_word(0, should_be_new = False, should_not_be_int = False)
         self.finalized = True
         
     def get_one_unk_idx(self, w):
         assert self.finalized
+        assert w not in self.dic
         if self.unk_label_dictionary is not None:
-            return self.unk_label_dictionary.get(w, 0)
+            return self.unk_label_dictionary.get(w, 1)
         else:
             return self.dic[0]
 
@@ -197,7 +199,6 @@ class Indexer(object):
             else:
                 w = self.lst[idx]
                 
-            assert not callable(unk_tag)
             if isinstance(w, int):
                 if callable(unk_tag):
                     w = unk_tag(num, w)
@@ -217,16 +218,31 @@ class Indexer(object):
     
     @staticmethod
     def make_from_serializable(datas):
-        assert datas["type"] == "simple_indexer"
-        assert datas["rev"] == 1
-        voc_lst = datas["voc_lst"]
-        res = Indexer()
-        res.lst = list(voc_lst)
-        res.unk_label_dictionary = datas["unk_label_dic"]
-        for idx, w in enumerate(voc_lst):
-            res.dic[w] = idx
-        res.finalized = True
-        return res
+        if isinstance(datas, list):
+            # legacy mode
+            log.info("loading legacy voc")
+            voc_lst = datas
+            assert 0 not in voc_lst
+            res = Indexer()
+            res.lst = list(voc_lst) #add UNK
+            for idx, w in enumerate(res.lst):
+                assert isinstance(w, basestring)
+                res.dic[w] = idx
+            assert len(res.dic) == len(res.lst)
+            res.finalize()
+            return res
+        else:
+            assert isinstance(datas, dict)
+            assert datas["type"] == "simple_indexer"
+            assert datas["rev"] == 1
+            voc_lst = datas["voc_lst"]
+            res = Indexer()
+            res.lst = list(voc_lst)
+            res.unk_label_dictionary = datas["unk_label_dic"]
+            for idx, w in enumerate(voc_lst):
+                res.dic[w] = idx
+            res.finalized = True
+            return res
 
 MakeDataInfosOneSide = collections.namedtuple("MakeDataInfosOneSide", ["total_count_unk", "total_token", "nb_ex"])
 
