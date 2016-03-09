@@ -21,15 +21,103 @@ logging.basicConfig()
 log = logging.getLogger("rnns:make_data")
 log.setLevel(logging.INFO)
 
+# class Indexer(object):
+#     def __init__(self, unk_tag = "#UNK#"):
+#         self.dic = {}
+#         self.lst = []
+#         self.finalized = False
+#         
+#     def add_word(self, w, should_be_new = False):
+#         assert not self.finalized
+#         assert w is not None
+#         if w not in self.dic:
+#             new_idx = len(self.lst)
+#             self.dic[w] = new_idx
+#             self.lst.append(w)
+#             assert len(self.lst) == len(self.dic)
+#         else:
+#             assert not should_be_new
+#     
+#     def assign_index_to_voc(self, voc_iter, all_should_be_new = False):
+#         assert not self.finalized
+#         for w in voc_iter:
+#             self.add_word(w, should_be_new = all_should_be_new)
+#         
+#     def finalize(self):
+#         assert not self.finalized
+#         self.dic[None] = len(self.lst)
+#         self.lst.append(None)
+#         self.finalized = True
+#         
+#     def get_unk_idx(self):
+#         assert self.finalized
+#         return self.dic[None]
+# 
+#     def convert(self, seq):
+#         assert self.finalized
+#         assert len(self.dic) == len(self.lst)
+#         unk_idx = self.get_unk_idx()
+# #         res = np.empty( (len(seq),), dtype = np.int32)
+#         res = [None] * len(seq)
+#         for pos, w in enumerate(seq):
+#             assert w is not None
+#             idx = self.dic.get(w, unk_idx)
+#             res[pos] = idx
+#         return res
+#         
+#     def deconvert(self, seq, unk_tag = "#UNK#", no_oov = True, eos_idx = None):
+#         assert self.finalized
+#         assert eos_idx is None or eos_idx >= len(self.lst)
+#         res = []
+#         for num, idx in enumerate(seq):
+#             if idx >= len(self.lst):
+#                 if eos_idx is not None and eos_idx == idx:
+#                     w = "#EOS#"
+#                 elif no_oov:
+#                     raise KeyError()
+#                 else:
+#                     log.warn("unknown idx: %i / %i"%(idx, len(self.lst)))
+#                     continue
+#             else:
+#                 w = self.lst[idx]
+#             if w is None:
+#                 if callable(unk_tag):
+#                     w = unk_tag(num)
+#                 else:
+#                     w = unk_tag
+#             res.append(w)
+#         return res
+#     
+#     def __len__(self):
+#         assert self.finalized
+#         assert len(self.dic) == len(self.lst)
+#         return len(self.lst)
+#     
+#     def to_serializable(self):
+#         return {"type": "simple_indexer", "rev": 1,  "voc_lst" : self.lst}
+#     
+#     @staticmethod
+#     def make_from_serializable(datas):
+#         assert datas["type"] == "simple_indexer"
+#         assert datas["rev"] == 1
+#         voc_lst = datas["voc_lst"]
+#         res = Indexer()
+#         res.lst = list(voc_lst)
+#         for idx, w in enumerate(voc_lst):
+#             res.dic[w] = idx
+#         res.finalized = True
+#         return res
+              
 class Indexer(object):
-    def __init__(self):
+    def __init__(self, unk_tag = "#UNK#"):
         self.dic = {}
         self.lst = []
+        self.unk_label_dictionary = None
         self.finalized = False
         
-    def add_word(self, w, should_be_new = False):
+    def add_word(self, w, should_be_new = False, should_not_be_int = True):
         assert not self.finalized
-        assert w is not None
+        assert not (should_not_be_int and isinstance(w, int))
         if w not in self.dic:
             new_idx = len(self.lst)
             self.dic[w] = new_idx
@@ -37,26 +125,59 @@ class Indexer(object):
             assert len(self.lst) == len(self.dic)
         else:
             assert not should_be_new
+    
+    def assign_index_to_voc(self, voc_iter, all_should_be_new = False):
+        assert not self.finalized
+        for w in voc_iter:
+            self.add_word(w, should_be_new = all_should_be_new)
         
     def finalize(self):
         assert not self.finalized
-        self.dic[None] = len(self.lst)
-        self.lst.append(None)
+        self.add_word(0, should_be_new = False, should_not_be_int = False)
         self.finalized = True
         
-    def get_unk_idx(self):
+    def get_one_unk_idx(self, w):
         assert self.finalized
-        return self.dic[None]
+        if self.unk_label_dictionary is not None:
+            return self.unk_label_dictionary.get(w, 0)
+        else:
+            return self.dic[0]
+
+    def is_unk_idx(self, idx):
+        assert self.finalized
+        assert idx < len(self.lst)
+        return isinstance(self.lst[idx], int)
+
+    def add_unk_label_dictionary(self, unk_dic):
+        assert not self.finalized
+        self.unk_label_dictionary = unk_dic
         
     def convert(self, seq):
         assert self.finalized
         assert len(self.dic) == len(self.lst)
-        unk_idx = self.get_unk_idx()
-#         res = np.empty( (len(seq),), dtype = np.int32)
         res = [None] * len(seq)
         for pos, w in enumerate(seq):
-            assert w is not None
-            idx = self.dic.get(w, unk_idx)
+            assert not isinstance(w, int)
+            if w in self.dic:
+                idx = self.dic[w]
+            else:
+                idx = self.get_one_unk_idx(w)
+            res[pos] = idx
+        return res
+    
+    def convert_and_update_unk_tags(self, seq, give_unk_label):
+        assert not self.finalized
+        assert len(self.dic) == len(self.lst)
+        res = [None] * len(seq)
+        for pos, w in enumerate(seq):
+            assert not isinstance(w, int)
+            if w in self.dic:
+                idx = self.dic[w]
+            else:
+                aligned_pos = give_unk_label(pos, w)
+                if aligned_pos not in self.dic:
+                    self.add_word(aligned_pos, should_be_new = True, should_not_be_int = False)
+                idx = self.dic[aligned_pos]
             res[pos] = idx
         return res
     
@@ -75,50 +196,37 @@ class Indexer(object):
                     continue
             else:
                 w = self.lst[idx]
-            if w is None:
+                
+            assert not callable(unk_tag)
+            if isinstance(w, int):
                 if callable(unk_tag):
-                    w = unk_tag(num)
+                    w = unk_tag(num, w)
                 else:
                     w = unk_tag
+            
             res.append(w)
         return res
-            
-    
-    def get_special_id(self, special_id = 0):
-        assert self.finalized
-        return len(self.lst) + special_id
-    
-#     def convert_with_unk_count(self, seq):
-#         assert len(self.dic) == len(self.lst)
-#         unk_idx = len(self.lst)
-# #         res = np.empty( (len(seq),), dtype = np.int32)
-#         res = [None] * len(seq)
-#         unk_count = 0
-#         for pos, w in enumerate(seq):
-#             if w in self.dic:
-#                 idx = self.dic[w]
-#             else:
-#                 idx = unk_idx
-#                 unk_count += 1
-#             res[pos] = idx
-#         return res, unk_count
     
     def __len__(self):
+        assert self.finalized
         assert len(self.dic) == len(self.lst)
         return len(self.lst)
     
     def to_serializable(self):
-        return self.lst
+        return {"type": "simple_indexer", "rev": 1,  "voc_lst" : self.lst, "unk_label_dic": self.unk_label_dictionary}
     
     @staticmethod
-    def make_from_serializable(voc_lst):
+    def make_from_serializable(datas):
+        assert datas["type"] == "simple_indexer"
+        assert datas["rev"] == 1
+        voc_lst = datas["voc_lst"]
         res = Indexer()
         res.lst = list(voc_lst)
+        res.unk_label_dictionary = datas["unk_label_dic"]
         for idx, w in enumerate(voc_lst):
             res.dic[w] = idx
         res.finalized = True
         return res
-
 
 MakeDataInfosOneSide = collections.namedtuple("MakeDataInfosOneSide", ["total_count_unk", "total_token", "nb_ex"])
 
@@ -173,7 +281,7 @@ def build_dataset_one_side(src_fn, src_voc_limit = None, max_nb_ex = None, dic_s
         line_src = line_src.strip().split(" ")
         
         seq_src = dic_src.convert(line_src)
-        unk_cnt_src = sum(w == dic_src.get_unk_idx() for w in seq_src)
+        unk_cnt_src = sum(dic_src.is_unk_idx(w) for w in seq_src)
 
         total_count_unk_src += unk_cnt_src
         
@@ -187,7 +295,8 @@ def build_dataset_one_side(src_fn, src_voc_limit = None, max_nb_ex = None, dic_s
                                                 num_ex
                                                 )
  
-def build_dataset(src_fn, tgt_fn, src_voc_limit = None, tgt_voc_limit = None, max_nb_ex = None, dic_src = None, dic_tgt = None):
+def build_dataset(src_fn, tgt_fn, 
+                  src_voc_limit = None, tgt_voc_limit = None, max_nb_ex = None, dic_src = None, dic_tgt = None):
     if dic_src is None:
         log.info("building src_dic")
         dic_src = build_index(src_fn, src_voc_limit, max_nb_ex)
@@ -224,10 +333,10 @@ def build_dataset(src_fn, tgt_fn, src_voc_limit = None, tgt_voc_limit = None, ma
         line_tgt = line_tgt.strip().split(" ")
         
         seq_src = dic_src.convert(line_src)
-        unk_cnt_src = sum(w == dic_src.get_unk_idx() for w in seq_src)
+        unk_cnt_src = sum(dic_src.is_unk_idx(w) for w in seq_src)
         
         seq_tgt = dic_tgt.convert(line_tgt)
-        unk_cnt_tgt = sum(w == dic_tgt.get_unk_idx() for w in seq_tgt)
+        unk_cnt_tgt = sum(dic_tgt.is_unk_idx(w) for w in seq_tgt)
 
         total_count_unk_src += unk_cnt_src
         total_count_unk_tgt += unk_cnt_tgt
@@ -245,6 +354,137 @@ def build_dataset(src_fn, tgt_fn, src_voc_limit = None, tgt_voc_limit = None, ma
                                                 num_ex
                                                 )
 
+
+def build_dataset_with_align_info(src_fn, tgt_fn, align_fn, 
+                                  src_voc_limit = None, tgt_voc_limit = None, max_nb_ex = None, 
+                                  dic_src = None, dic_tgt = None,
+                                  invert_alignment_links = False, add_to_valid_every = 1000):
+    from aligned_parse_reader import load_aligned_corpus
+    corpus = load_aligned_corpus(
+        src_fn, tgt_fn, align_fn, skip_empty_align = True, invert_alignment_links = invert_alignment_links)
+    
+    # first find the most frequent words
+    log.info("computing restricted vocabulary")
+    counts_src = collections.defaultdict(int)
+    counts_tgt = collections.defaultdict(int)
+    for num_ex, (sentence_src, sentence_tgt, alignment) in enumerate(corpus):
+        if num_ex % add_to_valid_every == 0:
+            continue
+        
+        if max_nb_ex is not None and num_ex >= max_nb_ex:
+            break
+        for pos, w in enumerate(sentence_src):
+            counts_src[w] += 1
+        for w in sentence_tgt:
+            counts_tgt[w] += 1
+    sorted_counts_src = sorted(counts_src.items(), key = operator.itemgetter(1), reverse = True)
+    sorted_counts_tgt = sorted(counts_tgt.items(), key = operator.itemgetter(1), reverse = True)
+    
+    dic_src = Indexer()       
+    dic_src.assign_index_to_voc((w for w, _ in sorted_counts_src[:src_voc_limit]), all_should_be_new = True)
+        
+    dic_tgt = Indexer()
+    dic_tgt.assign_index_to_voc((w for w, _ in sorted_counts_tgt[:tgt_voc_limit]), all_should_be_new = True)
+    
+    log.info("computed restricted vocabulary")
+    
+#     src_unk_tag = "#S_UNK_%i#!"
+#     tgt_unk_tag = "#T_UNK_%i#!"
+    
+    corpus = load_aligned_corpus(
+        src_fn, tgt_fn, align_fn, skip_empty_align = True, invert_alignment_links = invert_alignment_links)
+    
+    total_token_src = 0
+    total_token_tgt = 0
+    total_count_unk_src = [0]
+    total_count_unk_tgt = [0]
+    res = []
+    valid = []
+    fertility_counts = collections.defaultdict(lambda:collections.defaultdict(int))
+    for num_ex, (sentence_src, sentence_tgt, alignment) in enumerate(corpus):
+        if max_nb_ex is not None and num_ex >= max_nb_ex:
+            break
+        local_fertilities = {}
+        local_alignments = {}
+        for left, right in alignment:
+            for src_pos in left:
+                local_fertilities[src_pos] = len(right)
+            for tgt_pos in right:
+                assert tgt_pos not in local_alignments
+                local_alignments[tgt_pos] = left[0]
+    
+        def give_fertility(pos, w):
+            fertility = local_fertilities.get(pos, 0)
+            fertility_counts[w][fertility] += 1
+            total_count_unk_src[0] += 1
+            return fertility
+        
+        seq_idx_src = dic_src.convert_and_update_unk_tags(sentence_src, give_unk_label = give_fertility)
+        total_token_src += len(seq_idx_src)
+#         seq_idx_src = []
+#         for pos, w in enumerate(sentence_src):
+#             total_token_src += 1
+#             if w not in dic_src:
+#                 total_count_unk_src += 1
+#                 fertility = local_fertilities.get(pos, 0)
+#                 fertility_counts[w][fertility] += 1
+#                 w_unk = src_unk_tag % fertility
+#                 if w_unk not in dic_src:
+#                     dic_src.add_word(w_unk)
+#             assert w in dic_src
+#             seq_idx_src.append(dic_src[w])
+
+
+
+        def give_alignment(pos, w):
+            total_count_unk_tgt[0] += 1
+            aligned_pos = local_alignments.get(pos, -1)
+            return aligned_pos
+
+#         def unk_tag_tgt(num):
+#             total_count_unk_tgt += 1
+#             aligned_pos = local_alignments.get(num, -1)
+#             w_unk = tgt_unk_tag % aligned_pos
+#             return w_unk
+        
+        seq_idx_tgt = dic_tgt.convert_and_update_unk_tags(sentence_tgt, give_unk_label = give_alignment)
+        total_token_tgt += len(seq_idx_tgt)
+        
+#         seq_idx_tgt = []
+#         for pos, w in enumerate(sentence_tgt):
+#             total_token_tgt += 1
+#             if w not in dic_tgt:
+#                 total_count_unk_tgt += 1
+#                 aligned_pos = local_alignments.get(pos, -1)
+#                 w_unk = tgt_unk_tag % aligned_pos
+#                 if w_unk not in dic_tgt:
+#                     dic_tgt.add_word(w_unk)
+#             assert w in dic_tgt
+#             seq_idx_tgt.append(dic_tgt[w])                
+    
+        if num_ex % add_to_valid_every == 0:
+            valid.append((seq_idx_src, seq_idx_tgt))
+        else:
+            res.append((seq_idx_src, seq_idx_tgt))
+    
+    
+    src_unk_voc_to_fertility = {}
+    for w in fertility_counts:
+        most_common_fertility = sorted(fertility_counts[w].items(), key = operator.itemgetter(1), reverse = True)[0][0]
+        src_unk_voc_to_fertility[w] = most_common_fertility
+        
+    dic_src.add_unk_label_dictionary(src_unk_voc_to_fertility)
+    
+    dic_tgt.finalize()
+    dic_src.finalize()
+    
+    return res, valid, dic_src, dic_tgt, MakeDataInfos(total_count_unk_src[0], 
+                                                total_count_unk_tgt[0], 
+                                                total_token_src, 
+                                                total_token_tgt, 
+                                                num_ex
+                                                )
+
 def cmdline(arguments = None):
     import sys
     import argparse
@@ -253,6 +493,7 @@ def cmdline(arguments = None):
     parser.add_argument("src_fn", help = "source language text file for training data")
     parser.add_argument("tgt_fn", help = "target language text file for training data")
     parser.add_argument("save_prefix", help = "created files will be saved with this prefix")
+    parser.add_argument("--align_fn", help = "align file for training data")
     parser.add_argument("--src_voc_size", type = int, default = 32000, 
                         help = "limit source vocabulary size to the n most frequent words")
     parser.add_argument("--tgt_voc_size", type = int, default = 32000,
@@ -296,16 +537,25 @@ def cmdline(arguments = None):
         print "Warning: existing files are going to be replaced: ",  already_existing_files
         raw_input("Press Enter to Continue")
         
+    def load_data(src_fn, tgt_fn, max_nb_ex = None, dic_src = None, dic_tgt = None, align_fn = None):
         
-    def load_data(src_fn, tgt_fn, max_nb_ex = None, dic_src = None, dic_tgt = None):
         
-        training_data, dic_src, dic_tgt, make_data_infos = build_dataset(
+        if align_fn is not None:
+            log.info("making training data with alignment")
+            training_data, valid_data, dic_src, dic_tgt, make_data_infos = build_dataset_with_align_info(
+                                            src_fn, tgt_fn, align_fn, src_voc_limit = args.src_voc_size, 
+                                            tgt_voc_limit = args.tgt_voc_size, max_nb_ex = max_nb_ex, 
+                                            dic_src = dic_src, dic_tgt = dic_tgt)
+        else:
+            training_data, dic_src, dic_tgt, make_data_infos = build_dataset(
                                             src_fn, tgt_fn, src_voc_limit = args.src_voc_size, 
                                             tgt_voc_limit = args.tgt_voc_size, max_nb_ex = max_nb_ex, 
                                             dic_src = dic_src, dic_tgt = dic_tgt)
+            valid_data = None
         
         log.info("%i sentences loaded"%make_data_infos.nb_ex)
-        
+        if valid_data is not None:
+            log.info("valid set size:%i sentences"%len(valid_data))
         log.info("size dic src: %i"%len(dic_src))
         log.info("size dic tgt: %i"%len(dic_tgt))
         
@@ -319,7 +569,7 @@ def cmdline(arguments = None):
                                                                  float(make_data_infos.total_count_unk_tgt * 100) / 
                                                                  make_data_infos.total_token_tgt))
         
-        return training_data, dic_src, dic_tgt
+        return training_data, valid_data, dic_src, dic_tgt
     
     dic_src = None
     dic_tgt = None
@@ -330,13 +580,13 @@ def cmdline(arguments = None):
         dic_tgt = Indexer.make_from_list(tgt_voc)
     
     log.info("loading training data from %s and %s"%(args.src_fn, args.tgt_fn))
-    training_data, dic_src, dic_tgt = load_data(args.src_fn, args.tgt_fn, max_nb_ex = args.max_nb_ex,
-                                                dic_src = dic_src, dic_tgt = dic_tgt)
+    training_data, valid_data, dic_src, dic_tgt = load_data(args.src_fn, args.tgt_fn, max_nb_ex = args.max_nb_ex,
+                                                dic_src = dic_src, dic_tgt = dic_tgt, align_fn = args.align_fn)
     
     test_data = None
     if args.test_src is not None:
         log.info("loading test data from %s and %s"%(args.test_src, args.test_tgt))
-        test_data, test_dic_src, test_dic_tgt = load_data(args.test_src, args.test_tgt, dic_src = dic_src, dic_tgt = dic_tgt)
+        test_data, _, test_dic_src, test_dic_tgt = load_data(args.test_src, args.test_tgt, dic_src = dic_src, dic_tgt = dic_tgt)
         
         assert test_dic_src is dic_src
         assert test_dic_tgt is dic_tgt
@@ -344,7 +594,7 @@ def cmdline(arguments = None):
     dev_data = None
     if args.dev_src is not None:
         log.info("loading dev data from %s and %s"%(args.dev_src, args.dev_tgt))
-        dev_data, dev_dic_src, dev_dic_tgt = load_data(args.dev_src, args.dev_tgt, dic_src = dic_src, dic_tgt = dic_tgt)
+        dev_data, _, dev_dic_src, dev_dic_tgt = load_data(args.dev_src, args.dev_tgt, dic_src = dic_src, dic_tgt = dic_tgt)
         
         assert dev_dic_src is dic_src
         assert dev_dic_tgt is dic_tgt
@@ -359,7 +609,7 @@ def cmdline(arguments = None):
     json.dump(args.__dict__, open(config_fn, "w"), indent=2, separators=(',', ': '))
 
     log.info("saving voc to %s"%voc_fn)
-    json.dump([dic_src.to_serializable(), dic_tgt.to_serializable()], open(voc_fn, "w"))
+    json.dump([dic_src.to_serializable(), dic_tgt.to_serializable()], open(voc_fn, "w"), indent=2, separators=(',', ': '))
     
     log.info("saving train_data to %s"%data_fn)
     data_all = {"train": training_data}
@@ -367,6 +617,9 @@ def cmdline(arguments = None):
         data_all["test"] = test_data
     if dev_data is not None:
         data_all["dev"] = dev_data
+    if valid_data is not None:
+        data_all["valid"] = valid_data
+        
     json.dump(data_all, gzip.open(data_fn, "wb"), indent=2, separators=(',', ': '))
 #     fh5 = h5py.File(args.save_data_to_hdf5, 'w')
 #     train_grp = fh5.create_group("train")

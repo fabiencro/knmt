@@ -180,13 +180,13 @@ def minibatch_provider(data, eos_idx, mb_size, nb_mb_for_sorting = 1, loop = Tru
                 src_batch, tgt_batch, src_mask = make_batch_src_tgt(mb_raw, eos_idx = eos_idx, gpu = gpu, volatile = volatile)
                 yield src_batch, tgt_batch, src_mask
              
-def compute_bleu_with_unk_as_wrong(references, candidates, unk_id, new_unk_id_ref, new_unk_id_cand):
+def compute_bleu_with_unk_as_wrong(references, candidates, is_unk_id, new_unk_id_ref, new_unk_id_cand):
     import bleu_computer
     assert new_unk_id_ref != new_unk_id_cand
     bc = bleu_computer.BleuComputer()
     for ref, cand in zip(references, candidates):
-        ref_mod = tuple((x if x != unk_id else new_unk_id_ref) for x in ref)
-        cand_mod = tuple((int(x) if int(x) != unk_id else new_unk_id_cand) for x in cand)
+        ref_mod = tuple((x if not is_unk_id(x) else new_unk_id_ref) for x in ref)
+        cand_mod = tuple((int(x) if not is_unk_id(int(x)) else new_unk_id_cand) for x in cand)
         bc.update(ref_mod, cand_mod)
     return bc
 
