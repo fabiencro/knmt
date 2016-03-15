@@ -433,6 +433,17 @@ class Node(object):
 #             id_ = self.id_generator.get_new_id()
 #             self.pos_lst[id_] = elem
 # 
+    def count_paths(self, global_count_memoizer):
+        if id(self) in global_count_memoizer:
+            return global_count_memoizer[id(self)]
+        count = 0
+        for elem in self.pos_iter():
+            if elem.is_leaf():
+                count += 1
+            else:
+                count += elem.child_node.count_paths(global_count_memoizer)
+        global_count_memoizer[id(self)] = count
+        return count
 
     def count_distincts_subnodes(self, local_memoizer = None):
         if local_memoizer is None:
@@ -565,21 +576,24 @@ class Node(object):
                         break
             assert found        
         
-    def get_next_w(self, lattice_map, global_memoizer, local_memoizer = None):
+    def get_next_w(self, lattice_map, global_memoizer, global_count_memoizer, local_memoizer = None):
         if local_memoizer is None:
             local_memoizer = {}
         if id(self) in local_memoizer:
             return local_memoizer[id(self)]
         else:
-            res = set()
+            res = {}
             for pos_elem in self.pos_iter():
                 if pos_elem.is_leaf():
                     position = (self.lattice_id, pos_elem.p) 
                     next_result = next_words_simple_pos3(position, global_memoizer, lattice_map)
-                    for w in next_result:
-                        res.add(w)
+                    for w, sub_node in next_result.iteritems():
+                        res[w] = res.get(w, 0) + sub_node.count_paths(global_count_memoizer)
                 else:
-                    res |= pos_elem.child_node.get_next_w(lattice_map, global_memoizer, local_memoizer)
+                    sub_res = pos_elem.child_node.get_next_w(lattice_map, global_memoizer, global_count_memoizer, local_memoizer)
+                    for w in sub_res:
+                        res[w] = res.get(w, 0) + sub_res[w]
+#                     res |= pos_elem.child_node.get_next_w(lattice_map, global_memoizer, local_memoizer)
             local_memoizer[id(self)] = res
             return res
               
@@ -953,6 +967,7 @@ def command_line2():
     predictor = encdec.get_predictor(seq_as_batch, [])
     
     global_memoizer = {}
+    global_count_memoizer = {}
     initial_node = Node(top_lattice_id)
     initial_node.add_elem(PosElem(Lattice.kInitial))
     current_path = initial_node
@@ -960,17 +975,28 @@ def command_line2():
     while 1:
         print "#node current_path", current_path.count_distincts_subnodes()
         current_path.assert_is_reduced_and_consistent()
-        next_words_set = current_path.get_next_w(lattice_map, global_memoizer)
+        next_words_set = current_path.get_next_w(lattice_map, global_memoizer, global_count_memoizer)
         has_eos = Lattice.EOS in next_words_set
         next_words_list = sorted(list(w for w in next_words_set if w != Lattice.EOS))
-        
+        print "next_words_set", next_words_set
         voc_choice = tgt_indexer.convert(next_words_list)
         if has_eos:
             voc_choice.append(eos_idx)
         chosen = predictor(voc_choice)
         
-        idx_chosen = voc_choice.index(chosen) #TODO: better handling when several tgt candidates map to UNK
-        selected_w = (next_words_list + [Lattice.EOS])[idx_chosen]
+        if chosen != eos_idx and tgt_indexer.is_unk_idx(chosen):
+            print "warning: unk chosen"
+            unk_list = []
+            for ix, t_idx in enumerate(voc_choice):
+                if tgt_indexer.is_unk_idx(t_idx):
+                    unk_list.append((next_words_set[next_words_list[ix]], next_words_list[ix]))
+            unk_list.sort(reverse = True)
+            print "UNK:", unk_list
+            selected_w = unk_list[0][1]
+        else:
+            idx_chosen = voc_choice.index(chosen) #TODO: better handling when several tgt candidates map to UNK
+            
+            selected_w = (next_words_list + [Lattice.EOS])[idx_chosen]
         
 #         for num_word, word in enumerate(next_words_list):
 #             print num_word, word
