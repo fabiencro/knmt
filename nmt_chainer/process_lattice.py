@@ -410,7 +410,10 @@ class PosElem(object):
         res = PosElem(self.p)
         return res
     def __hash__(self):
-        return hash((self.p, self.child_node))
+        if self.child_node is not None:
+            raise NotImplemented
+        else:
+            return hash(self.p)
     def __eq__(self, other):
         return isinstance(other, PosElem) and self.p == other.p and self.child_node == other.child_node
     def __str__(self):
@@ -424,11 +427,26 @@ class Node(object):
     def __init__(self, lattice_id):
         self.lattice_id = lattice_id
 #         self.id_generator = IdGenerator()
-        self.pos_lst = defaultdict(list)
+        self.inner_lst = defaultdict(list)
+        self.leaf_lst = set() #defaultdict(list)
 #         for elem in pos_lst:
 #             id_ = self.id_generator.get_new_id()
 #             self.pos_lst[id_] = elem
 # 
+
+    def count_distincts_subnodes(self, local_memoizer = None):
+        if local_memoizer is None:
+            local_memoizer = set()
+        if id(self) in local_memoizer:
+            return
+        else:
+            local_memoizer.add(id(self))
+        for elem in list(self.pos_iter()):
+            if elem.child_node is not None:
+                elem.child_node.count_distincts_subnodes(local_memoizer)
+        return len(local_memoizer)
+        
+        
     def __str__(self):
         res = "L:%i"%self.lattice_id
         pos_list = []
@@ -444,12 +462,16 @@ class Node(object):
 #         id_ = self.id_generator.get_new_id()
 #         self.pos_lst[id_] = elem
         if elem.is_leaf():
-            for existing in self.pos_lst[elem.p]:
-                if existing is None:
-                    continue
-                if existing.is_leaf() and existing.p == elem.p:
-                    return
-        self.pos_lst[elem.p].append(elem)
+            self.leaf_lst.add(elem)
+#             for existing in self.leaf_lst[elem.p]:
+#                 if existing is None:
+#                     continue
+#                 assert existing.is_leaf()
+#                 if existing.p == elem.p:
+#                     return
+#             self.leaf_lst[elem.p].append(elem)
+        else:
+            self.inner_lst[elem.p].append(elem)
                 
 #     def __hash__(self):
 #         return hash((self.lattice_id, tuple(self.pos_lst)))
@@ -462,14 +484,35 @@ class Node(object):
 #         for 
         
     def pos_iter(self):
-        return (x for x in itertools.chain(*self.pos_lst.itervalues()) if x is not None)
+        return (x for x in itertools.chain(
+                                        iter(self.leaf_lst), 
+                                        itertools.chain(*self.inner_lst.itervalues())) if x is not None)
     
-    def replace(self, elem, new_elems):
-        assert elem.is_leaf()
-        assert isinstance(new_elems, Node)
-        self.remove(elem)
-        for new_e in new_elems.pos_iter():
-            self.add_elem(new_e)
+#     def replace(self, elem, new_elems):
+#         assert elem.is_leaf()
+#         assert isinstance(new_elems, Node)
+#         self.remove(elem)
+#         for new_e in new_elems.pos_iter():
+#             self.add_elem(new_e)
+          
+    def replace_all_at_once(self, replace_list):
+        new_leaf_lst = set()
+        for elem in self.leaf_lst:
+#             if elem in replace_list:
+            for sub_elem in replace_list[elem].pos_iter():
+                if sub_elem.is_leaf():
+                    new_leaf_lst.add(sub_elem)
+                else:
+                    self.inner_lst[sub_elem.p].append(sub_elem)
+#             else:
+#                 new_leaf_lst.append(elem)
+        self.leaf_lst = new_leaf_lst
+#         for elem, new_elems in replace_list:
+#             assert elem.is_leaf()
+#             assert isinstance(new_elems, Node)
+#             self.remove(elem)
+#             for new_e in new_elems.pos_iter():
+#                 self.add_elem(new_e)
             
 #         found = False
 #         for i in xrange(len(self.pos_lst[elem.p])):
@@ -502,19 +545,25 @@ class Node(object):
                 
     def remove(self, elem):
         assert elem.is_leaf() or elem.is_empty()
-        found = False
-        for i in xrange(len(self.pos_lst[elem.p])):
-            existing = self.pos_lst[elem.p][i]
-            if existing is None:
-                continue
-            if ( (elem.is_leaf() and (existing.is_leaf() and existing.p == elem.p)) or
-                 (elem.is_empty() and (existing.is_empty() and existing.p == elem.p))):
-                assert not found
-                found = True
-                self.pos_lst[elem.p][i] = None
-                if elem.is_empty():
-                    break
-        assert found        
+        if elem.is_leaf():
+            assert elem in self.leaf_lst
+            self.leaf_lst.remove(elem)
+#             pos_lst = self.leaf_lst[elem.p]
+        else:
+            found = False
+            pos_lst = self.inner_lst[elem.p]
+            for i in xrange(len(pos_lst)):
+                existing = pos_lst[i]
+                if existing is None:
+                    continue
+                if ( (elem.is_leaf() and (existing.is_leaf() and existing.p == elem.p)) or
+                     (elem.is_empty() and (existing.is_empty() and existing.p == elem.p))):
+                    assert not found
+                    found = True
+                    pos_lst[i] = None
+                    if elem.is_empty():
+                        break
+            assert found        
         
     def get_next_w(self, lattice_map, global_memoizer, local_memoizer = None):
         if local_memoizer is None:
@@ -533,8 +582,51 @@ class Node(object):
                     res |= pos_elem.child_node.get_next_w(lattice_map, global_memoizer, local_memoizer)
             local_memoizer[id(self)] = res
             return res
+              
+    def make_global_replace_list(self, w, lattice_map, global_memoizer, local_memoizer = None):
+        if local_memoizer is None:
+            local_memoizer = {}
+        if id(self) in local_memoizer:
+            return local_memoizer[id(self)]
+        local_memoizer[id(self)] = None
+        
+        replace_list = {}
+        for pos_elem in list(self.pos_iter()):
+            if pos_elem.is_leaf():
+                position = (self.lattice_id, pos_elem.p)  
+                next_result = next_words_simple_pos3(position, global_memoizer, lattice_map).get(w, None)
+#                 print "next_result", self, pos_elem, w, str(next_result)
+                if next_result is not None:
+#                     next_result = copy.deepcopy(next_result)
+#                     self.replace(pos_elem, next_result)
+                    assert pos_elem not in replace_list
+                    replace_list[pos_elem] = next_result #.append((pos_elem, next_result))
+                else:
+                    self.remove(pos_elem)
+            else:
+                pos_elem.child_node.make_global_replace_list(w, lattice_map, global_memoizer, local_memoizer)
                 
-                
+        local_memoizer[id(self)] = replace_list
+        return local_memoizer
+    
+    def update_with_global_replace_list(self, global_replace_list, local_memoizer = None):
+        if local_memoizer is None:
+            local_memoizer = set()
+        if id(self) in local_memoizer:
+            return
+        else:
+            local_memoizer.add(id(self))
+        
+        for pos_elem in list(self.pos_iter()):
+            if not pos_elem.is_leaf():
+                pos_elem.child_node.update_with_global_replace_list(global_replace_list, local_memoizer)
+        self.replace_all_at_once(global_replace_list[id(self)])
+                             
+    def update_better(self, w, lattice_map, global_memoizer):
+        global_replace_list = self.make_global_replace_list(w, lattice_map, global_memoizer)
+        global_replace_list = copy.deepcopy(global_replace_list)  
+        self.update_with_global_replace_list(global_replace_list)
+                  
     def update(self, w, lattice_map, global_memoizer, local_memoizer = None):
         if local_memoizer is None:
             local_memoizer = set()
@@ -543,18 +635,25 @@ class Node(object):
         else:
             local_memoizer.add(id(self))
             
+        replace_list = {}
         for pos_elem in list(self.pos_iter()):
             if pos_elem.is_leaf():
                 position = (self.lattice_id, pos_elem.p)  
                 next_result = next_words_simple_pos3(position, global_memoizer, lattice_map).get(w, None)
-                print "next_result", self, pos_elem, w, str(next_result)
+#                 print "next_result", self, pos_elem, w, str(next_result)
                 if next_result is not None:
-                    next_result = copy.deepcopy(next_result)
-                    self.replace(pos_elem, next_result)
+#                     next_result = copy.deepcopy(next_result)
+#                     self.replace(pos_elem, next_result)
+                    assert pos_elem not in replace_list
+                    replace_list[pos_elem] = next_result #.append((pos_elem, next_result))
                 else:
                     self.remove(pos_elem)
             else:
                 pos_elem.child_node.update(w, lattice_map, global_memoizer, local_memoizer)
+        replace_list = copy.deepcopy(replace_list)
+        self.replace_all_at_once(replace_list)
+#         for pos_elem, next_result in replace_list:
+#             self.replace(pos_elem, next_result)
            
     def _transfer_final_pos(self, local_memoizer = None):
         if local_memoizer is None:
@@ -859,6 +958,7 @@ def command_line2():
     current_path = initial_node
     selected_seq = []
     while 1:
+        print "#node current_path", current_path.count_distincts_subnodes()
         current_path.assert_is_reduced_and_consistent()
         next_words_set = current_path.get_next_w(lattice_map, global_memoizer)
         has_eos = Lattice.EOS in next_words_set
@@ -882,7 +982,7 @@ def command_line2():
         selected_seq.append(selected_w)
         print "selected_seq", selected_seq 
         
-        current_path.update(selected_w, lattice_map, global_memoizer)
+        current_path.update_better(selected_w, lattice_map, global_memoizer)
         current_path.reduce()
         if current_path.is_empty_node():
             print "DONE"
@@ -897,20 +997,20 @@ def build_word_tree(lattice_map, top_lattice_id):
     
     
     def build_word_tree_rec(current_path):
-        print "bwt", repr(current_path), str(current_path)
+        print "bwt", repr(current_path), str(current_path), current_path.count_distincts_subnodes()
         current_path.assert_is_reduced_and_consistent()
         next_words_set = current_path.get_next_w(lattice_map, global_memoizer)
         res = []
         for w in next_words_set:
             current_path_copy = copy.deepcopy(current_path)
-            print str(current_path_copy),
-            current_path_copy.update(w, lattice_map, global_memoizer)
-            print " -> ", w, " ->", str(current_path_copy),
+#             print str(current_path_copy), current_path_copy.count_distincts_subnodes()
+            current_path_copy.update_better(w, lattice_map, global_memoizer)
+#             print " -> ", w, " ->", str(current_path_copy),
             current_path_copy.reduce()
-            print " -> reduced ->", str(current_path_copy)
+#             print " -> reduced ->", str(current_path_copy)
             if not current_path_copy.is_empty_node():
                 sub_word_tree = build_word_tree_rec(current_path_copy)
-                res.append([w, sub_word_tree])
+                res.append({0:w, 1:sub_word_tree})
             else:
                 res.append(w)
         return res
@@ -1046,36 +1146,48 @@ def commandline():
 #             pos0 = nexts[i][1]
          
 def test1():
-    latt_desc = """START_LATTICES 1
-NULL_content
-BEGIN 0
-0 2 W|DERS
-3 1 W|power
-2 3 e
-2 3 W|for
-END""".split("\n")
-
-
-#     latt_desc = """START_LATTICES 2
+#     latt_desc = """START_LATTICES 1
 # NULL_content
 # BEGIN 0
-# 0 2 e
-# 2 1 W|DERS
-# END
-# BEGIN 1
-# 0 2 B|A_B_0
-# 0 3 B|A_B_0
-# 3 4 W|power
+# 0 2 W|DERS
+# 3 1 W|power
 # 2 3 e
 # 2 3 W|for
-# 4 1 e
 # END""".split("\n")
 
-# BEGIN 2
-# 0 2 W|the
-# 2 1 B|A_B_1
-# END
-# 2 1 e
+
+    latt_desc = """START_LATTICES 6
+NULL_content
+BEGIN 0
+0 2 e
+2 1 W|DERS
+2 1 e
+END
+BEGIN 1
+0 2 B|A_B_0
+0 3 B|A_B_0
+3 4 W|power
+2 3 e
+2 3 W|for
+4 1 e
+END
+BEGIN 2
+0 2 W|the
+2 1 B|A_B_1
+0 1 B|A_B_0
+BEGIN 3
+0 2 W|a
+2 1 B|A_B_1
+BEGIN 4
+0 2 W|one
+2 1 B|A_B_3
+0 3 W|two
+3 1 B|A_B_2
+BEGIN 5
+0 2 W|the
+2 1 B|A_B_4
+END""".split("\n")
+
     all_edges = parse_lattice_file(latt_desc)
     
     print "loaded"
@@ -1106,8 +1218,9 @@ END""".split("\n")
     print json.dumps(word_tree, indent = 4)
          
 if __name__ == '__main__':
-    test1()
-#     command_line2()
+#     test1()
+    command_line2()
 #     import cProfile
 #     cProfile.run("commandline()")
+#     commandline()
     
