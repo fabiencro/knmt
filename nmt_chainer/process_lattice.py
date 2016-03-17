@@ -445,6 +445,24 @@ class Node(object):
         global_count_memoizer[id(self)] = count
         return count
 
+    def count_unique_leaves(self, counter = None, local_memoizer = None):
+        if local_memoizer is None:
+            local_memoizer = set()
+        if id(self) in local_memoizer:
+            return
+        else:
+            local_memoizer.add(id(self))
+            
+        if counter is None:
+            counter = [0]
+            
+        for elem in self.pos_iter():
+            if elem.is_leaf():
+                counter[0] += 1
+            else:
+                elem.child_node.count_unique_leaves(counter, local_memoizer)
+        return counter[0]        
+        
     def count_distincts_subnodes(self, local_memoizer = None):
         if local_memoizer is None:
             local_memoizer = set()
@@ -582,17 +600,18 @@ class Node(object):
         if id(self) in local_memoizer:
             return local_memoizer[id(self)]
         else:
-            res = {}
+            res = defaultdict(lambda:defaultdict(int))
             for pos_elem in self.pos_iter():
                 if pos_elem.is_leaf():
                     position = (self.lattice_id, pos_elem.p) 
                     next_result = next_words_simple_pos3(position, global_memoizer, lattice_map)
                     for w, sub_node in next_result.iteritems():
-                        res[w] = res.get(w, 0) + sub_node.count_paths(global_count_memoizer)
+                        res[w][id(self)] += sub_node.count_unique_leaves() #res.get(w, 0) + sub_node.count_unique_leaves() #count_paths(global_count_memoizer)
                 else:
                     sub_res = pos_elem.child_node.get_next_w(lattice_map, global_memoizer, global_count_memoizer, local_memoizer)
                     for w in sub_res:
-                        res[w] = res.get(w, 0) + sub_res[w]
+#                         res[w] = res.get(w, 0) + sub_res[w]
+                        res[w].update(sub_res[w])
 #                     res |= pos_elem.child_node.get_next_w(lattice_map, global_memoizer, local_memoizer)
             local_memoizer[id(self)] = res
             return res
@@ -976,6 +995,8 @@ def command_line2():
         print "#node current_path", current_path.count_distincts_subnodes()
         current_path.assert_is_reduced_and_consistent()
         next_words_set = current_path.get_next_w(lattice_map, global_memoizer, global_count_memoizer)
+        for w in next_words_set:
+            next_words_set[w] = sum(next_words_set[w].itervalues())
         has_eos = Lattice.EOS in next_words_set
         next_words_list = sorted(list(w for w in next_words_set if w != Lattice.EOS))
         print "next_words_set", next_words_set
@@ -1018,6 +1039,7 @@ def command_line2():
     
 def build_word_tree(lattice_map, top_lattice_id):  
     global_memoizer = {}
+    global_count_memoizer = {}
     initial_node = Node(top_lattice_id)
     initial_node.add_elem(PosElem(Lattice.kInitial))
     
@@ -1025,7 +1047,8 @@ def build_word_tree(lattice_map, top_lattice_id):
     def build_word_tree_rec(current_path):
         print "bwt", repr(current_path), str(current_path), current_path.count_distincts_subnodes()
         current_path.assert_is_reduced_and_consistent()
-        next_words_set = current_path.get_next_w(lattice_map, global_memoizer)
+        next_words_set = current_path.get_next_w(lattice_map, global_count_memoizer, global_memoizer)
+        print next_words_set
         res = []
         for w in next_words_set:
             current_path_copy = copy.deepcopy(current_path)
