@@ -374,6 +374,8 @@ class Decoder(Chain):
         
         return new_state, logits, attn
           
+          
+          
     def sample(self, nb_steps, compute_ctxt, mb_size, best = False, keep_attn_values = False,
                need_score = False):
         previous_state = F.broadcast_to(self.initial_state, (mb_size, self.Ho))
@@ -576,6 +578,48 @@ class Decoder(Chain):
                 finished_translations.append(([], 0))
         return finished_translations
     
+    def get_predictor(self, fb_concat, mask):
+        mb_size, nb_elems, Hi = fb_concat.data.shape
+        assert Hi == self.Hi, "%i != %i"%(Hi, self.Hi)
+        xp = cuda.get_array_module(self.initial_state.data)
+        
+        compute_ctxt = self.attn_module.compute_ctxt_demux(fb_concat, mask)
+        
+        assert mb_size == 1
+        current_mb_size = mb_size
+#         previous_state = F.concat( [self.initial_state] * current_mb_size, 0)
+        previous_state = [F.broadcast_to(self.initial_state, (current_mb_size, self.Ho))]
+#         previous_word = Variable(np.array([self.bos_idx] * mb_size, dtype = np.int32))
+        previous_word = [None]
+        with cuda.get_device(self.initial_state.data):
+#             previous_word = Variable(xp.array([self.bos_idx] * current_mb_size, dtype = np.int32))
+            prev_y_initial = F.broadcast_to(self.bos_embeding, (current_mb_size, self.Eo))
+            
+            
+        def choose(voc_list):
+            if previous_word[0] is not None: #else we are using the initial prev_y
+                prev_y = self.emb(previous_word[0])
+            else:
+                prev_y = prev_y_initial
+            assert previous_state[0].data.shape[0] == current_mb_size
+            
+            new_state, logits, attn = self.advance_one_step(previous_state[0], prev_y, 
+                                                      compute_ctxt)
+            
+            best_w = None
+            best_score = None
+            for w in voc_list:
+                score = logits.data[0][w]
+                if best_score is None or score > best_score:
+                    best_score = score
+                    best_w = w
+                            
+                        
+            previous_word[0] = Variable(self.xp.array([best_w], dtype = self.xp.int32), volatile = "auto")
+            previous_state[0] = new_state
+            return best_w
+        return choose
+
     
     def compute_loss(self, targets, compute_ctxt, raw_loss_info = False, keep_attn_values = False):
         loss = None
@@ -736,5 +780,8 @@ class EncoderDecoder(Chain):
         else:
             return self.dec.beam_search(fb_src, src_mask, nb_steps, eos_idx = eos_idx, beam_width = beam_width)
         
+    def get_predictor(self, src_batch, src_mask):
+        fb_src = self.enc(src_batch, src_mask)
+        return self.dec.get_predictor(fb_src, src_mask)
         
         
