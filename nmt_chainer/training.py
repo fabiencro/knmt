@@ -24,7 +24,8 @@ log.setLevel(logging.INFO)
 def train_on_data(encdec, optimizer, training_data, output_files_dict,
                   src_indexer, tgt_indexer, eos_idx, mb_size = 80,
                   nb_of_batch_to_sort = 20,
-                  test_data = None, dev_data = None, gpu = None, report_every = 200, randomized = False,
+                  test_data = None, dev_data = None, valid_data = None,
+                  gpu = None, report_every = 200, randomized = False,
                   reverse_src = False, reverse_tgt = False, max_nb_iters = None):
     
     mb_provider = minibatch_provider(training_data, eos_idx, mb_size, nb_of_batch_to_sort, gpu = gpu,
@@ -34,6 +35,8 @@ def train_on_data(encdec, optimizer, training_data, output_files_dict,
 #     mb_provider = minibatch_provider(training_data, eos_idx, mb_size, nb_of_batch_to_sort, gpu = gpu,
 #                                      randomized = randomized, sort_key = lambda x:len(x[1]))
     
+    s_unk_tag = lambda num,utag:"S_UNK_%i"%utag
+    t_unk_tag = lambda num,utag:"T_UNK_%i"%utag
     
     def save_model(suffix):
         if suffix == "final":
@@ -86,7 +89,8 @@ def train_on_data(encdec, optimizer, training_data, output_files_dict,
             control_src_fn = output_files_dict["test_src_output"] #save_prefix + ".test.src.out"
             return translate_to_file(encdec, eos_idx, test_src_data, mb_size, tgt_indexer, 
                    translations_fn, test_references = test_references, control_src_fn = control_src_fn,
-                   src_indexer = src_indexer, gpu = gpu, nb_steps = 50, reverse_src = reverse_src, reverse_tgt = reverse_tgt)
+                   src_indexer = src_indexer, gpu = gpu, nb_steps = 50, reverse_src = reverse_src, reverse_tgt = reverse_tgt,
+                   s_unk_tag = s_unk_tag, t_unk_tag = t_unk_tag)
         def compute_test_loss():
             log.info("computing test loss")
             test_loss = compute_loss_all(encdec, test_data, eos_idx, mb_size, gpu = gpu,
@@ -109,7 +113,8 @@ def train_on_data(encdec, optimizer, training_data, output_files_dict,
             control_src_fn = output_files_dict["dev_src_output"] #save_prefix + ".test.src.out"
             return translate_to_file(encdec, eos_idx, dev_src_data, mb_size, tgt_indexer, 
                    translations_fn, test_references = dev_references, control_src_fn = control_src_fn,
-                   src_indexer = src_indexer, gpu = gpu, nb_steps = 50, reverse_src = reverse_src, reverse_tgt = reverse_tgt)
+                   src_indexer = src_indexer, gpu = gpu, nb_steps = 50, reverse_src = reverse_src, reverse_tgt = reverse_tgt,
+                   s_unk_tag = s_unk_tag, t_unk_tag = t_unk_tag)
         def compute_dev_loss():
             log.info("computing dev loss")
             dev_loss = compute_loss_all(encdec, dev_data, eos_idx, mb_size, gpu = gpu,
@@ -123,6 +128,31 @@ def train_on_data(encdec, optimizer, training_data, output_files_dict,
         def compute_dev_loss():
             log.info("compute_dev_loss: No dev data given")
             return None     
+
+    if valid_data is not None:
+        valid_src_data = [x for x,y in valid_data]
+        valid_references = [y for x,y in valid_data]
+        def translate_valid():
+            translations_fn = output_files_dict["valid_translation_output"] #save_prefix + ".test.out"
+            control_src_fn = output_files_dict["valid_src_output"] #save_prefix + ".test.src.out"
+            return translate_to_file(encdec, eos_idx, valid_src_data, mb_size, tgt_indexer, 
+                   translations_fn, test_references = valid_references, control_src_fn = control_src_fn,
+                   src_indexer = src_indexer, gpu = gpu, nb_steps = 50, reverse_src = reverse_src, reverse_tgt = reverse_tgt,
+                   s_unk_tag = s_unk_tag, t_unk_tag = t_unk_tag)
+        def compute_valid_loss():
+            log.info("computing valid loss")
+            dev_loss = compute_loss_all(encdec, valid_data, eos_idx, mb_size, gpu = gpu,
+                                         reverse_src = reverse_src, reverse_tgt = reverse_tgt)
+            log.info("valid loss: %f" % dev_loss)
+            return dev_loss
+    else:
+        def translate_valid():
+            log.info("translate_valid: No valid data given")
+            return None
+        def compute_valid_loss():
+            log.info("compute_valid_loss: No valid data given")
+            return None  
+    
     
     try:
         best_dev_bleu = 0
@@ -144,7 +174,8 @@ def train_on_data(encdec, optimizer, training_data, output_files_dict,
                 for v in src_batch + tgt_batch:
                     v.volatile = "on"
                 sample_once(encdec, src_batch, tgt_batch, src_mask, src_indexer, tgt_indexer, eos_idx,
-                            max_nb = 20)
+                            max_nb = 20,
+                            s_unk_tag = s_unk_tag, t_unk_tag = t_unk_tag)
                 for v in src_batch + tgt_batch:
                     v.volatile = "off"
             if i%report_every == 0:
@@ -172,6 +203,9 @@ def train_on_data(encdec, optimizer, training_data, output_files_dict,
                 test_loss = compute_test_loss()
                 bc_dev = translate_dev()
                 dev_loss = compute_dev_loss()
+                bc_valid = translate_valid()
+                valid_loss = compute_valid_loss()
+                
                 
                 if dev_loss is not None and (best_dev_loss is None or dev_loss <= best_dev_loss):
                     best_dev_loss = dev_loss
@@ -187,10 +221,17 @@ def train_on_data(encdec, optimizer, training_data, output_files_dict,
                     db_connection = sqlite3.connect(db_path)
                     db_cursor = db_connection.cursor()
                     db_cursor.execute('''CREATE TABLE IF NOT EXISTS exp_data 
-    (date text, bleu_info text, iteration real, loss real, bleu real, dev_loss real, dev_bleu real, avg_time real, avg_training_loss real)''')
+    (date text, bleu_info text, iteration real, 
+    loss real, bleu real, 
+    dev_loss real, dev_bleu real, 
+    valid_loss real, valid_bleu real,
+    avg_time real, avg_training_loss real)''')
                     infos = (datetime.datetime.now().strftime("%I:%M%p %B %d, %Y"), 
-                             repr(bc_test), i, float(test_loss), bc_test.bleu(), float(dev_loss), bc_dev.bleu(), avg_time, avg_training_loss)
-                    db_cursor.execute("INSERT INTO exp_data VALUES (?,?,?,?,?,?,?,?,?)", infos)
+                             repr(bc_test), i, float(test_loss), bc_test.bleu(), 
+                             float(dev_loss), bc_dev.bleu(), 
+                             float(valid_loss) if valid_loss is not None else None, bc_valid.bleu() if bc_valid is not None else None,
+                             avg_time, avg_training_loss)
+                    db_cursor.execute("INSERT INTO exp_data VALUES (?,?,?,?,?,?,?,?,?,?,?)", infos)
                     db_connection.commit()
                     db_connection.close()
                     
