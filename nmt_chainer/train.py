@@ -84,6 +84,8 @@ def command_line(arguments = None):
     output_files_dict["test_src_output"] = args.save_prefix + ".test.src.out"
     output_files_dict["dev_translation_output"] = args.save_prefix + ".dev.out"
     output_files_dict["dev_src_output"] = args.save_prefix + ".dev.src.out"
+    output_files_dict["valid_translation_output"] = args.save_prefix + ".valid.out"
+    output_files_dict["valid_src_output"] = args.save_prefix + ".valid.src.out"
     
     output_files_dict["sqlite_db"] = args.save_prefix + ".result.sqlite"
     
@@ -122,7 +124,14 @@ def command_line(arguments = None):
         log.info("Found dev data: %i sentences" % len(dev_data))
     else:
         dev_data = None
-        log.info("No test data found")
+        log.info("No dev data found")
+        
+    if "valid" in  training_data_all:
+        valid_data = training_data_all["valid"]
+        log.info("Found valid data: %i sentences" % len(valid_data))
+    else:
+        valid_data = None
+        log.info("No valid data found")
         
     log.info("loading voc from %s"% voc_fn)
     src_voc, tgt_voc = json.load(open(voc_fn))
@@ -220,7 +229,7 @@ def command_line(arguments = None):
                       src_indexer, tgt_indexer, eos_idx = eos_idx, 
                       mb_size = args.mb_size,
                       nb_of_batch_to_sort = args.nb_batch_to_sort,
-                      test_data = test_data, dev_data = dev_data, gpu = args.gpu, report_every = args.report_every,
+                      test_data = test_data, dev_data = dev_data, valid_data = valid_data, gpu = args.gpu, report_every = args.report_every,
                       randomized = args.randomized_data, reverse_src = args.reverse_src, reverse_tgt = args.reverse_tgt,
                       max_nb_iters = args.max_nb_iters)
 

@@ -20,7 +20,8 @@ log.setLevel(logging.INFO)
 
 def translate_to_file(encdec, eos_idx, test_src_data, mb_size, tgt_indexer, 
                    translations_fn, test_references = None, control_src_fn = None, src_indexer = None, gpu = None, nb_steps = 50,
-                   reverse_src = False, reverse_tgt = False):
+                   reverse_src = False, reverse_tgt = False,
+                   s_unk_tag = "#S_UNK#", t_unk_tag = "#T_UNK#"):
     
     log.info("computing translations")
     translations = greedy_batch_translate(encdec, eos_idx, test_src_data, 
@@ -33,7 +34,7 @@ def translate_to_file(encdec, eos_idx, test_src_data, mb_size, tgt_indexer,
         if t[-1] == eos_idx:
             t = t[:-1]
 #         out.write(convert_idx_to_string(t, tgt_voc) + "\n")
-        out.write(" ".join(tgt_indexer.deconvert(t, unk_tag = "#T_UNK#")) + "\n")
+        out.write(" ".join(tgt_indexer.deconvert(t, unk_tag = t_unk_tag)) + "\n")
         
     
     if control_src_fn is not None:
@@ -42,7 +43,7 @@ def translate_to_file(encdec, eos_idx, test_src_data, mb_size, tgt_indexer,
         log.info("writing src of test set to %s"% control_src_fn)
         for s in test_src_data:
 #             control_out.write(convert_idx_to_string(s, src_voc) + "\n")
-            control_out.write(" ".join(src_indexer.deconvert(s, unk_tag = "#S_UNK#")) + "\n")
+            control_out.write(" ".join(src_indexer.deconvert(s, unk_tag = s_unk_tag)) + "\n")
         
     if test_references is not None:
 #         unk_id = tgt_indexer.get_unk_idx()  #len(tgt_voc) - 1
@@ -181,7 +182,8 @@ def batch_align(encdec, eos_idx, src_tgt_data, batch_size = 80, gpu = None):
 #                 trans.append(voc[idx_tgt])
 #     return " ".join(trans)
 
-def sample_once(encdec, src_batch, tgt_batch, src_mask, src_indexer, tgt_indexer, eos_idx, max_nb = None):
+def sample_once(encdec, src_batch, tgt_batch, src_mask, src_indexer, tgt_indexer, eos_idx, max_nb = None,
+                s_unk_tag = "#S_UNK#", t_unk_tag = "#T_UNK#"):
     print "sample"
     sample_greedy, score, attn_list = encdec(src_batch, 50, src_mask, use_best_for_sample = True, need_score = True)
 #                 sample, score = encdec(src_batch, 50, src_mask, use_best_for_sample = False)
@@ -200,8 +202,8 @@ def sample_once(encdec, src_batch, tgt_batch, src_mask, src_indexer, tgt_indexer
         sample_idx_seq = debatched_sample[sent_num]
         print "sent num", sent_num
         print "src idx:", src_idx_seq
-        print "src:", " ".join(src_indexer.deconvert(src_idx_seq, unk_tag = "#S_UNK#")) #convert_idx_to_string(src_idx_seq, src_voc)
+        print "src:", " ".join(src_indexer.deconvert(src_idx_seq, unk_tag = s_unk_tag)) #convert_idx_to_string(src_idx_seq, src_voc)
         print "tgt idx:", tgt_idx_seq
-        print "tgt:", " ".join(tgt_indexer.deconvert(tgt_idx_seq, unk_tag = "#T_UNK#", eos_idx = eos_idx)) # convert_idx_to_string(tgt_idx_seq, tgt_voc, eos_idx = eos_idx)
+        print "tgt:", " ".join(tgt_indexer.deconvert(tgt_idx_seq, unk_tag = t_unk_tag, eos_idx = eos_idx)) # convert_idx_to_string(tgt_idx_seq, tgt_voc, eos_idx = eos_idx)
         print "sample idx:", sample_idx_seq
-        print "sample:", " ".join(tgt_indexer.deconvert(sample_idx_seq, unk_tag = "#T_UNK#", eos_idx = eos_idx)) #convert_idx_to_string(sample_idx_seq, tgt_voc, eos_idx = eos_idx)
+        print "sample:", " ".join(tgt_indexer.deconvert(sample_idx_seq, unk_tag = t_unk_tag, eos_idx = eos_idx)) #convert_idx_to_string(sample_idx_seq, tgt_voc, eos_idx = eos_idx)
