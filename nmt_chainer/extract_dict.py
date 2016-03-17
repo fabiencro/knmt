@@ -89,8 +89,9 @@ def commandline():
     parser.add_argument("align_fn")
     parser.add_argument("dest")
     parser.add_argument("--max_n", type = int)
+    parser.add_argument("--invert_alignment_links", default = False, action = "store_true")
     args = parser.parse_args()
-    corpus = load_aligned_corpus(args.src_fn, args.tgt_fn, args.align_fn)
+    corpus = load_aligned_corpus(args.src_fn, args.tgt_fn, args.align_fn, invert_alignment_links = args.invert_alignment_links)
     
     counter = defaultdict(lambda: defaultdict(int))
     for num, (sentence_src, sentence_tgt, alignment) in enumerate(corpus):
