@@ -12,6 +12,7 @@ from chainer import cuda
 from utils import make_batch_src, make_batch_src_tgt, minibatch_provider, compute_bleu_with_unk_as_wrong, de_batch
 import logging
 import codecs
+import operator
 # import h5py
 
 logging.basicConfig()
@@ -111,7 +112,7 @@ def greedy_batch_translate(encdec, eos_idx, src_data, batch_size = 80, gpu = Non
         return res
      
 def beam_search_translate(encdec, eos_idx, src_data, beam_width = 20, nb_steps = 50, gpu = None, beam_opt = False,
-                          need_attention = False, nb_steps_ratio = None):
+                          need_attention = False, nb_steps_ratio = None, score_is_divided_by_length = True):
     nb_ex = len(src_data)
 #     res = []
     for i in range(nb_ex):
@@ -125,7 +126,10 @@ def beam_search_translate(encdec, eos_idx, src_data, beam_width = 20, nb_steps =
 #         bests = []
 #         translations.sort(key = itemgetter(1), reverse = True)
 #         bests.append(translations[0])
-        translations.sort(key = lambda x:x[1]/(len(x[0])+1), reverse = True)
+        if score_is_divided_by_length:
+            translations.sort(key = lambda x:x[1]/(len(x[0])+1), reverse = True)
+        else:
+            translations.sort(key = operator.itemgetter(1), reverse = True)
 #         bests.append(translations[0])
 #         yield bests
         yield translations[0]

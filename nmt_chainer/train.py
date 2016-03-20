@@ -52,19 +52,20 @@ def command_line(arguments = None):
     
     parser.add_argument("--max_src_tgt_length", type = int, help = "Limit length of training sentences")
     
-    parser.add_argument("--l2_gradient_clipping", type = float, help = "L2 gradient clipping")
+    parser.add_argument("--l2_gradient_clipping", type = float, default = 1, help = "L2 gradient clipping. 0 for None")
     parser.add_argument("--weight_decay", type = float, help = "weight decay")
     
     parser.add_argument("--optimizer", choices=["sgd", "rmsprop", "rmspropgraves", 
                             "momentum", "nesterov", "adam", "adagrad", "adadelta"], 
-                        default = "adadelta")
+                        default = "adam")
     parser.add_argument("--learning_rate", type = float, default= 0.01, help = "Learning Rate")
     parser.add_argument("--momentum", type = float, default= 0.9, help = "Momentum term")
     parser.add_argument("--report_every", type = int, default = 200, help = "report every x iterations")
     parser.add_argument("--randomized_data", default = False, action = "store_true")
     parser.add_argument("--use_accumulated_attn", default = False, action = "store_true")
     
-    parser.add_argument("--shuffle_training_data", default = False, action = "store_true")
+    parser.add_argument("--no_shuffle_of_training_data", default = False, action = "store_true")
+    parser.add_argument("--no_resume", default = False, action = "store_true")
     
     parser.add_argument("--init_orth", default = False, action = "store_true")
     
@@ -86,8 +87,9 @@ def command_line(arguments = None):
     output_files_dict["dev_src_output"] = args.save_prefix + ".dev.src.out"
     output_files_dict["valid_translation_output"] = args.save_prefix + ".valid.out"
     output_files_dict["valid_src_output"] = args.save_prefix + ".valid.src.out"
-    
     output_files_dict["sqlite_db"] = args.save_prefix + ".result.sqlite"
+    output_files_dict["optimizer_final"] = args.save_prefix + ".optimizer." + "final" + ".npz"
+    
     
     save_prefix_dir, save_prefix_fn = os.path.split(args.save_prefix)
     ensure_path(save_prefix_dir)
@@ -161,7 +163,7 @@ def command_line(arguments = None):
         log.info("filtered %i sentences of length larger than %i"%(nb_filtered, args.max_src_tgt_length))
         training_data = filtered_training_data
     
-    if args.shuffle_training_data:
+    if not args.no_shuffle_of_training_data:
         log.info("shuffling")
         import random
         random.shuffle(training_data)
@@ -215,7 +217,7 @@ def command_line(arguments = None):
         raise NotImplemented
     optimizer.setup(encdec)
     
-    if args.l2_gradient_clipping is not None:
+    if args.l2_gradient_clipping is not None and args.l2_gradient_clipping > 0:
         optimizer.add_hook(chainer.optimizer.GradientClipping(args.l2_gradient_clipping))
 
     if args.weight_decay is not None:
@@ -231,7 +233,7 @@ def command_line(arguments = None):
                       nb_of_batch_to_sort = args.nb_batch_to_sort,
                       test_data = test_data, dev_data = dev_data, valid_data = valid_data, gpu = args.gpu, report_every = args.report_every,
                       randomized = args.randomized_data, reverse_src = args.reverse_src, reverse_tgt = args.reverse_tgt,
-                      max_nb_iters = args.max_nb_iters)
+                      max_nb_iters = args.max_nb_iters, do_not_save_data_for_resuming = args.no_resume)
 
 if __name__ == '__main__':
     command_line()

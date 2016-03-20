@@ -141,7 +141,7 @@ class Indexer(object):
         assert self.finalized
         assert w not in self.dic
         if self.unk_label_dictionary is not None:
-            return self.unk_label_dictionary.get(w, 1)
+            return self.dic[self.unk_label_dictionary.get(w, 1)]
         else:
             return self.dic[0]
 

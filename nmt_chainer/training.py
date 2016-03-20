@@ -26,7 +26,7 @@ def train_on_data(encdec, optimizer, training_data, output_files_dict,
                   nb_of_batch_to_sort = 20,
                   test_data = None, dev_data = None, valid_data = None,
                   gpu = None, report_every = 200, randomized = False,
-                  reverse_src = False, reverse_tgt = False, max_nb_iters = None):
+                  reverse_src = False, reverse_tgt = False, max_nb_iters = None, do_not_save_data_for_resuming = False):
     
     mb_provider = minibatch_provider(training_data, eos_idx, mb_size, nb_of_batch_to_sort, gpu = gpu,
                                      randomized = randomized, sort_key = lambda x:len(x[0]),
@@ -249,4 +249,9 @@ def train_on_data(encdec, optimizer, training_data, output_files_dict,
             total_loss_this_interval += total_loss
             total_nb_predictions_this_interval += total_nb_predictions
     finally:
-        save_model("final")
+        if not do_not_save_data_for_resuming:
+            save_model("final")
+            fn_save_optimizer = output_files_dict["optimizer_final"]
+            log.info("saving optimizer parameters to %s" % fn_save_optimizer)
+            serializers.save_npz(fn_save_optimizer, optimizer)
+        
