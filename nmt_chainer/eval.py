@@ -9,7 +9,7 @@ __status__ = "Development"
 import json
 import numpy as np
 from chainer import cuda, serializers
-
+import sys
 import models
 from make_data import Indexer, build_dataset_one_side
 # from utils import make_batch_src, make_batch_src_tgt, minibatch_provider, compute_bleu_with_unk_as_wrong, de_batch
@@ -52,6 +52,11 @@ def commandline():
     parser.add_argument("--nb_steps_ratio", type = float, help = "nb_steps used in generation as a ratio of input length")
     parser.add_argument("--nb_batch_to_sort", type = int, default= 20, help = "Sort this many batches by size.")
     parser.add_argument("--beam_opt", default = False, action = "store_true")
+    parser.add_argument("--tgt_unk_id", choices = ["attn", "id"], default = "align")
+    
+    
+    parser.add_argument("--use_raw_score", default = False, action = "store_true")
+    
     args = parser.parse_args()
     
     config_training_fn = args.training_config #args.model_prefix + ".train.config"
@@ -141,7 +146,7 @@ def commandline():
             translations_gen = beam_search_translate(
                         encdec, eos_idx, src_data, beam_width = args.beam_width, nb_steps = args.nb_steps, 
                                                  gpu = args.gpu, beam_opt = args.beam_opt, nb_steps_ratio = args.nb_steps_ratio,
-                                                 need_attention = True)
+                                                 need_attention = True, score_is_divided_by_length = not args.use_raw_score)
             
     #         for num_t in range(len(translations)):
     #             print num_t
@@ -149,23 +154,34 @@ def commandline():
     #                 ct = convert_idx_to_string(t[:-1], tgt_voc + ["#T_UNK#"])
     #                 print ct, score
     #                 out.write(ct + "\n")
-            for t, score, attn in translations_gen:
+            for num_t, (t, score, attn) in enumerate(translations_gen):
+                if num_t %200 == 0:
+                    print >>sys.stderr, num_t,
+                elif num_t %40 == 0:
+                    print >>sys.stderr, "*",
 #                 t, score = bests[1]
 #                 ct = convert_idx_to_string(t, tgt_voc + ["#T_UNK#"])
 #                 ct = convert_idx_to_string_with_attn(t, tgt_voc, attn, unk_idx = len(tgt_voc))
-                
-                def unk_replacer(num_pos, unk_id):
-                    unk_pattern = "#T_UNK_%i#"
-                    a = attn[num_pos]
-                    xp = cuda.get_array_module(a)
-                    src_pos = int(xp.argmax(a))
-                    return unk_pattern%src_pos
+                if args.tgt_unk_id == "align":
+                    def unk_replacer(num_pos, unk_id):
+                        unk_pattern = "#T_UNK_%i#"
+                        a = attn[num_pos]
+                        xp = cuda.get_array_module(a)
+                        src_pos = int(xp.argmax(a))
+                        return unk_pattern%src_pos
+                elif args.tgt_unk_id == "id":
+                    def unk_replacer(num_pos, unk_id):
+                        unk_pattern = "#T_UNK_%i#"
+                        return unk_pattern%unk_id         
+                else:
+                    assert False
                 
                 ct = " ".join(tgt_indexer.deconvert(t, unk_tag = unk_replacer))
                 
 #                 print convert_idx_to_string(bests[0][0], tgt_voc + ["#T_UNK#"]) , bests[0][1]
 #                 print convert_idx_to_string(bests[1][0], tgt_voc + ["#T_UNK#"]), bests[1][1], bests[1][1] / len(bests[1][0])
                 out.write(ct + "\n")
+            print >>sys.stderr
             
     elif args.mode == "translate_attn":
         log.info("writing translation + attention as html to %s"% args.dest_fn)
