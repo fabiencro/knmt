@@ -26,7 +26,8 @@ def train_on_data(encdec, optimizer, training_data, output_files_dict,
                   nb_of_batch_to_sort = 20,
                   test_data = None, dev_data = None, valid_data = None,
                   gpu = None, report_every = 200, randomized = False,
-                  reverse_src = False, reverse_tgt = False, max_nb_iters = None, do_not_save_data_for_resuming = False):
+                  reverse_src = False, reverse_tgt = False, max_nb_iters = None, do_not_save_data_for_resuming = False,
+                  noise_on_prev_word = False):
     
     mb_provider = minibatch_provider(training_data, eos_idx, mb_size, nb_of_batch_to_sort, gpu = gpu,
                                      randomized = randomized, sort_key = lambda x:len(x[0]),
@@ -56,7 +57,8 @@ def train_on_data(encdec, optimizer, training_data, output_files_dict,
         t0 = time.clock()
         encdec.zerograds()
         t1 = time.clock()
-        (total_loss, total_nb_predictions), attn = encdec(src_batch, tgt_batch, src_mask, raw_loss_info = True)
+        (total_loss, total_nb_predictions), attn = encdec(src_batch, tgt_batch, src_mask, raw_loss_info = True,
+                                                          noise_on_prev_word = noise_on_prev_word)
         loss = total_loss / total_nb_predictions
         t2 = time.clock()
         print "loss:", loss.data,
