@@ -621,7 +621,7 @@ class Decoder(Chain):
         return choose
 
     
-    def compute_loss(self, targets, compute_ctxt, raw_loss_info = False, keep_attn_values = False):
+    def compute_loss(self, targets, compute_ctxt, raw_loss_info = False, keep_attn_values = False, noise_on_prev_word = False):
         loss = None
         current_mb_size = targets[0].data.shape[0]
 #         previous_state = F.concat( [self.initial_state] * current_mb_size, 0)
@@ -634,6 +634,11 @@ class Decoder(Chain):
             prev_y = F.broadcast_to(self.bos_embeding, (current_mb_size, self.Eo))
         attn_list = []
         total_nb_predictions = 0
+        
+        if noise_on_prev_word:
+            noise_mean = Variable(self.xp.ones_like(prev_y.data, dtype = self.xp.float32))
+            noise_lnvar = Variable(self.xp.zeros_like(prev_y.data, dtype = self.xp.float32))
+        
         for i in xrange(len(targets)):
             assert i == 0 or previous_state.data.shape[0] == previous_word.data.shape[0]
             current_mb_size = targets[i].data.shape[0]
@@ -641,9 +646,16 @@ class Decoder(Chain):
                 previous_state, _ = F.split_axis(previous_state, (current_mb_size,), 0)
                 if previous_word is not None:
                     previous_word, _ = F.split_axis(previous_word, (current_mb_size,), 0 )
+                    
+                if noise_on_prev_word:
+                    noise_mean, _ = F.split_axis(noise_mean, (current_mb_size,), 0)
+                    noise_lnvar, _ = F.split_axis(noise_lnvar, (current_mb_size,), 0)
             if previous_word is not None: #else we are using the initial prev_y
                 prev_y = self.emb(previous_word)
             assert previous_state.data.shape[0] == current_mb_size
+            
+            if noise_on_prev_word:
+                prev_y = prev_y * F.gaussian(noise_mean, noise_lnvar)
             
             new_state, logits, attn = self.advance_one_step(previous_state, prev_y, 
                                                       compute_ctxt)
@@ -724,7 +736,7 @@ class Decoder(Chain):
     
     
     def __call__(self, fb_concat, targets, mask, use_best_for_sample = False, raw_loss_info = False,
-                    keep_attn_values = False, need_score = False):
+                    keep_attn_values = False, need_score = False, noise_on_prev_word = False):
         mb_size, nb_elems, Hi = fb_concat.data.shape
         assert Hi == self.Hi, "%i != %i"%(Hi, self.Hi)
     
@@ -735,7 +747,7 @@ class Decoder(Chain):
                                keep_attn_values = keep_attn_values, need_score = need_score)
         else:
             return self.compute_loss(targets, compute_ctxt, raw_loss_info = raw_loss_info,
-                                     keep_attn_values = keep_attn_values)     
+                                     keep_attn_values = keep_attn_values, noise_on_prev_word = noise_on_prev_word)     
         
 class EncoderDecoder(Chain):
     """ Do RNNSearch Encoding/Decoding
@@ -755,10 +767,10 @@ class EncoderDecoder(Chain):
         )
         
     def __call__(self, src_batch, tgt_batch, src_mask, use_best_for_sample = False, display_attn = False,
-                 raw_loss_info = False, keep_attn_values = False, need_score = False):
+                 raw_loss_info = False, keep_attn_values = False, need_score = False, noise_on_prev_word = False):
         fb_src = self.enc(src_batch, src_mask)
         loss = self.dec(fb_src, tgt_batch, src_mask, use_best_for_sample = use_best_for_sample, raw_loss_info = raw_loss_info,
-                        keep_attn_values = keep_attn_values, need_score = need_score)
+                        keep_attn_values = keep_attn_values, need_score = need_score, noise_on_prev_word = noise_on_prev_word)
         return loss
     
 #     def compute_loss_and_backward(self, src_batch, tgt_batch, src_mask, raw_loss_info = False):

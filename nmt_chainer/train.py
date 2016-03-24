@@ -46,7 +46,7 @@ def command_line(arguments = None):
     parser.add_argument("--Hl", type = int, default= 500, help = "Maxout output size.")
     parser.add_argument("--mb_size", type = int, default= 80, help = "Minibatch size")
     parser.add_argument("--nb_batch_to_sort", type = int, default= 20, help = "Sort this many batches by size.")
-    
+    parser.add_argument("--noise_on_prev_word", default = False, action = "store_true")
     
     parser.add_argument("--max_nb_iters", type = int, default= None, help = "maximum number of iterations")
     
@@ -233,7 +233,8 @@ def command_line(arguments = None):
                       nb_of_batch_to_sort = args.nb_batch_to_sort,
                       test_data = test_data, dev_data = dev_data, valid_data = valid_data, gpu = args.gpu, report_every = args.report_every,
                       randomized = args.randomized_data, reverse_src = args.reverse_src, reverse_tgt = args.reverse_tgt,
-                      max_nb_iters = args.max_nb_iters, do_not_save_data_for_resuming = args.no_resume)
+                      max_nb_iters = args.max_nb_iters, do_not_save_data_for_resuming = args.no_resume,
+                      noise_on_prev_word = args.noise_on_prev_word)
 
 if __name__ == '__main__':
     command_line()
