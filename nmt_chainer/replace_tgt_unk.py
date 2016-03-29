@@ -5,7 +5,7 @@ __version__ = "1.0"
 __email__ = "fabien.cromieres@gmail.com"
 __status__ = "Development"
 
-import codecs, itertools, json
+import codecs, itertools, json, unicodedata
 import logging
 logging.basicConfig()
 log = logging.getLogger("rnns:replace_tgt")
@@ -19,6 +19,8 @@ def commandline():
     parser.add_argument("dest")
     parser.add_argument("--dic")
     parser.add_argument("--remove_unk", default = False, action = "store_true")
+    parser.add_argument("--normalize_unicode_unk", default = False, action = "store_true")
+    parser.add_argument("--attempt_to_relocate_unk_source", default = False, action = "store_true")
     args = parser.parse_args()
     
     ft = codecs.open(args.translations, encoding = "utf8")
@@ -34,17 +36,28 @@ def commandline():
         splitted_t = line_t.strip().split(" ")
         splitted_s = line_s.strip().split(" ")
         new_t = []
-        for w in splitted_t:
+        for p_w, w in enumerate(splitted_t):
             if w.startswith("#T_UNK_"):
                 src_pos = int(w[7:-1])
                 if src_pos >= len(splitted_s):
                     log.warn("link to source out of bound (%i/%i line %i)" %(src_pos, len(splitted_s), num_line + 1))
                     src_pos = len(splitted_s) -1
                 src_w = splitted_s[src_pos]
+                
+                if args.attempt_to_relocate_unk_source:
+                    if dic is not None and src_w in dic:
+                        prec_w = splitted_t[p_w -1] if p_w != 0 else None
+    #                     post_w = splitted_t[p_w  +1] if (p_w + 1) < len(splitted_t) else None
+                        if prec_w is not None and dic[src_w] == prec_w and (src_pos + 1) <  len(splitted_s):
+                            log.info("retargeting unk  (%i/%i line %i)" %(src_pos, len(splitted_s), num_line + 1))
+                            src_w = splitted_s[src_pos + 1]
+                        
                 if dic is not None and src_w in dic:
                     new_t.append(dic[src_w])
                 else:
                     if not args.remove_unk:
+                        if args.normalize_unicode_unk:
+                            src_w = unicodedata.normalize("NFKD", src_w)
                         new_t.append(src_w)
             else:
                 new_t.append(w)
