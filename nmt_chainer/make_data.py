@@ -249,14 +249,21 @@ MakeDataInfosOneSide = collections.namedtuple("MakeDataInfosOneSide", ["total_co
 MakeDataInfos = collections.namedtuple("MakeDataInfos", ["total_count_unk_src", "total_count_unk_tgt", "total_token_src", 
                                          "total_token_tgt", "nb_ex"])
 
+def segment(line, type = "word"):
+    if type == "word":
+        return line.split(" ")
+    elif type == "word2char":
+        return tuple("".join(line.split(" ")))
+    else:
+        raise NotImplemented
 
-def build_index(fn, voc_limit = None, max_nb_ex = None):
+def build_index(fn, voc_limit = None, max_nb_ex = None, segmentation_type = "word"):
     f = codecs.open(fn, encoding= "utf8")
     counts = collections.defaultdict(int)
     for num_ex, line in enumerate(f):
         if max_nb_ex is not None and num_ex >= max_nb_ex:
             break
-        line =line.strip().split(" ")
+        line = segment(line.strip(), type = segmentation_type) #.split(" ")
         for w in line:
             counts[w] += 1
     
@@ -311,15 +318,18 @@ def build_dataset_one_side(src_fn, src_voc_limit = None, max_nb_ex = None, dic_s
                                                 num_ex
                                                 )
  
+
+        
 def build_dataset(src_fn, tgt_fn, 
-                  src_voc_limit = None, tgt_voc_limit = None, max_nb_ex = None, dic_src = None, dic_tgt = None):
+                  src_voc_limit = None, tgt_voc_limit = None, max_nb_ex = None, dic_src = None, dic_tgt = None,
+                  tgt_segmentation_type = "word"):
     if dic_src is None:
         log.info("building src_dic")
         dic_src = build_index(src_fn, src_voc_limit, max_nb_ex)
         
     if dic_tgt is None:
         log.info("building tgt_dic")
-        dic_tgt = build_index(tgt_fn, tgt_voc_limit, max_nb_ex)
+        dic_tgt = build_index(tgt_fn, tgt_voc_limit, max_nb_ex, segmentation_type = tgt_segmentation_type)
     
     
     log.info("start indexing")
@@ -346,7 +356,7 @@ def build_dataset(src_fn, tgt_fn,
             break
         
         line_src = line_src.strip().split(" ")
-        line_tgt = line_tgt.strip().split(" ")
+        line_tgt = segment(line_tgt.strip(), type = tgt_segmentation_type) #.split(" ")
         
         seq_src = dic_src.convert(line_src)
         unk_cnt_src = sum(dic_src.is_unk_idx(w) for w in seq_src)
@@ -526,6 +536,9 @@ def cmdline(arguments = None):
     parser.add_argument("--dev_tgt", help = "specify a target dev set")
     
     parser.add_argument("--use_voc", help = "specify an exisiting vocabulary file")
+    
+    parser.add_argument("--tgt_segmentation_type", choices = ["word", "word2char"])
+    
     args = parser.parse_args(args = arguments)
     
     if not ((args.test_src is None) == (args.test_tgt is None)):
@@ -566,7 +579,8 @@ def cmdline(arguments = None):
             training_data, dic_src, dic_tgt, make_data_infos = build_dataset(
                                             src_fn, tgt_fn, src_voc_limit = args.src_voc_size, 
                                             tgt_voc_limit = args.tgt_voc_size, max_nb_ex = max_nb_ex, 
-                                            dic_src = dic_src, dic_tgt = dic_tgt)
+                                            dic_src = dic_src, dic_tgt = dic_tgt, 
+                                            tgt_segmentation_type = args.tgt_segmentation_type)
             valid_data = None
         
         log.info("%i sentences loaded"%make_data_infos.nb_ex)
