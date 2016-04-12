@@ -11,6 +11,7 @@ import logging
 import numpy as np
 import chainer
 from chainer import Variable, cuda
+import random
 
 logging.basicConfig()
 log = logging.getLogger("rnns:utils")
@@ -153,6 +154,26 @@ def mb_reverser(mb_raw, reverse_src = False, reverse_tgt = False):
         return mb_raw_new
     else:
         return mb_raw
+    
+def minibatch_provider_curiculum(data, eos_idx, mb_size, nb_mb_for_sorting = 1, inplace_sorting = False, gpu = None,
+                       randomized = False, volatile = "off", sort_key = lambda x:len(x[1]),
+                       reverse_src = False, reverse_tgt = False, starting_size = 200
+                       ):
+    current_size = starting_size
+    while True:
+        used_data = list(data[:current_size])
+        random.shuffle(used_data)
+        sub_mb_provider = minibatch_provider(used_data, eos_idx, mb_size, nb_mb_for_sorting, gpu = gpu, loop = False,
+                                     randomized = randomized, sort_key = sort_key, volatile = volatile, 
+                                     inplace_sorting = inplace_sorting,
+                                     reverse_src = reverse_src, reverse_tgt = reverse_tgt)
+        
+        for x in sub_mb_provider:
+            yield x
+        
+        if current_size < len(data):
+            current_size *= 2
+        
     
 def minibatch_provider(data, eos_idx, mb_size, nb_mb_for_sorting = 1, loop = True, inplace_sorting = False, gpu = None,
                        randomized = False, volatile = "off", sort_key = lambda x:len(x[1]),
