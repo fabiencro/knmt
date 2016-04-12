@@ -53,7 +53,7 @@ def commandline():
     parser.add_argument("--nb_batch_to_sort", type = int, default= 20, help = "Sort this many batches by size.")
     parser.add_argument("--beam_opt", default = False, action = "store_true")
     parser.add_argument("--tgt_unk_id", choices = ["attn", "id"], default = "align")
-    
+    parser.add_argument("--groundhog", default = False, action = "store_true")
     
     parser.add_argument("--use_raw_score", default = False, action = "store_true")
     
@@ -145,8 +145,9 @@ def commandline():
         with cuda.get_device(args.gpu):
             translations_gen = beam_search_translate(
                         encdec, eos_idx, src_data, beam_width = args.beam_width, nb_steps = args.nb_steps, 
-                                                 gpu = args.gpu, beam_opt = args.beam_opt, nb_steps_ratio = args.nb_steps_ratio,
-                                                 need_attention = True, score_is_divided_by_length = not args.use_raw_score)
+                                        gpu = args.gpu, beam_opt = args.beam_opt, nb_steps_ratio = args.nb_steps_ratio,
+                                        need_attention = True, score_is_divided_by_length = not args.use_raw_score,
+                                        groundhog = args.groundhog)
             
     #         for num_t in range(len(translations)):
     #             print num_t
