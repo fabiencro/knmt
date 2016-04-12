@@ -72,6 +72,8 @@ def command_line(arguments = None):
     parser.add_argument("--reverse_src", default = False, action = "store_true")
     parser.add_argument("--reverse_tgt", default = False, action = "store_true")
     
+    parser.add_argument("--curiculum_training", default = False, action = "store_true")
+    
     args = parser.parse_args(args = arguments)
     
     output_files_dict = {}
@@ -89,6 +91,7 @@ def command_line(arguments = None):
     output_files_dict["valid_src_output"] = args.save_prefix + ".valid.src.out"
     output_files_dict["sqlite_db"] = args.save_prefix + ".result.sqlite"
     output_files_dict["optimizer_final"] = args.save_prefix + ".optimizer." + "final" + ".npz"
+    
     
     
     save_prefix_dir, save_prefix_fn = os.path.split(args.save_prefix)
@@ -234,7 +237,7 @@ def command_line(arguments = None):
                       test_data = test_data, dev_data = dev_data, valid_data = valid_data, gpu = args.gpu, report_every = args.report_every,
                       randomized = args.randomized_data, reverse_src = args.reverse_src, reverse_tgt = args.reverse_tgt,
                       max_nb_iters = args.max_nb_iters, do_not_save_data_for_resuming = args.no_resume,
-                      noise_on_prev_word = args.noise_on_prev_word)
+                      noise_on_prev_word = args.noise_on_prev_word, curiculum_training = args.curiculum_training)
 
 if __name__ == '__main__':
     command_line()

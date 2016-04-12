@@ -13,7 +13,9 @@ import logging
 import sys
 # import h5py
 
-from utils import minibatch_provider
+import math
+
+from utils import minibatch_provider, minibatch_provider_curiculum
 from evaluation import ( 
                   compute_loss_all, translate_to_file, sample_once)
 
@@ -21,15 +23,38 @@ logging.basicConfig()
 log = logging.getLogger("rnns:training")
 log.setLevel(logging.INFO)
 
+def sent_complexity(sent):
+    rank_least_common_word = max(sent)
+    length = len(sent)
+    return length * math.log(rank_least_common_word + 1)
+    
+def example_complexity(ex):
+    return sent_complexity(ex[0]) + sent_complexity(ex[1])
+
 def train_on_data(encdec, optimizer, training_data, output_files_dict,
                   src_indexer, tgt_indexer, eos_idx, mb_size = 80,
                   nb_of_batch_to_sort = 20,
                   test_data = None, dev_data = None, valid_data = None,
                   gpu = None, report_every = 200, randomized = False,
                   reverse_src = False, reverse_tgt = False, max_nb_iters = None, do_not_save_data_for_resuming = False,
-                  noise_on_prev_word = False):
+                  noise_on_prev_word = False, curiculum_training = False):
     
-    mb_provider = minibatch_provider(training_data, eos_idx, mb_size, nb_of_batch_to_sort, gpu = gpu,
+    if curiculum_training:
+        log.info("Sorting training data by complexity")
+        training_data_sorted_by_complexity = sorted(training_data, key = example_complexity)
+        log.info("done")
+        
+        for s,t in training_data_sorted_by_complexity[:400]:
+            print example_complexity((s,t))
+            print " ".join(src_indexer.deconvert(s))
+            print " ".join(tgt_indexer.deconvert(t))
+            print
+            
+        mb_provider = minibatch_provider_curiculum(training_data_sorted_by_complexity, eos_idx, mb_size, nb_of_batch_to_sort, gpu = gpu,
+                                     randomized = randomized, sort_key = lambda x:len(x[0]),
+                                     reverse_src = reverse_src, reverse_tgt = reverse_tgt)
+    else:
+        mb_provider = minibatch_provider(training_data, eos_idx, mb_size, nb_of_batch_to_sort, gpu = gpu,
                                      randomized = randomized, sort_key = lambda x:len(x[0]),
                                      reverse_src = reverse_src, reverse_tgt = reverse_tgt)
     
