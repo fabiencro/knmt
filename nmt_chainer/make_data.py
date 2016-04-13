@@ -555,7 +555,7 @@ def cmdline(arguments=None):
     parser.add_argument(
         "--use_voc", help="specify an exisiting vocabulary file")
 
-    parser.add_argument("--tgt_segmentation_type",
+    parser.add_argument("--tgt_segmentation_type", default="word",
                         choices=["word", "word2char"])
 
     args = parser.parse_args(args=arguments)
