@@ -869,7 +869,8 @@ class Decoder(Chain):
         return choose
 
     
-    def compute_loss(self, targets, compute_ctxt, raw_loss_info = False, keep_attn_values = False, noise_on_prev_word = False):
+    def compute_loss(self, targets, compute_ctxt, raw_loss_info = False, keep_attn_values = False, 
+                     noise_on_prev_word = False, use_previous_prediction = False):
         loss = None
         current_mb_size = targets[0].data.shape[0]
 #         previous_state = F.concat( [self.initial_state] * current_mb_size, 0)
@@ -918,8 +919,11 @@ class Decoder(Chain):
             
 #             loss = local_loss if loss is None else loss + local_loss
             loss = total_local_loss if loss is None else loss + total_local_loss
-            
-            previous_word = targets[i]
+            if use_previous_prediction:
+                previous_word = Variable(xp.argmax(logits.data, axis = 1), volatile = "auto")
+                assert False
+            else:
+                previous_word = targets[i]
 #             prev_y = self.emb(previous_word)
             previous_state = new_state
 #             attn_list.append(attn)
@@ -984,7 +988,8 @@ class Decoder(Chain):
     
     
     def __call__(self, fb_concat, targets, mask, use_best_for_sample = False, raw_loss_info = False,
-                    keep_attn_values = False, need_score = False, noise_on_prev_word = False):
+                    keep_attn_values = False, need_score = False, noise_on_prev_word = False,
+                    use_previous_prediction = False):
         mb_size, nb_elems, Hi = fb_concat.data.shape
         assert Hi == self.Hi, "%i != %i"%(Hi, self.Hi)
     
@@ -995,7 +1000,8 @@ class Decoder(Chain):
                                keep_attn_values = keep_attn_values, need_score = need_score)
         else:
             return self.compute_loss(targets, compute_ctxt, raw_loss_info = raw_loss_info,
-                                     keep_attn_values = keep_attn_values, noise_on_prev_word = noise_on_prev_word)     
+                                     keep_attn_values = keep_attn_values, noise_on_prev_word = noise_on_prev_word,
+                                     use_previous_prediction = use_previous_prediction)     
         
 class EncoderDecoder(Chain):
     """ Do RNNSearch Encoding/Decoding
