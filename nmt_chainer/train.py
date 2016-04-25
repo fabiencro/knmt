@@ -218,7 +218,8 @@ def command_line(arguments = None):
                                            momentum = args.momentum)    
     else:
         raise NotImplemented
-    optimizer.setup(encdec)
+    with cuda.Device(args.gpu):
+        optimizer.setup(encdec)
     
     if args.l2_gradient_clipping is not None and args.l2_gradient_clipping > 0:
         optimizer.add_hook(chainer.optimizer.GradientClipping(args.l2_gradient_clipping))
