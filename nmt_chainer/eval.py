@@ -89,8 +89,12 @@ def commandline():
     Ha = config_training["command_line"]["Ha"]
     Hl = config_training["command_line"]["Hl"]
     
+    
+    use_bn_length = config_training["command_line"].get("use_bn_length", None)
+    
+    
     eos_idx = Vo
-    encdec = models.EncoderDecoder(Vi, Ei, Hi, Vo + 1, Eo, Ho, Ha, Hl)
+    encdec = models.EncoderDecoder(Vi, Ei, Hi, Vo + 1, Eo, Ho, Ha, Hl, use_bn_length = use_bn_length)
     
     log.info("loading model from %s" % args.trained_model)
     serializers.load_npz(args.trained_model, encdec)

@@ -13,7 +13,7 @@ from chainer import cuda, Variable
 from chainer import Link, Chain, ChainList
 import chainer.functions as F
 import chainer.links as L
-import math
+import math, random
 
 from utils import ortho_init
 
@@ -21,6 +21,24 @@ import logging
 logging.basicConfig()
 log = logging.getLogger("rnns:models")
 log.setLevel(logging.INFO)
+
+# import faster_gru
+# L.GRU = faster_gru.GRU
+
+class BNList(ChainList):
+    def __init__(self, size, max_length):
+        super(BNList, self).__init__()
+        for _ in xrange(max_length):
+            bn = L.BatchNormalization(size)
+            bn.gamma.data.fill(0.1)
+            self.add_link(bn)
+        self.max_length = max_length
+        
+    def __call__(self, x, i, test = False):
+        if i < self.max_length:
+            return self[i](x, test = test)
+        else:
+            return self[self.max_length - 1](x, test = test)
 
 class Encoder(Chain):
     """ Chain that encode a sequence. 
@@ -37,7 +55,7 @@ class Encoder(Chain):
         
         Return a chainer variable of shape (mb_size, #length, 2*Hi) and type float32
     """
-    def __init__(self, Vi, Ei, Hi, init_orth = False):
+    def __init__(self, Vi, Ei, Hi, init_orth = False, use_bn_length = 0):
         super(Encoder, self).__init__(
             emb = L.EmbedID(Vi, Ei),
             gru_f = L.GRU(Hi, Ei),
@@ -50,11 +68,16 @@ class Encoder(Chain):
         self.initial_state_f.data[...] = np.random.randn(Hi)
         self.initial_state_b.data[...] = np.random.randn(Hi)
         
+        if use_bn_length > 0:
+            self.add_link("bn_f", BNList(Hi, use_bn_length))
+#             self.add_link("bn_b", BNList(Hi, use_bn_length)) #TODO
+        self.use_bn_length = use_bn_length
+        
         if init_orth:
             ortho_init(self.gru_f)
             ortho_init(self.gru_b)
         
-    def __call__(self, sequence, mask):
+    def __call__(self, sequence, mask, test = False):
         
         mb_size = sequence[0].data.shape[0]
         
@@ -68,8 +91,10 @@ class Encoder(Chain):
 #         self.gru_f.reset_state()
         prev_state = mb_initial_state_f
         forward_seq = []
-        for x in embedded_seq:
+        for i, x in enumerate(embedded_seq):
             prev_state = self.gru_f(prev_state, x)
+            if self.use_bn_length > 0:
+                prev_state = self.bn_f(prev_state, i, test = test)
             forward_seq.append(prev_state)
             
 #         self.gru_b.reset_state()
@@ -88,6 +113,10 @@ class Encoder(Chain):
                 prev_state = F.where(F.broadcast_to(
                                 Variable(self.xp.reshape(mask[pos - mask_offset], (mb_size, 1)), volatile = "auto"), (mb_size, self.Hi)),
                                 self.gru_b(prev_state, x), mb_initial_state_b) #TODO: optimize?
+#             TODO: 
+#             if self.use_bn_length > 0:
+#                 prev_state = self.bn_b(prev_state, i)
+            
             
             backward_seq.append(prev_state)
         
@@ -320,133 +349,133 @@ class AttentionModule(Chain):
 #             return ci, attn
 #         
 #         return compute_ctxt
-
-class DecoderWithAlign(Chain):
-    """ Decoder for RNNSearch. 
-        The __call_ takes 3 required parameters: fb_concat, targets, mask.
-        
-        fb_concat should be the result of a call to Encoder.
-        
-        targets is a python list of chainer variables of type int32 and of variable shape (n,)
-            the values n should be decreasing:
-                i < j => targets[i].data.shape[0] >= targets[j].data.shape[0]
-            targets[i].data[j] is the jth elements of the ith sequence in the minibatch
-            all this imply that the sequences of the minibatch should be sorted from longest to shortest
-            
-        mask is as in the description of Encoder.
-        
-        * it is up to the user to add an EOS token to the data.
-               
-        Return a loss and the attention model values
-    """
-    def __init__(self, Vo, Eo, Ho, Ha, Hi, Hl, attn_cls = AttentionModule, init_orth = False):
-        super(DecoderWithAlign, self).__init__(
-            emb = L.EmbedID(Vo, Eo),
-            gru = L.GRU(Ho, Eo + Hi),
-            
-            maxo = L.Maxout(Eo + Hi + Ho, Hl, 2),
-            lin_o = L.Linear(Hl, Vo, nobias = False),
-            
-            attn_module = attn_cls(Hi, Ha, Ho, init_orth = init_orth),
-            
-            align_pred_mo = L.Maxout(Ho, 1,4),
-            size_pred_mo = L.Maxout(Hi, 2, 2)
-        )
-        self.add_param("initial_state", (1, Ho))
-        self.add_param("bos_embeding", (1, Eo))
-        self.Hi = Hi
-        self.Ho = Ho
-        self.Eo = Eo
-        self.initial_state.data[...] = np.random.randn(Ho)
-        self.bos_embeding.data[...] = np.random.randn(Eo)
-        
-        if init_orth:
-            ortho_init(self.gru)
-            ortho_init(self.lin_o)
-            ortho_init(self.maxo)
-        
-    def advance_one_step(self, previous_state, prev_y, compute_ctxt):
-
-        ci, attn = compute_ctxt(previous_state)
-        concatenated = F.concat( (prev_y, ci) )
-#             print concatenated.data.shape
-        new_state = self.gru(previous_state, concatenated)
-
-        all_concatenated = F.concat((concatenated, new_state))
-        logits = self.lin_o(self.maxo(all_concatenated))
-        
-        al_pred =  self.align_pred_mo(new_state)
-        
-        return new_state, logits, attn, al_pred
-          
-    def compute_loss(self, targets, fb_concat, mask, sizes, raw_loss_info = False, keep_attn_values = False, noise_on_prev_word = False):
-        compute_ctxt = self.attn_module(fb_concat, mask)
-        loss = None
-        current_mb_size = targets[0].data.shape[0]
-#         previous_state = F.concat( [self.initial_state] * current_mb_size, 0)
-        previous_state = F.broadcast_to(self.initial_state, (current_mb_size, self.Ho))
-#         previous_word = Variable(np.array([self.bos_idx] * mb_size, dtype = np.int32))
-        xp = cuda.get_array_module(self.initial_state.data)
-        previous_word = None
-        with cuda.get_device(self.initial_state.data):
-#             previous_word = Variable(xp.array([self.bos_idx] * current_mb_size, dtype = np.int32))
-            prev_y = F.broadcast_to(self.bos_embeding, (current_mb_size, self.Eo))
-        attn_list = []
-        total_nb_predictions = 0
-        
-        if noise_on_prev_word:
-            noise_mean = Variable(self.xp.ones_like(prev_y.data, dtype = self.xp.float32))
-            noise_lnvar = Variable(self.xp.zeros_like(prev_y.data, dtype = self.xp.float32))
-        
-        first_fb, _ = F.split_axis(fb_concat, (1,), 1)
-        size_pred = F.softplus(self.size_pred_mo(first_fb))
-        size_mean, size_precision = F.split_axis(size_pred, (1,), 1)
-        loss_size = 0.5 * (size_precision* (sizes - size_mean) ) **2 - F.log(size_precision)
-        loss = F.sum(loss_size)/ current_mb_size
-        
-        for i in xrange(len(targets)):
-            assert i == 0 or previous_state.data.shape[0] == previous_word.data.shape[0]
-            current_mb_size = targets[i].data.shape[0]
-            if current_mb_size < len(previous_state.data):
-                previous_state, _ = F.split_axis(previous_state, (current_mb_size,), 0)
-                if previous_word is not None:
-                    previous_word, _ = F.split_axis(previous_word, (current_mb_size,), 0 )
-                    
-                if noise_on_prev_word:
-                    noise_mean, _ = F.split_axis(noise_mean, (current_mb_size,), 0)
-                    noise_lnvar, _ = F.split_axis(noise_lnvar, (current_mb_size,), 0)
-            if previous_word is not None: #else we are using the initial prev_y
-                prev_y = self.emb(previous_word)
-            assert previous_state.data.shape[0] == current_mb_size
-            
-            if noise_on_prev_word:
-                prev_y = prev_y * F.gaussian(noise_mean, noise_lnvar)
-            
-            new_state, logits, attn, al_pred = self.advance_one_step(previous_state, prev_y, 
-                                                      compute_ctxt)
-
-            if keep_attn_values:
-                attn_list.append(attn)
-                
-            local_loss = F.softmax_cross_entropy(logits, targets[i][0])   
-            
-            local_loss += F.softmax_cross_entropy(al_pred, targets[i][1])
-            
-            total_nb_predictions += current_mb_size
-            total_local_loss = local_loss * current_mb_size
-            
-#             loss = local_loss if loss is None else loss + local_loss
-            loss = total_local_loss if loss is None else loss + total_local_loss
-            
-            previous_word = targets[i]
-#             prev_y = self.emb(previous_word)
-            previous_state = new_state
-#             attn_list.append(attn)
-        if raw_loss_info:
-            return (loss, total_nb_predictions), attn_list
-        else:
-            loss = loss / total_nb_predictions
-            return loss, attn_list
+# 
+# class DecoderWithAlign(Chain):
+#     """ Decoder for RNNSearch. 
+#         The __call_ takes 3 required parameters: fb_concat, targets, mask.
+#         
+#         fb_concat should be the result of a call to Encoder.
+#         
+#         targets is a python list of chainer variables of type int32 and of variable shape (n,)
+#             the values n should be decreasing:
+#                 i < j => targets[i].data.shape[0] >= targets[j].data.shape[0]
+#             targets[i].data[j] is the jth elements of the ith sequence in the minibatch
+#             all this imply that the sequences of the minibatch should be sorted from longest to shortest
+#             
+#         mask is as in the description of Encoder.
+#         
+#         * it is up to the user to add an EOS token to the data.
+#                
+#         Return a loss and the attention model values
+#     """
+#     def __init__(self, Vo, Eo, Ho, Ha, Hi, Hl, attn_cls = AttentionModule, init_orth = False):
+#         super(DecoderWithAlign, self).__init__(
+#             emb = L.EmbedID(Vo, Eo),
+#             gru = L.GRU(Ho, Eo + Hi),
+#             
+#             maxo = L.Maxout(Eo + Hi + Ho, Hl, 2),
+#             lin_o = L.Linear(Hl, Vo, nobias = False),
+#             
+#             attn_module = attn_cls(Hi, Ha, Ho, init_orth = init_orth),
+#             
+#             align_pred_mo = L.Maxout(Ho, 1,4),
+#             size_pred_mo = L.Maxout(Hi, 2, 2)
+#         )
+#         self.add_param("initial_state", (1, Ho))
+#         self.add_param("bos_embeding", (1, Eo))
+#         self.Hi = Hi
+#         self.Ho = Ho
+#         self.Eo = Eo
+#         self.initial_state.data[...] = np.random.randn(Ho)
+#         self.bos_embeding.data[...] = np.random.randn(Eo)
+#         
+#         if init_orth:
+#             ortho_init(self.gru)
+#             ortho_init(self.lin_o)
+#             ortho_init(self.maxo)
+#         
+#     def advance_one_step(self, previous_state, prev_y, compute_ctxt):
+# 
+#         ci, attn = compute_ctxt(previous_state)
+#         concatenated = F.concat( (prev_y, ci) )
+# #             print concatenated.data.shape
+#         new_state = self.gru(previous_state, concatenated)
+# 
+#         all_concatenated = F.concat((concatenated, new_state))
+#         logits = self.lin_o(self.maxo(all_concatenated))
+#         
+#         al_pred =  self.align_pred_mo(new_state)
+#         
+#         return new_state, logits, attn, al_pred
+#           
+#     def compute_loss(self, targets, fb_concat, mask, sizes, raw_loss_info = False, keep_attn_values = False, noise_on_prev_word = False):
+#         compute_ctxt = self.attn_module(fb_concat, mask)
+#         loss = None
+#         current_mb_size = targets[0].data.shape[0]
+# #         previous_state = F.concat( [self.initial_state] * current_mb_size, 0)
+#         previous_state = F.broadcast_to(self.initial_state, (current_mb_size, self.Ho))
+# #         previous_word = Variable(np.array([self.bos_idx] * mb_size, dtype = np.int32))
+#         xp = cuda.get_array_module(self.initial_state.data)
+#         previous_word = None
+#         with cuda.get_device(self.initial_state.data):
+# #             previous_word = Variable(xp.array([self.bos_idx] * current_mb_size, dtype = np.int32))
+#             prev_y = F.broadcast_to(self.bos_embeding, (current_mb_size, self.Eo))
+#         attn_list = []
+#         total_nb_predictions = 0
+#         
+#         if noise_on_prev_word:
+#             noise_mean = Variable(self.xp.ones_like(prev_y.data, dtype = self.xp.float32))
+#             noise_lnvar = Variable(self.xp.zeros_like(prev_y.data, dtype = self.xp.float32))
+#         
+#         first_fb, _ = F.split_axis(fb_concat, (1,), 1)
+#         size_pred = F.softplus(self.size_pred_mo(first_fb))
+#         size_mean, size_precision = F.split_axis(size_pred, (1,), 1)
+#         loss_size = 0.5 * (size_precision* (sizes - size_mean) ) **2 - F.log(size_precision)
+#         loss = F.sum(loss_size)/ current_mb_size
+#         
+#         for i in xrange(len(targets)):
+#             assert i == 0 or previous_state.data.shape[0] == previous_word.data.shape[0]
+#             current_mb_size = targets[i].data.shape[0]
+#             if current_mb_size < len(previous_state.data):
+#                 previous_state, _ = F.split_axis(previous_state, (current_mb_size,), 0)
+#                 if previous_word is not None:
+#                     previous_word, _ = F.split_axis(previous_word, (current_mb_size,), 0 )
+#                     
+#                 if noise_on_prev_word:
+#                     noise_mean, _ = F.split_axis(noise_mean, (current_mb_size,), 0)
+#                     noise_lnvar, _ = F.split_axis(noise_lnvar, (current_mb_size,), 0)
+#             if previous_word is not None: #else we are using the initial prev_y
+#                 prev_y = self.emb(previous_word)
+#             assert previous_state.data.shape[0] == current_mb_size
+#             
+#             if noise_on_prev_word:
+#                 prev_y = prev_y * F.gaussian(noise_mean, noise_lnvar)
+#             
+#             new_state, logits, attn, al_pred = self.advance_one_step(previous_state, prev_y, 
+#                                                       compute_ctxt)
+# 
+#             if keep_attn_values:
+#                 attn_list.append(attn)
+#                 
+#             local_loss = F.softmax_cross_entropy(logits, targets[i][0])   
+#             
+#             local_loss += F.softmax_cross_entropy(al_pred, targets[i][1])
+#             
+#             total_nb_predictions += current_mb_size
+#             total_local_loss = local_loss * current_mb_size
+#             
+# #             loss = local_loss if loss is None else loss + local_loss
+#             loss = total_local_loss if loss is None else loss + total_local_loss
+#             
+#             previous_word = targets[i]
+# #             prev_y = self.emb(previous_word)
+#             previous_state = new_state
+# #             attn_list.append(attn)
+#         if raw_loss_info:
+#             return (loss, total_nb_predictions), attn_list
+#         else:
+#             loss = loss / total_nb_predictions
+#             return loss, attn_list
 
 class Decoder(Chain):
     """ Decoder for RNNSearch. 
@@ -466,7 +495,7 @@ class Decoder(Chain):
                
         Return a loss and the attention model values
     """
-    def __init__(self, Vo, Eo, Ho, Ha, Hi, Hl, attn_cls = AttentionModule, init_orth = False):
+    def __init__(self, Vo, Eo, Ho, Ha, Hi, Hl, attn_cls = AttentionModule, init_orth = False, use_bn_length = 0):
         super(Decoder, self).__init__(
             emb = L.EmbedID(Vo, Eo),
             gru = L.GRU(Ho, Eo + Hi),
@@ -478,6 +507,12 @@ class Decoder(Chain):
         )
         self.add_param("initial_state", (1, Ho))
         self.add_param("bos_embeding", (1, Eo))
+        
+        if use_bn_length > 0:
+            self.add_link("bn", BNList(Ho, use_bn_length))
+        self.use_bn_length = use_bn_length
+        
+        
         self.Hi = Hi
         self.Ho = Ho
         self.Eo = Eo
@@ -489,13 +524,15 @@ class Decoder(Chain):
             ortho_init(self.lin_o)
             ortho_init(self.maxo)
         
-    def advance_one_step(self, previous_state, prev_y, compute_ctxt):
+    def advance_one_step(self, previous_state, prev_y, compute_ctxt, i, test = False):
 
         ci, attn = compute_ctxt(previous_state)
         concatenated = F.concat( (prev_y, ci) )
 #             print concatenated.data.shape
         new_state = self.gru(previous_state, concatenated)
-
+        if self.use_bn_length > 0:
+            new_state = self.bn(new_state, i, test = test)
+            
         all_concatenated = F.concat((concatenated, new_state))
         logits = self.lin_o(self.maxo(all_concatenated))
         
@@ -521,7 +558,7 @@ class Decoder(Chain):
             if previous_word is not None: #else we are using the initial prev_y
                 prev_y = self.emb(previous_word)
             new_state, logits, attn = self.advance_one_step(previous_state, prev_y, 
-                                                      compute_ctxt)
+                                                      compute_ctxt, i, test = True)
             if keep_attn_values:
                 attn_list.append(attn)
 #             print logits.data.shape
@@ -544,6 +581,8 @@ class Decoder(Chain):
         return sequences, score, attn_list
     
     def beam_search(self, fb_concat, mask, nb_steps, eos_idx, beam_width = 20):
+        if self.use_bn_length > 0:
+            raise NotImplemented
         mb_size, nb_elems, Hi = fb_concat.data.shape
         assert Hi == self.Hi, "%i != %i"%(Hi, self.Hi)
         compute_ctxt = self.attn_module(fb_concat, mask)
@@ -613,6 +652,8 @@ class Decoder(Chain):
         return finished_translations
     
     def beam_search_opt(self, fb_concat, mask, nb_steps, eos_idx, beam_width = 20, need_attention = False):
+        if self.use_bn_length > 0:
+            raise NotImplemented
         mb_size, nb_elems, Hi = fb_concat.data.shape
         assert Hi == self.Hi, "%i != %i"%(Hi, self.Hi)
         xp = cuda.get_array_module(self.initial_state.data)
@@ -707,6 +748,8 @@ class Decoder(Chain):
     
     def beam_search_groundhog(self, fb_concat, mask, eos_idx, n_samples = 20, need_attention = False, 
                           ignore_unk=None, minlen=1):
+        if self.use_bn_length > 0:
+            raise NotImplemented
 #         print "in beam_search_groundhog, ", need_attention
         mb_size, nb_elems, Hi = fb_concat.data.shape
         assert Hi == self.Hi, "%i != %i"%(Hi, self.Hi)
@@ -844,7 +887,7 @@ class Decoder(Chain):
             prev_y_initial = F.broadcast_to(self.bos_embeding, (current_mb_size, self.Eo))
             
             
-        def choose(voc_list):
+        def choose(voc_list, i):
             if previous_word[0] is not None: #else we are using the initial prev_y
                 prev_y = self.emb(previous_word[0])
             else:
@@ -852,7 +895,7 @@ class Decoder(Chain):
             assert previous_state[0].data.shape[0] == current_mb_size
             
             new_state, logits, attn = self.advance_one_step(previous_state[0], prev_y, 
-                                                      compute_ctxt)
+                                                      compute_ctxt, i, test = True)
             
             best_w = None
             best_score = None
@@ -870,7 +913,7 @@ class Decoder(Chain):
 
     
     def compute_loss(self, targets, compute_ctxt, raw_loss_info = False, keep_attn_values = False, 
-                     noise_on_prev_word = False, use_previous_prediction = False):
+                     noise_on_prev_word = False, use_previous_prediction = 0, test = False):
         loss = None
         current_mb_size = targets[0].data.shape[0]
 #         previous_state = F.concat( [self.initial_state] * current_mb_size, 0)
@@ -907,7 +950,7 @@ class Decoder(Chain):
                 prev_y = prev_y * F.gaussian(noise_mean, noise_lnvar)
             
             new_state, logits, attn = self.advance_one_step(previous_state, prev_y, 
-                                                      compute_ctxt)
+                                                      compute_ctxt, i, test = test)
 
             if keep_attn_values:
                 attn_list.append(attn)
@@ -919,9 +962,8 @@ class Decoder(Chain):
             
 #             loss = local_loss if loss is None else loss + local_loss
             loss = total_local_loss if loss is None else loss + total_local_loss
-            if use_previous_prediction:
-                previous_word = Variable(xp.argmax(logits.data, axis = 1), volatile = "auto")
-                assert False
+            if use_previous_prediction > 0 and random.random() < use_previous_prediction:
+                previous_word = Variable(xp.argmax(logits.data, axis = 1).astype(xp.int32), volatile = "auto")
             else:
                 previous_word = targets[i]
 #             prev_y = self.emb(previous_word)
@@ -989,7 +1031,7 @@ class Decoder(Chain):
     
     def __call__(self, fb_concat, targets, mask, use_best_for_sample = False, raw_loss_info = False,
                     keep_attn_values = False, need_score = False, noise_on_prev_word = False,
-                    use_previous_prediction = False):
+                    use_previous_prediction = 0, test = False):
         mb_size, nb_elems, Hi = fb_concat.data.shape
         assert Hi == self.Hi, "%i != %i"%(Hi, self.Hi)
     
@@ -1001,7 +1043,7 @@ class Decoder(Chain):
         else:
             return self.compute_loss(targets, compute_ctxt, raw_loss_info = raw_loss_info,
                                      keep_attn_values = keep_attn_values, noise_on_prev_word = noise_on_prev_word,
-                                     use_previous_prediction = use_previous_prediction)     
+                                     use_previous_prediction = use_previous_prediction, test = test)     
         
 class EncoderDecoder(Chain):
     """ Do RNNSearch Encoding/Decoding
@@ -1012,19 +1054,22 @@ class EncoderDecoder(Chain):
         
         return loss and attention values
     """
-    def __init__(self, Vi, Ei, Hi, Vo, Eo, Ho, Ha, Hl, attn_cls = AttentionModule, init_orth = False):
+    def __init__(self, Vi, Ei, Hi, Vo, Eo, Ho, Ha, Hl, attn_cls = AttentionModule, init_orth = False, use_bn_length = 0):
         log.info("constructing encoder decoder with Vi:%i Ei:%i Hi:%i Vo:%i Eo:%i Ho:%i Ha:%i Hl:%i" % 
                                         (Vi, Ei, Hi, Vo, Eo, Ho, Ha, Hl))
         super(EncoderDecoder, self).__init__(
-            enc = Encoder(Vi, Ei, Hi, init_orth = init_orth),
-            dec = Decoder(Vo, Eo, Ho, Ha, 2 * Hi, Hl, attn_cls = attn_cls, init_orth = init_orth)
+            enc = Encoder(Vi, Ei, Hi, init_orth = init_orth, use_bn_length = use_bn_length),
+            dec = Decoder(Vo, Eo, Ho, Ha, 2 * Hi, Hl, attn_cls = attn_cls, init_orth = init_orth, 
+                          use_bn_length = use_bn_length)
         )
         
     def __call__(self, src_batch, tgt_batch, src_mask, use_best_for_sample = False, display_attn = False,
-                 raw_loss_info = False, keep_attn_values = False, need_score = False, noise_on_prev_word = False):
-        fb_src = self.enc(src_batch, src_mask)
+                 raw_loss_info = False, keep_attn_values = False, need_score = False, noise_on_prev_word = False,
+                 test = True, use_previous_prediction = 0):
+        fb_src = self.enc(src_batch, src_mask, test = test)
         loss = self.dec(fb_src, tgt_batch, src_mask, use_best_for_sample = use_best_for_sample, raw_loss_info = raw_loss_info,
-                        keep_attn_values = keep_attn_values, need_score = need_score, noise_on_prev_word = noise_on_prev_word)
+                        keep_attn_values = keep_attn_values, need_score = need_score, noise_on_prev_word = noise_on_prev_word,
+                        test = test, use_previous_prediction = use_previous_prediction)
         return loss
     
 #     def compute_loss_and_backward(self, src_batch, tgt_batch, src_mask, raw_loss_info = False):
@@ -1057,27 +1102,27 @@ class EncoderDecoder(Chain):
         fb_src = self.enc(src_batch, src_mask)
         return self.dec.get_predictor(fb_src, src_mask)
        
-class EncoderDecoderPredictAlign(Chain):
-    """ Do RNNSearch Encoding/Decoding
-        The __call__ takes 3 required parameters: src_batch, tgt_batch, src_mask
-        src_batch is as in the sequence parameter of Encoder
-        tgt_batch is as in the targets parameter of Decoder
-        src_mask is as in the mask parameter of Encoder
-        
-        return loss and attention values
-    """
-    def __init__(self, Vi, Ei, Hi, Vo, Eo, Ho, Ha, Hl, attn_cls = AttentionModule, init_orth = False):
-        log.info("constructing encoder decoder with Vi:%i Ei:%i Hi:%i Vo:%i Eo:%i Ho:%i Ha:%i Hl:%i" % 
-                                        (Vi, Ei, Hi, Vo, Eo, Ho, Ha, Hl))
-        super(EncoderDecoderPredictAlign, self).__init__(
-            enc = Encoder(Vi, Ei, Hi, init_orth = init_orth),
-            dec = DecoderWithAlign(Vo, Eo, Ho, Ha, 2 * Hi, Hl, attn_cls = attn_cls, init_orth = init_orth)
-        )
-        
-    def __call__(self, src_batch, tgt_batch, src_mask, sizes, use_best_for_sample = False, display_attn = False,
-                 raw_loss_info = False, keep_attn_values = False, need_score = False, noise_on_prev_word = False):
-        fb_src = self.enc(src_batch, src_mask)
-        loss = self.dec.compute_loss(tgt_batch, fb_src, src_mask, sizes, use_best_for_sample = use_best_for_sample, raw_loss_info = raw_loss_info,
-                        keep_attn_values = keep_attn_values, need_score = need_score, noise_on_prev_word = noise_on_prev_word)
-        return loss 
+# class EncoderDecoderPredictAlign(Chain):
+#     """ Do RNNSearch Encoding/Decoding
+#         The __call__ takes 3 required parameters: src_batch, tgt_batch, src_mask
+#         src_batch is as in the sequence parameter of Encoder
+#         tgt_batch is as in the targets parameter of Decoder
+#         src_mask is as in the mask parameter of Encoder
+#         
+#         return loss and attention values
+#     """
+#     def __init__(self, Vi, Ei, Hi, Vo, Eo, Ho, Ha, Hl, attn_cls = AttentionModule, init_orth = False):
+#         log.info("constructing encoder decoder with Vi:%i Ei:%i Hi:%i Vo:%i Eo:%i Ho:%i Ha:%i Hl:%i" % 
+#                                         (Vi, Ei, Hi, Vo, Eo, Ho, Ha, Hl))
+#         super(EncoderDecoderPredictAlign, self).__init__(
+#             enc = Encoder(Vi, Ei, Hi, init_orth = init_orth),
+#             dec = DecoderWithAlign(Vo, Eo, Ho, Ha, 2 * Hi, Hl, attn_cls = attn_cls, init_orth = init_orth)
+#         )
+#         
+#     def __call__(self, src_batch, tgt_batch, src_mask, sizes, use_best_for_sample = False, display_attn = False,
+#                  raw_loss_info = False, keep_attn_values = False, need_score = False, noise_on_prev_word = False):
+#         fb_src = self.enc(src_batch, src_mask)
+#         loss = self.dec.compute_loss(tgt_batch, fb_src, src_mask, sizes, use_best_for_sample = use_best_for_sample, raw_loss_info = raw_loss_info,
+#                         keep_attn_values = keep_attn_values, need_score = need_score, noise_on_prev_word = noise_on_prev_word)
+#         return loss 
         

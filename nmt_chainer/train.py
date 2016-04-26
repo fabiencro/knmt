@@ -74,6 +74,8 @@ def command_line(arguments = None):
     
     parser.add_argument("--curiculum_training", default = False, action = "store_true")
     
+    parser.add_argument("--use_bn_length", default = 0, type = int)
+    parser.add_argument("--use_previous_prediction", default = 0, type = float)
     args = parser.parse_args(args = arguments)
     
     output_files_dict = {}
@@ -189,7 +191,7 @@ def command_line(arguments = None):
                                        init_orth = args.init_orth)
     else:
         encdec = models.EncoderDecoder(Vi, args.Ei, args.Hi, Vo + 1, args.Eo, args.Ho, args.Ha, args.Hl,
-                                       init_orth = args.init_orth)
+                                       init_orth = args.init_orth, use_bn_length = args.use_bn_length)
     
     if args.load_model is not None:
         serializers.load_npz(args.load_model, encdec)
@@ -238,7 +240,8 @@ def command_line(arguments = None):
                       test_data = test_data, dev_data = dev_data, valid_data = valid_data, gpu = args.gpu, report_every = args.report_every,
                       randomized = args.randomized_data, reverse_src = args.reverse_src, reverse_tgt = args.reverse_tgt,
                       max_nb_iters = args.max_nb_iters, do_not_save_data_for_resuming = args.no_resume,
-                      noise_on_prev_word = args.noise_on_prev_word, curiculum_training = args.curiculum_training)
+                      noise_on_prev_word = args.noise_on_prev_word, curiculum_training = args.curiculum_training,
+                      use_previous_prediction = args.use_previous_prediction)
 
 if __name__ == '__main__':
     command_line()
