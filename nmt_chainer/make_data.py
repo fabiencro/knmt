@@ -388,10 +388,12 @@ def build_dataset(src_fn, tgt_fn,
                                                 )
 
 
-def build_dataset_with_align_info(src_fn, tgt_fn, align_fn,
-                                  src_voc_limit=None, tgt_voc_limit=None, max_nb_ex=None,
-                                  dic_src=None, dic_tgt=None,
-                                  invert_alignment_links=False, add_to_valid_every=1000):
+
+def build_dataset_with_align_info(src_fn, tgt_fn, align_fn, 
+                                  src_voc_limit = None, tgt_voc_limit = None, max_nb_ex = None, 
+                                  dic_src = None, dic_tgt = None,
+                                  invert_alignment_links = False, add_to_valid_every = 1000,
+                                  mode = "unk_align"):
     from aligned_parse_reader import load_aligned_corpus
     corpus = load_aligned_corpus(
         src_fn, tgt_fn, align_fn, skip_empty_align=True, invert_alignment_links=invert_alignment_links)
@@ -420,9 +422,13 @@ def build_dataset_with_align_info(src_fn, tgt_fn, align_fn,
                                 :src_voc_limit]), all_should_be_new=True)
 
     dic_tgt = Indexer()
-    dic_tgt.assign_index_to_voc((w for w, _ in sorted_counts_tgt[
-                                :tgt_voc_limit]), all_should_be_new=True)
 
+    dic_tgt.assign_index_to_voc((w for w, _ in sorted_counts_tgt[:tgt_voc_limit]), all_should_be_new = True)
+    
+    if mode == "all_align":
+        dic_src.finalize()
+        dic_tgt.finalize()
+    
     log.info("computed restricted vocabulary")
 
 #     src_unk_tag = "#S_UNK_%i#!"
@@ -450,72 +456,82 @@ def build_dataset_with_align_info(src_fn, tgt_fn, align_fn,
             for tgt_pos in right:
                 assert tgt_pos not in local_alignments
                 local_alignments[tgt_pos] = left[0]
-
-        def give_fertility(pos, w):
-            fertility = local_fertilities.get(pos, 0)
-            fertility_counts[w][fertility] += 1
-            total_count_unk_src[0] += 1
-            return fertility
-
-        seq_idx_src = dic_src.convert_and_update_unk_tags(
-            sentence_src, give_unk_label=give_fertility)
-        total_token_src += len(seq_idx_src)
-#         seq_idx_src = []
-#         for pos, w in enumerate(sentence_src):
-#             total_token_src += 1
-#             if w not in dic_src:
-#                 total_count_unk_src += 1
-#                 fertility = local_fertilities.get(pos, 0)
-#                 fertility_counts[w][fertility] += 1
-#                 w_unk = src_unk_tag % fertility
-#                 if w_unk not in dic_src:
-#                     dic_src.add_word(w_unk)
-#             assert w in dic_src
-#             seq_idx_src.append(dic_src[w])
-
-        def give_alignment(pos, w):
-            total_count_unk_tgt[0] += 1
-            aligned_pos = local_alignments.get(pos, -1)
-            return aligned_pos
-
-#         def unk_tag_tgt(num):
-#             total_count_unk_tgt += 1
-#             aligned_pos = local_alignments.get(num, -1)
-#             w_unk = tgt_unk_tag % aligned_pos
-#             return w_unk
-
-        seq_idx_tgt = dic_tgt.convert_and_update_unk_tags(
-            sentence_tgt, give_unk_label=give_alignment)
-        total_token_tgt += len(seq_idx_tgt)
-
-#         seq_idx_tgt = []
-#         for pos, w in enumerate(sentence_tgt):
-#             total_token_tgt += 1
-#             if w not in dic_tgt:
-#                 total_count_unk_tgt += 1
-#                 aligned_pos = local_alignments.get(pos, -1)
-#                 w_unk = tgt_unk_tag % aligned_pos
-#                 if w_unk not in dic_tgt:
-#                     dic_tgt.add_word(w_unk)
-#             assert w in dic_tgt
-#             seq_idx_tgt.append(dic_tgt[w])
-
+    
+        if mode == "unk_align":
+            def give_fertility(pos, w):
+                fertility = local_fertilities.get(pos, 0)
+                fertility_counts[w][fertility] += 1
+                total_count_unk_src[0] += 1
+                return fertility
+            
+            def give_alignment(pos, w):
+                total_count_unk_tgt[0] += 1
+                aligned_pos = local_alignments.get(pos, -1)
+                return aligned_pos
+            
+            seq_idx_src = dic_src.convert_and_update_unk_tags(sentence_src, give_unk_label = give_fertility)
+            total_token_src += len(seq_idx_src)
+            
+            seq_idx_tgt = dic_tgt.convert_and_update_unk_tags(sentence_tgt, give_unk_label = give_alignment)
+            total_token_tgt += len(seq_idx_tgt)
+            
+        elif mode == "all_align":
+            def give_fertility(pos, w):
+                fertility = local_fertilities.get(pos, 0)
+                fertility_counts[w][fertility] += 1
+                return fertility
+            
+            def give_alignment(pos):
+                aligned_pos = local_alignments.get(pos, -1)
+                return aligned_pos
+            
+            seq_src = dic_src.convert(sentence_src)
+            unk_cnt_src = sum(dic_src.is_unk_idx(w) for w in seq_src)
+            
+            seq_tgt = dic_tgt.convert(sentence_tgt)
+            unk_cnt_tgt = sum(dic_tgt.is_unk_idx(w) for w in seq_tgt)
+    
+            total_count_unk_src[0] += unk_cnt_src
+            total_count_unk_tgt[0] += unk_cnt_tgt
+            
+            total_token_src += len(seq_src)
+            total_token_tgt += len(seq_tgt)
+            
+            seq_idx_src = []
+            for pos in range(len(seq_src)):
+                w = seq_src[pos]
+                seq_idx_src.append( (w, give_fertility(pos, w)) )
+                
+            seq_idx_tgt = []
+            for pos in range(len(seq_tgt)):
+                w = seq_tgt[pos]
+                seq_idx_tgt.append( (w, give_alignment(pos)) )
+            
+        else:
+            assert False
+        
         if num_ex % add_to_valid_every == 0:
             valid.append((seq_idx_src, seq_idx_tgt))
         else:
             res.append((seq_idx_src, seq_idx_tgt))
-
-    src_unk_voc_to_fertility = {}
-    for w in fertility_counts:
-        most_common_fertility = sorted(fertility_counts[w].items(
-        ), key=operator.itemgetter(1), reverse=True)[0][0]
-        src_unk_voc_to_fertility[w] = most_common_fertility
-
-    dic_src.add_unk_label_dictionary(src_unk_voc_to_fertility)
-
-    dic_tgt.finalize()
-    dic_src.finalize()
-
+    
+    if mode == "unk_align":
+        src_unk_voc_to_fertility = {}
+        for w in fertility_counts:
+            most_common_fertility = sorted(fertility_counts[w].items(), key = operator.itemgetter(1), reverse = True)[0][0]
+            src_unk_voc_to_fertility[w] = most_common_fertility
+            
+        dic_src.add_unk_label_dictionary(src_unk_voc_to_fertility)
+        
+        dic_tgt.finalize()
+        dic_src.finalize()
+    
+    return res, valid, dic_src, dic_tgt, MakeDataInfos(total_count_unk_src[0], 
+                                                total_count_unk_tgt[0], 
+                                                total_token_src, 
+                                                total_token_tgt, 
+                                                num_ex
+                                                )
     return res, valid, dic_src, dic_tgt, MakeDataInfos(total_count_unk_src[0],
                                                        total_count_unk_tgt[0],
                                                        total_token_src,
@@ -543,23 +559,21 @@ def cmdline(arguments=None):
 #     parser.add_argument("--add_to_valid_set_every", type = int)
 #     parser.add_argument("--shuffle", default = False, action = "store_true")
 #     parser.add_argument("--enable_fast_shuffle", default = False, action = "store_true")
-    parser.add_argument("--max_nb_ex", type=int,
-                        help="only use the first MAX_NB_EX examples")
 
-    parser.add_argument("--test_src", help="specify a source test set")
-    parser.add_argument("--test_tgt", help="specify a target test set")
-
-    parser.add_argument("--dev_src", help="specify a source dev set")
-    parser.add_argument("--dev_tgt", help="specify a target dev set")
-
-    parser.add_argument(
-        "--use_voc", help="specify an exisiting vocabulary file")
-
-    parser.add_argument("--tgt_segmentation_type", default="word",
-                        choices=["word", "word2char"])
-
-    args = parser.parse_args(args=arguments)
-
+    parser.add_argument("--max_nb_ex", type = int, help = "only use the first MAX_NB_EX examples")
+    
+    parser.add_argument("--test_src", help = "specify a source test set")
+    parser.add_argument("--test_tgt", help = "specify a target test set")
+    
+    parser.add_argument("--dev_src", help = "specify a source dev set")
+    parser.add_argument("--dev_tgt", help = "specify a target dev set")
+    parser.add_argument("--mode_align", choices = ["unk_align", "all_align"])
+    parser.add_argument("--use_voc", help = "specify an exisiting vocabulary file")
+    
+    parser.add_argument("--tgt_segmentation_type", choices = ["word", "word2char"], default = "word")
+    
+    args = parser.parse_args(args = arguments)
+    
     if not ((args.test_src is None) == (args.test_tgt is None)):
         print >>sys.stderr, "Command Line Error: either specify both --test_src and --test_tgt or neither"
         sys.exit(1)
@@ -589,9 +603,9 @@ def cmdline(arguments=None):
         if align_fn is not None:
             log.info("making training data with alignment")
             training_data, valid_data, dic_src, dic_tgt, make_data_infos = build_dataset_with_align_info(
-                src_fn, tgt_fn, align_fn, src_voc_limit=args.src_voc_size,
-                tgt_voc_limit=args.tgt_voc_size, max_nb_ex=max_nb_ex,
-                dic_src=dic_src, dic_tgt=dic_tgt)
+                                            src_fn, tgt_fn, align_fn, src_voc_limit = args.src_voc_size, 
+                                            tgt_voc_limit = args.tgt_voc_size, max_nb_ex = max_nb_ex, 
+                                            dic_src = dic_src, dic_tgt = dic_tgt, mode = args.mode_align)
         else:
             training_data, dic_src, dic_tgt, make_data_infos = build_dataset(
                 src_fn, tgt_fn, src_voc_limit=args.src_voc_size,

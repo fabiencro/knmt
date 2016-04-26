@@ -37,7 +37,8 @@ def train_on_data(encdec, optimizer, training_data, output_files_dict,
                   test_data = None, dev_data = None, valid_data = None,
                   gpu = None, report_every = 200, randomized = False,
                   reverse_src = False, reverse_tgt = False, max_nb_iters = None, do_not_save_data_for_resuming = False,
-                  noise_on_prev_word = False, curiculum_training = False):
+                  noise_on_prev_word = False, curiculum_training = False,
+                  use_previous_prediction = 0):
     
     if curiculum_training:
         log.info("Sorting training data by complexity")
@@ -83,7 +84,8 @@ def train_on_data(encdec, optimizer, training_data, output_files_dict,
         encdec.zerograds()
         t1 = time.clock()
         (total_loss, total_nb_predictions), attn = encdec(src_batch, tgt_batch, src_mask, raw_loss_info = True,
-                                                          noise_on_prev_word = noise_on_prev_word)
+                                                          noise_on_prev_word = noise_on_prev_word, test = False,
+                                                          use_previous_prediction = use_previous_prediction)
         loss = total_loss / total_nb_predictions
         t2 = time.clock()
         print "loss:", loss.data,
