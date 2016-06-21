@@ -38,7 +38,7 @@ def train_on_data(encdec, optimizer, training_data, output_files_dict,
                   gpu = None, report_every = 200, randomized = False,
                   reverse_src = False, reverse_tgt = False, max_nb_iters = None, do_not_save_data_for_resuming = False,
                   noise_on_prev_word = False, curiculum_training = False,
-                  use_previous_prediction = 0):
+                  use_previous_prediction = 0, no_report_or_save = False):
     
     if curiculum_training:
         log.info("Sorting training data by complexity")
@@ -196,81 +196,84 @@ def train_on_data(encdec, optimizer, training_data, output_files_dict,
             
             print i,
             src_batch, tgt_batch, src_mask = mb_provider.next()
+            if src_batch[0].data.shape[0] != mb_size:
+                log.warn("got minibatch of size %i instead of %i"%(src_batch[0].data.shape[0], mb_size))
 #             if i%100 == 0:
 #                 print "valid", 
 #                 compute_valid()
-            if i%200 == 0:
-                for v in src_batch + tgt_batch:
-                    v.volatile = "on"
-                sample_once(encdec, src_batch, tgt_batch, src_mask, src_indexer, tgt_indexer, eos_idx,
-                            max_nb = 20,
-                            s_unk_tag = s_unk_tag, t_unk_tag = t_unk_tag)
-                for v in src_batch + tgt_batch:
-                    v.volatile = "off"
-            if i%report_every == 0:
-                current_time = time.clock()
-                if prev_i is not None:
-                    iteration_interval = i-prev_i
-                    avg_time = (current_time - prev_time) /(iteration_interval)
-                    avg_training_loss = total_loss_this_interval / total_nb_predictions_this_interval
-                    avg_sentence_size = float(total_nb_predictions_this_interval)/ (iteration_interval * mb_size)
+            if not no_report_or_save:
+                if i%200 == 0:
+                    for v in src_batch + tgt_batch:
+                        v.volatile = "on"
+                    sample_once(encdec, src_batch, tgt_batch, src_mask, src_indexer, tgt_indexer, eos_idx,
+                                max_nb = 20,
+                                s_unk_tag = s_unk_tag, t_unk_tag = t_unk_tag)
+                    for v in src_batch + tgt_batch:
+                        v.volatile = "off"
+                if i%report_every == 0:
+                    current_time = time.clock()
+                    if prev_i is not None:
+                        iteration_interval = i-prev_i
+                        avg_time = (current_time - prev_time) /(iteration_interval)
+                        avg_training_loss = total_loss_this_interval / total_nb_predictions_this_interval
+                        avg_sentence_size = float(total_nb_predictions_this_interval)/ (iteration_interval * mb_size)
+                        
                     
-                
-                else:
-                    avg_time = 0
-                    avg_training_loss = 0
-                    avg_sentence_size = 0
-                prev_i = i
-                total_loss_this_interval = 0 
-                total_nb_predictions_this_interval = 0                
-                
-                print "avg time:", avg_time
-                print "avg training loss:", avg_training_loss
-                print "avg sentence size", avg_sentence_size
-                
-                bc_test = translate_test()
-                test_loss = compute_test_loss()
-                bc_dev = translate_dev()
-                dev_loss = compute_dev_loss()
-                bc_valid = translate_valid()
-                valid_loss = compute_valid_loss()
-                
-                
-                if dev_loss is not None and (best_dev_loss is None or dev_loss <= best_dev_loss):
-                    best_dev_loss = dev_loss
-                    log.info("saving best loss model %f" % best_dev_loss)
-                    save_model("best_loss")
+                    else:
+                        avg_time = 0
+                        avg_training_loss = 0
+                        avg_sentence_size = 0
+                    prev_i = i
+                    total_loss_this_interval = 0 
+                    total_nb_predictions_this_interval = 0                
                     
-                if bc_test is not None:
+                    print "avg time:", avg_time
+                    print "avg training loss:", avg_training_loss
+                    print "avg sentence size", avg_sentence_size
                     
-                    assert test_loss is not None
-                    import sqlite3, datetime
-                    db_path = output_files_dict["sqlite_db"]
-                    log.info("saving test results to %s" %(db_path))
-                    db_connection = sqlite3.connect(db_path)
-                    db_cursor = db_connection.cursor()
-                    db_cursor.execute('''CREATE TABLE IF NOT EXISTS exp_data 
-    (date text, bleu_info text, iteration real, 
-    loss real, bleu real, 
-    dev_loss real, dev_bleu real, 
-    valid_loss real, valid_bleu real,
-    avg_time real, avg_training_loss real)''')
-                    infos = (datetime.datetime.now().strftime("%I:%M%p %B %d, %Y"), 
-                             repr(bc_test), i, float(test_loss), bc_test.bleu(), 
-                             float(dev_loss), bc_dev.bleu(), 
-                             float(valid_loss) if valid_loss is not None else None, bc_valid.bleu() if bc_valid is not None else None,
-                             avg_time, avg_training_loss)
-                    db_cursor.execute("INSERT INTO exp_data VALUES (?,?,?,?,?,?,?,?,?,?,?)", infos)
-                    db_connection.commit()
-                    db_connection.close()
+                    bc_test = translate_test()
+                    test_loss = compute_test_loss()
+                    bc_dev = translate_dev()
+                    dev_loss = compute_dev_loss()
+                    bc_valid = translate_valid()
+                    valid_loss = compute_valid_loss()
                     
-                    if bc_dev.bleu() > best_dev_bleu:
-                        best_dev_bleu = bc_dev.bleu()
-                        log.info("saving best model %f" % best_dev_bleu)
-                        save_model("best")
-                prev_time = time.clock()
-            if i%1000 == 0:       
-                save_model("ckpt")
+                    
+                    if dev_loss is not None and (best_dev_loss is None or dev_loss <= best_dev_loss):
+                        best_dev_loss = dev_loss
+                        log.info("saving best loss model %f" % best_dev_loss)
+                        save_model("best_loss")
+                        
+                    if bc_test is not None:
+                        
+                        assert test_loss is not None
+                        import sqlite3, datetime
+                        db_path = output_files_dict["sqlite_db"]
+                        log.info("saving test results to %s" %(db_path))
+                        db_connection = sqlite3.connect(db_path)
+                        db_cursor = db_connection.cursor()
+                        db_cursor.execute('''CREATE TABLE IF NOT EXISTS exp_data 
+        (date text, bleu_info text, iteration real, 
+        loss real, bleu real, 
+        dev_loss real, dev_bleu real, 
+        valid_loss real, valid_bleu real,
+        avg_time real, avg_training_loss real)''')
+                        infos = (datetime.datetime.now().strftime("%I:%M%p %B %d, %Y"), 
+                                 repr(bc_test), i, float(test_loss), bc_test.bleu(), 
+                                 float(dev_loss), bc_dev.bleu(), 
+                                 float(valid_loss) if valid_loss is not None else None, bc_valid.bleu() if bc_valid is not None else None,
+                                 avg_time, avg_training_loss)
+                        db_cursor.execute("INSERT INTO exp_data VALUES (?,?,?,?,?,?,?,?,?,?,?)", infos)
+                        db_connection.commit()
+                        db_connection.close()
+                        
+                        if bc_dev.bleu() > best_dev_bleu:
+                            best_dev_bleu = bc_dev.bleu()
+                            log.info("saving best model %f" % best_dev_bleu)
+                            save_model("best")
+                    prev_time = time.clock()
+                if i%1000 == 0:       
+                    save_model("ckpt")
                                         
             total_loss, total_nb_predictions = train_once(src_batch, tgt_batch, src_mask)
 #             total_loss, total_nb_predictions = train_once_optim(src_batch, tgt_batch, src_mask)
@@ -278,7 +281,7 @@ def train_on_data(encdec, optimizer, training_data, output_files_dict,
             total_loss_this_interval += total_loss
             total_nb_predictions_this_interval += total_nb_predictions
     finally:
-        if not do_not_save_data_for_resuming:
+        if not do_not_save_data_for_resuming and not no_report_or_save:
             save_model("final")
             fn_save_optimizer = output_files_dict["optimizer_final"]
             log.info("saving optimizer parameters to %s" % fn_save_optimizer)
