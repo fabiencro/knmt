@@ -175,6 +175,8 @@ def command_line(arguments = None):
     parser.add_argument("--randomized_data", default = False, action = "store_true")
     parser.add_argument("--use_accumulated_attn", default = False, action = "store_true")
     
+    parser.add_argument("--use_deep_attn", default = False, action = "store_true")
+    
     parser.add_argument("--no_shuffle_of_training_data", default = False, action = "store_true")
     parser.add_argument("--no_resume", default = False, action = "store_true")
     
@@ -302,14 +304,21 @@ def command_line(arguments = None):
     
     eos_idx = Vo
     
+    # Selecting Attention type
+    attn_cls = models.AttentionModule
     if args.use_accumulated_attn:
         raise NotImplemented
-        encdec = models.EncoderDecoder(Vi, args.Ei, args.Hi, Vo + 1, args.Eo, args.Ho, args.Ha, args.Hl,
-                                       attn_cls= models.AttentionModuleAcumulated,
-                                       init_orth = args.init_orth)
-    else:
-        encdec = models.EncoderDecoder(Vi, args.Ei, args.Hi, Vo + 1, args.Eo, args.Ho, args.Ha, args.Hl,
+#         encdec = models.EncoderDecoder(Vi, args.Ei, args.Hi, Vo + 1, args.Eo, args.Ho, args.Ha, args.Hl,
+#                                        attn_cls= models.AttentionModuleAcumulated,
+#                                        init_orth = args.init_orth)
+    if args.use_deep_attn:
+        attn_cls = models.DeepAttentionModule
+    
+    
+    # Creating encoder/decoder
+    encdec = models.EncoderDecoder(Vi, args.Ei, args.Hi, Vo + 1, args.Eo, args.Ho, args.Ha, args.Hl,
                                        init_orth = args.init_orth, use_bn_length = args.use_bn_length,
+                                       attn_cls = attn_cls,
                                        encoder_cell_type = args.encoder_cell_type,
                                        decoder_cell_type = args.decoder_cell_type)
     
