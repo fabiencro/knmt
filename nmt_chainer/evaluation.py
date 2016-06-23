@@ -13,6 +13,7 @@ from utils import make_batch_src, make_batch_src_tgt, minibatch_provider, comput
 import logging
 import codecs
 import operator
+import beam_search
 # import h5py
 
 logging.basicConfig()
@@ -111,6 +112,8 @@ def greedy_batch_translate(encdec, eos_idx, src_data, batch_size = 80, gpu = Non
     else:
         return res
      
+
+     
 def beam_search_translate(encdec, eos_idx, src_data, beam_width = 20, nb_steps = 50, gpu = None, beam_opt = False,
                           need_attention = False, nb_steps_ratio = None, score_is_divided_by_length = True, 
                           groundhog = False):
@@ -121,10 +124,16 @@ def beam_search_translate(encdec, eos_idx, src_data, beam_width = 20, nb_steps =
         assert len(src_mask) == 0
         if nb_steps_ratio is not None:
             nb_steps = int(len(src_data[i]) * nb_steps_ratio) + 1
-        translations = encdec.beam_search(src_batch, src_mask, nb_steps = nb_steps, eos_idx = eos_idx, 
+#         translations = encdec.beam_search(src_batch, src_mask, nb_steps = nb_steps, eos_idx = eos_idx, 
+#                                           beam_width = beam_width,
+#                                           beam_opt = beam_opt, need_attention = need_attention,
+#                                     groundhog = groundhog)
+        
+        if not isinstance(encdec, (tuple, list)):
+            encdec = [encdec]
+        translations = beam_search.ensemble_beam_search(encdec, src_batch, src_mask, nb_steps = nb_steps, eos_idx = eos_idx, 
                                           beam_width = beam_width,
-                                          beam_opt = beam_opt, need_attention = need_attention,
-                                    groundhog = groundhog)
+                                          need_attention = need_attention)
 #         print "nb_trans", len(translations), [score for _, score in translations]
 #         bests = []
 #         translations.sort(key = itemgetter(1), reverse = True)
