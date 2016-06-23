@@ -259,6 +259,8 @@ def segment(line, type="word"):
         return line.split(" ")
     elif type == "word2char":
         return tuple("".join(line.split(" ")))
+    elif type == "char":
+        return tuple(line)
     else:
         raise NotImplemented
 
@@ -570,7 +572,7 @@ def cmdline(arguments=None):
     parser.add_argument("--mode_align", choices = ["unk_align", "all_align"])
     parser.add_argument("--use_voc", help = "specify an exisiting vocabulary file")
     
-    parser.add_argument("--tgt_segmentation_type", choices = ["word", "word2char"], default = "word")
+    parser.add_argument("--tgt_segmentation_type", choices = ["word", "word2char", "char"], default = "word")
     
     args = parser.parse_args(args = arguments)
     
