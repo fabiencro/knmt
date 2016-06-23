@@ -156,20 +156,26 @@ class BleuComputer(object):
                         ngrams_corrects[n] += reference_freq
         return ngrams_corrects, ngrams_total, len(translation), len(reference)
     
-def command_line():
-    parser = argparse.ArgumentParser(description = "Compute BLEU score")
-    parser.add_argument("ref")
-    parser.add_argument("translations")
-    args = parser.parse_args()
-    
-    ref_file = codecs.open(args.ref, "r", encoding = "utf8")
-    trans_file = codecs.open(args.translations, "r", encoding = "utf8")
+def get_bc_from_files(ref_fn, trans_fn):
+    ref_file = codecs.open(ref_fn, "r", encoding = "utf8")
+    trans_file = codecs.open(trans_fn, "r", encoding = "utf8")
     
     bc = BleuComputer()
     for line_ref, line_trans in izip(ref_file, trans_file):
         r = line_ref.strip().split(" ")
         t = line_trans.strip().split(" ")
         bc.update(r, t)
+    return bc    
+    
+    
+def command_line():
+    parser = argparse.ArgumentParser(description = "Compute BLEU score")
+    parser.add_argument("ref")
+    parser.add_argument("translations")
+    args = parser.parse_args()
+    
+    bc = get_bc_from_files(args.ref, args.translations)
+    
     print bc
         
 if __name__ == "__main__":
