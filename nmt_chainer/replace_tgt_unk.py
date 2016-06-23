@@ -11,26 +11,17 @@ logging.basicConfig()
 log = logging.getLogger("rnns:replace_tgt")
 log.setLevel(logging.INFO)
 
-def commandline():
-    import argparse
-    parser = argparse.ArgumentParser()
-    parser.add_argument("translations")
-    parser.add_argument("src_file")
-    parser.add_argument("dest")
-    parser.add_argument("--dic")
-    parser.add_argument("--remove_unk", default = False, action = "store_true")
-    parser.add_argument("--normalize_unicode_unk", default = False, action = "store_true")
-    parser.add_argument("--attempt_to_relocate_unk_source", default = False, action = "store_true")
-    args = parser.parse_args()
+def replace_unk(translations, src_file, dest, dic_fn, remove_unk, normalize_unicode_unk,
+                attempt_to_relocate_unk_source):
+
+    ft = codecs.open(translations, encoding = "utf8")
+    fs = codecs.open(src_file, encoding = "utf8")
     
-    ft = codecs.open(args.translations, encoding = "utf8")
-    fs = codecs.open(args.src_file, encoding = "utf8")
-    
-    fd = codecs.open(args.dest, "w", encoding = "utf8")
+    fd = codecs.open(dest, "w", encoding = "utf8")
     
     dic = None
-    if args.dic is not None:
-        dic = json.load(open(args.dic))
+    if dic_fn is not None:
+        dic = json.load(open(dic_fn))
     
     for num_line, (line_t, line_s) in enumerate(itertools.izip(ft, fs)):
         splitted_t = line_t.strip().split(" ")
@@ -44,7 +35,7 @@ def commandline():
                     src_pos = len(splitted_s) -1
                 src_w = splitted_s[src_pos]
                 
-                if args.attempt_to_relocate_unk_source:
+                if attempt_to_relocate_unk_source:
                     if dic is not None and src_w in dic:
                         prec_w = splitted_t[p_w -1] if p_w != 0 else None
     #                     post_w = splitted_t[p_w  +1] if (p_w + 1) < len(splitted_t) else None
@@ -52,16 +43,34 @@ def commandline():
                             log.info("retargeting unk  (%i/%i line %i)" %(src_pos, len(splitted_s), num_line + 1))
                             src_w = splitted_s[src_pos + 1]
                         
+#                 log.info("replacing %s %i"%(src_w, len(dic)))
                 if dic is not None and src_w in dic:
                     new_t.append(dic[src_w])
                 else:
-                    if not args.remove_unk:
-                        if args.normalize_unicode_unk:
+#                     log.info("not found %s"%(src_w,))
+                    if not remove_unk:
+                        if normalize_unicode_unk:
                             src_w = unicodedata.normalize("NFKD", src_w)
                         new_t.append(src_w)
             else:
                 new_t.append(w)
         fd.write(" ".join(new_t) + "\n")
+        
+def commandline():
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument("translations")
+    parser.add_argument("src_file")
+    parser.add_argument("dest")
+    parser.add_argument("--dic")
+    parser.add_argument("--remove_unk", default = False, action = "store_true")
+    parser.add_argument("--normalize_unicode_unk", default = False, action = "store_true")
+    parser.add_argument("--attempt_to_relocate_unk_source", default = False, action = "store_true")
+    args = parser.parse_args()
+    
+    replace_unk(args.translations, args.src_file, args.dest, args.dic, args.remove_unk, 
+                args.normalize_unicode_unk,
+                args.attempt_to_relocate_unk_source)
         
 if __name__ == '__main__':
     commandline()
