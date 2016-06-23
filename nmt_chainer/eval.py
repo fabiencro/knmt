@@ -21,7 +21,7 @@ from evaluation import (greedy_batch_translate,
                         )
 
 import visualisation
-
+import bleu_computer
 import logging
 import codecs
 # import h5py
@@ -30,39 +30,57 @@ logging.basicConfig()
 log = logging.getLogger("rnns:eval")
 log.setLevel(logging.INFO)
 
-def commandline():
-    
-    import argparse
-    parser = argparse.ArgumentParser(description= "Use a RNNSearch model", 
-                                     formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-    parser.add_argument("training_config", help = "prefix of the trained model")
-    parser.add_argument("trained_model", help = "prefix of the trained model")
-    parser.add_argument("src_fn", help = "source text")
-    parser.add_argument("dest_fn", help = "destination file")
-    
-    parser.add_argument("--tgt_fn", help = "target text")
-    parser.add_argument("--mode", default = "translate", 
-                        choices = ["translate", "align", "translate_attn", "beam_search"], help = "target text")
-    parser.add_argument("--gpu", type = int, help = "specify gpu number to use, if any")
-    
-    parser.add_argument("--max_nb_ex", type = int, help = "only use the first MAX_NB_EX examples")
-    parser.add_argument("--mb_size", type = int, default= 80, help = "Minibatch size")
-    parser.add_argument("--beam_width", type = int, default= 20, help = "beam width")
-    parser.add_argument("--nb_steps", type = int, default= 50, help = "nb_steps used in generation")
-    parser.add_argument("--nb_steps_ratio", type = float, help = "nb_steps used in generation as a ratio of input length")
-    parser.add_argument("--nb_batch_to_sort", type = int, default= 20, help = "Sort this many batches by size.")
-    parser.add_argument("--beam_opt", default = False, action = "store_true")
-    parser.add_argument("--tgt_unk_id", choices = ["attn", "id"], default = "align")
-    parser.add_argument("--groundhog", default = False, action = "store_true")
-    
-    parser.add_argument("--use_raw_score", default = False, action = "store_true")
-    
-    args = parser.parse_args()
-    
-    config_training_fn = args.training_config #args.model_prefix + ".train.config"
-    
-    log.info("loading model config from %s" % config_training_fn)
-    config_training = json.load(open(config_training_fn))
+
+def translate_to_file_with_beam_search(dest_fn, gpu, encdec, eos_idx, src_data, beam_width, nb_steps, beam_opt, 
+       nb_steps_ratio, use_raw_score, 
+       groundhog,
+       tgt_unk_id, tgt_indexer):
+    log.info("writing translation of to %s"% dest_fn)
+    out = codecs.open(dest_fn, "w", encoding = "utf8")
+    with cuda.get_device(gpu):
+        translations_gen = beam_search_translate(
+                    encdec, eos_idx, src_data, beam_width = beam_width, nb_steps = nb_steps, 
+                                    gpu = gpu, beam_opt = beam_opt, nb_steps_ratio = nb_steps_ratio,
+                                    need_attention = True, score_is_divided_by_length = not use_raw_score,
+                                    groundhog = groundhog)
+        
+        
+#         for num_t in range(len(translations)):
+#             print num_t
+#             for t, score in translations[num_t]:
+#                 ct = convert_idx_to_string(t[:-1], tgt_voc + ["#T_UNK#"])
+#                 print ct, score
+#                 out.write(ct + "\n")
+        for num_t, (t, score, attn) in enumerate(translations_gen):
+            if num_t %200 == 0:
+                print >>sys.stderr, num_t,
+            elif num_t %40 == 0:
+                print >>sys.stderr, "*",
+#                 t, score = bests[1]
+#                 ct = convert_idx_to_string(t, tgt_voc + ["#T_UNK#"])
+#                 ct = convert_idx_to_string_with_attn(t, tgt_voc, attn, unk_idx = len(tgt_voc))
+            if tgt_unk_id == "align":
+                def unk_replacer(num_pos, unk_id):
+                    unk_pattern = "#T_UNK_%i#"
+                    a = attn[num_pos]
+                    xp = cuda.get_array_module(a)
+                    src_pos = int(xp.argmax(a))
+                    return unk_pattern%src_pos
+            elif tgt_unk_id == "id":
+                def unk_replacer(num_pos, unk_id):
+                    unk_pattern = "#T_UNK_%i#"
+                    return unk_pattern%unk_id         
+            else:
+                assert False
+            
+            ct = " ".join(tgt_indexer.deconvert(t, unk_tag = unk_replacer))
+            
+#                 print convert_idx_to_string(bests[0][0], tgt_voc + ["#T_UNK#"]) , bests[0][1]
+#                 print convert_idx_to_string(bests[1][0], tgt_voc + ["#T_UNK#"]), bests[1][1], bests[1][1] / len(bests[1][0])
+            out.write(ct + "\n")
+        print >>sys.stderr
+
+def create_encdec_from_config(config_training):
 
     voc_fn = config_training["voc"]
     log.info("loading voc from %s"% voc_fn)
@@ -89,26 +107,108 @@ def commandline():
     Ha = config_training["command_line"]["Ha"]
     Hl = config_training["command_line"]["Hl"]
     
+    encoder_cell_type = config_training["command_line"].get("encoder_cell_type", "gru")
+    decoder_cell_type = config_training["command_line"].get("decoder_cell_type", "gru")
     
     use_bn_length = config_training["command_line"].get("use_bn_length", None)
     
     
     eos_idx = Vo
-    encdec = models.EncoderDecoder(Vi, Ei, Hi, Vo + 1, Eo, Ho, Ha, Hl, use_bn_length = use_bn_length)
+    encdec = models.EncoderDecoder(Vi, Ei, Hi, Vo + 1, Eo, Ho, Ha, Hl, use_bn_length = use_bn_length,
+                                   encoder_cell_type = encoder_cell_type,
+                                   decoder_cell_type = decoder_cell_type)
     
-    log.info("loading model from %s" % args.trained_model)
-    serializers.load_npz(args.trained_model, encdec)
+    return encdec, eos_idx, src_indexer, tgt_indexer
+    
+def create_and_load_encdec_from_files(config_training_fn, trained_model):
+    log.info("loading model config from %s" % config_training_fn)
+    config_training = json.load(open(config_training_fn))
+
+    encdec, eos_idx, src_indexer, tgt_indexer = create_encdec_from_config(config_training)
+    
+    log.info("loading model from %s" % trained_model)
+    serializers.load_npz(trained_model, encdec)
+    
+    return encdec, eos_idx, src_indexer, tgt_indexer
+    
+def commandline():
+    
+    import argparse
+    parser = argparse.ArgumentParser(description= "Use a RNNSearch model", 
+                                     formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+    parser.add_argument("training_config", help = "prefix of the trained model")
+    parser.add_argument("trained_model", help = "prefix of the trained model")
+    parser.add_argument("src_fn", help = "source text")
+    parser.add_argument("dest_fn", help = "destination file")
+    
+    parser.add_argument("--additional_training_config", nargs = "*", help = "prefix of the trained model")
+    parser.add_argument("--additional_trained_model", nargs = "*", help = "prefix of the trained model")
+    
+    parser.add_argument("--tgt_fn", help = "target text")
+    parser.add_argument("--mode", default = "translate", 
+                        choices = ["translate", "align", "translate_attn", "beam_search", "eval_bleu"], help = "target text")
+    
+    parser.add_argument("--ref", help = "target text")
+    
+    parser.add_argument("--gpu", type = int, help = "specify gpu number to use, if any")
+    
+    parser.add_argument("--max_nb_ex", type = int, help = "only use the first MAX_NB_EX examples")
+    parser.add_argument("--mb_size", type = int, default= 80, help = "Minibatch size")
+    parser.add_argument("--beam_width", type = int, default= 20, help = "beam width")
+    parser.add_argument("--nb_steps", type = int, default= 50, help = "nb_steps used in generation")
+    parser.add_argument("--nb_steps_ratio", type = float, help = "nb_steps used in generation as a ratio of input length")
+    parser.add_argument("--nb_batch_to_sort", type = int, default= 20, help = "Sort this many batches by size.")
+    parser.add_argument("--beam_opt", default = False, action = "store_true")
+    parser.add_argument("--tgt_unk_id", choices = ["attn", "id"], default = "align")
+    parser.add_argument("--groundhog", default = False, action = "store_true")
+    
+    
+    # arguments for unk replace
+    parser.add_argument("--dic")
+    parser.add_argument("--remove_unk", default = False, action = "store_true")
+    parser.add_argument("--normalize_unicode_unk", default = False, action = "store_true")
+    parser.add_argument("--attempt_to_relocate_unk_source", default = False, action = "store_true")
+    
+    parser.add_argument("--use_raw_score", default = False, action = "store_true")
+    
+    args = parser.parse_args()
+    
+    encdec, eos_idx, src_indexer, tgt_indexer = create_and_load_encdec_from_files(
+                            args.training_config, args.trained_model)
     
     if args.gpu is not None:
         encdec = encdec.to_gpu(args.gpu)
         
-        
-
+    encdec_list = [encdec]
     
+    if args.additional_training_config is not None:
+        assert len(args.additional_training_config) == len(args.additional_trained_model)
+    
+        
+        for (config_training_fn, trained_model_fn) in zip(args.additional_training_config, 
+                                                          args.additional_trained_model):
+            this_encdec, this_eos_idx, this_src_indexer, this_tgt_indexer = create_and_load_encdec_from_files(
+                            config_training_fn, trained_model_fn)
+        
+            if eos_idx != this_eos_idx:
+                raise Exception("incompatible models")
+                
+            if len(src_indexer) != len(this_src_indexer):
+                raise Exception("incompatible models")
+              
+            if len(tgt_indexer) != len(this_tgt_indexer):
+                raise Exception("incompatible models")
+                              
+            if args.gpu is not None:
+                this_encdec = this_encdec.to_gpu(args.gpu)
+            
+            encdec_list.append(this_encdec)
+            
+        
     log.info("opening source file %s" % args.src_fn)
     src_data, dic_src, make_data_infos = build_dataset_one_side(args.src_fn, 
                                     src_voc_limit = None, max_nb_ex = args.max_nb_ex, dic_src = src_indexer)
-    log.info("%i sentences loaded"%make_data_infos.nb_ex)
+    log.info("%i sentences loaded" % make_data_infos.nb_ex)
     log.info("#tokens src: %i   of which %i (%f%%) are unknown"%(make_data_infos.total_token, 
                                                                  make_data_infos.total_count_unk, 
                                                                  float(make_data_infos.total_count_unk * 100) / 
@@ -144,49 +244,30 @@ def commandline():
             out.write(ct + "\n")
 
     elif args.mode == "beam_search":
-        log.info("writing translation of to %s"% args.dest_fn)
-        out = codecs.open(args.dest_fn, "w", encoding = "utf8")
-        with cuda.get_device(args.gpu):
-            translations_gen = beam_search_translate(
-                        encdec, eos_idx, src_data, beam_width = args.beam_width, nb_steps = args.nb_steps, 
-                                        gpu = args.gpu, beam_opt = args.beam_opt, nb_steps_ratio = args.nb_steps_ratio,
-                                        need_attention = True, score_is_divided_by_length = not args.use_raw_score,
-                                        groundhog = args.groundhog)
+        translate_to_file_with_beam_search(args.dest_fn, args.gpu, encdec, eos_idx, src_data, args.beam_width, 
+                                           args.nb_steps, args.beam_opt, 
+                                           args.b_steps_ratio, args.use_raw_score, 
+                                           args.groundhog,
+                                           args.tgt_unk_id, tgt_indexer)
             
-    #         for num_t in range(len(translations)):
-    #             print num_t
-    #             for t, score in translations[num_t]:
-    #                 ct = convert_idx_to_string(t[:-1], tgt_voc + ["#T_UNK#"])
-    #                 print ct, score
-    #                 out.write(ct + "\n")
-            for num_t, (t, score, attn) in enumerate(translations_gen):
-                if num_t %200 == 0:
-                    print >>sys.stderr, num_t,
-                elif num_t %40 == 0:
-                    print >>sys.stderr, "*",
-#                 t, score = bests[1]
-#                 ct = convert_idx_to_string(t, tgt_voc + ["#T_UNK#"])
-#                 ct = convert_idx_to_string_with_attn(t, tgt_voc, attn, unk_idx = len(tgt_voc))
-                if args.tgt_unk_id == "align":
-                    def unk_replacer(num_pos, unk_id):
-                        unk_pattern = "#T_UNK_%i#"
-                        a = attn[num_pos]
-                        xp = cuda.get_array_module(a)
-                        src_pos = int(xp.argmax(a))
-                        return unk_pattern%src_pos
-                elif args.tgt_unk_id == "id":
-                    def unk_replacer(num_pos, unk_id):
-                        unk_pattern = "#T_UNK_%i#"
-                        return unk_pattern%unk_id         
-                else:
-                    assert False
-                
-                ct = " ".join(tgt_indexer.deconvert(t, unk_tag = unk_replacer))
-                
-#                 print convert_idx_to_string(bests[0][0], tgt_voc + ["#T_UNK#"]) , bests[0][1]
-#                 print convert_idx_to_string(bests[1][0], tgt_voc + ["#T_UNK#"]), bests[1][1], bests[1][1] / len(bests[1][0])
-                out.write(ct + "\n")
-            print >>sys.stderr
+    elif args.mode == "eval_bleu":
+        assert args.ref is not None
+        translate_to_file_with_beam_search(args.dest_fn, args.gpu, encdec_list, eos_idx, src_data, args.beam_width, 
+                                           args.nb_steps, args.beam_opt, 
+                                           args.nb_steps_ratio, args.use_raw_score, 
+                                           args.groundhog,
+                                           args.tgt_unk_id, tgt_indexer)
+        
+        bc = bleu_computer.get_bc_from_files(args.ref, args.dest_fn)
+        print "bleu before unk replace:", bc
+        
+        import replace_tgt_unk
+        replace_tgt_unk.replace_unk(args.dest_fn, args.src_fn, args.dest_fn + ".unk_replaced", args.dic, args.remove_unk, 
+                args.normalize_unicode_unk,
+                args.attempt_to_relocate_unk_source)
+          
+        bc = bleu_computer.get_bc_from_files(args.ref, args.dest_fn + ".unk_replaced")
+        print "bleu after unk replace:", bc 
             
     elif args.mode == "translate_attn":
         log.info("writing translation + attention as html to %s"% args.dest_fn)
