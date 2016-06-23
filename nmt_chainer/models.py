@@ -23,7 +23,7 @@ log = logging.getLogger("rnns:models")
 log.setLevel(logging.INFO)
 
 import faster_gru
-L.GRU = faster_gru.GRU
+
 # L.GRU = L.FastGRU
 
 class DoubleGRU(Chain):
@@ -32,8 +32,8 @@ class DoubleGRU(Chain):
         self.H1 = H/2
         self.H2 = H - self.H1
         super(DoubleGRU, self).__init__(
-            gru1 = L.GRU(self.H1, I),
-            gru2 = L.GRU(self.H2, self.H1)
+            gru1 = faster_gru.GRU(self.H1, I),
+            gru2 = faster_gru.GRU(self.H2, self.H1)
         )
         
     def __call__(self, prev_state, inpt):
@@ -76,17 +76,20 @@ class Encoder(Chain):
         Return a chainer variable of shape (mb_size, #length, 2*Hi) and type float32
     """
     def __init__(self, Vi, Ei, Hi, init_orth = False, use_bn_length = 0, cell_type = "gru"):
-        assert cell_type in "gru dgru lstm".split()
+        assert cell_type in "gru dgru lstm slow_gru".split()
         self.cell_type = cell_type
         if cell_type == "gru":
-            gru_f = L.GRU(Hi, Ei)
-            gru_b = L.GRU(Hi, Ei)
+            gru_f = faster_gru.GRU(Hi, Ei)
+            gru_b = faster_gru.GRU(Hi, Ei)
         elif cell_type == "dgru":
             gru_f = DoubleGRU(Hi, Ei)
             gru_b = DoubleGRU(Hi, Ei)
         elif cell_type == "lstm":
-            gru_f = L.StatelessLSTM(Ei, Hi)
-            gru_b = L.StatelessLSTM(Ei, Hi)
+            gru_f = L.StatelessLSTM(Ei, Hi) #, forget_bias_init = 3)
+            gru_b = L.StatelessLSTM(Ei, Hi) #, forget_bias_init = 3)
+        if cell_type == "slow_gru":
+            gru_f = L.GRU(Hi, Ei)
+            gru_b = L.GRU(Hi, Ei)
                     
         log.info("constructing encoder [%s]"%(cell_type,))
         super(Encoder, self).__init__(
@@ -320,6 +323,39 @@ class AttentionModule(Chain):
             return ci, attn
         
         return compute_ctxt
+    
+class DeepAttentionModule(Chain):
+    """ DeepAttention Module for computing the current context during decoding. 
+        The __call_ takes 2 parameters: fb_concat and mask.
+        
+        fb_concat should be the result of a call to Encoder.
+        mask is as in the description of Encoder
+               
+        Return a chainer variable of shape (mb_size, Hi) and type float32
+    """
+    def __init__(self, Hi, Ha, Ho, init_orth = False):
+        log.info("using deep attention")
+        super(DeepAttentionModule, self).__init__(
+            attn1 = AttentionModule(Hi, Ha, Ho, init_orth = init_orth),
+            attn2 = AttentionModule(Hi, Ha, Ho + Hi, init_orth = init_orth)                                
+        )
+        
+    def __call__(self, fb_concat, mask):
+        compute_ctxt1 = self.attn1(fb_concat, mask)
+        compute_ctxt2 = self.attn2(fb_concat, mask)
+        
+        def compute_ctxt(previous_state):
+            ci1, attn1 = compute_ctxt1(previous_state)
+            intermediate_state = F.concat((previous_state, ci1), axis = 1)
+            ci2, attn2 = compute_ctxt2(intermediate_state)
+            
+            return ci2, attn2
+        
+        return compute_ctxt
+    
+    def compute_ctxt_demux(self, fb_concat, mask):
+        raise NotImplemented
+    
 #           
 # class AttentionModuleAcumulated(Chain):
 #     """ Attention Module for computing the current context during decoding. 
@@ -570,14 +606,16 @@ class Decoder(Chain):
     """
     def __init__(self, Vo, Eo, Ho, Ha, Hi, Hl, attn_cls = AttentionModule, init_orth = False, use_bn_length = 0,
                  cell_type = "gru"):
-        assert cell_type in "gru dgru lstm".split()
+        assert cell_type in "gru dgru lstm slow_gru".split()
         self.cell_type = cell_type
         if cell_type == "gru":
-            gru = L.GRU(Ho, Eo + Hi)
+            gru = faster_gru.GRU(Ho, Eo + Hi)
         elif cell_type == "dgru":
             gru = DoubleGRU(Ho, Eo + Hi)
         elif cell_type == "lstm":
-            gru = L.StatelessLSTM(Eo + Hi, Ho)
+            gru = L.StatelessLSTM(Eo + Hi, Ho) #, forget_bias_init = 3)
+        elif cell_type == "slow_gru":
+            gru = L.GRU(Ho, Eo + Hi)
         
         log.info("constructing decoder [%s]"%(cell_type,))
         
