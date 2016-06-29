@@ -359,7 +359,8 @@ def command_line(arguments = None):
         optimizer.add_hook(chainer.optimizer.WeightDecay(args.weight_decay))
 
     if args.load_optimizer_state is not None:
-        serializers.load_npz(args.load_optimizer_state, optimizer)    
+        with cuda.Device(args.gpu):
+            serializers.load_npz(args.load_optimizer_state, optimizer)    
     
 
     with cuda.get_device(args.gpu):
