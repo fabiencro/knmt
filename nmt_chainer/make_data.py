@@ -287,10 +287,12 @@ def build_index(fn, voc_limit=None, max_nb_ex=None, segmentation_type="word"):
     return res
 
 
-def build_dataset_one_side(src_fn, src_voc_limit=None, max_nb_ex=None, dic_src=None):
+def build_dataset_one_side(src_fn, src_voc_limit=None, max_nb_ex=None, dic_src=None,
+                           segmentation_type = "word"):
     if dic_src is None:
         log.info("building src_dic")
-        dic_src = build_index(src_fn, src_voc_limit, max_nb_ex)
+        dic_src = build_index(src_fn, src_voc_limit, max_nb_ex,
+                              segmentation_type = segmentation_type)
 
     log.info("start indexing")
 
@@ -330,10 +332,11 @@ def build_dataset_one_side(src_fn, src_voc_limit=None, max_nb_ex=None, dic_src=N
 
 def build_dataset(src_fn, tgt_fn,
                   src_voc_limit=None, tgt_voc_limit=None, max_nb_ex=None, dic_src=None, dic_tgt=None,
-                  tgt_segmentation_type="word"):
+                  tgt_segmentation_type="word", src_segmentation_type="word"):
     if dic_src is None:
         log.info("building src_dic")
-        dic_src = build_index(src_fn, src_voc_limit, max_nb_ex)
+        dic_src = build_index(src_fn, src_voc_limit, max_nb_ex,
+                              segmentation_type=src_segmentation_type)
 
     if dic_tgt is None:
         log.info("building tgt_dic")
@@ -363,7 +366,11 @@ def build_dataset(src_fn, tgt_fn,
             assert len(line_tgt) == 0
             break
 
-        line_src = line_src.strip().split(" ")
+#         line_src = line_src.strip().split(" ")
+        
+        line_src = segment(
+            line_src.strip(), type=src_segmentation_type)
+        
         line_tgt = segment(
             line_tgt.strip(), type=tgt_segmentation_type)  # .split(" ")
 
@@ -573,6 +580,7 @@ def cmdline(arguments=None):
     parser.add_argument("--use_voc", help = "specify an exisiting vocabulary file")
     
     parser.add_argument("--tgt_segmentation_type", choices = ["word", "word2char", "char"], default = "word")
+    parser.add_argument("--src_segmentation_type", choices = ["word", "word2char", "char"], default = "word")
     
     args = parser.parse_args(args = arguments)
     
@@ -613,7 +621,8 @@ def cmdline(arguments=None):
                 src_fn, tgt_fn, src_voc_limit=args.src_voc_size,
                 tgt_voc_limit=args.tgt_voc_size, max_nb_ex=max_nb_ex,
                 dic_src=dic_src, dic_tgt=dic_tgt,
-                tgt_segmentation_type=args.tgt_segmentation_type)
+                tgt_segmentation_type=args.tgt_segmentation_type,
+                src_segmentation_type=args.src_segmentation_type)
             valid_data = None
 
         log.info("%i sentences loaded" % make_data_infos.nb_ex)
