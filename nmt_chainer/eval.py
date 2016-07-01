@@ -34,7 +34,7 @@ log.setLevel(logging.INFO)
 def translate_to_file_with_beam_search(dest_fn, gpu, encdec, eos_idx, src_data, beam_width, nb_steps, beam_opt, 
        nb_steps_ratio, use_raw_score, 
        groundhog,
-       tgt_unk_id, tgt_indexer):
+       tgt_unk_id, tgt_indexer, force_finish = False):
     log.info("writing translation of to %s"% dest_fn)
     out = codecs.open(dest_fn, "w", encoding = "utf8")
     with cuda.get_device(gpu):
@@ -42,7 +42,7 @@ def translate_to_file_with_beam_search(dest_fn, gpu, encdec, eos_idx, src_data, 
                     encdec, eos_idx, src_data, beam_width = beam_width, nb_steps = nb_steps, 
                                     gpu = gpu, beam_opt = beam_opt, nb_steps_ratio = nb_steps_ratio,
                                     need_attention = True, score_is_divided_by_length = not use_raw_score,
-                                    groundhog = groundhog)
+                                    groundhog = groundhog, force_finish = force_finish)
         
         
 #         for num_t in range(len(translations)):
@@ -162,6 +162,7 @@ def commandline():
     parser.add_argument("--tgt_unk_id", choices = ["attn", "id"], default = "align")
     parser.add_argument("--groundhog", default = False, action = "store_true")
     
+    parser.add_argument("--force_finish", default = False, action = "store_true")
     
     # arguments for unk replace
     parser.add_argument("--dic")
@@ -248,7 +249,7 @@ def commandline():
                                            args.nb_steps, args.beam_opt, 
                                            args.b_steps_ratio, args.use_raw_score, 
                                            args.groundhog,
-                                           args.tgt_unk_id, tgt_indexer)
+                                           args.tgt_unk_id, tgt_indexer, force_finish = args.force_finish)
             
     elif args.mode == "eval_bleu":
         assert args.ref is not None
@@ -256,7 +257,7 @@ def commandline():
                                            args.nb_steps, args.beam_opt, 
                                            args.nb_steps_ratio, args.use_raw_score, 
                                            args.groundhog,
-                                           args.tgt_unk_id, tgt_indexer)
+                                           args.tgt_unk_id, tgt_indexer, force_finish = args.force_finish)
         
         bc = bleu_computer.get_bc_from_files(args.ref, args.dest_fn)
         print "bleu before unk replace:", bc

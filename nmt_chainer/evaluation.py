@@ -116,14 +116,19 @@ def greedy_batch_translate(encdec, eos_idx, src_data, batch_size = 80, gpu = Non
      
 def beam_search_translate(encdec, eos_idx, src_data, beam_width = 20, nb_steps = 50, gpu = None, beam_opt = False,
                           need_attention = False, nb_steps_ratio = None, score_is_divided_by_length = True, 
-                          groundhog = False):
+                          groundhog = False, force_finish = False):
     nb_ex = len(src_data)
 #     res = []
     for i in range(nb_ex):
-        src_batch, src_mask = make_batch_src([src_data[i]], gpu = gpu, volatile = "on")
+        src_batch, src_mask = make_batch_src([src_data[i]], gpu = gpu, volatile = "off")
         assert len(src_mask) == 0
         if nb_steps_ratio is not None:
             nb_steps = int(len(src_data[i]) * nb_steps_ratio) + 1
+            
+#         if isinstance(encdec, (tuple, list)):
+#             assert len(encdec) == 1
+#             encdec = encdec[0]
+#             
 #         translations = encdec.beam_search(src_batch, src_mask, nb_steps = nb_steps, eos_idx = eos_idx, 
 #                                           beam_width = beam_width,
 #                                           beam_opt = beam_opt, need_attention = need_attention,
@@ -133,7 +138,8 @@ def beam_search_translate(encdec, eos_idx, src_data, beam_width = 20, nb_steps =
             encdec = [encdec]
         translations = beam_search.ensemble_beam_search(encdec, src_batch, src_mask, nb_steps = nb_steps, eos_idx = eos_idx, 
                                           beam_width = beam_width,
-                                          need_attention = need_attention)
+                                          need_attention = need_attention, force_finish = force_finish)
+
 #         print "nb_trans", len(translations), [score for _, score in translations]
 #         bests = []
 #         translations.sort(key = itemgetter(1), reverse = True)
