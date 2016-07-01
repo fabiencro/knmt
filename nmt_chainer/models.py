@@ -491,12 +491,12 @@ class DeepAttentionModule(Chain):
 #             size_pred_mo = L.Maxout(Hi, 2, 2)
 #         )
 #         self.add_param("initial_state", (1, Ho))
-#         self.add_param("bos_embedding", (1, Eo))
+#         self.add_param("bos_embeding", (1, Eo))
 #         self.Hi = Hi
 #         self.Ho = Ho
 #         self.Eo = Eo
 #         self.initial_state.data[...] = np.random.randn(Ho)
-#         self.bos_embedding.data[...] = np.random.randn(Eo)
+#         self.bos_embeding.data[...] = np.random.randn(Eo)
 #         
 #         if init_orth:
 #             ortho_init(self.gru)
@@ -528,7 +528,7 @@ class DeepAttentionModule(Chain):
 #         previous_word = None
 #         with cuda.get_device(self.initial_state.data):
 # #             previous_word = Variable(xp.array([self.bos_idx] * current_mb_size, dtype = np.int32))
-#             prev_y = F.broadcast_to(self.bos_embedding, (current_mb_size, self.Eo))
+#             prev_y = F.broadcast_to(self.bos_embeding, (current_mb_size, self.Eo))
 #         attn_list = []
 #         total_nb_predictions = 0
 #         
@@ -631,7 +631,7 @@ class Decoder(Chain):
             attn_module = attn_cls(Hi, Ha, Ho, init_orth = init_orth)
         )
         self.add_param("initial_state", (1, Ho))
-        self.add_param("bos_embedding", (1, Eo))
+        self.add_param("bos_embeding", (1, Eo))
         
         if cell_type == "lstm":
             self.add_persistent("initial_cell", self.xp.zeros((1, Ho), dtype = self.xp.float32))
@@ -646,7 +646,7 @@ class Decoder(Chain):
         self.Ho = Ho
         self.Eo = Eo
         self.initial_state.data[...] = np.random.randn(Ho)
-        self.bos_embedding.data[...] = np.random.randn(Eo)
+        self.bos_embeding.data[...] = np.random.randn(Eo)
         
         if init_orth:
             ortho_init(self.gru)
@@ -692,7 +692,7 @@ class Decoder(Chain):
         previous_word = None
         with cuda.get_device(self.initial_state.data):
 #             previous_word = Variable(xp.array([self.bos_idx] * mb_size, dtype = np.int32))
-            prev_y = F.broadcast_to(self.bos_embedding, (mb_size, self.Eo))
+            prev_y = F.broadcast_to(self.bos_embeding, (mb_size, self.Eo))
         score = 0
         sequences = []
         attn_list = []
@@ -749,7 +749,7 @@ class Decoder(Chain):
                         prev_w_v = Variable(prev_w, volatile = "auto")
                         prev_y = self.emb(prev_w_v)
                     else:
-                        prev_y = F.reshape(self.bos_embedding, (1, -1))
+                        prev_y = F.reshape(self.bos_embeding, (1, -1))
                 
                     concatenated = F.concat( (prev_y, ci) )
                     new_state = self.gru(current_state, concatenated)
@@ -826,7 +826,7 @@ class Decoder(Chain):
             if current_words is not None:
                 prev_y = self.emb(current_words)
             else:
-                prev_y = F.reshape(self.bos_embedding, (1, -1))
+                prev_y = F.reshape(self.bos_embeding, (1, -1))
                     
             concatenated = F.concat( (prev_y, ci) )
             new_state = self.gru(current_states, concatenated)
@@ -928,7 +928,7 @@ class Decoder(Chain):
             if current_words is not None:
                 prev_y = self.emb(current_words)
             else:
-                prev_y = F.reshape(self.bos_embedding, (1, -1))
+                prev_y = F.reshape(self.bos_embeding, (1, -1))
                     
             concatenated = F.concat( (prev_y, ci) )
             new_state = self.gru(current_states, concatenated)
@@ -1034,7 +1034,7 @@ class Decoder(Chain):
         previous_word = [None]
         with cuda.get_device(self.initial_state.data):
 #             previous_word = Variable(xp.array([self.bos_idx] * current_mb_size, dtype = np.int32))
-            prev_y_initial = F.broadcast_to(self.bos_embedding, (current_mb_size, self.Eo))
+            prev_y_initial = F.broadcast_to(self.bos_embeding, (current_mb_size, self.Eo))
             
             
         def choose(voc_list, i):
@@ -1078,7 +1078,7 @@ class Decoder(Chain):
         previous_word = None
         with cuda.get_device(self.initial_state.data):
 #             previous_word = Variable(xp.array([self.bos_idx] * current_mb_size, dtype = np.int32))
-            prev_y = F.broadcast_to(self.bos_embedding, (current_mb_size, self.Eo))
+            prev_y = F.broadcast_to(self.bos_embeding, (current_mb_size, self.Eo))
         attn_list = []
         total_nb_predictions = 0
         
@@ -1145,7 +1145,7 @@ class Decoder(Chain):
 #         xp = cuda.get_array_module(self.initial_state.data)
 #         previous_word = None
 #         with cuda.get_device(self.initial_state.data):
-#             prev_y = F.broadcast_to(self.bos_embedding, (current_mb_size, self.Eo))
+#             prev_y = F.broadcast_to(self.bos_embeding, (current_mb_size, self.Eo))
 #             
 #         total_nb_predictions = 0
 #         for i in xrange(len(targets)):
