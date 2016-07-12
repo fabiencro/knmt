@@ -676,7 +676,7 @@ class Decoder(Chain):
             return new_state, logits, attn
           
           
-          
+        
     def sample(self, nb_steps, compute_ctxt, mb_size, best = False, keep_attn_values = False,
                need_score = False):
         previous_state = F.broadcast_to(self.initial_state, (mb_size, self.Ho))
@@ -727,341 +727,7 @@ class Decoder(Chain):
             
         return sequences, score, attn_list
     
-    def beam_search(self, fb_concat, mask, nb_steps, eos_idx, beam_width = 20):
-        if self.use_bn_length > 0:
-            raise NotImplemented
-        mb_size, nb_elems, Hi = fb_concat.data.shape
-        assert Hi == self.Hi, "%i != %i"%(Hi, self.Hi)
-        compute_ctxt = self.attn_module(fb_concat, mask)
-        
-        assert mb_size == 1
-        finished_translations = []
-        current_translations = [(F.reshape(self.initial_state, (1, -1)), [([], 0.0)])]
-        xp = cuda.get_array_module(self.initial_state.data)
-        for i in xrange(nb_steps):
-            next_translations = []
-            for current_state, candidates in current_translations:
-                ci, attn = compute_ctxt(current_state)
-                for t, score in candidates:
-                    if len(t) > 0:
-                        with cuda.get_device(self.initial_state.data):
-                            prev_w = xp.array([t[-1]], dtype = xp.int32)
-                        prev_w_v = Variable(prev_w, volatile = "auto")
-                        prev_y = self.emb(prev_w_v)
-                    else:
-                        prev_y = F.reshape(self.bos_embeding, (1, -1))
-                
-                    concatenated = F.concat( (prev_y, ci) )
-                    new_state = self.gru(current_state, concatenated)
-                
-                    all_concatenated = F.concat((concatenated, new_state))
-                    logits = self.lin_o(self.maxo(all_concatenated))
-                
-                    probs = cuda.to_cpu(F.softmax(logits).data).reshape((-1,))
-#                     if len(probs) > beam_width:
-                    best_idx = np.argpartition(- probs, beam_width)[:beam_width].astype(np.int32)
-#                     else:
-                        
-                    cand_list = []
-                    for num in xrange(len(best_idx)):
-                        idx = best_idx[num]
-                        sc = np.log(probs[idx])
-                        if idx == eos_idx:
-                            finished_translations.append((t, score + sc))
-                        else:
-                            cand_list.append((t + [idx], score + sc))
-                
-                    next_translations.append((new_state, cand_list))
-                
-            # pruning
-            coord_next_t = []
-            for num_st in xrange(len(next_translations)):
-                for num_cand in xrange(len(next_translations[num_st][1])):
-                    score = next_translations[num_st][1][num_cand][1]
-                    coord_next_t.append((score, num_st, num_cand))
-            coord_next_t.sort(reverse = True)
-            next_translations_pruned = []
-            
-            next_translations_pruned_dict = defaultdict(list)
-            for score, num_st, num_cand in coord_next_t[:beam_width]:
-                next_translations_pruned_dict[num_st].append(num_cand)
-                
-            next_translations_pruned = []
-            for num_st, num_cand_list in  next_translations_pruned_dict.iteritems():
-                state = next_translations[num_st][0]
-                cand_list = []
-                for num_cand in num_cand_list:
-                    cand_list.append(next_translations[num_st][1][num_cand])
-                next_translations_pruned.append((state, cand_list))
-            current_translations = next_translations_pruned
-        if len (finished_translations) == 0:
-            finished_translations.append(([], 0))
-        return finished_translations
-    
-    def beam_search_opt(self, fb_concat, mask, nb_steps, eos_idx, beam_width = 20, need_attention = False):
-        if  self.cell_type == "lstm":
-            raise NotImplemented
-        
-        if self.use_bn_length > 0:
-            raise NotImplemented
-        mb_size, nb_elems, Hi = fb_concat.data.shape
-        assert Hi == self.Hi, "%i != %i"%(Hi, self.Hi)
-        xp = cuda.get_array_module(self.initial_state.data)
-        
-        compute_ctxt = self.attn_module.compute_ctxt_demux(fb_concat, mask)
-        
-        assert mb_size == 1
-        finished_translations = []
-        current_translations_states = (
-                                [[]], # translations
-                                xp.array([0]), # scores
-                                F.reshape(self.initial_state, (1, -1)),  #previous states
-                                None, #previous words
-                                [[]] #attention
-                                )
-        for i in xrange(nb_steps):
-            current_translations, current_scores, current_states, current_words, current_attentions = current_translations_states
-            
-            ci, attn = compute_ctxt(current_states)
-            if current_words is not None:
-                prev_y = self.emb(current_words)
-            else:
-                prev_y = F.reshape(self.bos_embeding, (1, -1))
-                    
-            concatenated = F.concat( (prev_y, ci) )
-            new_state = self.gru(current_states, concatenated)
-        
-            all_concatenated = F.concat((concatenated, new_state))
-            logits = self.lin_o(self.maxo(all_concatenated))
-            probs_v = F.softmax(logits)
-            log_probs_v = F.log(probs_v) # TODO replace wit a logsoftmax if implemented
-            nb_cases, v_size = probs_v.data.shape
-            assert nb_cases <= beam_width
-            
-            new_scores = current_scores[:, xp.newaxis] + log_probs_v.data
-            new_costs_flattened =  cuda.to_cpu( - new_scores).ravel()
 
-            # TODO replace wit a cupy argpartition when/if implemented
-            best_idx = np.argpartition( new_costs_flattened, beam_width)[:beam_width]
-            
-            all_num_cases = best_idx / v_size
-            all_idx_in_cases = best_idx % v_size
-            
-            next_states_list = []
-            next_words_list = []
-            next_score_list = []
-            next_translations_list = []
-            next_attentions_list = []
-            for num in xrange(len(best_idx)):
-                idx = best_idx[num]
-                num_case = all_num_cases[num]
-                idx_in_case = all_idx_in_cases[num]
-                if idx_in_case == eos_idx:
-                    if need_attention:
-                        finished_translations.append((current_translations[num_case], 
-                                                  -new_costs_flattened[idx],
-                                                  current_attentions[num_case]
-                                                  ))
-                    else:
-                        finished_translations.append((current_translations[num_case], 
-                                                  -new_costs_flattened[idx]))
-                else:
-                    next_states_list.append(Variable(new_state.data[num_case].reshape(1,-1), volatile = "auto"))
-                    next_words_list.append(idx_in_case)
-                    next_score_list.append(-new_costs_flattened[idx])
-                    next_translations_list.append(current_translations[num_case] + [idx_in_case])
-                    if need_attention:
-                        next_attentions_list.append(current_attentions[num_case] + [attn.data[num_case]])
-                    if len(next_states_list) >= beam_width:
-                        break
-                
-            if len(next_states_list) == 0:
-                break
-            
-            next_words_array = np.array(next_words_list, dtype = np.int32)
-            if self.xp is not np:
-                next_words_array = cuda.to_gpu(next_words_array)
-                
-            current_translations_states = (next_translations_list,
-                                        xp.array(next_score_list),
-                                        F.concat(next_states_list, axis = 0),
-                                        Variable(next_words_array, volatile = "auto"),
-                                        next_attentions_list
-                                        )
-            
-        if len (finished_translations) == 0:
-            if need_attention:
-                finished_translations.append(([], 0, []))
-            else:
-                finished_translations.append(([], 0))
-        return finished_translations
-    
-    def beam_search_groundhog(self, fb_concat, mask, eos_idx, n_samples = 20, need_attention = False, 
-                          ignore_unk=None, minlen=1):
-        if self.use_bn_length > 0:
-            raise NotImplemented
-#         print "in beam_search_groundhog, ", need_attention
-        mb_size, nb_elems, Hi = fb_concat.data.shape
-        assert Hi == self.Hi, "%i != %i"%(Hi, self.Hi)
-        xp = cuda.get_array_module(self.initial_state.data)
-        
-        compute_ctxt = self.attn_module.compute_ctxt_demux(fb_concat, mask)
-        
-        assert mb_size == 1
-        finished_translations = []
-        current_translations_states = (
-                                [[]], # translations
-                                xp.array([0]), # scores
-                                F.reshape(self.initial_state, (1, -1)),  #previous states
-                                None, #previous words
-                                [[]] #attention
-                                )
-        
-        beam_width = n_samples
-        for i in xrange(3 * nb_elems):
-            if beam_width == 0:
-                break
-            
-            current_translations, current_scores, current_states, current_words, current_attentions = current_translations_states
-            
-            ci, attn = compute_ctxt(current_states)
-            if current_words is not None:
-                prev_y = self.emb(current_words)
-            else:
-                prev_y = F.reshape(self.bos_embeding, (1, -1))
-                    
-            concatenated = F.concat( (prev_y, ci) )
-            new_state = self.gru(current_states, concatenated)
-        
-            all_concatenated = F.concat((concatenated, new_state))
-            logits = self.lin_o(self.maxo(all_concatenated))
-            probs_v = F.softmax(logits)
-            log_probs_v = F.log(probs_v) # TODO replace wit a logsoftmax if implemented
-            nb_cases, v_size = probs_v.data.shape
-            assert nb_cases <= beam_width
-            
-            if ignore_unk is not None:
-                log_probs_v.data[:,ignore_unk] = -np.inf
-            # TODO: report me in the paper!!!
-            if i < minlen:
-                log_probs_v.data[:,eos_idx] = -np.inf
-
-            
-            new_scores = current_scores[:, xp.newaxis] + log_probs_v.data
-            new_costs_flattened =  cuda.to_cpu( - new_scores).ravel()
-
-            # TODO replace wit a cupy argpartition when/if implemented
-            best_idx = np.argpartition( new_costs_flattened, beam_width)[:beam_width]
-            
-            all_num_cases = best_idx / v_size
-            all_idx_in_cases = best_idx % v_size
-            
-            next_states_list = []
-            next_words_list = []
-            next_score_list = []
-            next_translations_list = []
-            next_attentions_list = []
-            for num in xrange(len(best_idx)):
-                idx = best_idx[num]
-                num_case = all_num_cases[num]
-                idx_in_case = all_idx_in_cases[num]
-                if idx_in_case == eos_idx:
-                    beam_width -= 1
-                    if need_attention:
-                        finished_translations.append((current_translations[num_case], 
-                                                  -new_costs_flattened[idx],
-                                                  current_attentions[num_case]
-                                                  ))
-                    else:
-                        finished_translations.append((current_translations[num_case], 
-                                                  -new_costs_flattened[idx]))
-                else:
-                    next_states_list.append(Variable(new_state.data[num_case].reshape(1,-1), volatile = "auto"))
-                    next_words_list.append(idx_in_case)
-                    next_score_list.append(-new_costs_flattened[idx])
-                    next_translations_list.append(current_translations[num_case] + [idx_in_case])
-                    if need_attention:
-                        next_attentions_list.append(current_attentions[num_case] + [attn.data[num_case]])
-                    if len(next_states_list) >= beam_width:
-                        break
-                
-            if len(next_states_list) == 0:
-                break
-            
-            next_words_array = np.array(next_words_list, dtype = np.int32)
-            if self.xp is not np:
-                next_words_array = cuda.to_gpu(next_words_array)
-                
-            current_translations_states = (next_translations_list,
-                                        xp.array(next_score_list),
-                                        F.concat(next_states_list, axis = 0),
-                                        Variable(next_words_array, volatile = "auto"),
-                                        next_attentions_list
-                                        )
-            
-        if len (finished_translations) == 0:
-            if ignore_unk is not None:
-                log.warning("Did not manage without UNK")
-                return self.beam_search_groundhog(fb_concat, mask, eos_idx, n_samples = n_samples, need_attention = need_attention, 
-                          ignore_unk = None, minlen=minlen)
-                
-            elif n_samples < 500:
-                log.warning("Still no translations: trying beam size %i"%(n_samples * 2))
-                return self.beam_search_groundhog(fb_concat, mask, eos_idx, n_samples = n_samples * 2, need_attention = need_attention, 
-                          ignore_unk = ignore_unk, minlen=minlen)
-            else:
-                log.warning("Translation failed")
-            
-                if need_attention:
-                    finished_translations.append(([], 0, []))
-                else:
-                    finished_translations.append(([], 0))
-                    
-        return finished_translations
-    
-    def get_predictor(self, fb_concat, mask):
-        mb_size, nb_elems, Hi = fb_concat.data.shape
-        assert Hi == self.Hi, "%i != %i"%(Hi, self.Hi)
-        xp = cuda.get_array_module(self.initial_state.data)
-        
-        compute_ctxt = self.attn_module.compute_ctxt_demux(fb_concat, mask)
-        
-        assert mb_size == 1
-        current_mb_size = mb_size
-#         previous_state = F.concat( [self.initial_state] * current_mb_size, 0)
-        previous_state = [F.broadcast_to(self.initial_state, (current_mb_size, self.Ho))]
-#         previous_word = Variable(np.array([self.bos_idx] * mb_size, dtype = np.int32))
-        previous_word = [None]
-        with cuda.get_device(self.initial_state.data):
-#             previous_word = Variable(xp.array([self.bos_idx] * current_mb_size, dtype = np.int32))
-            prev_y_initial = F.broadcast_to(self.bos_embeding, (current_mb_size, self.Eo))
-            
-            
-        def choose(voc_list, i):
-            if previous_word[0] is not None: #else we are using the initial prev_y
-                prev_y = self.emb(previous_word[0])
-            else:
-                prev_y = prev_y_initial
-            assert previous_state[0].data.shape[0] == current_mb_size
-            
-            new_state, logits, attn = self.advance_one_step(previous_state[0], prev_y, 
-                                                      compute_ctxt, i, test = True)
-            
-            best_w = None
-            best_score = None
-            for w in voc_list:
-                score = logits.data[0][w]
-                if best_score is None or score > best_score:
-                    best_score = score
-                    best_w = w
-                            
-                        
-            previous_word[0] = Variable(self.xp.array([best_w], dtype = self.xp.int32), volatile = "auto")
-            previous_state[0] = new_state
-            return best_w
-        return choose
-
-    
     def compute_loss(self, targets, compute_ctxt, raw_loss_info = False, keep_attn_values = False, 
                      noise_on_prev_word = False, use_previous_prediction = 0, test = False):
         loss = None
@@ -1135,6 +801,344 @@ class Decoder(Chain):
         else:
             loss = loss / total_nb_predictions
             return loss, attn_list
+    
+    
+#     
+#     def beam_search(self, fb_concat, mask, nb_steps, eos_idx, beam_width = 20):
+#         if self.use_bn_length > 0:
+#             raise NotImplemented
+#         mb_size, nb_elems, Hi = fb_concat.data.shape
+#         assert Hi == self.Hi, "%i != %i"%(Hi, self.Hi)
+#         compute_ctxt = self.attn_module(fb_concat, mask)
+#         
+#         assert mb_size == 1
+#         finished_translations = []
+#         current_translations = [(F.reshape(self.initial_state, (1, -1)), [([], 0.0)])]
+#         xp = cuda.get_array_module(self.initial_state.data)
+#         for i in xrange(nb_steps):
+#             next_translations = []
+#             for current_state, candidates in current_translations:
+#                 ci, attn = compute_ctxt(current_state)
+#                 for t, score in candidates:
+#                     if len(t) > 0:
+#                         with cuda.get_device(self.initial_state.data):
+#                             prev_w = xp.array([t[-1]], dtype = xp.int32)
+#                         prev_w_v = Variable(prev_w, volatile = "auto")
+#                         prev_y = self.emb(prev_w_v)
+#                     else:
+#                         prev_y = F.reshape(self.bos_embeding, (1, -1))
+#                 
+#                     concatenated = F.concat( (prev_y, ci) )
+#                     new_state = self.gru(current_state, concatenated)
+#                 
+#                     all_concatenated = F.concat((concatenated, new_state))
+#                     logits = self.lin_o(self.maxo(all_concatenated))
+#                 
+#                     probs = cuda.to_cpu(F.softmax(logits).data).reshape((-1,))
+# #                     if len(probs) > beam_width:
+#                     best_idx = np.argpartition(- probs, beam_width)[:beam_width].astype(np.int32)
+# #                     else:
+#                         
+#                     cand_list = []
+#                     for num in xrange(len(best_idx)):
+#                         idx = best_idx[num]
+#                         sc = np.log(probs[idx])
+#                         if idx == eos_idx:
+#                             finished_translations.append((t, score + sc))
+#                         else:
+#                             cand_list.append((t + [idx], score + sc))
+#                 
+#                     next_translations.append((new_state, cand_list))
+#                 
+#             # pruning
+#             coord_next_t = []
+#             for num_st in xrange(len(next_translations)):
+#                 for num_cand in xrange(len(next_translations[num_st][1])):
+#                     score = next_translations[num_st][1][num_cand][1]
+#                     coord_next_t.append((score, num_st, num_cand))
+#             coord_next_t.sort(reverse = True)
+#             next_translations_pruned = []
+#             
+#             next_translations_pruned_dict = defaultdict(list)
+#             for score, num_st, num_cand in coord_next_t[:beam_width]:
+#                 next_translations_pruned_dict[num_st].append(num_cand)
+#                 
+#             next_translations_pruned = []
+#             for num_st, num_cand_list in  next_translations_pruned_dict.iteritems():
+#                 state = next_translations[num_st][0]
+#                 cand_list = []
+#                 for num_cand in num_cand_list:
+#                     cand_list.append(next_translations[num_st][1][num_cand])
+#                 next_translations_pruned.append((state, cand_list))
+#             current_translations = next_translations_pruned
+#         if len (finished_translations) == 0:
+#             finished_translations.append(([], 0))
+#         return finished_translations
+#     
+#     def beam_search_opt(self, fb_concat, mask, nb_steps, eos_idx, beam_width = 20, need_attention = False):
+#         if  self.cell_type == "lstm":
+#             raise NotImplemented
+#         
+#         if self.use_bn_length > 0:
+#             raise NotImplemented
+#         mb_size, nb_elems, Hi = fb_concat.data.shape
+#         assert Hi == self.Hi, "%i != %i"%(Hi, self.Hi)
+#         xp = cuda.get_array_module(self.initial_state.data)
+#         
+#         compute_ctxt = self.attn_module.compute_ctxt_demux(fb_concat, mask)
+#         
+#         assert mb_size == 1
+#         finished_translations = []
+#         current_translations_states = (
+#                                 [[]], # translations
+#                                 xp.array([0]), # scores
+#                                 F.reshape(self.initial_state, (1, -1)),  #previous states
+#                                 None, #previous words
+#                                 [[]] #attention
+#                                 )
+#         for i in xrange(nb_steps):
+#             current_translations, current_scores, current_states, current_words, current_attentions = current_translations_states
+#             
+#             ci, attn = compute_ctxt(current_states)
+#             if current_words is not None:
+#                 prev_y = self.emb(current_words)
+#             else:
+#                 prev_y = F.reshape(self.bos_embeding, (1, -1))
+#                     
+#             concatenated = F.concat( (prev_y, ci) )
+#             new_state = self.gru(current_states, concatenated)
+#         
+#             all_concatenated = F.concat((concatenated, new_state))
+#             logits = self.lin_o(self.maxo(all_concatenated))
+#             probs_v = F.softmax(logits)
+#             log_probs_v = F.log(probs_v) # TODO replace wit a logsoftmax if implemented
+#             nb_cases, v_size = probs_v.data.shape
+#             assert nb_cases <= beam_width
+#             
+#             new_scores = current_scores[:, xp.newaxis] + log_probs_v.data
+#             new_costs_flattened =  cuda.to_cpu( - new_scores).ravel()
+# 
+#             # TODO replace wit a cupy argpartition when/if implemented
+#             best_idx = np.argpartition( new_costs_flattened, beam_width)[:beam_width]
+#             
+#             all_num_cases = best_idx / v_size
+#             all_idx_in_cases = best_idx % v_size
+#             
+#             next_states_list = []
+#             next_words_list = []
+#             next_score_list = []
+#             next_translations_list = []
+#             next_attentions_list = []
+#             for num in xrange(len(best_idx)):
+#                 idx = best_idx[num]
+#                 num_case = all_num_cases[num]
+#                 idx_in_case = all_idx_in_cases[num]
+#                 if idx_in_case == eos_idx:
+#                     if need_attention:
+#                         finished_translations.append((current_translations[num_case], 
+#                                                   -new_costs_flattened[idx],
+#                                                   current_attentions[num_case]
+#                                                   ))
+#                     else:
+#                         finished_translations.append((current_translations[num_case], 
+#                                                   -new_costs_flattened[idx]))
+#                 else:
+#                     next_states_list.append(Variable(new_state.data[num_case].reshape(1,-1), volatile = "auto"))
+#                     next_words_list.append(idx_in_case)
+#                     next_score_list.append(-new_costs_flattened[idx])
+#                     next_translations_list.append(current_translations[num_case] + [idx_in_case])
+#                     if need_attention:
+#                         next_attentions_list.append(current_attentions[num_case] + [attn.data[num_case]])
+#                     if len(next_states_list) >= beam_width:
+#                         break
+#                 
+#             if len(next_states_list) == 0:
+#                 break
+#             
+#             next_words_array = np.array(next_words_list, dtype = np.int32)
+#             if self.xp is not np:
+#                 next_words_array = cuda.to_gpu(next_words_array)
+#                 
+#             current_translations_states = (next_translations_list,
+#                                         xp.array(next_score_list),
+#                                         F.concat(next_states_list, axis = 0),
+#                                         Variable(next_words_array, volatile = "auto"),
+#                                         next_attentions_list
+#                                         )
+#             
+#         if len (finished_translations) == 0:
+#             if need_attention:
+#                 finished_translations.append(([], 0, []))
+#             else:
+#                 finished_translations.append(([], 0))
+#         return finished_translations
+#     
+#     def beam_search_groundhog(self, fb_concat, mask, eos_idx, n_samples = 20, need_attention = False, 
+#                           ignore_unk=None, minlen=1):
+#         if self.use_bn_length > 0:
+#             raise NotImplemented
+# #         print "in beam_search_groundhog, ", need_attention
+#         mb_size, nb_elems, Hi = fb_concat.data.shape
+#         assert Hi == self.Hi, "%i != %i"%(Hi, self.Hi)
+#         xp = cuda.get_array_module(self.initial_state.data)
+#         
+#         compute_ctxt = self.attn_module.compute_ctxt_demux(fb_concat, mask)
+#         
+#         assert mb_size == 1
+#         finished_translations = []
+#         current_translations_states = (
+#                                 [[]], # translations
+#                                 xp.array([0]), # scores
+#                                 F.reshape(self.initial_state, (1, -1)),  #previous states
+#                                 None, #previous words
+#                                 [[]] #attention
+#                                 )
+#         
+#         beam_width = n_samples
+#         for i in xrange(3 * nb_elems):
+#             if beam_width == 0:
+#                 break
+#             
+#             current_translations, current_scores, current_states, current_words, current_attentions = current_translations_states
+#             
+#             ci, attn = compute_ctxt(current_states)
+#             if current_words is not None:
+#                 prev_y = self.emb(current_words)
+#             else:
+#                 prev_y = F.reshape(self.bos_embeding, (1, -1))
+#                     
+#             concatenated = F.concat( (prev_y, ci) )
+#             new_state = self.gru(current_states, concatenated)
+#         
+#             all_concatenated = F.concat((concatenated, new_state))
+#             logits = self.lin_o(self.maxo(all_concatenated))
+#             probs_v = F.softmax(logits)
+#             log_probs_v = F.log(probs_v) # TODO replace wit a logsoftmax if implemented
+#             nb_cases, v_size = probs_v.data.shape
+#             assert nb_cases <= beam_width
+#             
+#             if ignore_unk is not None:
+#                 log_probs_v.data[:,ignore_unk] = -np.inf
+#             # TODO: report me in the paper!!!
+#             if i < minlen:
+#                 log_probs_v.data[:,eos_idx] = -np.inf
+# 
+#             
+#             new_scores = current_scores[:, xp.newaxis] + log_probs_v.data
+#             new_costs_flattened =  cuda.to_cpu( - new_scores).ravel()
+# 
+#             # TODO replace wit a cupy argpartition when/if implemented
+#             best_idx = np.argpartition( new_costs_flattened, beam_width)[:beam_width]
+#             
+#             all_num_cases = best_idx / v_size
+#             all_idx_in_cases = best_idx % v_size
+#             
+#             next_states_list = []
+#             next_words_list = []
+#             next_score_list = []
+#             next_translations_list = []
+#             next_attentions_list = []
+#             for num in xrange(len(best_idx)):
+#                 idx = best_idx[num]
+#                 num_case = all_num_cases[num]
+#                 idx_in_case = all_idx_in_cases[num]
+#                 if idx_in_case == eos_idx:
+#                     beam_width -= 1
+#                     if need_attention:
+#                         finished_translations.append((current_translations[num_case], 
+#                                                   -new_costs_flattened[idx],
+#                                                   current_attentions[num_case]
+#                                                   ))
+#                     else:
+#                         finished_translations.append((current_translations[num_case], 
+#                                                   -new_costs_flattened[idx]))
+#                 else:
+#                     next_states_list.append(Variable(new_state.data[num_case].reshape(1,-1), volatile = "auto"))
+#                     next_words_list.append(idx_in_case)
+#                     next_score_list.append(-new_costs_flattened[idx])
+#                     next_translations_list.append(current_translations[num_case] + [idx_in_case])
+#                     if need_attention:
+#                         next_attentions_list.append(current_attentions[num_case] + [attn.data[num_case]])
+#                     if len(next_states_list) >= beam_width:
+#                         break
+#                 
+#             if len(next_states_list) == 0:
+#                 break
+#             
+#             next_words_array = np.array(next_words_list, dtype = np.int32)
+#             if self.xp is not np:
+#                 next_words_array = cuda.to_gpu(next_words_array)
+#                 
+#             current_translations_states = (next_translations_list,
+#                                         xp.array(next_score_list),
+#                                         F.concat(next_states_list, axis = 0),
+#                                         Variable(next_words_array, volatile = "auto"),
+#                                         next_attentions_list
+#                                         )
+#             
+#         if len (finished_translations) == 0:
+#             if ignore_unk is not None:
+#                 log.warning("Did not manage without UNK")
+#                 return self.beam_search_groundhog(fb_concat, mask, eos_idx, n_samples = n_samples, need_attention = need_attention, 
+#                           ignore_unk = None, minlen=minlen)
+#                 
+#             elif n_samples < 500:
+#                 log.warning("Still no translations: trying beam size %i"%(n_samples * 2))
+#                 return self.beam_search_groundhog(fb_concat, mask, eos_idx, n_samples = n_samples * 2, need_attention = need_attention, 
+#                           ignore_unk = ignore_unk, minlen=minlen)
+#             else:
+#                 log.warning("Translation failed")
+#             
+#                 if need_attention:
+#                     finished_translations.append(([], 0, []))
+#                 else:
+#                     finished_translations.append(([], 0))
+#                     
+#         return finished_translations
+#     
+    def get_predictor(self, fb_concat, mask):
+        mb_size, nb_elems, Hi = fb_concat.data.shape
+        assert Hi == self.Hi, "%i != %i"%(Hi, self.Hi)
+        xp = cuda.get_array_module(self.initial_state.data)
+        
+        compute_ctxt = self.attn_module.compute_ctxt_demux(fb_concat, mask)
+        
+        assert mb_size == 1
+        current_mb_size = mb_size
+#         previous_state = F.concat( [self.initial_state] * current_mb_size, 0)
+        previous_state = [F.broadcast_to(self.initial_state, (current_mb_size, self.Ho))]
+#         previous_word = Variable(np.array([self.bos_idx] * mb_size, dtype = np.int32))
+        previous_word = [None]
+        with cuda.get_device(self.initial_state.data):
+#             previous_word = Variable(xp.array([self.bos_idx] * current_mb_size, dtype = np.int32))
+            prev_y_initial = F.broadcast_to(self.bos_embeding, (current_mb_size, self.Eo))
+            
+            
+        def choose(voc_list, i):
+            if previous_word[0] is not None: #else we are using the initial prev_y
+                prev_y = self.emb(previous_word[0])
+            else:
+                prev_y = prev_y_initial
+            assert previous_state[0].data.shape[0] == current_mb_size
+            
+            new_state, logits, attn = self.advance_one_step(previous_state[0], prev_y, 
+                                                      compute_ctxt, i, test = True)
+            
+            best_w = None
+            best_score = None
+            for w in voc_list:
+                score = logits.data[0][w]
+                if best_score is None or score > best_score:
+                    best_score = score
+                    best_w = w
+                            
+                        
+            previous_word[0] = Variable(self.xp.array([best_w], dtype = self.xp.int32), volatile = "auto")
+            previous_state[0] = new_state
+            return best_w
+        return choose
+
+    
     
 #     def compute_loss_and_backward(self, fb_concat, targets, mask, raw_loss_info = False):
 #         

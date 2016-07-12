@@ -41,7 +41,7 @@ def iterate_eos_scores(new_scores, eos_idx):
 
     for num_case in xrange(nb_cases):
         idx_in_case = eos_idx
-        yield num_case, idx_in_case, new_scores[num_case, eos_idx]
+        yield num_case, idx_in_case, cuda.to_cpu(new_scores[num_case, eos_idx])
 
 def update_next_lists(num_case, idx_in_case, new_cost, eos_idx, new_state_ensemble, finished_translations, current_translations, current_attentions,
            next_states_list, next_words_list, next_score_list, next_translations_list, 
