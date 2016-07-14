@@ -15,6 +15,7 @@ import chainer.functions as F
 import chainer.links as L
 import math, random
 
+import rnn_cells
 from utils import ortho_init
 
 import logging
@@ -22,28 +23,8 @@ logging.basicConfig()
 log = logging.getLogger("rnns:models")
 log.setLevel(logging.INFO)
 
-import faster_gru
 
-# L.GRU = L.FastGRU
 
-class DoubleGRU(Chain):
-    def __init__(self, H, I):
-        log.info("using double GRU")
-        self.H1 = H/2
-        self.H2 = H - self.H1
-        super(DoubleGRU, self).__init__(
-            gru1 = faster_gru.GRU(self.H1, I),
-            gru2 = faster_gru.GRU(self.H2, self.H1)
-        )
-        
-    def __call__(self, prev_state, inpt):
-        prev_state1, prev_state2 = F.split_axis(prev_state, (self.H1,), axis = 1)
-        
-        prev_state1 = self.gru1(prev_state1, inpt)
-        prev_state2 = self.gru2(prev_state2, prev_state1)
-        
-        return F.concat((prev_state1, prev_state2), axis = 1)
-        
         
 class BNList(ChainList):
     def __init__(self, size, max_length):
@@ -75,22 +56,25 @@ class Encoder(Chain):
         
         Return a chainer variable of shape (mb_size, #length, 2*Hi) and type float32
     """
-    def __init__(self, Vi, Ei, Hi, init_orth = False, use_bn_length = 0, cell_type = "gru"):
-        assert cell_type in "gru dgru lstm slow_gru".split()
-        self.cell_type = cell_type
-        if cell_type == "gru":
-            gru_f = faster_gru.GRU(Hi, Ei)
-            gru_b = faster_gru.GRU(Hi, Ei)
-        elif cell_type == "dgru":
-            gru_f = DoubleGRU(Hi, Ei)
-            gru_b = DoubleGRU(Hi, Ei)
-        elif cell_type == "lstm":
-            gru_f = L.StatelessLSTM(Ei, Hi) #, forget_bias_init = 3)
-            gru_b = L.StatelessLSTM(Ei, Hi) #, forget_bias_init = 3)
-        if cell_type == "slow_gru":
-            gru_f = L.GRU(Hi, Ei)
-            gru_b = L.GRU(Hi, Ei)
-                    
+    def __init__(self, Vi, Ei, Hi, init_orth = False, use_bn_length = 0, cell_type = rnn_cells.LSTMCell):
+#         assert cell_type in "gru dgru lstm slow_gru".split()
+#         self.cell_type = cell_type
+#         if cell_type == "gru":
+#             gru_f = faster_gru.GRU(Hi, Ei)
+#             gru_b = faster_gru.GRU(Hi, Ei)
+#         elif cell_type == "dgru":
+#             gru_f = DoubleGRU(Hi, Ei)
+#             gru_b = DoubleGRU(Hi, Ei)
+#         elif cell_type == "lstm":
+#             gru_f = L.StatelessLSTM(Ei, Hi) #, forget_bias_init = 3)
+#             gru_b = L.StatelessLSTM(Ei, Hi) #, forget_bias_init = 3)
+#         if cell_type == "slow_gru":
+#             gru_f = L.GRU(Hi, Ei)
+#             gru_b = L.GRU(Hi, Ei)
+#             
+        gru_f = cell_type(Ei, Hi)
+        gru_b = cell_type(Ei, Hi)
+                  
         log.info("constructing encoder [%s]"%(cell_type,))
         super(Encoder, self).__init__(
             emb = L.EmbedID(Vi, Ei),
@@ -101,15 +85,16 @@ class Encoder(Chain):
             gru_b = gru_b
         )
         self.Hi = Hi
-        self.add_param("initial_state_f", (1, Hi))
-        self.add_param("initial_state_b", (1, Hi))
-
-        self.initial_state_f.data[...] = np.random.randn(Hi)
-        self.initial_state_b.data[...] = np.random.randn(Hi)
-        
-        if cell_type == "lstm":
-            self.add_persistent("initial_cell_f", self.xp.zeros((1, self.Hi), dtype = self.xp.float32))
-            self.add_persistent("initial_cell_b", self.xp.zeros((1, self.Hi), dtype = self.xp.float32))
+#         self.add_param("initial_state_f", (1, Hi))
+#         self.add_param("initial_state_b", (1, Hi))
+# 
+#         self.initial_state_f.data[...] = np.random.randn(Hi)
+#         self.initial_state_b.data[...] = np.random.randn(Hi)
+#         
+#         if cell_type == "lstm":
+#             self.add_persistent("initial_cell_f", self.xp.zeros((1, self.Hi), dtype = self.xp.float32))
+#             self.add_persistent("initial_cell_b", self.xp.zeros((1, self.Hi), dtype = self.xp.float32))
+            
 #             self.initial_cell_f = self.xp.zeros((1, self.Hi), dtype = self.xp.float32)
 #             self.initial_cell_b = self.xp.zeros((1, self.Hi), dtype = self.xp.float32)  
         
@@ -126,31 +111,36 @@ class Encoder(Chain):
         
         mb_size = sequence[0].data.shape[0]
         
-        mb_initial_state_f = F.broadcast_to(F.reshape(self.initial_state_f, (1, self.Hi)), (mb_size, self.Hi))
-        mb_initial_state_b = F.broadcast_to(F.reshape(self.initial_state_b, (1, self.Hi)), (mb_size, self.Hi))
+#         mb_initial_state_f = F.broadcast_to(F.reshape(self.initial_state_f, (1, self.Hi)), (mb_size, self.Hi))
+#         mb_initial_state_b = F.broadcast_to(F.reshape(self.initial_state_b, (1, self.Hi)), (mb_size, self.Hi))
+#         
+#         if self.cell_type == "lstm":
+#             mb_initial_cell_f = Variable(self.xp.broadcast_to(self.initial_cell_f, (mb_size, self.Hi)), volatile = "auto")
+#             mb_initial_cell_b = Variable(self.xp.broadcast_to(self.initial_cell_b, (mb_size, self.Hi)), volatile = "auto")
         
-        if self.cell_type == "lstm":
-            mb_initial_cell_f = Variable(self.xp.broadcast_to(self.initial_cell_f, (mb_size, self.Hi)), volatile = "auto")
-            mb_initial_cell_b = Variable(self.xp.broadcast_to(self.initial_cell_b, (mb_size, self.Hi)), volatile = "auto")
+        mb_initial_states_f = self.gru_f.get_initial_states(mb_size)
+        mb_initial_states_b = self.gru_b.get_initial_states(mb_size)
         
         embedded_seq = []
         for elem in sequence:
             embedded_seq.append(self.emb(elem))
             
 #         self.gru_f.reset_state()
-        prev_state = mb_initial_state_f
-        if self.cell_type == "lstm":
-            prev_cell = mb_initial_cell_f
+        prev_states = mb_initial_states_f
+#         if self.cell_type == "lstm":
+#             prev_cell = mb_initial_cell_f
             
         forward_seq = []
         for i, x in enumerate(embedded_seq):
-            if self.cell_type == "lstm":
-                prev_cell, prev_state = self.gru_f(prev_cell, prev_state, x)
-            else:
-                prev_state = self.gru_f(prev_state, x)
-            if self.use_bn_length > 0:
-                prev_state = self.bn_f(prev_state, i, test = test)
-            forward_seq.append(prev_state)
+            prev_states = self.gru_f(prev_states, x)
+            output = prev_states[-1]
+#             if self.cell_type == "lstm":
+#                 prev_cell, prev_state = self.gru_f(prev_cell, prev_state, x)
+#             else:
+#                 prev_state = self.gru_f(prev_state, x)
+#             if self.use_bn_length > 0:
+#                 prev_state = self.bn_f(prev_state, i, test = test)
+            forward_seq.append(output)
             
 #         self.gru_b.reset_state()
 
@@ -159,42 +149,54 @@ class Encoder(Chain):
         assert mask_length <= seq_length
         mask_offset = seq_length - mask_length
         
-        prev_state = mb_initial_state_b
-        if self.cell_type == "lstm":
-            prev_cell = mb_initial_cell_b
+        prev_states = mb_initial_states_b
+#         if self.cell_type == "lstm":
+#             prev_cell = mb_initial_cell_b
             
         backward_seq = []
         for pos, x in reversed(list(enumerate(embedded_seq))):
             if pos < mask_offset:
-                if self.cell_type == "lstm":
-                    prev_cell, prev_state = self.gru_b(prev_cell, prev_state, x)
-                else:
-                    prev_state = self.gru_b(prev_state, x)
+                prev_states = self.gru_b(prev_states, x)
+                output = prev_states[-1]
+#                 if self.cell_type == "lstm":
+#                     prev_cell, prev_state = self.gru_b(prev_cell, prev_state, x)
+#                 else:
+#                     prev_state = self.gru_b(prev_state, x)
             else:
                 reshaped_mask = F.broadcast_to(
-                                Variable(self.xp.reshape(mask[pos - mask_offset], (mb_size, 1)), volatile = "auto"), (mb_size, self.Hi))
+                                Variable(self.xp.reshape(mask[pos - mask_offset], 
+                                    (mb_size, 1)), volatile = "auto"), (mb_size, self.Hi))
                 
-                if self.cell_type == "lstm":
-                    prev_cell, prev_state = self.gru_b(prev_cell, prev_state, x)
-                    
-                    prev_state = F.where(reshaped_mask,
-                                    prev_state, mb_initial_state_b) #TODO: optimize?
-                    
-                    prev_cell = F.where(reshaped_mask,
-                                    prev_cell, mb_initial_cell_b) #TODO: optimize?
-                else:
-                    prev_state = self.gru_b(prev_state, x)
-                    
-                    prev_state = F.where(reshaped_mask,
-                                    prev_state, mb_initial_state_b) #TODO: optimize?
+                prev_states = self.gru_b(prev_states, x)
+                output = prev_states[-1]
                 
+                masked_prev_states = [None] * len(prev_states)
+                for num_state in xrange(len(prev_states)):
+                    masked_prev_states[num_state] = F.where(reshaped_mask,
+                                    prev_states[num_state], mb_initial_states_b[num_state]) #TODO: optimize?
+                prev_states = tuple(masked_prev_states)
+                output = prev_states[-1]
+#                 if self.cell_type == "lstm":
+#                     prev_cell, prev_state = self.gru_b(prev_cell, prev_state, x)
+#                     
+#                     prev_state = F.where(reshaped_mask,
+#                                     prev_state, mb_initial_state_b) #TODO: optimize?
+#                     
+#                     prev_cell = F.where(reshaped_mask,
+#                                     prev_cell, mb_initial_cell_b) #TODO: optimize?
+#                 else:
+#                     prev_state = self.gru_b(prev_state, x)
+#                     
+#                     prev_state = F.where(reshaped_mask,
+#                                     prev_state, mb_initial_state_b) #TODO: optimize?
+#                 
                 
 #             TODO: 
 #             if self.use_bn_length > 0:
 #                 prev_state = self.bn_b(prev_state, i)
             
             
-            backward_seq.append(prev_state)
+            backward_seq.append(output)
         
         assert len(backward_seq) == len(forward_seq)
         res = []
@@ -605,19 +607,21 @@ class Decoder(Chain):
         Return a loss and the attention model values
     """
     def __init__(self, Vo, Eo, Ho, Ha, Hi, Hl, attn_cls = AttentionModule, init_orth = False, use_bn_length = 0,
-                 cell_type = "gru"):
-        assert cell_type in "gru dgru lstm slow_gru".split()
-        self.cell_type = cell_type
-        if cell_type == "gru":
-            gru = faster_gru.GRU(Ho, Eo + Hi)
-        elif cell_type == "dgru":
-            gru = DoubleGRU(Ho, Eo + Hi)
-        elif cell_type == "lstm":
-            gru = L.StatelessLSTM(Eo + Hi, Ho) #, forget_bias_init = 3)
-        elif cell_type == "slow_gru":
-            gru = L.GRU(Ho, Eo + Hi)
+                 cell_type = rnn_cells.LSTMCell):
+#         assert cell_type in "gru dgru lstm slow_gru".split()
+#         self.cell_type = cell_type
+#         if cell_type == "gru":
+#             gru = faster_gru.GRU(Ho, Eo + Hi)
+#         elif cell_type == "dgru":
+#             gru = DoubleGRU(Ho, Eo + Hi)
+#         elif cell_type == "lstm":
+#             gru = L.StatelessLSTM(Eo + Hi, Ho) #, forget_bias_init = 3)
+#         elif cell_type == "slow_gru":
+#             gru = L.GRU(Ho, Eo + Hi)
         
-        log.info("constructing decoder [%s]"%(cell_type,))
+        gru = cell_type(Eo + Hi, Ho)
+        
+        log.info("constructing decoder [%r]"%(cell_type,))
         
         super(Decoder, self).__init__(
             emb = L.EmbedID(Vo, Eo),
@@ -630,11 +634,12 @@ class Decoder(Chain):
             
             attn_module = attn_cls(Hi, Ha, Ho, init_orth = init_orth)
         )
-        self.add_param("initial_state", (1, Ho))
+#         self.add_param("initial_state", (1, Ho))
         self.add_param("bos_embeding", (1, Eo))
-        
-        if cell_type == "lstm":
-            self.add_persistent("initial_cell", self.xp.zeros((1, Ho), dtype = self.xp.float32))
+#         
+#         if cell_type == "lstm":
+#             self.add_persistent("initial_cell", self.xp.zeros((1, Ho), dtype = self.xp.float32))
+
 #             self.initial_cell = self.xp.zeros((1, Ho), dtype = self.xp.float32)
         
         if use_bn_length > 0:
@@ -645,7 +650,7 @@ class Decoder(Chain):
         self.Hi = Hi
         self.Ho = Ho
         self.Eo = Eo
-        self.initial_state.data[...] = np.random.randn(Ho)
+#         self.initial_state.data[...] = np.random.randn(Ho)
         self.bos_embeding.data[...] = np.random.randn(Eo)
         
         if init_orth:
@@ -653,44 +658,53 @@ class Decoder(Chain):
             ortho_init(self.lin_o)
             ortho_init(self.maxo)
         
-    def advance_one_step(self, previous_state, prev_y, compute_ctxt, i, test = False, previous_cell = None):
+    def advance_one_step(self, previous_states, prev_y, compute_ctxt, i, test = False):
 
-        ci, attn = compute_ctxt(previous_state)
+        output_state = previous_states[-1]
+        ci, attn = compute_ctxt(output_state)
         concatenated = F.concat( (prev_y, ci) )
 #             print concatenated.data.shape
 
-        if self.cell_type == "lstm":
-            previous_cell, new_state = self.gru(previous_cell, previous_state, concatenated)
-        else:
-            new_state = self.gru(previous_state, concatenated)
+#         if self.cell_type == "lstm":
+#             previous_cell, new_state = self.gru(previous_cell, previous_state, concatenated)
+#         else:
+#             new_state = self.gru(previous_state, concatenated)
+            
+        new_states = self.gru(previous_states, concatenated)
+        new_output_state = new_states[-1]
             
         if self.use_bn_length > 0:
-            new_state = self.bn(new_state, i, test = test)
+            new_output_state = self.bn(new_output_state, i, test = test)
             
-        all_concatenated = F.concat((concatenated, new_state))
+        all_concatenated = F.concat((concatenated, new_output_state))
         logits = self.lin_o(self.maxo(all_concatenated))
         
-        if self.cell_type == "lstm":
-            return previous_cell, new_state, logits, attn
-        else:
-            return new_state, logits, attn
+        return new_states, logits, attn
+        
+#         if self.cell_type == "lstm":
+#             return previous_cell, new_state, logits, attn
+#         else:
+#             return new_state, logits, attn
           
           
         
     def sample(self, nb_steps, compute_ctxt, mb_size, best = False, keep_attn_values = False,
                need_score = False):
-        previous_state = F.broadcast_to(self.initial_state, (mb_size, self.Ho))
         
-        if self.cell_type == "lstm":
-            previous_cell = Variable(self.xp.broadcast_to(self.initial_cell, (mb_size, self.Ho)), volatile = "auto")
-        else:
-            previous_cell = None
+        previous_states = self.gru.get_initial_states(mb_size)
+        
+#         previous_state = F.broadcast_to(self.initial_state, (mb_size, self.Ho))
+#         
+#         if self.cell_type == "lstm":
+#             previous_cell = Variable(self.xp.broadcast_to(self.initial_cell, (mb_size, self.Ho)), volatile = "auto")
+#         else:
+#             previous_cell = None
  
 #         previous_word = Variable(np.array([self.bos_idx] * mb_size, dtype = np.int32))
-        xp = cuda.get_array_module(self.initial_state.data)
+#         xp = cuda.get_array_module(self.initial_state.data)
         
         previous_word = None
-        with cuda.get_device(self.initial_state.data):
+        with cuda.get_device(previous_states[0].data):
 #             previous_word = Variable(xp.array([self.bos_idx] * mb_size, dtype = np.int32))
             prev_y = F.broadcast_to(self.bos_embeding, (mb_size, self.Eo))
         score = 0
@@ -700,20 +714,24 @@ class Decoder(Chain):
 #             print "i", i
             if previous_word is not None: #else we are using the initial prev_y
                 prev_y = self.emb(previous_word)
-            if self.cell_type == "lstm":
-                previous_cell, new_state, logits, attn = self.advance_one_step(previous_state, prev_y, 
-                                                      compute_ctxt, i, test = True, previous_cell = previous_cell)
-            else:
-                new_state, logits, attn = self.advance_one_step(previous_state, prev_y, 
-                                                      compute_ctxt, i, test = True, previous_cell = previous_cell)
+                
+            new_states, logits, attn = self.advance_one_step(previous_states, prev_y, 
+                                                    compute_ctxt, i, test = True)
+                
+#             if self.cell_type == "lstm":
+#                 previous_cell, new_state, logits, attn = self.advance_one_step(previous_state, prev_y, 
+#                                                       compute_ctxt, i, test = True, previous_cell = previous_cell)
+#             else:
+#                 new_state, logits, attn = self.advance_one_step(previous_state, prev_y, 
+#                                                       compute_ctxt, i, test = True, previous_cell = previous_cell)
             if keep_attn_values:
                 attn_list.append(attn)
 #             print logits.data.shape
             probs = F.softmax(logits)
             if best:
-                curr_idx = xp.argmax(probs.data, 1).astype(np.int32)
+                curr_idx = self.xp.argmax(probs.data, 1).astype(np.int32)
             else:
-                curr_idx = xp.empty((mb_size,), dtype = np.int32)
+                curr_idx = self.xp.empty((mb_size,), dtype = np.int32)
                 probs_data = cuda.to_cpu(probs.data)
                 for i in xrange(mb_size):
                     sampler = chainer.utils.WalkerAlias(probs_data[i])
@@ -723,7 +741,7 @@ class Decoder(Chain):
             sequences.append(curr_idx)
             
             previous_word = Variable(curr_idx, volatile = "auto")
-            previous_state = new_state
+            previous_states = new_states
             
         return sequences, score, attn_list
     
@@ -733,16 +751,19 @@ class Decoder(Chain):
         loss = None
         current_mb_size = targets[0].data.shape[0]
 #         previous_state = F.concat( [self.initial_state] * current_mb_size, 0)
-        previous_state = F.broadcast_to(self.initial_state, (current_mb_size, self.Ho))
-        
-        if self.cell_type == "lstm":
-            previous_cell = Variable(self.xp.broadcast_to(self.initial_cell, (current_mb_size, self.Ho)), volatile = "auto")
-        else:
-            previous_cell = None
+
+        previous_states = self.gru.get_initial_states(current_mb_size)
+
+#         previous_state = F.broadcast_to(self.initial_state, (current_mb_size, self.Ho))
+#         
+#         if self.cell_type == "lstm":
+#             previous_cell = Variable(self.xp.broadcast_to(self.initial_cell, (current_mb_size, self.Ho)), volatile = "auto")
+#         else:
+#             previous_cell = None
 #         previous_word = Variable(np.array([self.bos_idx] * mb_size, dtype = np.int32))
-        xp = cuda.get_array_module(self.initial_state.data)
+#         xp = cuda.get_array_module(self.initial_state.data)
         previous_word = None
-        with cuda.get_device(self.initial_state.data):
+        with cuda.get_device(previous_states[0].data):
 #             previous_word = Variable(xp.array([self.bos_idx] * current_mb_size, dtype = np.int32))
             prev_y = F.broadcast_to(self.bos_embeding, (current_mb_size, self.Eo))
         attn_list = []
@@ -753,12 +774,18 @@ class Decoder(Chain):
             noise_lnvar = Variable(self.xp.zeros_like(prev_y.data, dtype = self.xp.float32))
         
         for i in xrange(len(targets)):
-            assert i == 0 or previous_state.data.shape[0] == previous_word.data.shape[0]
+            assert i == 0 or previous_states[0].data.shape[0] == previous_word.data.shape[0]
             current_mb_size = targets[i].data.shape[0]
-            if current_mb_size < len(previous_state.data):
-                previous_state, _ = F.split_axis(previous_state, (current_mb_size,), 0)
-                if self.cell_type == "lstm":
-                    previous_cell, _ = F.split_axis(previous_cell, (current_mb_size,), 0)
+            if current_mb_size < len(previous_states[0].data):
+                truncated_states = [None] * len(previous_states)
+                for num_state in xrange(len(previous_states)):
+                    truncated_states[num_state], _ = F.split_axis(previous_states[num_state], (current_mb_size,), 0)
+                previous_states = tuple(truncated_states)
+#                 previous_state, _ = F.split_axis(previous_state, (current_mb_size,), 0)
+#                 if self.cell_type == "lstm":
+#                     previous_cell, _ = F.split_axis(previous_cell, (current_mb_size,), 0)
+                    
+                    
                 if previous_word is not None:
                     previous_word, _ = F.split_axis(previous_word, (current_mb_size,), 0 )
                     
@@ -767,17 +794,21 @@ class Decoder(Chain):
                     noise_lnvar, _ = F.split_axis(noise_lnvar, (current_mb_size,), 0)
             if previous_word is not None: #else we are using the initial prev_y
                 prev_y = self.emb(previous_word)
-            assert previous_state.data.shape[0] == current_mb_size
+            assert previous_states[0].data.shape[0] == current_mb_size
             
             if noise_on_prev_word:
                 prev_y = prev_y * F.gaussian(noise_mean, noise_lnvar)
             
-            if self.cell_type == "lstm":
-                previous_cell, new_state, logits, attn = self.advance_one_step(previous_state, prev_y, 
-                                                      compute_ctxt, i, test = True, previous_cell = previous_cell)
-            else:
-                new_state, logits, attn = self.advance_one_step(previous_state, prev_y, 
-                                                      compute_ctxt, i, test = True, previous_cell = previous_cell)
+            
+            new_states, logits, attn = self.advance_one_step(previous_states, prev_y, 
+                                                    compute_ctxt, i, test = True)
+
+#             if self.cell_type == "lstm":
+#                 previous_cell, new_state, logits, attn = self.advance_one_step(previous_state, prev_y, 
+#                                                       compute_ctxt, i, test = True, previous_cell = previous_cell)
+#             else:
+#                 new_state, logits, attn = self.advance_one_step(previous_state, prev_y, 
+#                                                       compute_ctxt, i, test = True, previous_cell = previous_cell)
 
             if keep_attn_values:
                 attn_list.append(attn)
@@ -790,11 +821,11 @@ class Decoder(Chain):
 #             loss = local_loss if loss is None else loss + local_loss
             loss = total_local_loss if loss is None else loss + total_local_loss
             if use_previous_prediction > 0 and random.random() < use_previous_prediction:
-                previous_word = Variable(xp.argmax(logits.data, axis = 1).astype(xp.int32), volatile = "auto")
+                previous_word = Variable(self.xp.argmax(logits.data, axis = 1).astype(self.xp.int32), volatile = "auto")
             else:
                 previous_word = targets[i]
 #             prev_y = self.emb(previous_word)
-            previous_state = new_state
+            previous_states = new_states
 #             attn_list.append(attn)
         if raw_loss_info:
             return (loss, total_nb_predictions), attn_list

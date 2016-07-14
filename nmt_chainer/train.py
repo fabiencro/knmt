@@ -37,6 +37,8 @@ from chainer import cuda
 from chainer import function
 from collections import defaultdict
 
+import rnn_cells
+
 def function_namer(function, in_data):
     in_shapes = []
     for in_elem in in_data:
@@ -192,8 +194,10 @@ def command_line(arguments = None):
     
     parser.add_argument("--no_report_or_save", default = False, action = "store_true")
     
-    parser.add_argument("--encoder_cell_type", default = "gru")
-    parser.add_argument("--decoder_cell_type", default = "gru")
+    
+    
+    parser.add_argument("--encoder_cell_type", choices = rnn_cells.cell_dict.keys(), default = "lstm")
+    parser.add_argument("--decoder_cell_type", choices = rnn_cells.cell_dict.keys(), default = "lstm")
     
     args = parser.parse_args(args = arguments)
     
@@ -319,8 +323,8 @@ def command_line(arguments = None):
     encdec = models.EncoderDecoder(Vi, args.Ei, args.Hi, Vo + 1, args.Eo, args.Ho, args.Ha, args.Hl,
                                        init_orth = args.init_orth, use_bn_length = args.use_bn_length,
                                        attn_cls = attn_cls,
-                                       encoder_cell_type = args.encoder_cell_type,
-                                       decoder_cell_type = args.decoder_cell_type)
+                                       encoder_cell_type = rnn_cells.cell_dict[args.encoder_cell_type],
+                                       decoder_cell_type = rnn_cells.cell_dict[args.decoder_cell_type])
     
     if args.load_model is not None:
         serializers.load_npz(args.load_model, encdec)
