@@ -8,6 +8,14 @@ __status__ = "Development"
 
 import sqlite3
 
+def build_prefix_list(lst, op = max):
+    res = [None] * len(lst)
+    res[0] = lst[0]
+    for k in xrange(1, len(lst)):
+        res[k] = op(res[k-1], lst[k])
+    return res
+    
+
 def commandline():
     import argparse
     parser = argparse.ArgumentParser()
@@ -69,6 +77,17 @@ def commandline():
             color = ('rgb(205, 12, 24)'),
             width = 2)
         )
+        
+        trace0min = go.Scatter(
+#             x = random_x,
+            y = build_prefix_list(test_loss, op = min),
+            mode = 'lines',
+            name = 'min_test_loss',
+                line = dict(
+            color = ('rgb(205, 12, 24)'),
+            width = 1, dash = "dot")
+        )
+        
         trace1 = go.Scatter(
 #             x = random_x,
             y = test_bleu,
@@ -76,12 +95,30 @@ def commandline():
             name = 'test_bleu',
             yaxis='y2',
             text = text_bleu,
+            
+            marker = dict(
+                size = 4,
+                color = 'rgba(205, 12, 24, .8)')
+        
+        
+#                 line = dict(
+#         color = ('rgb(205, 12, 24)'),
+#         width = 2)
+        )
+        
+        trace1max = go.Scatter(
+            y = build_prefix_list(test_bleu, op = max),
+            mode = 'lines',
+            name = 'max_test_bleu',
+            yaxis='y2',
                 line = dict(
         color = ('rgb(205, 12, 24)'),
-        width = 2)
+        width = 1,
+        dash = "dot")
         )
+        
+        
         trace2 = go.Scatter(
-#             x = random_x,
             y = dev_loss,
             mode = 'lines',
             name = 'dev_loss',
@@ -89,15 +126,37 @@ def commandline():
         color = ('rgb(22, 96, 167)'),
         width = 2,)
         )
+        
+        trace2min = go.Scatter(
+            y = build_prefix_list(dev_loss, op = min),
+            mode = 'lines',
+            name = 'min_dev_loss',
+                line = dict(
+        color = ('rgb(22, 96, 167)'),
+        width = 1, dash = "dot")
+        )
+        
         trace3 = go.Scatter(
-#             x = random_x,
             y = dev_bleu,
             mode = 'markers',
             name = 'dev_bleu',
             yaxis='y2',
+            marker = dict(
+                size = 4,
+                color = 'rgba(22, 96, 167, .8)')
+#                 line = dict(
+#         color = ('rgb(22, 96, 167)'),
+#         width = 2,)
+        )
+        
+        trace3max = go.Scatter(
+            y = build_prefix_list(dev_bleu, op = max),
+            mode = 'lines',
+            name = 'max_dev_bleu',
+            yaxis='y2',
                 line = dict(
         color = ('rgb(22, 96, 167)'),
-        width = 2,)
+        width = 1, dash = "dot")
         )
 
         trace4 = go.Scatter(
@@ -124,7 +183,7 @@ def commandline():
             )
         )
         
-        data = [trace0, trace1, trace2, trace3, trace4]
+        data = [trace0, trace1, trace2, trace3, trace4, trace0min, trace1max, trace2min, trace3max]
         fig = go.Figure(data=data, layout=layout)
         # Plot and embed in ipython notebook!
         plotly.offline.plot(fig, filename = args.dest, auto_open = False)
