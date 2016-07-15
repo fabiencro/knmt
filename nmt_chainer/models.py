@@ -107,7 +107,8 @@ class Encoder(Chain):
             ortho_init(self.gru_f)
             ortho_init(self.gru_b)
         
-    def __call__(self, sequence, mask, test = False):
+    def __call__(self, sequence, mask, mode = "test"):
+        assert mode in "test train".split()
         
         mb_size = sequence[0].data.shape[0]
         
@@ -132,7 +133,7 @@ class Encoder(Chain):
             
         forward_seq = []
         for i, x in enumerate(embedded_seq):
-            prev_states = self.gru_f(prev_states, x)
+            prev_states = self.gru_f(prev_states, x, mode = mode)
             output = prev_states[-1]
 #             if self.cell_type == "lstm":
 #                 prev_cell, prev_state = self.gru_f(prev_cell, prev_state, x)
@@ -156,7 +157,7 @@ class Encoder(Chain):
         backward_seq = []
         for pos, x in reversed(list(enumerate(embedded_seq))):
             if pos < mask_offset:
-                prev_states = self.gru_b(prev_states, x)
+                prev_states = self.gru_b(prev_states, x, mode = mode)
                 output = prev_states[-1]
 #                 if self.cell_type == "lstm":
 #                     prev_cell, prev_state = self.gru_b(prev_cell, prev_state, x)
@@ -167,7 +168,7 @@ class Encoder(Chain):
                                 Variable(self.xp.reshape(mask[pos - mask_offset], 
                                     (mb_size, 1)), volatile = "auto"), (mb_size, self.Hi))
                 
-                prev_states = self.gru_b(prev_states, x)
+                prev_states = self.gru_b(prev_states, x, mode = mode)
                 output = prev_states[-1]
                 
                 masked_prev_states = [None] * len(prev_states)
@@ -658,7 +659,8 @@ class Decoder(Chain):
             ortho_init(self.lin_o)
             ortho_init(self.maxo)
         
-    def advance_one_step(self, previous_states, prev_y, compute_ctxt, i, test = False):
+    def advance_one_step(self, previous_states, prev_y, compute_ctxt, i, mode = "test"):
+        assert mode in "test train".split()
 
         output_state = previous_states[-1]
         ci, attn = compute_ctxt(output_state)
@@ -670,11 +672,11 @@ class Decoder(Chain):
 #         else:
 #             new_state = self.gru(previous_state, concatenated)
             
-        new_states = self.gru(previous_states, concatenated)
+        new_states = self.gru(previous_states, concatenated, mode = mode)
         new_output_state = new_states[-1]
             
-        if self.use_bn_length > 0:
-            new_output_state = self.bn(new_output_state, i, test = test)
+#         if self.use_bn_length > 0:
+#             new_output_state = self.bn(new_output_state, i, test = test)
             
         all_concatenated = F.concat((concatenated, new_output_state))
         logits = self.lin_o(self.maxo(all_concatenated))
@@ -716,7 +718,7 @@ class Decoder(Chain):
                 prev_y = self.emb(previous_word)
                 
             new_states, logits, attn = self.advance_one_step(previous_states, prev_y, 
-                                                    compute_ctxt, i, test = True)
+                                                    compute_ctxt, i, mode = "test")
                 
 #             if self.cell_type == "lstm":
 #                 previous_cell, new_state, logits, attn = self.advance_one_step(previous_state, prev_y, 
@@ -747,7 +749,8 @@ class Decoder(Chain):
     
 
     def compute_loss(self, targets, compute_ctxt, raw_loss_info = False, keep_attn_values = False, 
-                     noise_on_prev_word = False, use_previous_prediction = 0, test = False):
+                     noise_on_prev_word = False, use_previous_prediction = 0, mode = "test"):
+        assert mode in "test train".split()
         loss = None
         current_mb_size = targets[0].data.shape[0]
 #         previous_state = F.concat( [self.initial_state] * current_mb_size, 0)
@@ -801,7 +804,7 @@ class Decoder(Chain):
             
             
             new_states, logits, attn = self.advance_one_step(previous_states, prev_y, 
-                                                    compute_ctxt, i, test = True)
+                                                    compute_ctxt, i, mode = mode)
 
 #             if self.cell_type == "lstm":
 #                 previous_cell, new_state, logits, attn = self.advance_one_step(previous_state, prev_y, 
@@ -1153,7 +1156,7 @@ class Decoder(Chain):
             assert previous_state[0].data.shape[0] == current_mb_size
             
             new_state, logits, attn = self.advance_one_step(previous_state[0], prev_y, 
-                                                      compute_ctxt, i, test = True)
+                                                      compute_ctxt, i, mode = "test")
             
             best_w = None
             best_score = None
@@ -1227,7 +1230,8 @@ class Decoder(Chain):
     
     def __call__(self, fb_concat, targets, mask, use_best_for_sample = False, raw_loss_info = False,
                     keep_attn_values = False, need_score = False, noise_on_prev_word = False,
-                    use_previous_prediction = 0, test = False):
+                    use_previous_prediction = 0, mode = "test"):
+        assert mode in "test train".split()
         mb_size, nb_elems, Hi = fb_concat.data.shape
         assert Hi == self.Hi, "%i != %i"%(Hi, self.Hi)
     
@@ -1239,7 +1243,7 @@ class Decoder(Chain):
         else:
             return self.compute_loss(targets, compute_ctxt, raw_loss_info = raw_loss_info,
                                      keep_attn_values = keep_attn_values, noise_on_prev_word = noise_on_prev_word,
-                                     use_previous_prediction = use_previous_prediction, test = test)     
+                                     use_previous_prediction = use_previous_prediction, mode = mode)     
         
 class EncoderDecoder(Chain):
     """ Do RNNSearch Encoding/Decoding
@@ -1263,11 +1267,12 @@ class EncoderDecoder(Chain):
         
     def __call__(self, src_batch, tgt_batch, src_mask, use_best_for_sample = False, display_attn = False,
                  raw_loss_info = False, keep_attn_values = False, need_score = False, noise_on_prev_word = False,
-                 test = True, use_previous_prediction = 0):
-        fb_src = self.enc(src_batch, src_mask, test = test)
+                 use_previous_prediction = 0, mode = "test"):
+        assert mode in "test train".split()
+        fb_src = self.enc(src_batch, src_mask, mode = mode)
         loss = self.dec(fb_src, tgt_batch, src_mask, use_best_for_sample = use_best_for_sample, raw_loss_info = raw_loss_info,
                         keep_attn_values = keep_attn_values, need_score = need_score, noise_on_prev_word = noise_on_prev_word,
-                        test = test, use_previous_prediction = use_previous_prediction)
+                        mode = mode, use_previous_prediction = use_previous_prediction)
         return loss
     
 #     def compute_loss_and_backward(self, src_batch, tgt_batch, src_mask, raw_loss_info = False):
@@ -1281,19 +1286,19 @@ class EncoderDecoder(Chain):
                         keep_attn_values = keep_attn_values, need_score = need_score)
         return samp
     
-    def beam_search(self, src_batch, src_mask, nb_steps, eos_idx, beam_width = 20, beam_opt = False, need_attention = False, 
-                    groundhog = False, minlen = 1, ignore_unk = None):
-        fb_src = self.enc(src_batch, src_mask)
-        
-        if groundhog:
-            return self.dec.beam_search_groundhog(fb_src, src_mask, eos_idx, n_samples = beam_width, 
-                                                  need_attention = need_attention, 
-                          ignore_unk=ignore_unk, minlen= minlen)
-        elif beam_opt:
-            return self.dec.beam_search_opt(fb_src, src_mask, nb_steps, eos_idx = eos_idx, beam_width = beam_width,
-                                            need_attention = need_attention)
-        else:
-            return self.dec.beam_search(fb_src, src_mask, nb_steps, eos_idx = eos_idx, beam_width = beam_width)
+#     def beam_search(self, src_batch, src_mask, nb_steps, eos_idx, beam_width = 20, beam_opt = False, need_attention = False, 
+#                     groundhog = False, minlen = 1, ignore_unk = None):
+#         fb_src = self.enc(src_batch, src_mask)
+#         
+#         if groundhog:
+#             return self.dec.beam_search_groundhog(fb_src, src_mask, eos_idx, n_samples = beam_width, 
+#                                                   need_attention = need_attention, 
+#                           ignore_unk=ignore_unk, minlen= minlen)
+#         elif beam_opt:
+#             return self.dec.beam_search_opt(fb_src, src_mask, nb_steps, eos_idx = eos_idx, beam_width = beam_width,
+#                                             need_attention = need_attention)
+#         else:
+#             return self.dec.beam_search(fb_src, src_mask, nb_steps, eos_idx = eos_idx, beam_width = beam_width)
         
         
     def get_predictor(self, src_batch, src_mask):
