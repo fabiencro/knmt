@@ -84,8 +84,9 @@ def train_on_data(encdec, optimizer, training_data, output_files_dict,
         encdec.zerograds()
         t1 = time.clock()
         (total_loss, total_nb_predictions), attn = encdec(src_batch, tgt_batch, src_mask, raw_loss_info = True,
-                                                          noise_on_prev_word = noise_on_prev_word, test = False,
-                                                          use_previous_prediction = use_previous_prediction)
+                                                          noise_on_prev_word = noise_on_prev_word,
+                                                          use_previous_prediction = use_previous_prediction,
+                                                          mode = "train")
         loss = total_loss / total_nb_predictions
         t2 = time.clock()
         print "loss:", loss.data,
