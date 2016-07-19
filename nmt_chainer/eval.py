@@ -26,6 +26,8 @@ import logging
 import codecs
 # import h5py
 
+import rnn_cells
+
 logging.basicConfig()
 log = logging.getLogger("rnns:eval")
 log.setLevel(logging.INFO)
@@ -115,8 +117,8 @@ def create_encdec_from_config(config_training):
     
     eos_idx = Vo
     encdec = models.EncoderDecoder(Vi, Ei, Hi, Vo + 1, Eo, Ho, Ha, Hl, use_bn_length = use_bn_length,
-                                   encoder_cell_type = encoder_cell_type,
-                                   decoder_cell_type = decoder_cell_type)
+                                   encoder_cell_type = rnn_cells.cell_dict[encoder_cell_type],
+                                       decoder_cell_type = rnn_cells.cell_dict[decoder_cell_type])
     
     return encdec, eos_idx, src_indexer, tgt_indexer
     
