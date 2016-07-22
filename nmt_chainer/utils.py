@@ -97,6 +97,49 @@ def make_batch_src_tgt(training_data, eos_idx = 1, padding_idx = 0, gpu = None, 
     else:
         return src_batch, tgt_batch_v, src_mask
 
+def make_batch_tgt(training_data, eos_idx = 1, gpu = None, volatile = "off", need_arg_sort = False):
+    if need_arg_sort:
+        training_data_with_argsort = zip(training_data, range(len(training_data)))
+        training_data_with_argsort.sort(key = lambda x:len(x[0]), reverse = True)
+        training_data, argsort = zip(*training_data_with_argsort)
+    else:
+        training_data = sorted(training_data, key = lambda x:len(x), reverse = True)
+#     max_src_size = max(len(x) for x, y  in training_data)
+    max_tgt_size = max(len(y) for y  in training_data)
+    mb_size = len(training_data)
+    
+    lengths_list = []
+    lowest_non_finished = mb_size -1
+    for pos in xrange(max_tgt_size + 1):
+        while pos > len(training_data[lowest_non_finished]):
+            lowest_non_finished -= 1
+            assert lowest_non_finished >= 0
+        mb_length_at_this_pos = lowest_non_finished + 1
+        assert len(lengths_list) == 0 or mb_length_at_this_pos <= lengths_list[-1]
+        lengths_list.append(mb_length_at_this_pos)
+        
+    tgt_batch = []
+    for i in xrange(max_tgt_size + 1):
+        current_mb_size = lengths_list[i]
+        assert current_mb_size > 0
+        tgt_batch.append(np.empty((current_mb_size,), dtype = np.int32))
+        for num_ex in xrange(current_mb_size):
+            assert len(training_data[num_ex]) >= i
+            if len(training_data[num_ex]) == i:
+                tgt_batch[-1][num_ex] = eos_idx
+            else:
+                tgt_batch[-1][num_ex] = training_data[num_ex][i]
+        
+    if gpu is not None:
+        tgt_batch_v = [Variable(cuda.to_gpu(x, gpu), volatile = volatile) for x in tgt_batch]
+    else:
+        tgt_batch_v = [Variable(x, volatile = volatile) for x in tgt_batch]
+    
+    if need_arg_sort:
+        return tgt_batch_v, argsort
+    else:
+        return tgt_batch_v
+
 def minibatch_looper_random(data, mb_size):
     while 1:
         training_data_sampled = [None] * mb_size
@@ -262,3 +305,45 @@ def ortho_init(link):
         ortho_init(link.linear)
     else:
         raise NotImplemented
+
+# 
+# def create_encdec_from_config(config):
+#     import models, rnn_cells
+#     from make_data import Indexer
+#     import json
+#     
+#     voc_fn = config["voc"]
+#     log.info("loading voc from %s"% voc_fn)
+#     src_voc, tgt_voc = json.load(open(voc_fn))
+#     
+#     src_indexer = Indexer.make_from_serializable(src_voc)
+#     tgt_indexer = Indexer.make_from_serializable(tgt_voc)
+#     tgt_voc = None
+#     src_voc = None
+#     
+#     
+# #     Vi = len(src_voc) + 1 # + UNK
+# #     Vo = len(tgt_voc) + 1 # + UNK
+#     
+#     Vi = len(src_indexer) # + UNK
+#     Vo = len(tgt_indexer) # + UNK
+#     
+#     Ei = config["Ei"]
+#     Hi = config["Hi"]
+#     Eo = config["Eo"]
+#     Ho = config["Ho"]
+#     Ha = config["Ha"]
+#     Hl = config["Hl"]
+#     
+#     encoder_cell_type = config.get("encoder_cell_type", "gru")
+#     decoder_cell_type = config.get("decoder_cell_type", "gru")
+#     
+#     use_bn_length = config.get("use_bn_length", None)
+#     
+#     eos_idx = Vo
+#     
+#     encdec = models.EncoderDecoder(Vi, Ei, Hi, Vo + 1, Eo, Ho, Ha, Hl, use_bn_length = use_bn_length,
+#                                    encoder_cell_type = rnn_cells.cell_dict[encoder_cell_type],
+#                                        decoder_cell_type = rnn_cells.cell_dict[decoder_cell_type])
+#     
+#     return encdec, eos_idx, src_indexer, tgt_indexer
