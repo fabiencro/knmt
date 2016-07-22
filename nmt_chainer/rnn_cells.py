@@ -25,6 +25,57 @@ log.setLevel(logging.INFO)
 # L.GRU = L.FastGRU
 import faster_gru
 
+
+class GRUCell(Chain):
+    def __init__(self, in_size, out_size):
+        log.info("Creating GRUCell(%i, %i)"%(in_size, out_size))
+        super(GRUCell, self).__init__(
+            gru = L.GRU(out_size, in_size),
+        )
+        self.add_param("initial_state", (1, out_size))
+        self.initial_state.data[...] = self.xp.random.randn(out_size)
+        self.out_size = out_size
+        self.in_size = in_size
+          
+    def get_initial_states(self, mb_size):
+        mb_initial_state = F.broadcast_to(F.reshape(self.initial_state, (1, self.out_size)), (mb_size, self.out_size))
+        return (mb_initial_state,)
+    
+    def __call__(self, prev_states, x_in, mode = "test"):      
+        assert mode in "test train".split()
+        assert len(prev_states) == 1
+        prev_state = prev_states[0]
+        new_state = self.gru(prev_state, x_in)
+        return (new_state,)
+    
+    def get_nb_states(self):
+        return 1
+    
+class FastGRUCell(Chain):
+    def __init__(self, in_size, out_size):
+        log.info("Creating GRUCell(%i, %i)"%(in_size, out_size))
+        super(FastGRUCell, self).__init__(
+            gru = faster_gru.GRU(out_size, in_size),
+        )
+        self.add_param("initial_state", (1, out_size))
+        self.initial_state.data[...] = self.xp.random.randn(out_size)
+        self.out_size = out_size
+        self.in_size = in_size
+          
+    def get_initial_states(self, mb_size):
+        mb_initial_state = F.broadcast_to(F.reshape(self.initial_state, (1, self.out_size)), (mb_size, self.out_size))
+        return (mb_initial_state,)
+    
+    def __call__(self, prev_states, x_in, mode = "test"):      
+        assert mode in "test train".split()
+        assert len(prev_states) == 1
+        prev_state = prev_states[0]
+        new_state = self.gru(prev_state, x_in)
+        return (new_state,)
+    
+    def get_nb_states(self):
+        return 1
+
 class LSTMCell(Chain):
     def __init__(self, in_size, out_size):
         log.info("Creating LSTMCell(%i, %i)"%(in_size, out_size))
@@ -91,7 +142,7 @@ class StackedCell(ChainList):
         return res
     
     
-        
+
             
 # class DoubleGRU(Chain):
 #     def __init__(self, H, I):
@@ -113,7 +164,9 @@ class StackedCell(ChainList):
     
 cell_dict = {
              "lstm": LSTMCell,
-             "dlstm": StackedCell
+             "dlstm": StackedCell,
+             "slow_gru": GRUCell,
+             "gru": FastGRUCell
              }
         
         
