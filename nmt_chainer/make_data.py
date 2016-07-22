@@ -329,6 +329,69 @@ def build_dataset_one_side(src_fn, src_voc_limit=None, max_nb_ex=None, dic_src=N
                                               num_ex
                                               )
 
+def build_dataset_for_nbest_list_scoring(dic_src, nbest_list):
+    res = []
+    num_ex = 0
+    total_token_src = 0
+    total_count_unk_src = 0
+    for sublist in nbest_list:
+        res.append([])
+        for sentence in sublist:
+            seq_src = dic_src.convert(sentence)
+            unk_cnt_src = sum(dic_src.is_unk_idx(w) for w in seq_src)
+    
+            total_count_unk_src += unk_cnt_src
+    
+            total_token_src += len(seq_src)
+    
+            res[-1].append(seq_src)
+            num_ex += 1  
+    return res, MakeDataInfosOneSide(total_count_unk_src,
+                                              total_token_src,
+                                              num_ex
+                                              )
+# 
+# def build_dataset_one_side_from_list_of_list(src_fn, src_voc_limit=None, max_nb_ex=None, dic_src=None,
+#                            segmentation_type = "word"):
+#     if dic_src is None:
+#         log.info("building src_dic")
+#         dic_src = build_index(src_fn, src_voc_limit, max_nb_ex,
+#                               segmentation_type = segmentation_type)
+# 
+#     log.info("start indexing")
+# 
+#     src = codecs.open(src_fn, encoding="utf8")
+# 
+#     res = []
+# 
+#     num_ex = 0
+#     total_token_src = 0
+#     total_count_unk_src = 0
+#     while 1:
+#         if max_nb_ex is not None and num_ex >= max_nb_ex:
+#             break
+# 
+#         line_src = src.readline()
+# 
+#         if len(line_src) == 0:
+#             break
+# 
+#         line_src = line_src.strip().split(" ")
+# 
+#         seq_src = dic_src.convert(line_src)
+#         unk_cnt_src = sum(dic_src.is_unk_idx(w) for w in seq_src)
+# 
+#         total_count_unk_src += unk_cnt_src
+# 
+#         total_token_src += len(seq_src)
+# 
+#         res.append(seq_src)
+#         num_ex += 1
+# 
+#     return res, dic_src, MakeDataInfosOneSide(total_count_unk_src,
+#                                               total_token_src,
+#                                               num_ex
+#                                               )
 
 def build_dataset(src_fn, tgt_fn,
                   src_voc_limit=None, tgt_voc_limit=None, max_nb_ex=None, dic_src=None, dic_tgt=None,

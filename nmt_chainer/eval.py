@@ -12,6 +12,7 @@ from chainer import cuda, serializers
 import sys
 import models
 from make_data import Indexer, build_dataset_one_side
+import make_data
 # from utils import make_batch_src, make_batch_src_tgt, minibatch_provider, compute_bleu_with_unk_as_wrong, de_batch
 from evaluation import (greedy_batch_translate, 
 #                         convert_idx_to_string, 
@@ -147,8 +148,12 @@ def commandline():
     parser.add_argument("--additional_trained_model", nargs = "*", help = "prefix of the trained model")
     
     parser.add_argument("--tgt_fn", help = "target text")
+    
+    parser.add_argument("--nbest_to_rescore", help = "nbest list in moses format")
+    
     parser.add_argument("--mode", default = "translate", 
-                        choices = ["translate", "align", "translate_attn", "beam_search", "eval_bleu"], help = "target text")
+                        choices = ["translate", "align", "translate_attn", "beam_search", "eval_bleu",
+                                   "score_nbest"], help = "target text")
     
     parser.add_argument("--ref", help = "target text")
     
@@ -364,6 +369,71 @@ def commandline():
             
             
 #         out.write(convert_idx_to_string([x for x, attn in t], tgt_voc + ["#T_UNK#"]) + "\n")
+
+    elif args.mode == "score_nbest":
+        log.info("opening nbest file %s" % args.nbest_to_rescore)
+        nbest_f = codecs.open(args.nbest_to_rescore, encoding = "utf8")
+        nbest_list = [[]]
+        for line in nbest_f:
+            line = line.strip().split("|||")
+            num_src = int(line[0].strip())
+            if num_src >= len(nbest_list):
+                assert num_src == len(nbest_list)
+                if args.max_nb_ex is not None and num_src >= args.max_nb_ex:
+                    break
+                nbest_list.append([])
+            else:
+                assert num_src == len(nbest_list) -1
+            sentence = line[1].strip()
+            nbest_list[-1].append(sentence.split(" "))
+        
+        log.info("found nbest lists for %i source sentences"%len(nbest_list))
+        nbest_converted, make_data_infos = make_data.build_dataset_for_nbest_list_scoring(tgt_indexer, nbest_list)
+        log.info("total %i sentences loaded"%make_data_infos.nb_ex)
+        log.info("#tokens src: %i   of which %i (%f%%) are unknown"%(make_data_infos.total_token, 
+                                                                 make_data_infos.total_count_unk, 
+                                                                 float(make_data_infos.total_count_unk * 100) / 
+                                                                    make_data_infos.total_token))
+        if len(nbest_list) != len(src_data[:args.max_nb_ex]):
+            log.warn("mismatch in lengths nbest vs src : %i != %i"%(len(nbest_list), len(src_data[:args.max_nb_ex])))
+            assert len(nbest_list) == len(src_data[:args.max_nb_ex])
+        
+        
+        log.info("starting scoring")
+        import utils
+        res = []
+        for num in xrange(len(nbest_converted)):
+            if num%200 == 0:
+                print  >>sys.stderr, num,
+            elif num %50 == 0:
+                print  >>sys.stderr, "*",
+                
+            res.append([])
+            src, tgt_list = src_data[num], nbest_converted[num]
+            src_batch, src_mask = utils.make_batch_src([src], gpu = args.gpu, volatile = "on")
+            
+            scorer = encdec.nbest_scorer(src_batch, src_mask)
+            
+            nb_batches = (len(tgt_list) + args.mb_size -1)/ args.mb_size
+            for num_batch in xrange(nb_batches):
+                tgt_batch, arg_sort = utils.make_batch_tgt(tgt_list[num_batch * nb_batches : (num_batch + 1) * nb_batches],
+                                eos_idx = eos_idx, gpu =  args.gpu, volatile = "on", need_arg_sort = True)
+                scores, attn = scorer(tgt_batch)
+                scores, _ = scores
+                scores = scores.data
+                
+                assert len(arg_sort) == len(scores)
+                de_sorted_scores = [None] * len(scores)
+                for xpos in xrange(len(arg_sort)):
+                    original_pos = arg_sort[xpos]
+                    de_sorted_scores[original_pos] = scores[xpos]
+                res[-1] += de_sorted_scores
+        print  >>sys.stderr
+        log.info("writing scores to %s"%args.dest_fn)
+        out = codecs.open(args.dest_fn, "w", encoding = "utf8")
+        for num in xrange(len(res)):
+            for score in res[num]:
+                out.write("%i %f\n"%(num, score))
     
 if __name__ == '__main__':
     commandline() 

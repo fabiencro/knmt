@@ -230,3 +230,5 @@ def sample_once(encdec, src_batch, tgt_batch, src_mask, src_indexer, tgt_indexer
         print "tgt:", " ".join(tgt_indexer.deconvert(tgt_idx_seq, unk_tag = t_unk_tag, eos_idx = eos_idx)) # convert_idx_to_string(tgt_idx_seq, tgt_voc, eos_idx = eos_idx)
         print "sample idx:", sample_idx_seq
         print "sample:", " ".join(tgt_indexer.deconvert(sample_idx_seq, unk_tag = t_unk_tag, eos_idx = eos_idx)) #convert_idx_to_string(sample_idx_seq, tgt_voc, eos_idx = eos_idx)
+        
+        

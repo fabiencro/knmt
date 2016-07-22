@@ -749,8 +749,11 @@ class Decoder(Chain):
     
 
     def compute_loss(self, targets, compute_ctxt, raw_loss_info = False, keep_attn_values = False, 
-                     noise_on_prev_word = False, use_previous_prediction = 0, mode = "test"):
+                     noise_on_prev_word = False, use_previous_prediction = 0, mode = "test", per_sentence = False):
         assert mode in "test train".split()
+#         assert loss_format in "average raw per_sentence".split(" ")
+        
+        
         loss = None
         current_mb_size = targets[0].data.shape[0]
 #         previous_state = F.concat( [self.initial_state] * current_mb_size, 0)
@@ -816,12 +819,21 @@ class Decoder(Chain):
             if keep_attn_values:
                 attn_list.append(attn)
                 
-            local_loss = F.softmax_cross_entropy(logits, targets[i])   
+            if per_sentence:
+                normalized_logits = F.log_softmax(logits)
+                total_local_loss = F.select_item(normalized_logits, targets[i])
+                if loss is not None and total_local_loss.data.shape[0] != loss.data.shape[0]:
+                    assert total_local_loss.data.shape[0] < loss.data.shape[0]
+                    total_local_loss = F.concat(
+                                (total_local_loss, self.xp.zeros(loss.data.shape[0] - total_local_loss.data.shape[0], dtype = self.xp.float32)),
+                                axis = 0)
+            else:
+                local_loss = F.softmax_cross_entropy(logits, targets[i])   
             
-            total_nb_predictions += current_mb_size
-            total_local_loss = local_loss * current_mb_size
+                total_nb_predictions += current_mb_size
+                total_local_loss = local_loss * current_mb_size
             
-#             loss = local_loss if loss is None else loss + local_loss
+#             loss = local_loss if loss is None else loss + local_loss#         assert loss_format in "average raw per_sentence".split(" ")
             loss = total_local_loss if loss is None else loss + total_local_loss
             if use_previous_prediction > 0 and random.random() < use_previous_prediction:
                 previous_word = Variable(self.xp.argmax(logits.data, axis = 1).astype(self.xp.int32), volatile = "auto")
@@ -1305,6 +1317,17 @@ class EncoderDecoder(Chain):
         fb_src = self.enc(src_batch, src_mask)
         return self.dec.get_predictor(fb_src, src_mask)
        
+    def nbest_scorer(self, src_batch, src_mask):
+        assert len(src_batch[0].data) == 1
+        fb_concat = self.enc(src_batch, src_mask)
+        compute_ctxt = self.dec.attn_module.compute_ctxt_demux(fb_concat, src_mask)
+        
+        def scorer(tgt_batch):
+            return self.dec.compute_loss(tgt_batch, compute_ctxt, raw_loss_info = True, keep_attn_values = False, 
+                 noise_on_prev_word = False, use_previous_prediction = 0, mode = "test", per_sentence = True)
+    
+        return scorer
+               
 # class EncoderDecoderPredictAlign(Chain):
 #     """ Do RNNSearch Encoding/Decoding
 #         The __call__ takes 3 required parameters: src_batch, tgt_batch, src_mask
