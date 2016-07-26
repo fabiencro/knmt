@@ -57,21 +57,6 @@ class Encoder(Chain):
         Return a chainer variable of shape (mb_size, #length, 2*Hi) and type float32
     """
     def __init__(self, Vi, Ei, Hi, init_orth = False, use_bn_length = 0, cell_type = rnn_cells.LSTMCell):
-#         assert cell_type in "gru dgru lstm slow_gru".split()
-#         self.cell_type = cell_type
-#         if cell_type == "gru":
-#             gru_f = faster_gru.GRU(Hi, Ei)
-#             gru_b = faster_gru.GRU(Hi, Ei)
-#         elif cell_type == "dgru":
-#             gru_f = DoubleGRU(Hi, Ei)
-#             gru_b = DoubleGRU(Hi, Ei)
-#         elif cell_type == "lstm":
-#             gru_f = L.StatelessLSTM(Ei, Hi) #, forget_bias_init = 3)
-#             gru_b = L.StatelessLSTM(Ei, Hi) #, forget_bias_init = 3)
-#         if cell_type == "slow_gru":
-#             gru_f = L.GRU(Hi, Ei)
-#             gru_b = L.GRU(Hi, Ei)
-#             
         gru_f = cell_type(Ei, Hi)
         gru_b = cell_type(Ei, Hi)
                   
@@ -85,18 +70,6 @@ class Encoder(Chain):
             gru_b = gru_b
         )
         self.Hi = Hi
-#         self.add_param("initial_state_f", (1, Hi))
-#         self.add_param("initial_state_b", (1, Hi))
-# 
-#         self.initial_state_f.data[...] = np.random.randn(Hi)
-#         self.initial_state_b.data[...] = np.random.randn(Hi)
-#         
-#         if cell_type == "lstm":
-#             self.add_persistent("initial_cell_f", self.xp.zeros((1, self.Hi), dtype = self.xp.float32))
-#             self.add_persistent("initial_cell_b", self.xp.zeros((1, self.Hi), dtype = self.xp.float32))
-            
-#             self.initial_cell_f = self.xp.zeros((1, self.Hi), dtype = self.xp.float32)
-#             self.initial_cell_b = self.xp.zeros((1, self.Hi), dtype = self.xp.float32)  
         
         if use_bn_length > 0:
             self.add_link("bn_f", BNList(Hi, use_bn_length))
@@ -112,13 +85,6 @@ class Encoder(Chain):
         
         mb_size = sequence[0].data.shape[0]
         
-#         mb_initial_state_f = F.broadcast_to(F.reshape(self.initial_state_f, (1, self.Hi)), (mb_size, self.Hi))
-#         mb_initial_state_b = F.broadcast_to(F.reshape(self.initial_state_b, (1, self.Hi)), (mb_size, self.Hi))
-#         
-#         if self.cell_type == "lstm":
-#             mb_initial_cell_f = Variable(self.xp.broadcast_to(self.initial_cell_f, (mb_size, self.Hi)), volatile = "auto")
-#             mb_initial_cell_b = Variable(self.xp.broadcast_to(self.initial_cell_b, (mb_size, self.Hi)), volatile = "auto")
-        
         mb_initial_states_f = self.gru_f.get_initial_states(mb_size)
         mb_initial_states_b = self.gru_b.get_initial_states(mb_size)
         
@@ -126,43 +92,25 @@ class Encoder(Chain):
         for elem in sequence:
             embedded_seq.append(self.emb(elem))
             
-#         self.gru_f.reset_state()
         prev_states = mb_initial_states_f
-#         if self.cell_type == "lstm":
-#             prev_cell = mb_initial_cell_f
-            
         forward_seq = []
         for i, x in enumerate(embedded_seq):
             prev_states = self.gru_f(prev_states, x, mode = mode)
             output = prev_states[-1]
-#             if self.cell_type == "lstm":
-#                 prev_cell, prev_state = self.gru_f(prev_cell, prev_state, x)
-#             else:
-#                 prev_state = self.gru_f(prev_state, x)
-#             if self.use_bn_length > 0:
-#                 prev_state = self.bn_f(prev_state, i, test = test)
             forward_seq.append(output)
             
-#         self.gru_b.reset_state()
-
         mask_length = len(mask)
         seq_length = len(sequence)
         assert mask_length <= seq_length
         mask_offset = seq_length - mask_length
         
         prev_states = mb_initial_states_b
-#         if self.cell_type == "lstm":
-#             prev_cell = mb_initial_cell_b
             
         backward_seq = []
         for pos, x in reversed(list(enumerate(embedded_seq))):
             if pos < mask_offset:
                 prev_states = self.gru_b(prev_states, x, mode = mode)
                 output = prev_states[-1]
-#                 if self.cell_type == "lstm":
-#                     prev_cell, prev_state = self.gru_b(prev_cell, prev_state, x)
-#                 else:
-#                     prev_state = self.gru_b(prev_state, x)
             else:
                 reshaped_mask = F.broadcast_to(
                                 Variable(self.xp.reshape(mask[pos - mask_offset], 
@@ -177,25 +125,7 @@ class Encoder(Chain):
                                     prev_states[num_state], mb_initial_states_b[num_state]) #TODO: optimize?
                 prev_states = tuple(masked_prev_states)
                 output = prev_states[-1]
-#                 if self.cell_type == "lstm":
-#                     prev_cell, prev_state = self.gru_b(prev_cell, prev_state, x)
-#                     
-#                     prev_state = F.where(reshaped_mask,
-#                                     prev_state, mb_initial_state_b) #TODO: optimize?
-#                     
-#                     prev_cell = F.where(reshaped_mask,
-#                                     prev_cell, mb_initial_cell_b) #TODO: optimize?
-#                 else:
-#                     prev_state = self.gru_b(prev_state, x)
-#                     
-#                     prev_state = F.where(reshaped_mask,
-#                                     prev_state, mb_initial_state_b) #TODO: optimize?
-#                 
-                
-#             TODO: 
-#             if self.use_bn_length > 0:
-#                 prev_state = self.bn_b(prev_state, i)
-            
+
             
             backward_seq.append(output)
         
@@ -359,6 +289,386 @@ class DeepAttentionModule(Chain):
     def compute_ctxt_demux(self, fb_concat, mask):
         raise NotImplemented
     
+
+class Decoder(Chain):
+    """ Decoder for RNNSearch. 
+        The __call_ takes 3 required parameters: fb_concat, targets, mask.
+        
+        fb_concat should be the result of a call to Encoder.
+        
+        targets is a python list of chainer variables of type int32 and of variable shape (n,)
+            the values n should be decreasing:
+                i < j => targets[i].data.shape[0] >= targets[j].data.shape[0]
+            targets[i].data[j] is the jth elements of the ith sequence in the minibatch
+            all this imply that the sequences of the minibatch should be sorted from longest to shortest
+            
+        mask is as in the description of Encoder.
+        
+        * it is up to the user to add an EOS token to the data.
+               
+        Return a loss and the attention model values
+    """
+    def __init__(self, Vo, Eo, Ho, Ha, Hi, Hl, attn_cls = AttentionModule, init_orth = False, use_bn_length = 0,
+                 cell_type = rnn_cells.LSTMCell):
+#         assert cell_type in "gru dgru lstm slow_gru".split()
+#         self.cell_type = cell_type
+#         if cell_type == "gru":
+#             gru = faster_gru.GRU(Ho, Eo + Hi)
+#         elif cell_type == "dgru":
+#             gru = DoubleGRU(Ho, Eo + Hi)
+#         elif cell_type == "lstm":
+#             gru = L.StatelessLSTM(Eo + Hi, Ho) #, forget_bias_init = 3)
+#         elif cell_type == "slow_gru":
+#             gru = L.GRU(Ho, Eo + Hi)
+        
+        gru = cell_type(Eo + Hi, Ho)
+        
+        log.info("constructing decoder [%r]"%(cell_type,))
+        
+        super(Decoder, self).__init__(
+            emb = L.EmbedID(Vo, Eo),
+#             gru = L.GRU(Ho, Eo + Hi),
+            
+            gru = gru,
+            
+            maxo = L.Maxout(Eo + Hi + Ho, Hl, 2),
+            lin_o = L.Linear(Hl, Vo, nobias = False),
+            
+            attn_module = attn_cls(Hi, Ha, Ho, init_orth = init_orth)
+        )
+#         self.add_param("initial_state", (1, Ho))
+        self.add_param("bos_embeding", (1, Eo))
+        
+        if use_bn_length > 0:
+            self.add_link("bn", BNList(Ho, use_bn_length))
+        self.use_bn_length = use_bn_length
+        
+        
+        self.Hi = Hi
+        self.Ho = Ho
+        self.Eo = Eo
+#         self.initial_state.data[...] = np.random.randn(Ho)
+        self.bos_embeding.data[...] = np.random.randn(Eo)
+        
+        if init_orth:
+            ortho_init(self.gru)
+            ortho_init(self.lin_o)
+            ortho_init(self.maxo)
+        
+    def advance_one_step(self, previous_states, prev_y, compute_ctxt, i, mode = "test"):
+        assert mode in "test train".split()
+
+        output_state = previous_states[-1]
+        ci, attn = compute_ctxt(output_state)
+        concatenated = F.concat( (prev_y, ci) )
+            
+        new_states = self.gru(previous_states, concatenated, mode = mode)
+        new_output_state = new_states[-1]
+            
+#         if self.use_bn_length > 0:
+#             new_output_state = self.bn(new_output_state, i, test = test)
+            
+        all_concatenated = F.concat((concatenated, new_output_state))
+        logits = self.lin_o(self.maxo(all_concatenated))
+        
+        return new_states, logits, attn
+        
+    def sample(self, nb_steps, compute_ctxt, mb_size, best = False, keep_attn_values = False,
+               need_score = False):
+        
+        previous_states = self.gru.get_initial_states(mb_size)
+        
+        previous_word = None
+        with cuda.get_device(previous_states[0].data):
+#             previous_word = Variable(xp.array([self.bos_idx] * mb_size, dtype = np.int32))
+            prev_y = F.broadcast_to(self.bos_embeding, (mb_size, self.Eo))
+        score = 0
+        sequences = []
+        attn_list = []
+        for i in xrange(nb_steps):
+#             print "i", i
+            if previous_word is not None: #else we are using the initial prev_y
+                prev_y = self.emb(previous_word)
+                
+            new_states, logits, attn = self.advance_one_step(previous_states, prev_y, 
+                                                    compute_ctxt, i, mode = "test")
+                
+            if keep_attn_values:
+                attn_list.append(attn)
+#             print logits.data.shape
+            probs = F.softmax(logits)
+            if best:
+                curr_idx = self.xp.argmax(probs.data, 1).astype(np.int32)
+            else:
+                curr_idx = self.xp.empty((mb_size,), dtype = np.int32)
+                probs_data = cuda.to_cpu(probs.data)
+                for i in xrange(mb_size):
+                    sampler = chainer.utils.WalkerAlias(probs_data[i])
+                    curr_idx[i] =  sampler.sample(1)[0]
+            if need_score:
+                score = score + np.log(cuda.to_cpu(probs.data)[np.arange(mb_size),cuda.to_cpu(curr_idx)])
+            sequences.append(curr_idx)
+            
+            previous_word = Variable(curr_idx, volatile = "auto")
+            previous_states = new_states
+            
+        return sequences, score, attn_list
+    
+
+    def compute_loss(self, targets, compute_ctxt, raw_loss_info = False, keep_attn_values = False, 
+                     noise_on_prev_word = False, use_previous_prediction = 0, mode = "test", per_sentence = False):
+        assert mode in "test train".split()
+        
+        loss = None
+        current_mb_size = targets[0].data.shape[0]
+
+        previous_states = self.gru.get_initial_states(current_mb_size)
+
+        previous_word = None
+        with cuda.get_device(previous_states[0].data):
+            prev_y = F.broadcast_to(self.bos_embeding, (current_mb_size, self.Eo))
+        attn_list = []
+        total_nb_predictions = 0
+        
+        if noise_on_prev_word:
+            noise_mean = Variable(self.xp.ones_like(prev_y.data, dtype = self.xp.float32))
+            noise_lnvar = Variable(self.xp.zeros_like(prev_y.data, dtype = self.xp.float32))
+        
+        for i in xrange(len(targets)):
+            assert i == 0 or previous_states[0].data.shape[0] == previous_word.data.shape[0]
+            current_mb_size = targets[i].data.shape[0]
+            if current_mb_size < len(previous_states[0].data):
+                truncated_states = [None] * len(previous_states)
+                for num_state in xrange(len(previous_states)):
+                    truncated_states[num_state], _ = F.split_axis(previous_states[num_state], (current_mb_size,), 0)
+                previous_states = tuple(truncated_states)
+                    
+                if previous_word is not None:
+                    previous_word, _ = F.split_axis(previous_word, (current_mb_size,), 0 )
+                    
+                if noise_on_prev_word:
+                    noise_mean, _ = F.split_axis(noise_mean, (current_mb_size,), 0)
+                    noise_lnvar, _ = F.split_axis(noise_lnvar, (current_mb_size,), 0)
+            if previous_word is not None: #else we are using the initial prev_y
+                prev_y = self.emb(previous_word)
+            assert previous_states[0].data.shape[0] == current_mb_size
+            
+            if noise_on_prev_word:
+                prev_y = prev_y * F.gaussian(noise_mean, noise_lnvar)
+            
+            
+            new_states, logits, attn = self.advance_one_step(previous_states, prev_y, 
+                                                    compute_ctxt, i, mode = mode)
+
+
+            if keep_attn_values:
+                attn_list.append(attn)
+                
+            if per_sentence:
+                normalized_logits = F.log_softmax(logits)
+                total_local_loss = F.select_item(normalized_logits, targets[i])
+                if loss is not None and total_local_loss.data.shape[0] != loss.data.shape[0]:
+                    assert total_local_loss.data.shape[0] < loss.data.shape[0]
+                    total_local_loss = F.concat(
+                                (total_local_loss, self.xp.zeros(loss.data.shape[0] - total_local_loss.data.shape[0], dtype = self.xp.float32)),
+                                axis = 0)
+            else:
+                local_loss = F.softmax_cross_entropy(logits, targets[i])   
+            
+                total_nb_predictions += current_mb_size
+                total_local_loss = local_loss * current_mb_size
+            
+#             loss = local_loss if loss is None else loss + local_loss#         assert loss_format in "average raw per_sentence".split(" ")
+            loss = total_local_loss if loss is None else loss + total_local_loss
+            if use_previous_prediction > 0 and random.random() < use_previous_prediction:
+                previous_word = Variable(self.xp.argmax(logits.data, axis = 1).astype(self.xp.int32), volatile = "auto")
+            else:
+                previous_word = targets[i]
+#             prev_y = self.emb(previous_word)
+            previous_states = new_states
+#             attn_list.append(attn)
+        if raw_loss_info:
+            return (loss, total_nb_predictions), attn_list
+        else:
+            loss = loss / total_nb_predictions
+            return loss, attn_list
+    
+    
+#     
+    def get_predictor(self, fb_concat, mask):
+        mb_size, nb_elems, Hi = fb_concat.data.shape
+        assert Hi == self.Hi, "%i != %i"%(Hi, self.Hi)
+        xp = cuda.get_array_module(self.initial_state.data)
+        
+        compute_ctxt = self.attn_module.compute_ctxt_demux(fb_concat, mask)
+        
+        assert mb_size == 1
+        current_mb_size = mb_size
+#         previous_state = F.concat( [self.initial_state] * current_mb_size, 0)
+        previous_state = [F.broadcast_to(self.initial_state, (current_mb_size, self.Ho))]
+#         previous_word = Variable(np.array([self.bos_idx] * mb_size, dtype = np.int32))
+        previous_word = [None]
+        with cuda.get_device(self.initial_state.data):
+#             previous_word = Variable(xp.array([self.bos_idx] * current_mb_size, dtype = np.int32))
+            prev_y_initial = F.broadcast_to(self.bos_embeding, (current_mb_size, self.Eo))
+            
+            
+        def choose(voc_list, i):
+            if previous_word[0] is not None: #else we are using the initial prev_y
+                prev_y = self.emb(previous_word[0])
+            else:
+                prev_y = prev_y_initial
+            assert previous_state[0].data.shape[0] == current_mb_size
+            
+            new_state, logits, attn = self.advance_one_step(previous_state[0], prev_y, 
+                                                      compute_ctxt, i, mode = "test")
+            
+            best_w = None
+            best_score = None
+            for w in voc_list:
+                score = logits.data[0][w]
+                if best_score is None or score > best_score:
+                    best_score = score
+                    best_w = w
+                            
+                        
+            previous_word[0] = Variable(self.xp.array([best_w], dtype = self.xp.int32), volatile = "auto")
+            previous_state[0] = new_state
+            return best_w
+        return choose
+
+    
+    
+#     def compute_loss_and_backward(self, fb_concat, targets, mask, raw_loss_info = False):
+#         
+#         compute_ctxt = self.attn_module(fb_concat, mask)
+#         loss = None
+#         current_mb_size = targets[0].data.shape[0]
+#         previous_state = F.broadcast_to(self.initial_state, (current_mb_size, self.Ho))
+#         xp = cuda.get_array_module(self.initial_state.data)
+#         previous_word = None
+#         with cuda.get_device(self.initial_state.data):
+#             prev_y = F.broadcast_to(self.bos_embeding, (current_mb_size, self.Eo))
+#             
+#         total_nb_predictions = 0
+#         for i in xrange(len(targets)):
+#             current_mb_size = targets[i].data.shape[0]
+#             total_nb_predictions += current_mb_size
+#             
+#         for i in xrange(len(targets)):
+#             assert i == 0 or previous_state.data.shape[0] == previous_word.data.shape[0]
+#             current_mb_size = targets[i].data.shape[0]
+#             if current_mb_size < len(previous_state.data):
+#                 previous_state, _ = F.split_axis(previous_state, (current_mb_size,), 0)
+#                 if previous_word is not None:
+#                     previous_word, _ = F.split_axis(previous_word, (current_mb_size,), 0 )
+#             if previous_word is not None: #else we are using the initial prev_y
+#                 prev_y = self.emb(previous_word)
+#             assert previous_state.data.shape[0] == current_mb_size
+#             
+#             new_state, logits, attn = self.advance_one_step(previous_state, prev_y, 
+#                                                       compute_ctxt)
+# 
+#             del attn
+#             local_loss = F.softmax_cross_entropy(logits, targets[i])
+#             local_loss_scaled = local_loss * (current_mb_size/ float(total_nb_predictions))
+#             local_loss_scaled.backward()
+#             del local_loss_scaled
+#             total_loss = local_loss.data * current_mb_size
+#             
+#             loss = loss + total_loss if loss is not None else total_loss
+#             del local_loss
+#             del logits
+#             
+#             previous_word = targets[i]
+# #             prev_y = self.emb(previous_word)
+#             previous_state = new_state
+# #             attn_list.append(attn)
+# 
+#         loss = float(loss)
+#         if raw_loss_info:
+#             return (loss, total_nb_predictions)
+#         else:
+#             loss = loss / total_nb_predictions
+#             return loss
+    
+    
+    def __call__(self, fb_concat, targets, mask, use_best_for_sample = False, raw_loss_info = False,
+                    keep_attn_values = False, need_score = False, noise_on_prev_word = False,
+                    use_previous_prediction = 0, mode = "test"):
+        assert mode in "test train".split()
+        mb_size, nb_elems, Hi = fb_concat.data.shape
+        assert Hi == self.Hi, "%i != %i"%(Hi, self.Hi)
+    
+        compute_ctxt = self.attn_module(fb_concat, mask)
+
+        if isinstance(targets, int):
+            return self.sample(targets, compute_ctxt, mb_size, best = use_best_for_sample,
+                               keep_attn_values = keep_attn_values, need_score = need_score)
+        else:
+            return self.compute_loss(targets, compute_ctxt, raw_loss_info = raw_loss_info,
+                                     keep_attn_values = keep_attn_values, noise_on_prev_word = noise_on_prev_word,
+                                     use_previous_prediction = use_previous_prediction, mode = mode)     
+        
+class EncoderDecoder(Chain):
+    """ Do RNNSearch Encoding/Decoding
+        The __call__ takes 3 required parameters: src_batch, tgt_batch, src_mask
+        src_batch is as in the sequence parameter of Encoder
+        tgt_batch is as in the targets parameter of Decoder
+        src_mask is as in the mask parameter of Encoder
+        
+        return loss and attention values
+    """
+    def __init__(self, Vi, Ei, Hi, Vo, Eo, Ho, Ha, Hl, attn_cls = AttentionModule, init_orth = False, use_bn_length = 0,
+                encoder_cell_type = "gru", decoder_cell_type = "gru"):
+        log.info("constructing encoder decoder with Vi:%i Ei:%i Hi:%i Vo:%i Eo:%i Ho:%i Ha:%i Hl:%i" % 
+                                        (Vi, Ei, Hi, Vo, Eo, Ho, Ha, Hl))
+        super(EncoderDecoder, self).__init__(
+            enc = Encoder(Vi, Ei, Hi, init_orth = init_orth, use_bn_length = use_bn_length,
+                          cell_type = encoder_cell_type),
+            dec = Decoder(Vo, Eo, Ho, Ha, 2 * Hi, Hl, attn_cls = attn_cls, init_orth = init_orth, 
+                          use_bn_length = use_bn_length, cell_type = decoder_cell_type)
+        )
+        
+    def __call__(self, src_batch, tgt_batch, src_mask, use_best_for_sample = False, display_attn = False,
+                 raw_loss_info = False, keep_attn_values = False, need_score = False, noise_on_prev_word = False,
+                 use_previous_prediction = 0, mode = "test"):
+        assert mode in "test train".split()
+        fb_src = self.enc(src_batch, src_mask, mode = mode)
+        loss = self.dec(fb_src, tgt_batch, src_mask, use_best_for_sample = use_best_for_sample, raw_loss_info = raw_loss_info,
+                        keep_attn_values = keep_attn_values, need_score = need_score, noise_on_prev_word = noise_on_prev_word,
+                        mode = mode, use_previous_prediction = use_previous_prediction)
+        return loss
+    
+#     def compute_loss_and_backward(self, src_batch, tgt_batch, src_mask, raw_loss_info = False):
+#         fb_src = self.enc(src_batch, src_mask)
+#         loss = self.dec.compute_loss_and_backward(fb_src, tgt_batch, src_mask, raw_loss_info = raw_loss_info)
+#         return loss
+    
+    def sample(self, src_batch, src_mask, nb_steps, use_best_for_sample, keep_attn_values = False, need_score = False):
+        fb_src = self.enc(src_batch, src_mask)
+        samp = self.dec.sample(self, fb_src, nb_steps, src_mask, use_best_for_sample = use_best_for_sample,
+                        keep_attn_values = keep_attn_values, need_score = need_score)
+        return samp
+        return self.dec.beam_search(fb_src, src_mask, nb_steps, eos_idx = eos_idx, beam_width = beam_width)
+        
+        
+    def get_predictor(self, src_batch, src_mask):
+        fb_src = self.enc(src_batch, src_mask)
+        return self.dec.get_predictor(fb_src, src_mask)
+       
+    def nbest_scorer(self, src_batch, src_mask):
+        assert len(src_batch[0].data) == 1
+        fb_concat = self.enc(src_batch, src_mask)
+        compute_ctxt = self.dec.attn_module.compute_ctxt_demux(fb_concat, src_mask)
+        
+        def scorer(tgt_batch):
+            return self.dec.compute_loss(tgt_batch, compute_ctxt, raw_loss_info = True, keep_attn_values = False, 
+                 noise_on_prev_word = False, use_previous_prediction = 0, mode = "test", per_sentence = True)
+    
+        return scorer
+      
+
 #           
 # class AttentionModuleAcumulated(Chain):
 #     """ Attention Module for computing the current context during decoding. 
@@ -588,745 +898,6 @@ class DeepAttentionModule(Chain):
 #         else:
 #             loss = loss / total_nb_predictions
 #             return loss, attn_list
-
-class Decoder(Chain):
-    """ Decoder for RNNSearch. 
-        The __call_ takes 3 required parameters: fb_concat, targets, mask.
-        
-        fb_concat should be the result of a call to Encoder.
-        
-        targets is a python list of chainer variables of type int32 and of variable shape (n,)
-            the values n should be decreasing:
-                i < j => targets[i].data.shape[0] >= targets[j].data.shape[0]
-            targets[i].data[j] is the jth elements of the ith sequence in the minibatch
-            all this imply that the sequences of the minibatch should be sorted from longest to shortest
-            
-        mask is as in the description of Encoder.
-        
-        * it is up to the user to add an EOS token to the data.
-               
-        Return a loss and the attention model values
-    """
-    def __init__(self, Vo, Eo, Ho, Ha, Hi, Hl, attn_cls = AttentionModule, init_orth = False, use_bn_length = 0,
-                 cell_type = rnn_cells.LSTMCell):
-#         assert cell_type in "gru dgru lstm slow_gru".split()
-#         self.cell_type = cell_type
-#         if cell_type == "gru":
-#             gru = faster_gru.GRU(Ho, Eo + Hi)
-#         elif cell_type == "dgru":
-#             gru = DoubleGRU(Ho, Eo + Hi)
-#         elif cell_type == "lstm":
-#             gru = L.StatelessLSTM(Eo + Hi, Ho) #, forget_bias_init = 3)
-#         elif cell_type == "slow_gru":
-#             gru = L.GRU(Ho, Eo + Hi)
-        
-        gru = cell_type(Eo + Hi, Ho)
-        
-        log.info("constructing decoder [%r]"%(cell_type,))
-        
-        super(Decoder, self).__init__(
-            emb = L.EmbedID(Vo, Eo),
-#             gru = L.GRU(Ho, Eo + Hi),
-            
-            gru = gru,
-            
-            maxo = L.Maxout(Eo + Hi + Ho, Hl, 2),
-            lin_o = L.Linear(Hl, Vo, nobias = False),
-            
-            attn_module = attn_cls(Hi, Ha, Ho, init_orth = init_orth)
-        )
-#         self.add_param("initial_state", (1, Ho))
-        self.add_param("bos_embeding", (1, Eo))
-#         
-#         if cell_type == "lstm":
-#             self.add_persistent("initial_cell", self.xp.zeros((1, Ho), dtype = self.xp.float32))
-
-#             self.initial_cell = self.xp.zeros((1, Ho), dtype = self.xp.float32)
-        
-        if use_bn_length > 0:
-            self.add_link("bn", BNList(Ho, use_bn_length))
-        self.use_bn_length = use_bn_length
-        
-        
-        self.Hi = Hi
-        self.Ho = Ho
-        self.Eo = Eo
-#         self.initial_state.data[...] = np.random.randn(Ho)
-        self.bos_embeding.data[...] = np.random.randn(Eo)
-        
-        if init_orth:
-            ortho_init(self.gru)
-            ortho_init(self.lin_o)
-            ortho_init(self.maxo)
-        
-    def advance_one_step(self, previous_states, prev_y, compute_ctxt, i, mode = "test"):
-        assert mode in "test train".split()
-
-        output_state = previous_states[-1]
-        ci, attn = compute_ctxt(output_state)
-        concatenated = F.concat( (prev_y, ci) )
-#             print concatenated.data.shape
-
-#         if self.cell_type == "lstm":
-#             previous_cell, new_state = self.gru(previous_cell, previous_state, concatenated)
-#         else:
-#             new_state = self.gru(previous_state, concatenated)
-            
-        new_states = self.gru(previous_states, concatenated, mode = mode)
-        new_output_state = new_states[-1]
-            
-#         if self.use_bn_length > 0:
-#             new_output_state = self.bn(new_output_state, i, test = test)
-            
-        all_concatenated = F.concat((concatenated, new_output_state))
-        logits = self.lin_o(self.maxo(all_concatenated))
-        
-        return new_states, logits, attn
-        
-#         if self.cell_type == "lstm":
-#             return previous_cell, new_state, logits, attn
-#         else:
-#             return new_state, logits, attn
-          
-          
-        
-    def sample(self, nb_steps, compute_ctxt, mb_size, best = False, keep_attn_values = False,
-               need_score = False):
-        
-        previous_states = self.gru.get_initial_states(mb_size)
-        
-#         previous_state = F.broadcast_to(self.initial_state, (mb_size, self.Ho))
-#         
-#         if self.cell_type == "lstm":
-#             previous_cell = Variable(self.xp.broadcast_to(self.initial_cell, (mb_size, self.Ho)), volatile = "auto")
-#         else:
-#             previous_cell = None
- 
-#         previous_word = Variable(np.array([self.bos_idx] * mb_size, dtype = np.int32))
-#         xp = cuda.get_array_module(self.initial_state.data)
-        
-        previous_word = None
-        with cuda.get_device(previous_states[0].data):
-#             previous_word = Variable(xp.array([self.bos_idx] * mb_size, dtype = np.int32))
-            prev_y = F.broadcast_to(self.bos_embeding, (mb_size, self.Eo))
-        score = 0
-        sequences = []
-        attn_list = []
-        for i in xrange(nb_steps):
-#             print "i", i
-            if previous_word is not None: #else we are using the initial prev_y
-                prev_y = self.emb(previous_word)
-                
-            new_states, logits, attn = self.advance_one_step(previous_states, prev_y, 
-                                                    compute_ctxt, i, mode = "test")
-                
-#             if self.cell_type == "lstm":
-#                 previous_cell, new_state, logits, attn = self.advance_one_step(previous_state, prev_y, 
-#                                                       compute_ctxt, i, test = True, previous_cell = previous_cell)
-#             else:
-#                 new_state, logits, attn = self.advance_one_step(previous_state, prev_y, 
-#                                                       compute_ctxt, i, test = True, previous_cell = previous_cell)
-            if keep_attn_values:
-                attn_list.append(attn)
-#             print logits.data.shape
-            probs = F.softmax(logits)
-            if best:
-                curr_idx = self.xp.argmax(probs.data, 1).astype(np.int32)
-            else:
-                curr_idx = self.xp.empty((mb_size,), dtype = np.int32)
-                probs_data = cuda.to_cpu(probs.data)
-                for i in xrange(mb_size):
-                    sampler = chainer.utils.WalkerAlias(probs_data[i])
-                    curr_idx[i] =  sampler.sample(1)[0]
-            if need_score:
-                score = score + np.log(cuda.to_cpu(probs.data)[np.arange(mb_size),cuda.to_cpu(curr_idx)])
-            sequences.append(curr_idx)
-            
-            previous_word = Variable(curr_idx, volatile = "auto")
-            previous_states = new_states
-            
-        return sequences, score, attn_list
-    
-
-    def compute_loss(self, targets, compute_ctxt, raw_loss_info = False, keep_attn_values = False, 
-                     noise_on_prev_word = False, use_previous_prediction = 0, mode = "test", per_sentence = False):
-        assert mode in "test train".split()
-#         assert loss_format in "average raw per_sentence".split(" ")
-        
-        
-        loss = None
-        current_mb_size = targets[0].data.shape[0]
-#         previous_state = F.concat( [self.initial_state] * current_mb_size, 0)
-
-        previous_states = self.gru.get_initial_states(current_mb_size)
-
-#         previous_state = F.broadcast_to(self.initial_state, (current_mb_size, self.Ho))
-#         
-#         if self.cell_type == "lstm":
-#             previous_cell = Variable(self.xp.broadcast_to(self.initial_cell, (current_mb_size, self.Ho)), volatile = "auto")
-#         else:
-#             previous_cell = None
-#         previous_word = Variable(np.array([self.bos_idx] * mb_size, dtype = np.int32))
-#         xp = cuda.get_array_module(self.initial_state.data)
-        previous_word = None
-        with cuda.get_device(previous_states[0].data):
-#             previous_word = Variable(xp.array([self.bos_idx] * current_mb_size, dtype = np.int32))
-            prev_y = F.broadcast_to(self.bos_embeding, (current_mb_size, self.Eo))
-        attn_list = []
-        total_nb_predictions = 0
-        
-        if noise_on_prev_word:
-            noise_mean = Variable(self.xp.ones_like(prev_y.data, dtype = self.xp.float32))
-            noise_lnvar = Variable(self.xp.zeros_like(prev_y.data, dtype = self.xp.float32))
-        
-        for i in xrange(len(targets)):
-            assert i == 0 or previous_states[0].data.shape[0] == previous_word.data.shape[0]
-            current_mb_size = targets[i].data.shape[0]
-            if current_mb_size < len(previous_states[0].data):
-                truncated_states = [None] * len(previous_states)
-                for num_state in xrange(len(previous_states)):
-                    truncated_states[num_state], _ = F.split_axis(previous_states[num_state], (current_mb_size,), 0)
-                previous_states = tuple(truncated_states)
-#                 previous_state, _ = F.split_axis(previous_state, (current_mb_size,), 0)
-#                 if self.cell_type == "lstm":
-#                     previous_cell, _ = F.split_axis(previous_cell, (current_mb_size,), 0)
-                    
-                    
-                if previous_word is not None:
-                    previous_word, _ = F.split_axis(previous_word, (current_mb_size,), 0 )
-                    
-                if noise_on_prev_word:
-                    noise_mean, _ = F.split_axis(noise_mean, (current_mb_size,), 0)
-                    noise_lnvar, _ = F.split_axis(noise_lnvar, (current_mb_size,), 0)
-            if previous_word is not None: #else we are using the initial prev_y
-                prev_y = self.emb(previous_word)
-            assert previous_states[0].data.shape[0] == current_mb_size
-            
-            if noise_on_prev_word:
-                prev_y = prev_y * F.gaussian(noise_mean, noise_lnvar)
-            
-            
-            new_states, logits, attn = self.advance_one_step(previous_states, prev_y, 
-                                                    compute_ctxt, i, mode = mode)
-
-#             if self.cell_type == "lstm":
-#                 previous_cell, new_state, logits, attn = self.advance_one_step(previous_state, prev_y, 
-#                                                       compute_ctxt, i, test = True, previous_cell = previous_cell)
-#             else:
-#                 new_state, logits, attn = self.advance_one_step(previous_state, prev_y, 
-#                                                       compute_ctxt, i, test = True, previous_cell = previous_cell)
-
-            if keep_attn_values:
-                attn_list.append(attn)
-                
-            if per_sentence:
-                normalized_logits = F.log_softmax(logits)
-                total_local_loss = F.select_item(normalized_logits, targets[i])
-                if loss is not None and total_local_loss.data.shape[0] != loss.data.shape[0]:
-                    assert total_local_loss.data.shape[0] < loss.data.shape[0]
-                    total_local_loss = F.concat(
-                                (total_local_loss, self.xp.zeros(loss.data.shape[0] - total_local_loss.data.shape[0], dtype = self.xp.float32)),
-                                axis = 0)
-            else:
-                local_loss = F.softmax_cross_entropy(logits, targets[i])   
-            
-                total_nb_predictions += current_mb_size
-                total_local_loss = local_loss * current_mb_size
-            
-#             loss = local_loss if loss is None else loss + local_loss#         assert loss_format in "average raw per_sentence".split(" ")
-            loss = total_local_loss if loss is None else loss + total_local_loss
-            if use_previous_prediction > 0 and random.random() < use_previous_prediction:
-                previous_word = Variable(self.xp.argmax(logits.data, axis = 1).astype(self.xp.int32), volatile = "auto")
-            else:
-                previous_word = targets[i]
-#             prev_y = self.emb(previous_word)
-            previous_states = new_states
-#             attn_list.append(attn)
-        if raw_loss_info:
-            return (loss, total_nb_predictions), attn_list
-        else:
-            loss = loss / total_nb_predictions
-            return loss, attn_list
-    
-    
-#     
-#     def beam_search(self, fb_concat, mask, nb_steps, eos_idx, beam_width = 20):
-#         if self.use_bn_length > 0:
-#             raise NotImplemented
-#         mb_size, nb_elems, Hi = fb_concat.data.shape
-#         assert Hi == self.Hi, "%i != %i"%(Hi, self.Hi)
-#         compute_ctxt = self.attn_module(fb_concat, mask)
-#         
-#         assert mb_size == 1
-#         finished_translations = []
-#         current_translations = [(F.reshape(self.initial_state, (1, -1)), [([], 0.0)])]
-#         xp = cuda.get_array_module(self.initial_state.data)
-#         for i in xrange(nb_steps):
-#             next_translations = []
-#             for current_state, candidates in current_translations:
-#                 ci, attn = compute_ctxt(current_state)
-#                 for t, score in candidates:
-#                     if len(t) > 0:
-#                         with cuda.get_device(self.initial_state.data):
-#                             prev_w = xp.array([t[-1]], dtype = xp.int32)
-#                         prev_w_v = Variable(prev_w, volatile = "auto")
-#                         prev_y = self.emb(prev_w_v)
-#                     else:
-#                         prev_y = F.reshape(self.bos_embeding, (1, -1))
-#                 
-#                     concatenated = F.concat( (prev_y, ci) )
-#                     new_state = self.gru(current_state, concatenated)
-#                 
-#                     all_concatenated = F.concat((concatenated, new_state))
-#                     logits = self.lin_o(self.maxo(all_concatenated))
-#                 
-#                     probs = cuda.to_cpu(F.softmax(logits).data).reshape((-1,))
-# #                     if len(probs) > beam_width:
-#                     best_idx = np.argpartition(- probs, beam_width)[:beam_width].astype(np.int32)
-# #                     else:
-#                         
-#                     cand_list = []
-#                     for num in xrange(len(best_idx)):
-#                         idx = best_idx[num]
-#                         sc = np.log(probs[idx])
-#                         if idx == eos_idx:
-#                             finished_translations.append((t, score + sc))
-#                         else:
-#                             cand_list.append((t + [idx], score + sc))
-#                 
-#                     next_translations.append((new_state, cand_list))
-#                 
-#             # pruning
-#             coord_next_t = []
-#             for num_st in xrange(len(next_translations)):
-#                 for num_cand in xrange(len(next_translations[num_st][1])):
-#                     score = next_translations[num_st][1][num_cand][1]
-#                     coord_next_t.append((score, num_st, num_cand))
-#             coord_next_t.sort(reverse = True)
-#             next_translations_pruned = []
-#             
-#             next_translations_pruned_dict = defaultdict(list)
-#             for score, num_st, num_cand in coord_next_t[:beam_width]:
-#                 next_translations_pruned_dict[num_st].append(num_cand)
-#                 
-#             next_translations_pruned = []
-#             for num_st, num_cand_list in  next_translations_pruned_dict.iteritems():
-#                 state = next_translations[num_st][0]
-#                 cand_list = []
-#                 for num_cand in num_cand_list:
-#                     cand_list.append(next_translations[num_st][1][num_cand])
-#                 next_translations_pruned.append((state, cand_list))
-#             current_translations = next_translations_pruned
-#         if len (finished_translations) == 0:
-#             finished_translations.append(([], 0))
-#         return finished_translations
-#     
-#     def beam_search_opt(self, fb_concat, mask, nb_steps, eos_idx, beam_width = 20, need_attention = False):
-#         if  self.cell_type == "lstm":
-#             raise NotImplemented
-#         
-#         if self.use_bn_length > 0:
-#             raise NotImplemented
-#         mb_size, nb_elems, Hi = fb_concat.data.shape
-#         assert Hi == self.Hi, "%i != %i"%(Hi, self.Hi)
-#         xp = cuda.get_array_module(self.initial_state.data)
-#         
-#         compute_ctxt = self.attn_module.compute_ctxt_demux(fb_concat, mask)
-#         
-#         assert mb_size == 1
-#         finished_translations = []
-#         current_translations_states = (
-#                                 [[]], # translations
-#                                 xp.array([0]), # scores
-#                                 F.reshape(self.initial_state, (1, -1)),  #previous states
-#                                 None, #previous words
-#                                 [[]] #attention
-#                                 )
-#         for i in xrange(nb_steps):
-#             current_translations, current_scores, current_states, current_words, current_attentions = current_translations_states
-#             
-#             ci, attn = compute_ctxt(current_states)
-#             if current_words is not None:
-#                 prev_y = self.emb(current_words)
-#             else:
-#                 prev_y = F.reshape(self.bos_embeding, (1, -1))
-#                     
-#             concatenated = F.concat( (prev_y, ci) )
-#             new_state = self.gru(current_states, concatenated)
-#         
-#             all_concatenated = F.concat((concatenated, new_state))
-#             logits = self.lin_o(self.maxo(all_concatenated))
-#             probs_v = F.softmax(logits)
-#             log_probs_v = F.log(probs_v) # TODO replace wit a logsoftmax if implemented
-#             nb_cases, v_size = probs_v.data.shape
-#             assert nb_cases <= beam_width
-#             
-#             new_scores = current_scores[:, xp.newaxis] + log_probs_v.data
-#             new_costs_flattened =  cuda.to_cpu( - new_scores).ravel()
-# 
-#             # TODO replace wit a cupy argpartition when/if implemented
-#             best_idx = np.argpartition( new_costs_flattened, beam_width)[:beam_width]
-#             
-#             all_num_cases = best_idx / v_size
-#             all_idx_in_cases = best_idx % v_size
-#             
-#             next_states_list = []
-#             next_words_list = []
-#             next_score_list = []
-#             next_translations_list = []
-#             next_attentions_list = []
-#             for num in xrange(len(best_idx)):
-#                 idx = best_idx[num]
-#                 num_case = all_num_cases[num]
-#                 idx_in_case = all_idx_in_cases[num]
-#                 if idx_in_case == eos_idx:
-#                     if need_attention:
-#                         finished_translations.append((current_translations[num_case], 
-#                                                   -new_costs_flattened[idx],
-#                                                   current_attentions[num_case]
-#                                                   ))
-#                     else:
-#                         finished_translations.append((current_translations[num_case], 
-#                                                   -new_costs_flattened[idx]))
-#                 else:
-#                     next_states_list.append(Variable(new_state.data[num_case].reshape(1,-1), volatile = "auto"))
-#                     next_words_list.append(idx_in_case)
-#                     next_score_list.append(-new_costs_flattened[idx])
-#                     next_translations_list.append(current_translations[num_case] + [idx_in_case])
-#                     if need_attention:
-#                         next_attentions_list.append(current_attentions[num_case] + [attn.data[num_case]])
-#                     if len(next_states_list) >= beam_width:
-#                         break
-#                 
-#             if len(next_states_list) == 0:
-#                 break
-#             
-#             next_words_array = np.array(next_words_list, dtype = np.int32)
-#             if self.xp is not np:
-#                 next_words_array = cuda.to_gpu(next_words_array)
-#                 
-#             current_translations_states = (next_translations_list,
-#                                         xp.array(next_score_list),
-#                                         F.concat(next_states_list, axis = 0),
-#                                         Variable(next_words_array, volatile = "auto"),
-#                                         next_attentions_list
-#                                         )
-#             
-#         if len (finished_translations) == 0:
-#             if need_attention:
-#                 finished_translations.append(([], 0, []))
-#             else:
-#                 finished_translations.append(([], 0))
-#         return finished_translations
-#     
-#     def beam_search_groundhog(self, fb_concat, mask, eos_idx, n_samples = 20, need_attention = False, 
-#                           ignore_unk=None, minlen=1):
-#         if self.use_bn_length > 0:
-#             raise NotImplemented
-# #         print "in beam_search_groundhog, ", need_attention
-#         mb_size, nb_elems, Hi = fb_concat.data.shape
-#         assert Hi == self.Hi, "%i != %i"%(Hi, self.Hi)
-#         xp = cuda.get_array_module(self.initial_state.data)
-#         
-#         compute_ctxt = self.attn_module.compute_ctxt_demux(fb_concat, mask)
-#         
-#         assert mb_size == 1
-#         finished_translations = []
-#         current_translations_states = (
-#                                 [[]], # translations
-#                                 xp.array([0]), # scores
-#                                 F.reshape(self.initial_state, (1, -1)),  #previous states
-#                                 None, #previous words
-#                                 [[]] #attention
-#                                 )
-#         
-#         beam_width = n_samples
-#         for i in xrange(3 * nb_elems):
-#             if beam_width == 0:
-#                 break
-#             
-#             current_translations, current_scores, current_states, current_words, current_attentions = current_translations_states
-#             
-#             ci, attn = compute_ctxt(current_states)
-#             if current_words is not None:
-#                 prev_y = self.emb(current_words)
-#             else:
-#                 prev_y = F.reshape(self.bos_embeding, (1, -1))
-#                     
-#             concatenated = F.concat( (prev_y, ci) )
-#             new_state = self.gru(current_states, concatenated)
-#         
-#             all_concatenated = F.concat((concatenated, new_state))
-#             logits = self.lin_o(self.maxo(all_concatenated))
-#             probs_v = F.softmax(logits)
-#             log_probs_v = F.log(probs_v) # TODO replace wit a logsoftmax if implemented
-#             nb_cases, v_size = probs_v.data.shape
-#             assert nb_cases <= beam_width
-#             
-#             if ignore_unk is not None:
-#                 log_probs_v.data[:,ignore_unk] = -np.inf
-#             # TODO: report me in the paper!!!
-#             if i < minlen:
-#                 log_probs_v.data[:,eos_idx] = -np.inf
-# 
-#             
-#             new_scores = current_scores[:, xp.newaxis] + log_probs_v.data
-#             new_costs_flattened =  cuda.to_cpu( - new_scores).ravel()
-# 
-#             # TODO replace wit a cupy argpartition when/if implemented
-#             best_idx = np.argpartition( new_costs_flattened, beam_width)[:beam_width]
-#             
-#             all_num_cases = best_idx / v_size
-#             all_idx_in_cases = best_idx % v_size
-#             
-#             next_states_list = []
-#             next_words_list = []
-#             next_score_list = []
-#             next_translations_list = []
-#             next_attentions_list = []
-#             for num in xrange(len(best_idx)):
-#                 idx = best_idx[num]
-#                 num_case = all_num_cases[num]
-#                 idx_in_case = all_idx_in_cases[num]
-#                 if idx_in_case == eos_idx:
-#                     beam_width -= 1
-#                     if need_attention:
-#                         finished_translations.append((current_translations[num_case], 
-#                                                   -new_costs_flattened[idx],
-#                                                   current_attentions[num_case]
-#                                                   ))
-#                     else:
-#                         finished_translations.append((current_translations[num_case], 
-#                                                   -new_costs_flattened[idx]))
-#                 else:
-#                     next_states_list.append(Variable(new_state.data[num_case].reshape(1,-1), volatile = "auto"))
-#                     next_words_list.append(idx_in_case)
-#                     next_score_list.append(-new_costs_flattened[idx])
-#                     next_translations_list.append(current_translations[num_case] + [idx_in_case])
-#                     if need_attention:
-#                         next_attentions_list.append(current_attentions[num_case] + [attn.data[num_case]])
-#                     if len(next_states_list) >= beam_width:
-#                         break
-#                 
-#             if len(next_states_list) == 0:
-#                 break
-#             
-#             next_words_array = np.array(next_words_list, dtype = np.int32)
-#             if self.xp is not np:
-#                 next_words_array = cuda.to_gpu(next_words_array)
-#                 
-#             current_translations_states = (next_translations_list,
-#                                         xp.array(next_score_list),
-#                                         F.concat(next_states_list, axis = 0),
-#                                         Variable(next_words_array, volatile = "auto"),
-#                                         next_attentions_list
-#                                         )
-#             
-#         if len (finished_translations) == 0:
-#             if ignore_unk is not None:
-#                 log.warning("Did not manage without UNK")
-#                 return self.beam_search_groundhog(fb_concat, mask, eos_idx, n_samples = n_samples, need_attention = need_attention, 
-#                           ignore_unk = None, minlen=minlen)
-#                 
-#             elif n_samples < 500:
-#                 log.warning("Still no translations: trying beam size %i"%(n_samples * 2))
-#                 return self.beam_search_groundhog(fb_concat, mask, eos_idx, n_samples = n_samples * 2, need_attention = need_attention, 
-#                           ignore_unk = ignore_unk, minlen=minlen)
-#             else:
-#                 log.warning("Translation failed")
-#             
-#                 if need_attention:
-#                     finished_translations.append(([], 0, []))
-#                 else:
-#                     finished_translations.append(([], 0))
-#                     
-#         return finished_translations
-#     
-    def get_predictor(self, fb_concat, mask):
-        mb_size, nb_elems, Hi = fb_concat.data.shape
-        assert Hi == self.Hi, "%i != %i"%(Hi, self.Hi)
-        xp = cuda.get_array_module(self.initial_state.data)
-        
-        compute_ctxt = self.attn_module.compute_ctxt_demux(fb_concat, mask)
-        
-        assert mb_size == 1
-        current_mb_size = mb_size
-#         previous_state = F.concat( [self.initial_state] * current_mb_size, 0)
-        previous_state = [F.broadcast_to(self.initial_state, (current_mb_size, self.Ho))]
-#         previous_word = Variable(np.array([self.bos_idx] * mb_size, dtype = np.int32))
-        previous_word = [None]
-        with cuda.get_device(self.initial_state.data):
-#             previous_word = Variable(xp.array([self.bos_idx] * current_mb_size, dtype = np.int32))
-            prev_y_initial = F.broadcast_to(self.bos_embeding, (current_mb_size, self.Eo))
-            
-            
-        def choose(voc_list, i):
-            if previous_word[0] is not None: #else we are using the initial prev_y
-                prev_y = self.emb(previous_word[0])
-            else:
-                prev_y = prev_y_initial
-            assert previous_state[0].data.shape[0] == current_mb_size
-            
-            new_state, logits, attn = self.advance_one_step(previous_state[0], prev_y, 
-                                                      compute_ctxt, i, mode = "test")
-            
-            best_w = None
-            best_score = None
-            for w in voc_list:
-                score = logits.data[0][w]
-                if best_score is None or score > best_score:
-                    best_score = score
-                    best_w = w
-                            
-                        
-            previous_word[0] = Variable(self.xp.array([best_w], dtype = self.xp.int32), volatile = "auto")
-            previous_state[0] = new_state
-            return best_w
-        return choose
-
-    
-    
-#     def compute_loss_and_backward(self, fb_concat, targets, mask, raw_loss_info = False):
-#         
-#         compute_ctxt = self.attn_module(fb_concat, mask)
-#         loss = None
-#         current_mb_size = targets[0].data.shape[0]
-#         previous_state = F.broadcast_to(self.initial_state, (current_mb_size, self.Ho))
-#         xp = cuda.get_array_module(self.initial_state.data)
-#         previous_word = None
-#         with cuda.get_device(self.initial_state.data):
-#             prev_y = F.broadcast_to(self.bos_embeding, (current_mb_size, self.Eo))
-#             
-#         total_nb_predictions = 0
-#         for i in xrange(len(targets)):
-#             current_mb_size = targets[i].data.shape[0]
-#             total_nb_predictions += current_mb_size
-#             
-#         for i in xrange(len(targets)):
-#             assert i == 0 or previous_state.data.shape[0] == previous_word.data.shape[0]
-#             current_mb_size = targets[i].data.shape[0]
-#             if current_mb_size < len(previous_state.data):
-#                 previous_state, _ = F.split_axis(previous_state, (current_mb_size,), 0)
-#                 if previous_word is not None:
-#                     previous_word, _ = F.split_axis(previous_word, (current_mb_size,), 0 )
-#             if previous_word is not None: #else we are using the initial prev_y
-#                 prev_y = self.emb(previous_word)
-#             assert previous_state.data.shape[0] == current_mb_size
-#             
-#             new_state, logits, attn = self.advance_one_step(previous_state, prev_y, 
-#                                                       compute_ctxt)
-# 
-#             del attn
-#             local_loss = F.softmax_cross_entropy(logits, targets[i])
-#             local_loss_scaled = local_loss * (current_mb_size/ float(total_nb_predictions))
-#             local_loss_scaled.backward()
-#             del local_loss_scaled
-#             total_loss = local_loss.data * current_mb_size
-#             
-#             loss = loss + total_loss if loss is not None else total_loss
-#             del local_loss
-#             del logits
-#             
-#             previous_word = targets[i]
-# #             prev_y = self.emb(previous_word)
-#             previous_state = new_state
-# #             attn_list.append(attn)
-# 
-#         loss = float(loss)
-#         if raw_loss_info:
-#             return (loss, total_nb_predictions)
-#         else:
-#             loss = loss / total_nb_predictions
-#             return loss
-    
-    
-    def __call__(self, fb_concat, targets, mask, use_best_for_sample = False, raw_loss_info = False,
-                    keep_attn_values = False, need_score = False, noise_on_prev_word = False,
-                    use_previous_prediction = 0, mode = "test"):
-        assert mode in "test train".split()
-        mb_size, nb_elems, Hi = fb_concat.data.shape
-        assert Hi == self.Hi, "%i != %i"%(Hi, self.Hi)
-    
-        compute_ctxt = self.attn_module(fb_concat, mask)
-
-        if isinstance(targets, int):
-            return self.sample(targets, compute_ctxt, mb_size, best = use_best_for_sample,
-                               keep_attn_values = keep_attn_values, need_score = need_score)
-        else:
-            return self.compute_loss(targets, compute_ctxt, raw_loss_info = raw_loss_info,
-                                     keep_attn_values = keep_attn_values, noise_on_prev_word = noise_on_prev_word,
-                                     use_previous_prediction = use_previous_prediction, mode = mode)     
-        
-class EncoderDecoder(Chain):
-    """ Do RNNSearch Encoding/Decoding
-        The __call__ takes 3 required parameters: src_batch, tgt_batch, src_mask
-        src_batch is as in the sequence parameter of Encoder
-        tgt_batch is as in the targets parameter of Decoder
-        src_mask is as in the mask parameter of Encoder
-        
-        return loss and attention values
-    """
-    def __init__(self, Vi, Ei, Hi, Vo, Eo, Ho, Ha, Hl, attn_cls = AttentionModule, init_orth = False, use_bn_length = 0,
-                encoder_cell_type = "gru", decoder_cell_type = "gru"):
-        log.info("constructing encoder decoder with Vi:%i Ei:%i Hi:%i Vo:%i Eo:%i Ho:%i Ha:%i Hl:%i" % 
-                                        (Vi, Ei, Hi, Vo, Eo, Ho, Ha, Hl))
-        super(EncoderDecoder, self).__init__(
-            enc = Encoder(Vi, Ei, Hi, init_orth = init_orth, use_bn_length = use_bn_length,
-                          cell_type = encoder_cell_type),
-            dec = Decoder(Vo, Eo, Ho, Ha, 2 * Hi, Hl, attn_cls = attn_cls, init_orth = init_orth, 
-                          use_bn_length = use_bn_length, cell_type = decoder_cell_type)
-        )
-        
-    def __call__(self, src_batch, tgt_batch, src_mask, use_best_for_sample = False, display_attn = False,
-                 raw_loss_info = False, keep_attn_values = False, need_score = False, noise_on_prev_word = False,
-                 use_previous_prediction = 0, mode = "test"):
-        assert mode in "test train".split()
-        fb_src = self.enc(src_batch, src_mask, mode = mode)
-        loss = self.dec(fb_src, tgt_batch, src_mask, use_best_for_sample = use_best_for_sample, raw_loss_info = raw_loss_info,
-                        keep_attn_values = keep_attn_values, need_score = need_score, noise_on_prev_word = noise_on_prev_word,
-                        mode = mode, use_previous_prediction = use_previous_prediction)
-        return loss
-    
-#     def compute_loss_and_backward(self, src_batch, tgt_batch, src_mask, raw_loss_info = False):
-#         fb_src = self.enc(src_batch, src_mask)
-#         loss = self.dec.compute_loss_and_backward(fb_src, tgt_batch, src_mask, raw_loss_info = raw_loss_info)
-#         return loss
-    
-    def sample(self, src_batch, src_mask, nb_steps, use_best_for_sample, keep_attn_values = False, need_score = False):
-        fb_src = self.enc(src_batch, src_mask)
-        samp = self.dec.sample(self, fb_src, nb_steps, src_mask, use_best_for_sample = use_best_for_sample,
-                        keep_attn_values = keep_attn_values, need_score = need_score)
-        return samp
-    
-#     def beam_search(self, src_batch, src_mask, nb_steps, eos_idx, beam_width = 20, beam_opt = False, need_attention = False, 
-#                     groundhog = False, minlen = 1, ignore_unk = None):
-#         fb_src = self.enc(src_batch, src_mask)
-#         
-#         if groundhog:
-#             return self.dec.beam_search_groundhog(fb_src, src_mask, eos_idx, n_samples = beam_width, 
-#                                                   need_attention = need_attention, 
-#                           ignore_unk=ignore_unk, minlen= minlen)
-#         elif beam_opt:
-#             return self.dec.beam_search_opt(fb_src, src_mask, nb_steps, eos_idx = eos_idx, beam_width = beam_width,
-#                                             need_attention = need_attention)
-#         else:
-#             return self.dec.beam_search(fb_src, src_mask, nb_steps, eos_idx = eos_idx, beam_width = beam_width)
-        
-        
-    def get_predictor(self, src_batch, src_mask):
-        fb_src = self.enc(src_batch, src_mask)
-        return self.dec.get_predictor(fb_src, src_mask)
-       
-    def nbest_scorer(self, src_batch, src_mask):
-        assert len(src_batch[0].data) == 1
-        fb_concat = self.enc(src_batch, src_mask)
-        compute_ctxt = self.dec.attn_module.compute_ctxt_demux(fb_concat, src_mask)
-        
-        def scorer(tgt_batch):
-            return self.dec.compute_loss(tgt_batch, compute_ctxt, raw_loss_info = True, keep_attn_values = False, 
-                 noise_on_prev_word = False, use_previous_prediction = 0, mode = "test", per_sentence = True)
-    
-        return scorer
                
 # class EncoderDecoderPredictAlign(Chain):
 #     """ Do RNNSearch Encoding/Decoding
