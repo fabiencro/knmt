@@ -290,6 +290,17 @@ class DeepAttentionModule(Chain):
         raise NotImplemented
     
 
+class GradKeeper(chainer.Function):
+    def __init__(self, grad):
+        super(GradKeeper, self).__init__()
+        self.grad = grad
+        
+    def forward(self, inputs):
+        return (np.array([0], dtype = np.float32),)
+    
+    def backward(self, inputs, grad_output):
+        return (self.grad,)
+
 class Decoder(Chain):
     """ Decoder for RNNSearch. 
         The __call_ takes 3 required parameters: fb_concat, targets, mask.
@@ -493,7 +504,85 @@ class Decoder(Chain):
             loss = loss / total_nb_predictions
             return loss, attn_list
     
+    def compute_loss_and_backward(self, fb_concat, targets, mask, 
+                     noise_on_prev_word = False, use_previous_prediction = 0):
+        
+        compute_ctxt = self.attn_module(fb_concat, mask)
+        
+        loss = 0
+        pseudo_loss = 0
+        
+        current_mb_size = targets[0].data.shape[0]
+
+        previous_states = self.gru.get_initial_states(current_mb_size)
+
+        previous_word = None
+        with cuda.get_device(previous_states[0].data):
+            prev_y = F.broadcast_to(self.bos_embeding, (current_mb_size, self.Eo))
+        
+        if noise_on_prev_word:
+            noise_mean = Variable(self.xp.ones_like(prev_y.data, dtype = self.xp.float32))
+            noise_lnvar = Variable(self.xp.zeros_like(prev_y.data, dtype = self.xp.float32))
+        
+        total_nb_predictions = sum(t.data.shape[0] for t in targets)
+        
+        for i in xrange(len(targets)):
+            assert i == 0 or previous_states[0].data.shape[0] == previous_word.data.shape[0]
+            current_mb_size = targets[i].data.shape[0]
+            if current_mb_size < len(previous_states[0].data):
+                truncated_states = [None] * len(previous_states)
+                for num_state in xrange(len(previous_states)):
+                    truncated_states[num_state], _ = F.split_axis(previous_states[num_state], (current_mb_size,), 0)
+                previous_states = tuple(truncated_states)
+                    
+                if previous_word is not None:
+                    previous_word, _ = F.split_axis(previous_word, (current_mb_size,), 0 )
+                    
+                if noise_on_prev_word:
+                    noise_mean, _ = F.split_axis(noise_mean, (current_mb_size,), 0)
+                    noise_lnvar, _ = F.split_axis(noise_lnvar, (current_mb_size,), 0)
+            if previous_word is not None: #else we are using the initial prev_y
+                prev_y = self.emb(previous_word)
+            assert previous_states[0].data.shape[0] == current_mb_size
+            
+            if noise_on_prev_word:
+                prev_y = prev_y * F.gaussian(noise_mean, noise_lnvar)
+            
+
+            output_state = previous_states[-1]
+            ci, attn = compute_ctxt(output_state)
+            concatenated = F.concat( (prev_y, ci) )
+                
+            new_states = self.gru(previous_states, concatenated, mode = "train")
+            new_output_state = new_states[-1]
+
+            all_concatenated = F.concat((concatenated, new_output_state))
+            
+            all_concatenated_bis = Variable(all_concatenated.data)
+            logits = self.lin_o(self.maxo(all_concatenated_bis))
+            
+            partial_loss = F.softmax_cross_entropy(logits, targets[i]) * current_mb_size / total_nb_predictions
+            loss += partial_loss.data
+            partial_loss.backward()
+            gr = GradKeeper(all_concatenated_bis.grad)
+            del logits
+            del all_concatenated_bis
+            del partial_loss
+            
+            pseudo_loss += gr(all_concatenated)
+            
+            if use_previous_prediction > 0 and random.random() < use_previous_prediction:
+                previous_word = Variable(self.xp.argmax(logits.data, axis = 1).astype(self.xp.int32), volatile = "auto")
+            else:
+                previous_word = targets[i]
+
+            previous_states = new_states
+
+        pseudo_loss.backward()
+        return loss, total_nb_predictions
+
     
+
 #     
     def get_predictor(self, fb_concat, mask):
         mb_size, nb_elems, Hi = fb_concat.data.shape
@@ -644,6 +733,13 @@ class EncoderDecoder(Chain):
 #         fb_src = self.enc(src_batch, src_mask)
 #         loss = self.dec.compute_loss_and_backward(fb_src, tgt_batch, src_mask, raw_loss_info = raw_loss_info)
 #         return loss
+    
+    def compute_loss_and_backward(self, src_batch, tgt_batch, src_mask, 
+                     noise_on_prev_word = False, use_previous_prediction = 0):
+        
+        fb_concat = self.enc(src_batch, src_mask, mode = "train")
+        return self.dec.compute_loss_and_backward(fb_concat, tgt_batch, src_mask, 
+                     noise_on_prev_word = False, use_previous_prediction = 0)
     
     def sample(self, src_batch, src_mask, nb_steps, use_best_for_sample, keep_attn_values = False, need_score = False):
         fb_src = self.enc(src_batch, src_mask)

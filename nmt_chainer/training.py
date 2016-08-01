@@ -38,7 +38,8 @@ def train_on_data(encdec, optimizer, training_data, output_files_dict,
                   gpu = None, report_every = 200, randomized = False,
                   reverse_src = False, reverse_tgt = False, max_nb_iters = None, do_not_save_data_for_resuming = False,
                   noise_on_prev_word = False, curiculum_training = False,
-                  use_previous_prediction = 0, no_report_or_save = False):
+                  use_previous_prediction = 0, no_report_or_save = False,
+                  use_memory_optimization = False):
     
     if curiculum_training:
         log.info("Sorting training data by complexity")
@@ -97,19 +98,18 @@ def train_on_data(encdec, optimizer, training_data, output_files_dict,
         print " time %f zgrad:%f fwd:%f bwd:%f upd:%f"%(t4-t0, t1-t0, t2-t1, t3-t2, t4-t3)
         return float(total_loss.data), total_nb_predictions
         
-#     def train_once_optim(src_batch, tgt_batch, src_mask):
-#         t0 = time.clock()
-#         encdec.zerograds()
-#         t1 = time.clock()
-#         total_loss, total_nb_predictions = encdec.compute_loss_and_backward(src_batch, tgt_batch, src_mask, raw_loss_info = True)
-#         loss = total_loss / total_nb_predictions
-#         t2 = time.clock()
-#         print "loss:", loss,
-#         t3 = time.clock()
-#         optimizer.update()
-#         t4 = time.clock()
-#         print " time %f zgrad:%f fwd:%f bwd:%f upd:%f"%(t4-t0, t1-t0, t2-t1, t3-t2, t4-t3)
-#         return total_loss, total_nb_predictions    
+    def train_once_optim(src_batch, tgt_batch, src_mask):
+        t0 = time.clock()
+        encdec.zerograds()
+        t1 = time.clock()
+        loss, total_nb_predictions = encdec.compute_loss_and_backward(src_batch, tgt_batch, src_mask)
+        t2 = time.clock()
+        print "loss:", loss,
+        t3 = time.clock()
+        optimizer.update()
+        t4 = time.clock()
+        print " time %f zgrad:%f fwd:%f bwd:%f upd:%f"%(t4-t0, t1-t0, t2-t1, t3-t2, t4-t3)
+        return float(loss)*total_nb_predictions, total_nb_predictions  
         
     if test_data is not None:
         test_src_data = [x for x,y in test_data]
@@ -275,9 +275,11 @@ def train_on_data(encdec, optimizer, training_data, output_files_dict,
                     prev_time = time.clock()
                 if i%1000 == 0:       
                     save_model("ckpt")
-                                        
-            total_loss, total_nb_predictions = train_once(src_batch, tgt_batch, src_mask)
-#             total_loss, total_nb_predictions = train_once_optim(src_batch, tgt_batch, src_mask)
+            
+            if use_memory_optimization:
+                total_loss, total_nb_predictions = train_once_optim(src_batch, tgt_batch, src_mask)
+            else:                      
+                total_loss, total_nb_predictions = train_once(src_batch, tgt_batch, src_mask)
             
             total_loss_this_interval += total_loss
             total_nb_predictions_this_interval += total_nb_predictions
