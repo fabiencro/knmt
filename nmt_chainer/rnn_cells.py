@@ -168,5 +168,37 @@ cell_dict = {
              "slow_gru": GRUCell,
              "gru": FastGRUCell
              }
+
+# has_dropout = set(["dlstm"])
+
+def create_cell_model_from_string(model_str):
+    components = model_str.split(",")
+    type_str = components[0]
+    
+    keywords = {}
+    for comp in components[1:]:
+        assert ":" in  comp
+        key, val = comp.split(":")
+        if key == "dropout":
+            keywords[key] = float(val)
+        elif key == "nb_stacks":
+            keywords[key] = int(val)
+        else:
+            raise ValueError("bad cell parameter: %s"%comp)
+    return create_cell_model(type_str, **keywords)
+
+def create_cell_model(type_str, dropout = None, nb_stacks = None):
+    cell_type = cell_dict[type_str]
+    if type_str == "dlstm":
+        def instantiate(in_size, out_size):
+            return cell_type(in_size, out_size, dropout = dropout, nb_stacks = nb_stacks)        
+    else:
+        assert nb_stacks is None
+        assert dropout is None
+        def instantiate(in_size, out_size):
+            return cell_type(in_size, out_size)
+    return instantiate
+        
+        
         
         

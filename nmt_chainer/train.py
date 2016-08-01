@@ -161,6 +161,9 @@ def command_line(arguments = None):
     parser.add_argument("--nb_batch_to_sort", type = int, default= 20, help = "Sort this many batches by size.")
     parser.add_argument("--noise_on_prev_word", default = False, action = "store_true")
     
+    
+    parser.add_argument("--use_memory_optimization", default = False, action = "store_true")
+        
     parser.add_argument("--max_nb_iters", type = int, default= None, help = "maximum number of iterations")
     
     parser.add_argument("--max_src_tgt_length", type = int, help = "Limit length of training sentences")
@@ -196,8 +199,8 @@ def command_line(arguments = None):
     
     
     
-    parser.add_argument("--encoder_cell_type", choices = rnn_cells.cell_dict.keys(), default = "lstm")
-    parser.add_argument("--decoder_cell_type", choices = rnn_cells.cell_dict.keys(), default = "lstm")
+    parser.add_argument("--encoder_cell_type", default = "lstm", help = "cell type of encoder. format: type,param1:val1,param2:val2,... where type is in [%s]"%(" ".join(rnn_cells.cell_dict.keys())))
+    parser.add_argument("--decoder_cell_type", default = "lstm", help = "cell type of decoder. format same as for encoder")
     
     args = parser.parse_args(args = arguments)
     
@@ -323,8 +326,8 @@ def command_line(arguments = None):
     encdec = models.EncoderDecoder(Vi, args.Ei, args.Hi, Vo + 1, args.Eo, args.Ho, args.Ha, args.Hl,
                                        init_orth = args.init_orth, use_bn_length = args.use_bn_length,
                                        attn_cls = attn_cls,
-                                       encoder_cell_type = rnn_cells.cell_dict[args.encoder_cell_type],
-                                       decoder_cell_type = rnn_cells.cell_dict[args.decoder_cell_type])
+                                       encoder_cell_type = rnn_cells.create_cell_model_from_string(args.encoder_cell_type),
+                                       decoder_cell_type = rnn_cells.create_cell_model_from_string(args.decoder_cell_type))
     
     if args.load_model is not None:
         serializers.load_npz(args.load_model, encdec)
@@ -378,7 +381,8 @@ def command_line(arguments = None):
                       randomized = args.randomized_data, reverse_src = args.reverse_src, reverse_tgt = args.reverse_tgt,
                       max_nb_iters = args.max_nb_iters, do_not_save_data_for_resuming = args.no_resume,
                       noise_on_prev_word = args.noise_on_prev_word, curiculum_training = args.curiculum_training,
-                      use_previous_prediction = args.use_previous_prediction, no_report_or_save = args.no_report_or_save)
+                      use_previous_prediction = args.use_previous_prediction, no_report_or_save = args.no_report_or_save,
+                      use_memory_optimization = args.use_memory_optimization)
 #             finally:
 #                 print timer
 #                 print(timer.total_time())
