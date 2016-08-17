@@ -102,8 +102,47 @@ class LSTMCell(Chain):
     def get_nb_states(self):
         return 2 # state + cell
     
+    
+class GatedLSTMCell(Chain):
+    def __init__(self, in_size, out_size):
+        log.info("Creating GatedLSTMCell(%i, %i)"%(in_size, out_size))
+        assert in_size == out_size
+        
+        super(GatedLSTMCell, self).__init__(
+            lstm = L.StatelessLSTM(in_size, out_size),
+            gate_w = L.Linear(in_size, in_size)
+        )
+        self.add_param("initial_state", (1, out_size))
+        self.initial_state.data[...] = self.xp.random.randn(out_size)
+        self.add_persistent("initial_cell", self.xp.zeros((1, out_size), dtype = self.xp.float32))
+        self.add_persistent("initial_output", self.xp.zeros((1, out_size), dtype = self.xp.float32))
+        self.out_size = out_size
+        self.in_size = in_size
+        
+    def get_initial_states(self, mb_size):
+        mb_initial_state = F.broadcast_to(F.reshape(self.initial_state, (1, self.out_size)), (mb_size, self.out_size))
+        mb_initial_cell = Variable(self.xp.broadcast_to(self.initial_cell, (mb_size, self.out_size)), volatile = "auto")
+        mb_initial_output = Variable(self.xp.broadcast_to(self.initial_output, (mb_size, self.out_size)), volatile = "auto")
+        return (mb_initial_cell, mb_initial_state, mb_initial_output)
+        
+    def __call__(self, prev_states, x_in, mode = "test"):
+        assert mode in "test train".split()
+        prev_cell, prev_state, old_output = prev_states
+        new_cell, new_state = self.lstm(prev_cell, prev_state, x_in)
+        
+        passthrough_gate_state = F.sigmoid(self.gate_w(x_in))
+        output = passthrough_gate_state * x_in + (1-passthrough_gate_state) * new_state
+        
+        return new_cell, new_state, output
+    
+    def get_nb_states(self):
+        return 3 # state + cell + gated_output
+    
 class StackedCell(ChainList):
     def __init__(self, in_size, out_size, cell_type = LSTMCell, nb_stacks = 2, dropout = 0.5):
+        nb_stacks = nb_stacks or 2
+        cell_type = cell_type or LSTMCell
+        
         log.info("Creating StackedCell(%i, %i) X %i"%(in_size, out_size, nb_stacks))
         super(StackedCell, self).__init__()
         self.nb_of_states = []
@@ -143,6 +182,8 @@ class StackedCell(ChainList):
     
     
 
+
+
             
 # class DoubleGRU(Chain):
 #     def __init__(self, H, I):
@@ -166,7 +207,8 @@ cell_dict = {
              "lstm": LSTMCell,
              "dlstm": StackedCell,
              "slow_gru": GRUCell,
-             "gru": FastGRUCell
+             "gru": FastGRUCell,
+             "glstm": GatedLSTMCell
              }
 
 # has_dropout = set(["dlstm"])
@@ -183,15 +225,18 @@ def create_cell_model_from_string(model_str):
             keywords[key] = float(val)
         elif key == "nb_stacks":
             keywords[key] = int(val)
+        elif key == "sub_cell_type":
+            cell_type = cell_dict[val]
+            keywords[key] = cell_type
         else:
             raise ValueError("bad cell parameter: %s"%comp)
     return create_cell_model(type_str, **keywords)
 
-def create_cell_model(type_str, dropout = None, nb_stacks = None):
+def create_cell_model(type_str, dropout = None, nb_stacks = None, sub_cell_type = None):
     cell_type = cell_dict[type_str]
     if type_str == "dlstm":
         def instantiate(in_size, out_size):
-            return cell_type(in_size, out_size, dropout = dropout, nb_stacks = nb_stacks)        
+            return cell_type(in_size, out_size, dropout = dropout, nb_stacks = nb_stacks, cell_type = sub_cell_type)        
     else:
         assert nb_stacks is None
         assert dropout is None

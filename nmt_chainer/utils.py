@@ -220,7 +220,7 @@ def minibatch_provider_curiculum(data, eos_idx, mb_size, nb_mb_for_sorting = 1, 
     
 def minibatch_provider(data, eos_idx, mb_size, nb_mb_for_sorting = 1, loop = True, inplace_sorting = False, gpu = None,
                        randomized = False, volatile = "off", sort_key = lambda x:len(x[1]),
-                       reverse_src = False, reverse_tgt = False
+                       reverse_src = False, reverse_tgt = False, give_raw_batch = False
                        ):
     if nb_mb_for_sorting == -1:
         assert not randomized
@@ -228,7 +228,11 @@ def minibatch_provider(data, eos_idx, mb_size, nb_mb_for_sorting = 1, loop = Tru
         for mb_raw in batch_sort_and_split(data, mb_size, inplace = inplace_sorting, sort_key = sort_key):
             mb_raw = mb_reverser(mb_raw, reverse_src = reverse_src, reverse_tgt = reverse_tgt)
             src_batch, tgt_batch, src_mask = make_batch_src_tgt(mb_raw, eos_idx = eos_idx, gpu = gpu, volatile = volatile)
-            yield src_batch, tgt_batch, src_mask
+            
+            if give_raw_batch:
+                yield src_batch, tgt_batch, src_mask, mb_raw
+            else:
+                yield src_batch, tgt_batch, src_mask
     else:
         assert nb_mb_for_sorting > 0
         required_data = nb_mb_for_sorting * mb_size
@@ -242,7 +246,10 @@ def minibatch_provider(data, eos_idx, mb_size, nb_mb_for_sorting = 1, loop = Tru
             for mb_raw in batch_sort_and_split(large_batch, mb_size, inplace = True, sort_key = sort_key):
                 mb_raw = mb_reverser(mb_raw, reverse_src = reverse_src, reverse_tgt = reverse_tgt)
                 src_batch, tgt_batch, src_mask = make_batch_src_tgt(mb_raw, eos_idx = eos_idx, gpu = gpu, volatile = volatile)
-                yield src_batch, tgt_batch, src_mask
+                if give_raw_batch:
+                    yield src_batch, tgt_batch, src_mask, mb_raw
+                else:
+                    yield src_batch, tgt_batch, src_mask
              
 def compute_bleu_with_unk_as_wrong(references, candidates, is_unk_id, new_unk_id_ref, new_unk_id_cand):
     import bleu_computer
@@ -305,6 +312,20 @@ def ortho_init(link):
         ortho_init(link.linear)
     else:
         raise NotImplemented
+
+def compute_lexicon_matrix(src_batch, lexical_probability_dictionary, V_tgt):
+    real_mb_size = src_batch[0].data.shape[0]
+    max_source_size = len(src_batch)
+    lexicon_matrix = np.zeros((real_mb_size, max_source_size, V_tgt), dtype = np.float32)
+    for src_pos in xrange(max_source_size):
+        # TODO: check if this is too slow
+        src_batch_cpu = cuda.to_cpu(src_batch[src_pos].data)
+        for num_mb in xrange(real_mb_size):
+            src_idx = int(src_batch_cpu[num_mb])
+            if src_idx in lexical_probability_dictionary:
+                for tgt_idx, lex_prob in lexical_probability_dictionary[src_idx].iteritems():
+                    lexicon_matrix[num_mb][src_pos][tgt_idx] = lex_prob
+    return lexicon_matrix
 
 # 
 # def create_encdec_from_config(config):

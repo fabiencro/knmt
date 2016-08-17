@@ -90,6 +90,9 @@ def commandline():
     parser.add_argument("dest")
     parser.add_argument("--max_n", type = int)
     parser.add_argument("--invert_alignment_links", default = False, action = "store_true")
+    parser.add_argument("--generate_lexical_prob", default = False, action = "store_true")
+    parser.add_argument("--count_null_translations", default = False, action = "store_true")
+    
     args = parser.parse_args()
     corpus = load_aligned_corpus(args.src_fn, args.tgt_fn, args.align_fn, invert_alignment_links = args.invert_alignment_links)
     
@@ -99,18 +102,46 @@ def commandline():
             break
         if num%1000 == 0:
             log.info("%i sentences processed"% num)
+        unaligned_pos_left = set(range(len(sentence_src))) 
+        unaligned_pos_right = set(range(len(sentence_tgt))) 
         for left, right in alignment:
             for spos in left:
+                if spos in unaligned_pos_left:
+                    unaligned_pos_left.remove(spos)
                 ws = sentence_src[spos]
                 for tpos in right:
+                    if tpos in unaligned_pos_right:
+                        unaligned_pos_right.remove(tpos)
                     wt = sentence_tgt[tpos]
                     counter[ws][wt] += 1
-    log.info("selecting best")
-    res = {}
-    for ws in counter:
-        translations = counter[ws].items()
-        translations.sort(key = operator.itemgetter(1), reverse = True)
-        res[ws] = translations[0][0]
+                    
+        if args.count_null_translations:
+            for spos in unaligned_pos_left:
+                ws = sentence_src[spos]
+                counter[ws][None] += 1
+            for tpos in unaligned_pos_right:
+                wt = sentence_tgt[tpos]
+                counter[None][wt] += 1
+            
+    if args.generate_lexical_prob:
+        log.info("computing lexical probabilities")
+        res = {}
+        for ws in counter:
+            if ws is None:
+                continue
+            res[ws] = {}
+            sum_count = sum(counter[ws].values())
+            for wt in counter[ws]:
+                if wt is None:
+                    continue
+                res[ws][wt] = counter[ws][wt] / float(sum_count)
+    else:
+        log.info("selecting best")
+        res = {}
+        for ws in counter:
+            translations = counter[ws].items()
+            translations.sort(key = operator.itemgetter(1), reverse = True)
+            res[ws] = translations[0][0]
     
     log.info("saving")
     json.dump(res, open(args.dest, "w"))
