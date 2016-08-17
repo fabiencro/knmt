@@ -40,6 +40,10 @@ def train_on_data(encdec, optimizer, training_data, output_files_dict,
                   noise_on_prev_word = False, curiculum_training = False,
                   use_previous_prediction = 0, no_report_or_save = False,
                   use_memory_optimization = False):
+#     ,
+#                   lexical_probability_dictionary = None,
+#                   V_tgt = None,
+#                   lexicon_prob_epsilon = 1e-3):
     
     if curiculum_training:
         log.info("Sorting training data by complexity")
@@ -80,7 +84,7 @@ def train_on_data(encdec, optimizer, training_data, output_files_dict,
         log.info("saving model to %s" % fn_save)
         serializers.save_npz(fn_save, encdec)
         
-    def train_once(src_batch, tgt_batch, src_mask):
+    def train_once(src_batch, tgt_batch, src_mask): #, lexicon_matrix = None):
         t0 = time.clock()
         encdec.zerograds()
         t1 = time.clock()
@@ -88,13 +92,16 @@ def train_on_data(encdec, optimizer, training_data, output_files_dict,
                                                           noise_on_prev_word = noise_on_prev_word,
                                                           use_previous_prediction = use_previous_prediction,
                                                           mode = "train")
+#         ,
+#                                                           lexicon_probability_matrix = lexicon_matrix, 
+#                                                           lex_epsilon = lexicon_prob_epsilon)
         loss = total_loss / total_nb_predictions
         t2 = time.clock()
-        print "loss:", loss.data,
         loss.backward()
         t3 = time.clock()
         optimizer.update()
         t4 = time.clock()
+        print "loss:", loss.data,
         print " time %f zgrad:%f fwd:%f bwd:%f upd:%f"%(t4-t0, t1-t0, t2-t1, t3-t2, t4-t3)
         return float(total_loss.data), total_nb_predictions
         
@@ -194,11 +201,18 @@ def train_on_data(encdec, optimizer, training_data, output_files_dict,
         for i in xrange(sys.maxint):
             if max_nb_iters is not None and max_nb_iters <= i:
                 break
-            
             print i,
             src_batch, tgt_batch, src_mask = mb_provider.next()
             if src_batch[0].data.shape[0] != mb_size:
                 log.warn("got minibatch of size %i instead of %i"%(src_batch[0].data.shape[0], mb_size))
+                
+#             if lexical_probability_dictionary is not None:
+#                 lexicon_matrix = utils.compute_lexicon_matrix(src_batch, lexical_probability_dictionary)
+#                 if gpu is not None:
+#                     lexicon_matrix = cuda.to_gpu(lexicon_matrix, gpu)
+#             else:
+#                 lexicon_matrix = None
+                
 #             if i%100 == 0:
 #                 print "valid", 
 #                 compute_valid()
@@ -277,9 +291,13 @@ def train_on_data(encdec, optimizer, training_data, output_files_dict,
                     save_model("ckpt")
             
             if use_memory_optimization:
+#                 if lexicon_matrix is not None:
+#                     raise NotImplemented
                 total_loss, total_nb_predictions = train_once_optim(src_batch, tgt_batch, src_mask)
             else:                      
                 total_loss, total_nb_predictions = train_once(src_batch, tgt_batch, src_mask)
+#                 , 
+#                                                               lexicon_matrix = lexicon_matrix)
             
             total_loss_this_interval += total_loss
             total_nb_predictions_this_interval += total_nb_predictions

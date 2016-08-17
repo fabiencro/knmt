@@ -116,7 +116,8 @@ def greedy_batch_translate(encdec, eos_idx, src_data, batch_size = 80, gpu = Non
      
 def beam_search_translate(encdec, eos_idx, src_data, beam_width = 20, nb_steps = 50, gpu = None, beam_opt = False,
                           need_attention = False, nb_steps_ratio = None, score_is_divided_by_length = True, 
-                          groundhog = False, force_finish = False):
+                          groundhog = False, force_finish = False,
+                          prob_space_combination = False):
     nb_ex = len(src_data)
 #     res = []
     for i in range(nb_ex):
@@ -138,7 +139,8 @@ def beam_search_translate(encdec, eos_idx, src_data, beam_width = 20, nb_steps =
             encdec = [encdec]
         translations = beam_search.ensemble_beam_search(encdec, src_batch, src_mask, nb_steps = nb_steps, eos_idx = eos_idx, 
                                           beam_width = beam_width,
-                                          need_attention = need_attention, force_finish = force_finish)
+                                          need_attention = need_attention, force_finish = force_finish,
+                                          prob_space_combination = prob_space_combination)
 
 #         print "nb_trans", len(translations), [score for _, score in translations]
 #         bests = []

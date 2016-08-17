@@ -23,8 +23,10 @@ def commandline():
     parser.add_argument("dest")
     parser.add_argument("--lib", default = "bokeh", choices = ["bokeh", "plotly"])
     args = parser.parse_args()
+    generate_graph(args.sqldb, args.dest, args.lib)
     
-    db = sqlite3.connect(args.sqldb)
+def generate_graph(sqldb, dest, lib, title = "Training Evolution"):
+    db = sqlite3.connect(sqldb)
     c = db.cursor()
     
     c.execute("SELECT date, bleu_info, iteration, loss, bleu, dev_loss, dev_bleu, avg_time, avg_training_loss FROM exp_data")
@@ -41,9 +43,9 @@ def commandline():
     if avg_training_loss[0] == 0:
         avg_training_loss = list(avg_training_loss)
         avg_training_loss[0] = None
-    if args.lib == "bokeh":
+    if lib == "bokeh":
         import bokeh.charts
-        bokeh.charts.output_file(args.dest)
+        bokeh.charts.output_file(dest)
         p = bokeh.charts.Line([test_loss, test_bleu, dev_loss, dev_bleu])
         bokeh.charts.show(p)
     else:
@@ -171,7 +173,7 @@ def commandline():
         )
   
         layout = go.Layout(
-            title='Training evolution',
+            title=title,
             yaxis=dict(
                 title='loss',
                 gridcolor='#bdbdbd'
@@ -186,7 +188,7 @@ def commandline():
         data = [trace0, trace1, trace2, trace3, trace4, trace0min, trace1max, trace2min, trace3max]
         fig = go.Figure(data=data, layout=layout)
         # Plot and embed in ipython notebook!
-        plotly.offline.plot(fig, filename = args.dest, auto_open = False)
+        plotly.offline.plot(fig, filename = dest, auto_open = False)
     
 if __name__ == '__main__':
     commandline()

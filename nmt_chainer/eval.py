@@ -37,7 +37,8 @@ log.setLevel(logging.INFO)
 def translate_to_file_with_beam_search(dest_fn, gpu, encdec, eos_idx, src_data, beam_width, nb_steps, beam_opt, 
        nb_steps_ratio, use_raw_score, 
        groundhog,
-       tgt_unk_id, tgt_indexer, force_finish = False):
+       tgt_unk_id, tgt_indexer, force_finish = False,
+       prob_space_combination = False):
     log.info("writing translation of to %s"% dest_fn)
     out = codecs.open(dest_fn, "w", encoding = "utf8")
     with cuda.get_device(gpu):
@@ -45,7 +46,8 @@ def translate_to_file_with_beam_search(dest_fn, gpu, encdec, eos_idx, src_data, 
                     encdec, eos_idx, src_data, beam_width = beam_width, nb_steps = nb_steps, 
                                     gpu = gpu, beam_opt = beam_opt, nb_steps_ratio = nb_steps_ratio,
                                     need_attention = True, score_is_divided_by_length = not use_raw_score,
-                                    groundhog = groundhog, force_finish = force_finish)
+                                    groundhog = groundhog, force_finish = force_finish,
+                                    prob_space_combination = prob_space_combination)
         
         
 #         for num_t in range(len(translations)):
@@ -118,8 +120,8 @@ def create_encdec_from_config(config_training):
     
     eos_idx = Vo
     encdec = models.EncoderDecoder(Vi, Ei, Hi, Vo + 1, Eo, Ho, Ha, Hl, use_bn_length = use_bn_length,
-                                   encoder_cell_type = rnn_cells.cell_dict[encoder_cell_type],
-                                       decoder_cell_type = rnn_cells.cell_dict[decoder_cell_type])
+                                   encoder_cell_type = rnn_cells.create_cell_model_from_string(encoder_cell_type),
+                                       decoder_cell_type = rnn_cells.create_cell_model_from_string(decoder_cell_type))
     
     return encdec, eos_idx, src_indexer, tgt_indexer
     
@@ -179,6 +181,7 @@ def commandline():
     
     parser.add_argument("--use_raw_score", default = False, action = "store_true")
     
+    parser.add_argument("--prob_space_combination", default = False, action = "store_true")
     args = parser.parse_args()
     
     encdec, eos_idx, src_indexer, tgt_indexer = create_and_load_encdec_from_files(
@@ -236,6 +239,10 @@ def commandline():
         assert dic_tgt == tgt_indexer
 
     
+    save_eval_config_fn = args.dest_fn + ".eval.config.json"
+    log.info("Saving eval config to %s" % save_eval_config_fn)
+    json.dump(args.__dict__, open(save_eval_config_fn, "w"), indent=2, separators=(',', ': '))
+    
 #     translations = greedy_batch_translate(encdec, eos_idx, src_data, batch_size = args.mb_size, gpu = args.gpu)
     
     if args.mode == "translate":
@@ -256,7 +263,8 @@ def commandline():
                                            args.nb_steps, args.beam_opt, 
                                            args.b_steps_ratio, args.use_raw_score, 
                                            args.groundhog,
-                                           args.tgt_unk_id, tgt_indexer, force_finish = args.force_finish)
+                                           args.tgt_unk_id, tgt_indexer, force_finish = args.force_finish,
+                                           prob_space_combination = args.prob_space_combination)
             
     elif args.mode == "eval_bleu":
         assert args.ref is not None
@@ -264,7 +272,8 @@ def commandline():
                                            args.nb_steps, args.beam_opt, 
                                            args.nb_steps_ratio, args.use_raw_score, 
                                            args.groundhog,
-                                           args.tgt_unk_id, tgt_indexer, force_finish = args.force_finish)
+                                           args.tgt_unk_id, tgt_indexer, force_finish = args.force_finish,
+                                           prob_space_combination = args.prob_space_combination)
         
         bc = bleu_computer.get_bc_from_files(args.ref, args.dest_fn)
         print "bleu before unk replace:", bc

@@ -197,7 +197,8 @@ def command_line(arguments = None):
     
     parser.add_argument("--no_report_or_save", default = False, action = "store_true")
     
-    
+    parser.add_argument("--lexical_probability_dictionary", help = "lexical translation probabilities in zipped JSON format. Used to implement https://arxiv.org/abs/1606.02006")
+    parser.add_argument("--lexicon_prob_epsilon", default = 1e-3, type = float, help = "epsilon value for combining the lexical probabilities")
     
     parser.add_argument("--encoder_cell_type", default = "lstm", help = "cell type of encoder. format: type,param1:val1,param2:val2,... where type is in [%s]"%(" ".join(rnn_cells.cell_dict.keys())))
     parser.add_argument("--decoder_cell_type", default = "lstm", help = "cell type of decoder. format same as for encoder")
@@ -281,6 +282,28 @@ def command_line(arguments = None):
     Vi = len(src_indexer) # + UNK
     Vo = len(tgt_indexer) # + UNK
     
+    if args.lexical_probability_dictionary is not None:
+        log.info("opening lexical_probability_dictionary %s" % args.lexical_probability_dictionary)
+        lexical_probability_dictionary_all = json.load(gzip.open(args.lexical_probability_dictionary, "rb"))
+        log.info("computing lexical_probability_dictionary_indexed")
+        lexical_probability_dictionary_indexed = {}
+        for ws in lexical_probability_dictionary_all:
+            ws_idx = src_indexer.convert([ws])[0]
+            if ws_idx in lexical_probability_dictionary_indexed:
+                assert src_indexer.is_unk_idx(ws_idx)
+            else:
+                lexical_probability_dictionary_indexed[ws_idx] = {}
+            for wt in lexical_probability_dictionary_all[ws]:
+                wt_idx = tgt_indexer.convert([wt])[0]
+                if wt_idx in lexical_probability_dictionary_indexed[ws_idx]:
+                    assert src_indexer.is_unk_idx(ws_idx) or tgt_indexer.is_unk_idx(wt_idx)
+                    lexical_probability_dictionary_indexed[ws_idx][wt_idx] += lexical_probability_dictionary_all[ws][wt]
+                else:
+                    lexical_probability_dictionary_indexed[ws_idx][wt_idx] = lexical_probability_dictionary_all[ws][wt]
+        lexical_probability_dictionary = lexical_probability_dictionary_indexed
+    else:
+        lexical_probability_dictionary = None
+    
     
     if args.max_src_tgt_length is not None:
         log.info("filtering sentences of length larger than %i"%(args.max_src_tgt_length))
@@ -327,7 +350,9 @@ def command_line(arguments = None):
                                        init_orth = args.init_orth, use_bn_length = args.use_bn_length,
                                        attn_cls = attn_cls,
                                        encoder_cell_type = rnn_cells.create_cell_model_from_string(args.encoder_cell_type),
-                                       decoder_cell_type = rnn_cells.create_cell_model_from_string(args.decoder_cell_type))
+                                       decoder_cell_type = rnn_cells.create_cell_model_from_string(args.decoder_cell_type),
+                                       lexical_probability_dictionary = lexical_probability_dictionary, 
+                                       lex_epsilon = args.lexicon_prob_epsilon)
     
     if args.load_model is not None:
         serializers.load_npz(args.load_model, encdec)
@@ -370,6 +395,7 @@ def command_line(arguments = None):
             serializers.load_npz(args.load_optimizer_state, optimizer)    
     
 
+
     with cuda.get_device(args.gpu):
 #         with MyTimerHook() as timer:
 #             try:
@@ -382,7 +408,11 @@ def command_line(arguments = None):
                       max_nb_iters = args.max_nb_iters, do_not_save_data_for_resuming = args.no_resume,
                       noise_on_prev_word = args.noise_on_prev_word, curiculum_training = args.curiculum_training,
                       use_previous_prediction = args.use_previous_prediction, no_report_or_save = args.no_report_or_save,
-                      use_memory_optimization = args.use_memory_optimization)
+                      use_memory_optimization = args.use_memory_optimization,
+#                     lexical_probability_dictionary = lexical_probability_dictionary,
+#                     V_tgt = Vo + 1,
+#                     lexicon_prob_epsilon = args.lexicon_prob_epsilon
+                      )
 #             finally:
 #                 print timer
 #                 print(timer.total_time())

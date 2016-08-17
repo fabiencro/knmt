@@ -16,7 +16,7 @@ import chainer.links as L
 import math, random
 
 import rnn_cells
-from utils import ortho_init
+from utils import ortho_init, compute_lexicon_matrix
 
 import logging
 logging.basicConfig()
@@ -301,6 +301,19 @@ class GradKeeper(chainer.Function):
     def backward(self, inputs, grad_output):
         return (self.grad,)
 
+class ConstantFunction(chainer.Function):
+    def __init__(self, val):
+        super(ConstantFunction, self).__init__()
+        self.val = val
+        
+    def forward(self, inputs):
+        return (self.val,)
+    
+    def backward(self, inputs, grad_output):
+        return ()
+
+from constant_batch_mul import batch_matmul_constant
+
 class Decoder(Chain):
     """ Decoder for RNNSearch. 
         The __call_ takes 3 required parameters: fb_concat, targets, mask.
@@ -385,7 +398,7 @@ class Decoder(Chain):
         return new_states, logits, attn
         
     def sample(self, nb_steps, compute_ctxt, mb_size, best = False, keep_attn_values = False,
-               need_score = False):
+               need_score = False, lexicon_probability_matrix = None, lex_epsilon = 1e-3):
         
         previous_states = self.gru.get_initial_states(mb_size)
         
@@ -403,6 +416,22 @@ class Decoder(Chain):
                 
             new_states, logits, attn = self.advance_one_step(previous_states, prev_y, 
                                                     compute_ctxt, i, mode = "test")
+                
+            if lexicon_probability_matrix is not None:
+                # Just making sure data shape is as expected
+                attn_mb_size, max_source_length_attn = attn.data.shape 
+#                 assert attn_mb_size == current_mb_size
+                lex_mb_size, max_source_length_lexicon, v_size_lexicon = lexicon_probability_matrix.shape
+                assert max_source_length_lexicon == max_source_length_attn
+                assert logits.data.shape == (attn_mb_size, v_size_lexicon)
+                assert lex_mb_size == attn_mb_size
+                
+                weighted_lex_probs = F.reshape(
+                        batch_matmul_constant(attn, lexicon_probability_matrix, transa = True), 
+                                               logits.data.shape)
+                
+                logits += F.log(weighted_lex_probs + lex_epsilon)
+                
                 
             if keep_attn_values:
                 attn_list.append(attn)
@@ -427,7 +456,9 @@ class Decoder(Chain):
     
 
     def compute_loss(self, targets, compute_ctxt, raw_loss_info = False, keep_attn_values = False, 
-                     noise_on_prev_word = False, use_previous_prediction = 0, mode = "test", per_sentence = False):
+                     noise_on_prev_word = False, use_previous_prediction = 0, mode = "test", per_sentence = False,
+                     lexicon_probability_matrix = None, lex_epsilon = 1e-3
+                     ):
         assert mode in "test train".split()
         
         loss = None
@@ -460,6 +491,10 @@ class Decoder(Chain):
                 if noise_on_prev_word:
                     noise_mean, _ = F.split_axis(noise_mean, (current_mb_size,), 0)
                     noise_lnvar, _ = F.split_axis(noise_lnvar, (current_mb_size,), 0)
+                    
+                if lexicon_probability_matrix is not None:
+                    lexicon_probability_matrix = lexicon_probability_matrix[:current_mb_size]
+                    
             if previous_word is not None: #else we are using the initial prev_y
                 prev_y = self.emb(previous_word)
             assert previous_states[0].data.shape[0] == current_mb_size
@@ -471,6 +506,27 @@ class Decoder(Chain):
             new_states, logits, attn = self.advance_one_step(previous_states, prev_y, 
                                                     compute_ctxt, i, mode = mode)
 
+
+            if lexicon_probability_matrix is not None:
+                # Just making sure data shape is as expected
+                attn_mb_size, max_source_length_attn = attn.data.shape 
+                assert attn_mb_size == current_mb_size
+                lex_mb_size, max_source_length_lexicon, v_size_lexicon = lexicon_probability_matrix.shape
+                assert max_source_length_lexicon == max_source_length_attn
+                assert logits.data.shape == (current_mb_size, v_size_lexicon)
+                assert lex_mb_size == current_mb_size
+                
+#                 weighted_lex_probs = F.reshape(
+#                         F.batch_matmul(attn, ConstantFunction(lexicon_probability_matrix)(), transa = True), 
+#                                                logits.data.shape)
+                
+                weighted_lex_probs = F.reshape(
+                        batch_matmul_constant(attn, lexicon_probability_matrix, transa = True), 
+                                               logits.data.shape)
+                
+                logits += F.log(weighted_lex_probs + lex_epsilon)
+                
+                
 
             if keep_attn_values:
                 attn_list.append(attn)
@@ -627,64 +683,9 @@ class Decoder(Chain):
         return choose
 
     
-    
-#     def compute_loss_and_backward(self, fb_concat, targets, mask, raw_loss_info = False):
-#         
-#         compute_ctxt = self.attn_module(fb_concat, mask)
-#         loss = None
-#         current_mb_size = targets[0].data.shape[0]
-#         previous_state = F.broadcast_to(self.initial_state, (current_mb_size, self.Ho))
-#         xp = cuda.get_array_module(self.initial_state.data)
-#         previous_word = None
-#         with cuda.get_device(self.initial_state.data):
-#             prev_y = F.broadcast_to(self.bos_embeding, (current_mb_size, self.Eo))
-#             
-#         total_nb_predictions = 0
-#         for i in xrange(len(targets)):
-#             current_mb_size = targets[i].data.shape[0]
-#             total_nb_predictions += current_mb_size
-#             
-#         for i in xrange(len(targets)):
-#             assert i == 0 or previous_state.data.shape[0] == previous_word.data.shape[0]
-#             current_mb_size = targets[i].data.shape[0]
-#             if current_mb_size < len(previous_state.data):
-#                 previous_state, _ = F.split_axis(previous_state, (current_mb_size,), 0)
-#                 if previous_word is not None:
-#                     previous_word, _ = F.split_axis(previous_word, (current_mb_size,), 0 )
-#             if previous_word is not None: #else we are using the initial prev_y
-#                 prev_y = self.emb(previous_word)
-#             assert previous_state.data.shape[0] == current_mb_size
-#             
-#             new_state, logits, attn = self.advance_one_step(previous_state, prev_y, 
-#                                                       compute_ctxt)
-# 
-#             del attn
-#             local_loss = F.softmax_cross_entropy(logits, targets[i])
-#             local_loss_scaled = local_loss * (current_mb_size/ float(total_nb_predictions))
-#             local_loss_scaled.backward()
-#             del local_loss_scaled
-#             total_loss = local_loss.data * current_mb_size
-#             
-#             loss = loss + total_loss if loss is not None else total_loss
-#             del local_loss
-#             del logits
-#             
-#             previous_word = targets[i]
-# #             prev_y = self.emb(previous_word)
-#             previous_state = new_state
-# #             attn_list.append(attn)
-# 
-#         loss = float(loss)
-#         if raw_loss_info:
-#             return (loss, total_nb_predictions)
-#         else:
-#             loss = loss / total_nb_predictions
-#             return loss
-    
-    
     def __call__(self, fb_concat, targets, mask, use_best_for_sample = False, raw_loss_info = False,
                     keep_attn_values = False, need_score = False, noise_on_prev_word = False,
-                    use_previous_prediction = 0, mode = "test"):
+                    use_previous_prediction = 0, mode = "test", lexicon_probability_matrix = None, lex_epsilon = 1e-3):
         assert mode in "test train".split()
         mb_size, nb_elems, Hi = fb_concat.data.shape
         assert Hi == self.Hi, "%i != %i"%(Hi, self.Hi)
@@ -693,11 +694,13 @@ class Decoder(Chain):
 
         if isinstance(targets, int):
             return self.sample(targets, compute_ctxt, mb_size, best = use_best_for_sample,
-                               keep_attn_values = keep_attn_values, need_score = need_score)
+                               keep_attn_values = keep_attn_values, need_score = need_score,
+                               lexicon_probability_matrix = lexicon_probability_matrix, lex_epsilon = lex_epsilon)
         else:
             return self.compute_loss(targets, compute_ctxt, raw_loss_info = raw_loss_info,
                                      keep_attn_values = keep_attn_values, noise_on_prev_word = noise_on_prev_word,
-                                     use_previous_prediction = use_previous_prediction, mode = mode)     
+                                     use_previous_prediction = use_previous_prediction, mode = mode,
+                                     lexicon_probability_matrix = lexicon_probability_matrix, lex_epsilon = lex_epsilon)     
         
 class EncoderDecoder(Chain):
     """ Do RNNSearch Encoding/Decoding
@@ -709,7 +712,9 @@ class EncoderDecoder(Chain):
         return loss and attention values
     """
     def __init__(self, Vi, Ei, Hi, Vo, Eo, Ho, Ha, Hl, attn_cls = AttentionModule, init_orth = False, use_bn_length = 0,
-                encoder_cell_type = "gru", decoder_cell_type = "gru"):
+                encoder_cell_type = "gru", decoder_cell_type = "gru",
+                lexical_probability_dictionary = None, lex_epsilon = 1e-3
+                ):
         log.info("constructing encoder decoder with Vi:%i Ei:%i Hi:%i Vo:%i Eo:%i Ho:%i Ha:%i Hl:%i" % 
                                         (Vi, Ei, Hi, Vo, Eo, Ho, Ha, Hl))
         super(EncoderDecoder, self).__init__(
@@ -718,15 +723,28 @@ class EncoderDecoder(Chain):
             dec = Decoder(Vo, Eo, Ho, Ha, 2 * Hi, Hl, attn_cls = attn_cls, init_orth = init_orth, 
                           use_bn_length = use_bn_length, cell_type = decoder_cell_type)
         )
+        self.Vo = Vo
+        self.lexical_probability_dictionary = lexical_probability_dictionary
+        self.lex_epsilon = lex_epsilon
         
     def __call__(self, src_batch, tgt_batch, src_mask, use_best_for_sample = False, display_attn = False,
                  raw_loss_info = False, keep_attn_values = False, need_score = False, noise_on_prev_word = False,
-                 use_previous_prediction = 0, mode = "test"):
+                 use_previous_prediction = 0, mode = "test"
+                 ):
         assert mode in "test train".split()
+        
+        if self.lexical_probability_dictionary is not None:
+            lexicon_probability_matrix = compute_lexicon_matrix(src_batch, self.lexical_probability_dictionary, self.Vo)
+            if self.xp != np:
+                lexicon_probability_matrix = cuda.to_gpu(lexicon_probability_matrix, cuda.get_device(self.dec.lin_o.W.data))
+        else:
+            lexicon_probability_matrix = None
+            
         fb_src = self.enc(src_batch, src_mask, mode = mode)
         loss = self.dec(fb_src, tgt_batch, src_mask, use_best_for_sample = use_best_for_sample, raw_loss_info = raw_loss_info,
                         keep_attn_values = keep_attn_values, need_score = need_score, noise_on_prev_word = noise_on_prev_word,
-                        mode = mode, use_previous_prediction = use_previous_prediction)
+                        mode = mode, use_previous_prediction = use_previous_prediction,
+                        lexicon_probability_matrix = lexicon_probability_matrix, lex_epsilon = self.lex_epsilon)
         return loss
     
 #     def compute_loss_and_backward(self, src_batch, tgt_batch, src_mask, raw_loss_info = False):

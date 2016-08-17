@@ -109,7 +109,8 @@ def compute_next_lists(new_state_ensemble, new_scores, beam_width, eos_idx, curr
     return next_states_list, next_words_list, next_score_list, next_translations_list, next_attentions_list
 
 
-def compute_next_states_and_scores(dec_ensemble, compute_ctxt_ensemble, current_states_ensemble, current_words):
+def compute_next_states_and_scores(dec_ensemble, compute_ctxt_ensemble, current_states_ensemble, current_words,
+                                   prob_space_combination = False):
 #     xp = cuda.get_array_module(dec_ensemble[0].initial_state.data)
     xp = dec_ensemble[0].xp
     output_ensemble = [cs[-1] for cs in current_states_ensemble]
@@ -145,21 +146,31 @@ def compute_next_states_and_scores(dec_ensemble, compute_ctxt_ensemble, current_
     
     # Combine the scores of the ensembled models
     combined_scores = xp.zeros((logits_ensemble[0].data.shape), dtype = xp.float32)
-    for logits in logits_ensemble:
-        combined_scores += xp.log(F.softmax(logits).data)
-    combined_scores /= len(dec_ensemble)
     
+    if not prob_space_combination:
+        for logits in logits_ensemble:
+            combined_scores += xp.log(F.softmax(logits).data)
+        combined_scores /= len(dec_ensemble)
+    else:
+        for logits in logits_ensemble:
+            combined_scores += F.softmax(logits).data
+        combined_scores /= len(dec_ensemble)
+        combined_scores = xp.log(combined_scores)
+        
+        
     return combined_scores, new_state_ensemble, attn_ensemble
     
 def advance_one_step(dec_ensemble, compute_ctxt_ensemble, eos_idx, current_translations_states, beam_width, finished_translations,
-                     force_finish = False, need_attention = False):
+                     force_finish = False, need_attention = False,
+                     prob_space_combination = False):
 #     xp = cuda.get_array_module(dec_ensemble[0].initial_state.data)
     xp = dec_ensemble[0].xp
     current_translations, current_scores, current_states_ensemble, current_words, current_attentions = current_translations_states
 
     # Compute the next states and associated next word scores
     combined_scores, new_state_ensemble, attn_ensemble = compute_next_states_and_scores(
-                dec_ensemble, compute_ctxt_ensemble, current_states_ensemble, current_words)
+                dec_ensemble, compute_ctxt_ensemble, current_states_ensemble, current_words,
+                prob_space_combination = prob_space_combination)
     
     nb_cases, v_size = combined_scores.shape
     assert nb_cases <= beam_width
@@ -207,7 +218,8 @@ def advance_one_step(dec_ensemble, compute_ctxt_ensemble, eos_idx, current_trans
     return current_translations_states
 
 def ensemble_beam_search(model_ensemble, src_batch, src_mask, nb_steps, eos_idx, beam_width = 20, need_attention = False,
-                         force_finish = False):
+                         force_finish = False,
+                         prob_space_combination = False):
     
     fb_concat_list = [model.enc(src_batch, src_mask) for model in model_ensemble]
     
@@ -255,7 +267,8 @@ def ensemble_beam_search(model_ensemble, src_batch, src_mask, nb_steps, eos_idx,
                             beam_width, 
                             finished_translations,
                             force_finish = force_finish and num_step == (nb_steps -1),
-                            need_attention = need_attention)
+                            need_attention = need_attention,
+                            prob_space_combination = prob_space_combination)
         if current_translations_states is None:
             break
         
