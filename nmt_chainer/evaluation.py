@@ -112,16 +112,39 @@ def greedy_batch_translate(encdec, eos_idx, src_data, batch_size = 80, gpu = Non
     else:
         return res
      
-
+def reverse_rescore(encdec, src_batch, src_mask, eos_idx, translations, gpu = None):
+    import utils
+    
+    reversed_translations = []
+    for t in translations:
+        if t[-1] == eos_idx:
+            t = t[:-1]
+        reversed_translations.append(t[::-1])
+    
+    scorer = encdec.nbest_scorer(src_batch, src_mask)
+    tgt_batch, arg_sort = utils.make_batch_tgt(reversed_translations,
+                                eos_idx = eos_idx, gpu =  gpu, volatile = "on", need_arg_sort = True)
+    
+    scores, attn = scorer(tgt_batch)
+    scores, _ = scores
+    scores = scores.data
+    
+    assert len(arg_sort) == len(scores)
+    de_sorted_scores = [None] * len(scores)
+    for xpos in xrange(len(arg_sort)):
+        original_pos = arg_sort[xpos]
+        de_sorted_scores[original_pos] = scores[xpos]
+    return de_sorted_scores
      
 def beam_search_translate(encdec, eos_idx, src_data, beam_width = 20, nb_steps = 50, gpu = None, beam_opt = False,
                           need_attention = False, nb_steps_ratio = None, score_is_divided_by_length = True, 
                           groundhog = False, force_finish = False,
-                          prob_space_combination = False):
+                          prob_space_combination = False,
+                          reverse_encdec = None):
     nb_ex = len(src_data)
 #     res = []
     for i in range(nb_ex):
-        src_batch, src_mask = make_batch_src([src_data[i]], gpu = gpu, volatile = "off")
+        src_batch, src_mask = make_batch_src([src_data[i]], gpu = gpu, volatile = "on")
         assert len(src_mask) == 0
         if nb_steps_ratio is not None:
             nb_steps = int(len(src_data[i]) * nb_steps_ratio) + 1
@@ -142,10 +165,24 @@ def beam_search_translate(encdec, eos_idx, src_data, beam_width = 20, nb_steps =
                                           need_attention = need_attention, force_finish = force_finish,
                                           prob_space_combination = prob_space_combination)
 
+        
+        #TODO: This is a quick patch, but actually ensemble_beam_search probably should not return empty translations except when no translation found
+        if len(translations) > 1:
+            translations = [t for t in translations if len(t[0]) > 0]
+
 #         print "nb_trans", len(translations), [score for _, score in translations]
 #         bests = []
 #         translations.sort(key = itemgetter(1), reverse = True)
 #         bests.append(translations[0])
+
+        if reverse_encdec is not None and len(translations) > 1:
+            rescored_translations = []
+            reverse_scores = reverse_rescore(reverse_encdec, src_batch, src_mask, eos_idx, [t[0] for t in translations], gpu)
+            for num_t in xrange(len(translations)):
+                tr, sc, attn = translations[num_t]
+                rescored_translations.append((tr, sc + reverse_scores[num_t], attn))
+            translations = rescored_translations
+                    
         if score_is_divided_by_length:
             translations.sort(key = lambda x:x[1]/(len(x[0])+1), reverse = True)
         else:
@@ -211,6 +248,8 @@ def sample_once(encdec, src_batch, tgt_batch, src_mask, src_indexer, tgt_indexer
     print "sample"
     sample_greedy, score, attn_list = encdec(src_batch, 50, src_mask, use_best_for_sample = True, need_score = True,
                                              mode = "test")
+    
+    
 #                 sample, score = encdec(src_batch, 50, src_mask, use_best_for_sample = False)
     assert len(src_batch[0].data) == len(tgt_batch[0].data)
     assert len(sample_greedy[0]) == len(src_batch[0].data)
@@ -219,12 +258,18 @@ def sample_once(encdec, src_batch, tgt_batch, src_mask, src_indexer, tgt_indexer
     debatched_tgt = de_batch(tgt_batch, eos_idx = eos_idx, is_variable= True)
     debatched_sample = de_batch(sample_greedy, eos_idx = eos_idx)
     
+    sample_random, score_random, attn_list_random = encdec(src_batch, 50, src_mask, use_best_for_sample = False, need_score = True,
+                                             mode = "test")
+    debatched_sample_random = de_batch(sample_random, eos_idx = eos_idx)
+    
     for sent_num in xrange(len(debatched_src)):
         if max_nb is not None and sent_num > max_nb:
             break
         src_idx_seq = debatched_src[sent_num]
         tgt_idx_seq = debatched_tgt[sent_num]
         sample_idx_seq = debatched_sample[sent_num]
+        sample_random_idx_seq = debatched_sample_random[sent_num]
+        
         print "sent num", sent_num
         print "src idx:", src_idx_seq
         print "src:", " ".join(src_indexer.deconvert(src_idx_seq, unk_tag = s_unk_tag)) #convert_idx_to_string(src_idx_seq, src_voc)
@@ -232,5 +277,7 @@ def sample_once(encdec, src_batch, tgt_batch, src_mask, src_indexer, tgt_indexer
         print "tgt:", " ".join(tgt_indexer.deconvert(tgt_idx_seq, unk_tag = t_unk_tag, eos_idx = eos_idx)) # convert_idx_to_string(tgt_idx_seq, tgt_voc, eos_idx = eos_idx)
         print "sample idx:", sample_idx_seq
         print "sample:", " ".join(tgt_indexer.deconvert(sample_idx_seq, unk_tag = t_unk_tag, eos_idx = eos_idx)) #convert_idx_to_string(sample_idx_seq, tgt_voc, eos_idx = eos_idx)
+        print "sample random idx:", sample_random_idx_seq
+        print "sample random:", " ".join(tgt_indexer.deconvert(sample_random_idx_seq, unk_tag = t_unk_tag, eos_idx = eos_idx)) #convert_idx_to_string(sample_idx_seq, tgt_voc, eos_idx = eos_idx)
         
         
