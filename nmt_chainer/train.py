@@ -203,6 +203,10 @@ def command_line(arguments = None):
     parser.add_argument("--encoder_cell_type", default = "lstm", help = "cell type of encoder. format: type,param1:val1,param2:val2,... where type is in [%s]"%(" ".join(rnn_cells.cell_dict.keys())))
     parser.add_argument("--decoder_cell_type", default = "lstm", help = "cell type of decoder. format same as for encoder")
     
+    parser.add_argument("--sample_every", default = 200, type = int)
+    
+    parser.add_argument("--use_reinf", default = False, action = "store_true")
+    
     args = parser.parse_args(args = arguments)
     
     output_files_dict = {}
@@ -409,6 +413,8 @@ def command_line(arguments = None):
                       noise_on_prev_word = args.noise_on_prev_word, curiculum_training = args.curiculum_training,
                       use_previous_prediction = args.use_previous_prediction, no_report_or_save = args.no_report_or_save,
                       use_memory_optimization = args.use_memory_optimization,
+                      sample_every = args.sample_every,
+                      use_reinf = args.use_reinf
 #                     lexical_probability_dictionary = lexical_probability_dictionary,
 #                     V_tgt = Vo + 1,
 #                     lexicon_prob_epsilon = args.lexicon_prob_epsilon

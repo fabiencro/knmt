@@ -39,7 +39,8 @@ def train_on_data(encdec, optimizer, training_data, output_files_dict,
                   reverse_src = False, reverse_tgt = False, max_nb_iters = None, do_not_save_data_for_resuming = False,
                   noise_on_prev_word = False, curiculum_training = False,
                   use_previous_prediction = 0, no_report_or_save = False,
-                  use_memory_optimization = False):
+                  use_memory_optimization = False, sample_every = 200,
+                  use_reinf = False):
 #     ,
 #                   lexical_probability_dictionary = None,
 #                   V_tgt = None,
@@ -117,6 +118,30 @@ def train_on_data(encdec, optimizer, training_data, output_files_dict,
         t4 = time.clock()
         print " time %f zgrad:%f fwd:%f bwd:%f upd:%f"%(t4-t0, t1-t0, t2-t1, t3-t2, t4-t3)
         return float(loss)*total_nb_predictions, total_nb_predictions  
+        
+        
+    def train_once_reinf(src_batch, tgt_batch, src_mask): #, lexicon_matrix = None):
+        t0 = time.clock()
+        encdec.zerograds()
+        t1 = time.clock()
+        
+        import utils
+        test_ref = utils.de_batch(tgt_batch, is_variable = True)
+        
+        reinf_loss = encdec.get_reinf_loss(src_batch, src_mask, eos_idx, 
+                    test_ref, nb_steps = 50, nb_samples = 5, 
+                    use_best_for_sample = False,
+                    temperature = None,
+                    mode = "test")
+
+        t2 = time.clock()
+        reinf_loss.backward()
+        t3 = time.clock()
+        optimizer.update()
+        t4 = time.clock()
+        print "reinf loss:", reinf_loss.data, reinf_loss.data/len(src_batch)
+        print " time %f zgrad:%f fwd:%f bwd:%f upd:%f"%(t4-t0, t1-t0, t2-t1, t3-t2, t4-t3)
+        return float(reinf_loss.data), len(src_batch)
         
     if test_data is not None:
         test_src_data = [x for x,y in test_data]
@@ -217,7 +242,7 @@ def train_on_data(encdec, optimizer, training_data, output_files_dict,
 #                 print "valid", 
 #                 compute_valid()
             if not no_report_or_save:
-                if i%200 == 0:
+                if i%sample_every == 0:
                     for v in src_batch + tgt_batch:
                         v.volatile = "on"
                     sample_once(encdec, src_batch, tgt_batch, src_mask, src_indexer, tgt_indexer, eos_idx,
@@ -294,6 +319,8 @@ def train_on_data(encdec, optimizer, training_data, output_files_dict,
 #                 if lexicon_matrix is not None:
 #                     raise NotImplemented
                 total_loss, total_nb_predictions = train_once_optim(src_batch, tgt_batch, src_mask)
+            elif use_reinf:
+                total_loss, total_nb_predictions = train_once_reinf(src_batch, tgt_batch, src_mask)
             else:                      
                 total_loss, total_nb_predictions = train_once(src_batch, tgt_batch, src_mask)
 #                 , 
