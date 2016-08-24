@@ -327,6 +327,18 @@ def compute_lexicon_matrix(src_batch, lexical_probability_dictionary, V_tgt):
                     lexicon_matrix[num_mb][src_pos][tgt_idx] = lex_prob
     return lexicon_matrix
 
+def minibatch_sampling(probs):
+    mb_size, nb_elems = probs.shape
+    cum = probs.cumsum(axis = 1)
+    cum = np.minimum(cum, 1) #due to rounding errors
+    cum[:,-1] = 1 #due to rounding errors
+    offsets = np.arange(mb_size)
+    cum += offsets.reshape(mb_size, 1)
+    r = np.random.rand(mb_size) + offsets
+    samples = np.digitize(r, cum.reshape(-1))
+    samples -= nb_elems * offsets
+    return samples
+
 # 
 # def create_encdec_from_config(config):
 #     import models, rnn_cells
