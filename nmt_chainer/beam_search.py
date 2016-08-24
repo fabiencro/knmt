@@ -15,6 +15,8 @@ import chainer.functions as F
 import chainer.links as L
 import math, random
 
+from utils import compute_lexicon_matrix
+
 import logging
 logging.basicConfig()
 log = logging.getLogger("rnns:beam_search")
@@ -108,8 +110,9 @@ def compute_next_lists(new_state_ensemble, new_scores, beam_width, eos_idx, curr
 
     return next_states_list, next_words_list, next_score_list, next_translations_list, next_attentions_list
 
-
+from models import batch_matmul_constant
 def compute_next_states_and_scores(dec_ensemble, compute_ctxt_ensemble, current_states_ensemble, current_words,
+                                   lexical_matrix_ensemble, lex_epsilon_ensemble,
                                    prob_space_combination = False):
 #     xp = cuda.get_array_module(dec_ensemble[0].initial_state.data)
     xp = dec_ensemble[0].xp
@@ -144,6 +147,20 @@ def compute_next_states_and_scores(dec_ensemble, compute_ctxt_ensemble, current_
     logits_ensemble = [model.lin_o(model.maxo(all_concatenated)) for (model, all_concatenated) in
                                zip(dec_ensemble, all_concatenated_ensemble)]
     
+    for model_num in xrange(len(dec_ensemble)):
+        if lexical_matrix_ensemble[model_num] is not None:
+             
+                weighted_lex_probs = F.reshape(
+                        F.matmul(attn_ensemble[model_num], 
+                                 Variable(lexical_matrix_ensemble[model_num].reshape(
+                                                                lexical_matrix_ensemble[model_num].shape[1],
+                                                                lexical_matrix_ensemble[model_num].shape[2]
+                                                                                     
+                                                                                     ), volatile = "auto")), 
+                                               logits_ensemble[model_num].data.shape)
+                
+                logits_ensemble[model_num] += F.log(weighted_lex_probs + lex_epsilon_ensemble[model_num])
+    
     # Combine the scores of the ensembled models
     combined_scores = xp.zeros((logits_ensemble[0].data.shape), dtype = xp.float32)
     
@@ -161,6 +178,7 @@ def compute_next_states_and_scores(dec_ensemble, compute_ctxt_ensemble, current_
     return combined_scores, new_state_ensemble, attn_ensemble
     
 def advance_one_step(dec_ensemble, compute_ctxt_ensemble, eos_idx, current_translations_states, beam_width, finished_translations,
+                     lexical_matrix_ensemble, lex_epsilon_ensemble,
                      force_finish = False, need_attention = False,
                      prob_space_combination = False):
 #     xp = cuda.get_array_module(dec_ensemble[0].initial_state.data)
@@ -170,6 +188,7 @@ def advance_one_step(dec_ensemble, compute_ctxt_ensemble, eos_idx, current_trans
     # Compute the next states and associated next word scores
     combined_scores, new_state_ensemble, attn_ensemble = compute_next_states_and_scores(
                 dec_ensemble, compute_ctxt_ensemble, current_states_ensemble, current_words,
+                lexical_matrix_ensemble, lex_epsilon_ensemble,
                 prob_space_combination = prob_space_combination)
     
     nb_cases, v_size = combined_scores.shape
@@ -233,6 +252,22 @@ def ensemble_beam_search(model_ensemble, src_batch, src_mask, nb_steps, eos_idx,
     compute_ctxt_ensemble = [model.attn_module.compute_ctxt_demux(fb_concat, src_mask) for (model, fb_concat) in 
                          zip(dec_ensemble, fb_concat_list)]
 
+
+    # Lexical probabilities
+    lexical_matrix_ensemble = []
+    lex_epsilon_ensemble = []
+    
+    for model in model_ensemble:
+        if model.lexical_probability_dictionary is not None:
+            lexicon_probability_matrix = compute_lexicon_matrix(src_batch, model.lexical_probability_dictionary, model.Vo)
+            if model.xp != np:
+                lexicon_probability_matrix = cuda.to_gpu(lexicon_probability_matrix, cuda.get_device(model.dec.lin_o.W.data))
+        else:
+            lexicon_probability_matrix = None
+            
+        lexical_matrix_ensemble.append(lexicon_probability_matrix)
+        lex_epsilon_ensemble.append(model.lex_epsilon)
+        
     assert mb_size == 1
     finished_translations = []
     
@@ -257,6 +292,8 @@ def ensemble_beam_search(model_ensemble, src_batch, src_mask, nb_steps, eos_idx,
                             [[]] #attention
                             )
     
+    
+    
     # Proceed with the search
     for num_step in xrange(nb_steps):
         current_translations_states = advance_one_step(
@@ -266,6 +303,7 @@ def ensemble_beam_search(model_ensemble, src_batch, src_mask, nb_steps, eos_idx,
                             current_translations_states, 
                             beam_width, 
                             finished_translations,
+                            lexical_matrix_ensemble, lex_epsilon_ensemble,
                             force_finish = force_finish and num_step == (nb_steps -1),
                             need_attention = need_attention,
                             prob_space_combination = prob_space_combination)
