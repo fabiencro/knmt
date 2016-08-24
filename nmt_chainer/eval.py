@@ -21,7 +21,7 @@ from evaluation import (greedy_batch_translate,
 #                         convert_idx_to_string_with_attn
                         )
 
-import visualisation
+# import visualisation
 import bleu_computer
 import logging
 import codecs
@@ -38,7 +38,7 @@ def translate_to_file_with_beam_search(dest_fn, gpu, encdec, eos_idx, src_data, 
        nb_steps_ratio, use_raw_score, 
        groundhog,
        tgt_unk_id, tgt_indexer, force_finish = False,
-       prob_space_combination = False):
+       prob_space_combination = False, reverse_encdec = None):
     log.info("writing translation of to %s"% dest_fn)
     out = codecs.open(dest_fn, "w", encoding = "utf8")
     with cuda.get_device(gpu):
@@ -47,7 +47,8 @@ def translate_to_file_with_beam_search(dest_fn, gpu, encdec, eos_idx, src_data, 
                                     gpu = gpu, beam_opt = beam_opt, nb_steps_ratio = nb_steps_ratio,
                                     need_attention = True, score_is_divided_by_length = not use_raw_score,
                                     groundhog = groundhog, force_finish = force_finish,
-                                    prob_space_combination = prob_space_combination)
+                                    prob_space_combination = prob_space_combination,
+                                    reverse_encdec = reverse_encdec)
         
         
 #         for num_t in range(len(translations)):
@@ -117,11 +118,36 @@ def create_encdec_from_config(config_training):
     
     use_bn_length = config_training["command_line"].get("use_bn_length", None)
     
+    import gzip
+    
+    if "lexical_probability_dictionary" in config_training["command_line"] and config_training["command_line"]["lexical_probability_dictionary"] is not None:
+        log.info("opening lexical_probability_dictionary %s" % config_training["command_line"]["lexical_probability_dictionary"])
+        lexical_probability_dictionary_all = json.load(gzip.open(config_training["command_line"]["lexical_probability_dictionary"], "rb"))
+        log.info("computing lexical_probability_dictionary_indexed")
+        lexical_probability_dictionary_indexed = {}
+        for ws in lexical_probability_dictionary_all:
+            ws_idx = src_indexer.convert([ws])[0]
+            if ws_idx in lexical_probability_dictionary_indexed:
+                assert src_indexer.is_unk_idx(ws_idx)
+            else:
+                lexical_probability_dictionary_indexed[ws_idx] = {}
+            for wt in lexical_probability_dictionary_all[ws]:
+                wt_idx = tgt_indexer.convert([wt])[0]
+                if wt_idx in lexical_probability_dictionary_indexed[ws_idx]:
+                    assert src_indexer.is_unk_idx(ws_idx) or tgt_indexer.is_unk_idx(wt_idx)
+                    lexical_probability_dictionary_indexed[ws_idx][wt_idx] += lexical_probability_dictionary_all[ws][wt]
+                else:
+                    lexical_probability_dictionary_indexed[ws_idx][wt_idx] = lexical_probability_dictionary_all[ws][wt]
+        lexical_probability_dictionary = lexical_probability_dictionary_indexed
+    else:
+        lexical_probability_dictionary = None
     
     eos_idx = Vo
     encdec = models.EncoderDecoder(Vi, Ei, Hi, Vo + 1, Eo, Ho, Ha, Hl, use_bn_length = use_bn_length,
                                    encoder_cell_type = rnn_cells.create_cell_model_from_string(encoder_cell_type),
-                                       decoder_cell_type = rnn_cells.create_cell_model_from_string(decoder_cell_type))
+                                       decoder_cell_type = rnn_cells.create_cell_model_from_string(decoder_cell_type),
+                                       lexical_probability_dictionary = lexical_probability_dictionary,
+                                       lex_epsilon = config_training["command_line"].get("lexicon_prob_epsilon", 0.001))
     
     return encdec, eos_idx, src_indexer, tgt_indexer
     
@@ -182,6 +208,10 @@ def commandline():
     parser.add_argument("--use_raw_score", default = False, action = "store_true")
     
     parser.add_argument("--prob_space_combination", default = False, action = "store_true")
+    
+    parser.add_argument("--reverse_training_config", help = "prefix of the trained model")
+    parser.add_argument("--reverse_trained_model", help = "prefix of the trained model")
+    
     args = parser.parse_args()
     
     encdec, eos_idx, src_indexer, tgt_indexer = create_and_load_encdec_from_files(
@@ -215,6 +245,23 @@ def commandline():
             
             encdec_list.append(this_encdec)
             
+    if args.reverse_training_config is not None:
+        reverse_encdec, reverse_eos_idx, reverse_src_indexer, reverse_tgt_indexer = create_and_load_encdec_from_files(
+                            args.reverse_training_config, args.reverse_trained_model)
+        
+        if eos_idx != reverse_eos_idx:
+            raise Exception("incompatible models")
+            
+        if len(src_indexer) != len(reverse_src_indexer):
+            raise Exception("incompatible models")
+          
+        if len(tgt_indexer) != len(reverse_tgt_indexer):
+            raise Exception("incompatible models")
+                          
+        if args.gpu is not None:
+            reverse_encdec = reverse_encdec.to_gpu(args.gpu)
+    else:
+        reverse_encdec = None    
         
     log.info("opening source file %s" % args.src_fn)
     src_data, dic_src, make_data_infos = build_dataset_one_side(args.src_fn, 
@@ -264,27 +311,35 @@ def commandline():
                                            args.b_steps_ratio, args.use_raw_score, 
                                            args.groundhog,
                                            args.tgt_unk_id, tgt_indexer, force_finish = args.force_finish,
-                                           prob_space_combination = args.prob_space_combination)
+                                           prob_space_combination = args.prob_space_combination,
+                                           reverse_encdec = reverse_encdec)
             
     elif args.mode == "eval_bleu":
-        assert args.ref is not None
+#         assert args.ref is not None
         translate_to_file_with_beam_search(args.dest_fn, args.gpu, encdec_list, eos_idx, src_data, args.beam_width, 
                                            args.nb_steps, args.beam_opt, 
                                            args.nb_steps_ratio, args.use_raw_score, 
                                            args.groundhog,
                                            args.tgt_unk_id, tgt_indexer, force_finish = args.force_finish,
-                                           prob_space_combination = args.prob_space_combination)
+                                           prob_space_combination = args.prob_space_combination,
+                                           reverse_encdec = reverse_encdec)
         
-        bc = bleu_computer.get_bc_from_files(args.ref, args.dest_fn)
-        print "bleu before unk replace:", bc
+        if args.ref is not None:
+            bc = bleu_computer.get_bc_from_files(args.ref, args.dest_fn)
+            print "bleu before unk replace:", bc
+        else:
+            print "bleu before unk replace: No Ref Provided"
         
         import replace_tgt_unk
         replace_tgt_unk.replace_unk(args.dest_fn, args.src_fn, args.dest_fn + ".unk_replaced", args.dic, args.remove_unk, 
                 args.normalize_unicode_unk,
                 args.attempt_to_relocate_unk_source)
-          
-        bc = bleu_computer.get_bc_from_files(args.ref, args.dest_fn + ".unk_replaced")
-        print "bleu after unk replace:", bc 
+         
+        if args.ref is not None: 
+            bc = bleu_computer.get_bc_from_files(args.ref, args.dest_fn + ".unk_replaced")
+            print "bleu after unk replace:", bc 
+        else:
+            print "bleu before unk replace: No Ref Provided"   
             
     elif args.mode == "translate_attn":
         log.info("writing translation + attention as html to %s"% args.dest_fn)
