@@ -1,0 +1,17 @@
+#!/usr/bin/env zsh
+
+display_usage() {
+    echo "This script must be run in a proper python environment."
+    echo "\nUsage:\nbin/$0 gpu#\n"
+}
+
+if [ $# -lt 1 ]
+then
+    display_usage
+    exit 1
+fi
+
+RNN_SEARCH_GPU="$1"
+source server.conf
+python nmt_chainer/server.py  --port $PORT --parse_server_command=$PARSE_SERVER_COMMAND \
+    --mode $RNN_SEARCH_MODE --beam_width $RNN_SEARCH_BEAM_WIDTH $RNN_SEARCH_CONFIG $RNN_SEARCH_MODEL --gpu $RNN_SEARCH_GPU
