@@ -1,0 +1,26 @@
+#
+# General
+#
+
+PORT=44666
+
+
+#
+# RNN-Search
+#
+
+RNN_SEARCH_MODE=beam_search
+RNN_SEARCH_BEAM_WIDTH=30
+RNN_SEARCH_CONFIG=~/experiments/rnnsearch/train/je_lstm.train.config
+RNN_SEARCH_MODEL=~/experiments/rnnsearch/train/je_lstm.model.best.converted.npz
+
+
+#
+# Parse-Server
+#
+
+PARSE_SERVER_HOME=~/parse-tools
+PARSE_SERVER_HOST=basil123
+PARSE_SERVER_PORT=12351
+PARSE_SERVER_COMMAND="echo '%s' | $PARSE_SERVER_HOME/src/parse_client.pl --host $PARSE_SERVER_HOST --port $PARSE_SERVER_PORT --lang %s"
+

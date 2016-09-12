@@ -40,3 +40,20 @@ run:
 python make_data.py --help
 
 python train.py --help
+
+## Server Mode
+
+Preparation: 
+
+0. Copy your own config file from the provided sample file and adjust it in function of your environment.
+
+cp server.conf.sample server.conf
+
+1. Start a parse server if needed.
+
+cd $PARSE_SERVER_HOME
+./src/parse_server.pl -n 50 > parse.log 2>&1
+
+2. Start the server.  Remember to specify the GPU number.
+
+bin/server 0
