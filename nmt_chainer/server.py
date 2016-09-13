@@ -34,6 +34,7 @@ import socket
 import xml.etree.ElementTree as ET
 import re
 import subprocess
+import replace_tgt_unk
 
 logging.basicConfig()
 log = logging.getLogger("rnns:eval")
@@ -42,7 +43,8 @@ log.setLevel(logging.INFO)
 class Evaluator:
 
     def __init__(self, training_config, trained_model, additional_training_config, additional_trained_model, reverse_training_config, reverse_trained_model, 
-            mode, max_nb_ex, beam_width, nb_steps, beam_opt, nb_steps_ratio, use_raw_score, groundhog, tgt_unk_id, force_finish, prob_space_combination, gpu):
+            mode, max_nb_ex, beam_width, nb_steps, beam_opt, nb_steps_ratio, use_raw_score, groundhog, tgt_unk_id, force_finish, prob_space_combination, gpu,
+            dic, remove_unk, normalize_unicode_unk, attempt_to_relocate_unk_source):
         self.training_config = training_config
         self.trained_model = trained_model
         self.additional_training_config = additional_training_config
@@ -61,6 +63,10 @@ class Evaluator:
         self.force_finish = force_finish
         self.prob_space_combination = prob_space_combination
         self.gpu = gpu
+        self.dic = dic
+        self.remove_unk = remove_unk
+        self.normalize_unicode_unk = normalize_unicode_unk
+        self.attempt_to_relocate_unk_source = attempt_to_relocate_unk_source
     
         self.encdec, self.eos_idx, self.src_indexer, self.tgt_indexer = create_and_load_encdec_from_files(self.training_config, self.trained_model)
         if self.gpu is not None:
@@ -163,11 +169,6 @@ class Evaluator:
             print >>sys.stderr
         return out
 
-    def __substitute_unknown_tokens(self, original, translation):
-        words = original.split(' ')
-        translation = re.sub(r'#T_UNK_[0-9]+#',lambda match: words[int(match.group()[7:-1])], translation)
-        return translation 
-
     def eval(self, request):
         log.info("processing source string %s" % request)
         src_data, dic_src, make_data_infos = build_dataset_one_side_from_string(request, 
@@ -191,7 +192,7 @@ class Evaluator:
                                                self.reverse_encdec) #reverse_encdec = self.reverse_encdec)
                 
         print(timestamped_msg('Response: {0}'.format(response)))
-        response = self.__substitute_unknown_tokens(request, response)
+        response = replace_tgt_unk.replace_unk_from_string(response, request, self.dic, self.remove_unk, self.normalize_unicode_unk, self.attempt_to_relocate_unk_source)
         return response
 
 class Server:
@@ -389,7 +390,7 @@ def commandline():
 
     evaluator = Evaluator(args.training_config, args.trained_model, args.additional_training_config, args.additional_trained_model, 
                    args.reverse_training_config, args.reverse_trained_model, args.mode, args.max_nb_ex, args.beam_width, args.nb_steps, args.beam_opt, args.nb_steps_ratio, args.use_raw_score, 
-                   args.groundhog, args.tgt_unk_id, args.force_finish, args.prob_space_combination, args.gpu)
+                   args.groundhog, args.tgt_unk_id, args.force_finish, args.prob_space_combination, args.gpu, args.dic, args.remove_unk, args.normalize_unicode_unk, args.attempt_to_relocate_unk_source)
 
     server = Server(evaluator, args.parse_server_command, int(args.port))
     server.start()

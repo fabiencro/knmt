@@ -26,5 +26,28 @@ PARSE_SERVER_LANG[je]=ja
 
 source "$CONFIG"
 
-python nmt_chainer/server.py  --port $PORT --parse_server_command=$PARSE_SERVER_COMMAND \
-    --mode $RNN_SEARCH_MODE --beam_width $RNN_SEARCH_BEAM_WIDTH $RNN_SEARCH_CONFIG $RNN_SEARCH_MODEL --gpu $RNN_SEARCH_GPU
+OPT_DIC=""
+if [[ ! -z "$RNN_SEARCH_DICTIONARY" ]]; then
+    OPT_DIC="--dic $RNN_SEARCH_DICTIONARY"
+fi
+
+OPT_NORMALIZE_UNICODE_UNK=""
+if [[ 'True' == $RNN_SEARCH_NORMALIZE_UNICODE_UNK ]]; then
+    OPT_NORMALIZE_UNICODE_UNK="--normalize_unicode_unk"
+fi
+
+OPT_REMOVE_UNK=""
+if [[ 'True' == $RNN_SEARCH_REMOVE_UNK ]]; then
+    OPT_REMOVE_UNK="--remove_unk"
+fi
+
+OPT_ATTEMPT_TO_RELOCATE_UNK_SOURCE=""
+if [[ 'True' == $RNN_SEARCH_ATTEMPT_TO_RELOCATE_UNK_SOURCE ]]; then
+    OPT_ATTEMPT_TO_RELOCATE_UNK_SOURCE="--attempt_to_relocate_unk_source"
+fi
+
+server_cmd="python nmt_chainer/server.py  --port $PORT --parse_server_command=\"$PARSE_SERVER_COMMAND\" \
+    $OPT_DIC $OPT_NORMALIZE_UNICODE_UNK $OPT_REMOVE_UNK $OPT_ATTEMPT_TO_RELOCATE_UNK_SOURCE \
+    --mode $RNN_SEARCH_MODE --beam_width $RNN_SEARCH_BEAM_WIDTH $RNN_SEARCH_CONFIG $RNN_SEARCH_MODEL --gpu $RNN_SEARCH_GPU"
+echo $server_cmd
+eval $server_cmd
