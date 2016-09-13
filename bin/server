@@ -2,16 +2,29 @@
 
 display_usage() {
     echo "This script must be run in a proper python environment."
-    echo "\nUsage:\nbin/$0 gpu#\n"
+    echo "\nUsage:\nbin/$0 config gpu"
+    echo "\nExample:\nbin/$0 server-je.conf 0\n"
 }
 
-if [ $# -lt 1 ]
+if [ $# -lt 2 ]
 then
     display_usage
     exit 1
 fi
 
-RNN_SEARCH_GPU="$1"
-source server.conf
+CONFIG="$1"
+RNN_SEARCH_GPU="$2"
+
+typeset -A PARSE_SERVER_LANG
+
+PARSE_SERVER_LANG[ce]=zh
+PARSE_SERVER_LANG[cj]=zh
+PARSE_SERVER_LANG[ec]=en
+PARSE_SERVER_LANG[ej]=en
+PARSE_SERVER_LANG[jc]=ja
+PARSE_SERVER_LANG[je]=ja
+
+source "$CONFIG"
+
 python nmt_chainer/server.py  --port $PORT --parse_server_command=$PARSE_SERVER_COMMAND \
     --mode $RNN_SEARCH_MODE --beam_width $RNN_SEARCH_BEAM_WIDTH $RNN_SEARCH_CONFIG $RNN_SEARCH_MODEL --gpu $RNN_SEARCH_GPU

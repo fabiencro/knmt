@@ -217,7 +217,7 @@ class Server:
             text = sentence.findtext('i_sentence')
             # print "text=%s" % text
             
-            cmd = self.parse_server_command % (text, 'ja')
+            cmd = self.parse_server_command % text
             # print "cmd=%s" % cmd
             parser_output = subprocess.check_output(cmd, shell=True)
             # print "parser_output=%s" % parser_output
