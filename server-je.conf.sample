@@ -10,7 +10,6 @@ PORT=44666
 # RNN-Search
 #
 
-RNN_SEARCH_MODE=beam_search
 RNN_SEARCH_BEAM_WIDTH=30
 RNN_SEARCH_CONFIG=~/experiments/rnnsearch/train/je_lstm.train.config
 RNN_SEARCH_MODEL=~/experiments/rnnsearch/train/je_lstm.model.best.converted.npz
