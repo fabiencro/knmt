@@ -2,6 +2,7 @@
 # General
 #
 
+LANG_PAIR=je
 PORT=44666
 
 
@@ -22,5 +23,6 @@ RNN_SEARCH_MODEL=~/experiments/rnnsearch/train/je_lstm.model.best.converted.npz
 PARSE_SERVER_HOME=~/parse-tools
 PARSE_SERVER_HOST=basil123
 PARSE_SERVER_PORT=12351
-PARSE_SERVER_COMMAND="echo '%s' | $PARSE_SERVER_HOME/src/parse_client.pl --host $PARSE_SERVER_HOST --port $PARSE_SERVER_PORT --lang %s"
+PARSE_SERVER_LANG=ja
+PARSE_SERVER_COMMAND="echo '%s' | $PARSE_SERVER_HOME/src/parse_client.pl --host $PARSE_SERVER_HOST --port $PARSE_SERVER_PORT --lang $PARSE_SERVER_LANG[$LANG_PAIR]"
 
