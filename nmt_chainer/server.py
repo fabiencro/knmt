@@ -43,7 +43,7 @@ log.setLevel(logging.INFO)
 class Evaluator:
 
     def __init__(self, training_config, trained_model, additional_training_config, additional_trained_model, reverse_training_config, reverse_trained_model, 
-            mode, max_nb_ex, beam_width, nb_steps, beam_opt, nb_steps_ratio, use_raw_score, groundhog, tgt_unk_id, force_finish, prob_space_combination, gpu,
+            max_nb_ex, beam_width, nb_steps, beam_opt, nb_steps_ratio, use_raw_score, groundhog, tgt_unk_id, force_finish, prob_space_combination, gpu,
             dic, remove_unk, normalize_unicode_unk, attempt_to_relocate_unk_source):
         self.training_config = training_config
         self.trained_model = trained_model
@@ -51,7 +51,6 @@ class Evaluator:
         self.additional_trained_model = additional_trained_model
         self.reverse_training_config = reverse_training_config
         self.reverse_trained_model = reverse_trained_model
-        self.mode = mode
         self.max_nb_ex = max_nb_ex
         self.beam_width = beam_width
         self.nb_steps = nb_steps
@@ -169,7 +168,7 @@ class Evaluator:
             print >>sys.stderr
         return out
 
-    def eval(self, request):
+    def eval(self, request, mode):
         log.info("processing source string %s" % request)
         src_data, dic_src, make_data_infos = build_dataset_one_side_from_string(request, 
                     src_voc_limit = None, max_nb_ex = self.max_nb_ex, dic_src = self.src_indexer)
@@ -182,7 +181,7 @@ class Evaluator:
 
         tgt_data = None
 
-        if self.mode == "beam_search":
+        if mode == "beam_search":
             response = self.__translate_with_beam_search(self.gpu, self.encdec, self.eos_idx, src_data, self.beam_width, 
                                                self.nb_steps, self.beam_opt, 
                                                self.nb_steps_ratio, self.use_raw_score, 
@@ -211,7 +210,9 @@ class Server:
     def __handle_request(self, request):
         print(timestamped_msg("Handling request..."))
         root = ET.fromstring(request)
-        print("Article id: %s" % root.attrib['id'])
+        article_id = root.attrib['id']
+        mode = root.attrib['mode']
+        print("Article id: %s" % article_id)
         out = ""
         sentences = root.findall('sentence')
         for idx, sentence in enumerate(sentences):
@@ -237,7 +238,7 @@ class Server:
             # print "splitted_sentence=" + splitted_sentence
 
             print(timestamped_msg("Translating sentence %d" % idx))
-            translation = self.evaluator.eval(splitted_sentence.decode('utf-8'))
+            translation = self.evaluator.eval(splitted_sentence.decode('utf-8'), mode)
             out += translation
         response = self.__build_response(out)
         return response
@@ -253,6 +254,7 @@ class Server:
             (client_socket, address) = server_socket.accept()
             print(timestamped_msg('Got connection from {0}'.format(address)))
             request = client_socket.recv(1024)
+            # print "request=" + request
             response = self.__handle_request(request)
             client_socket.send(response)
             client_socket.close()
@@ -351,9 +353,9 @@ def commandline():
     
     parser.add_argument("--nbest_to_rescore", help = "nbest list in moses format")
     
-    parser.add_argument("--mode", default = "translate", 
-                        choices = ["translate", "align", "translate_attn", "beam_search", "eval_bleu",
-                                   "score_nbest"], help = "target text")
+    #parser.add_argument("--mode", default = "translate", 
+    #                    choices = ["translate", "align", "translate_attn", "beam_search", "eval_bleu",
+    #                               "score_nbest"], help = "target text")
     
     parser.add_argument("--ref", help = "target text")
     
@@ -389,7 +391,7 @@ def commandline():
     args = parser.parse_args()
 
     evaluator = Evaluator(args.training_config, args.trained_model, args.additional_training_config, args.additional_trained_model, 
-                   args.reverse_training_config, args.reverse_trained_model, args.mode, args.max_nb_ex, args.beam_width, args.nb_steps, args.beam_opt, args.nb_steps_ratio, args.use_raw_score, 
+                   args.reverse_training_config, args.reverse_trained_model, args.max_nb_ex, args.beam_width, args.nb_steps, args.beam_opt, args.nb_steps_ratio, args.use_raw_score, 
                    args.groundhog, args.tgt_unk_id, args.force_finish, args.prob_space_combination, args.gpu, args.dic, args.remove_unk, args.normalize_unicode_unk, args.attempt_to_relocate_unk_source)
 
     server = Server(evaluator, args.parse_server_command, int(args.port))
