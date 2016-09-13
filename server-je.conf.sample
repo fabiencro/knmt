@@ -15,6 +15,10 @@ RNN_SEARCH_BEAM_WIDTH=30
 RNN_SEARCH_CONFIG=~/experiments/rnnsearch/train/je_lstm.train.config
 RNN_SEARCH_MODEL=~/experiments/rnnsearch/train/je_lstm.model.best.converted.npz
 
+RNN_SEARCH_DICTIONARY=~/experiments/rnnsearch/dictionaries/dic_j_e.json
+RNN_SEARCH_REMOVE_UNK=False
+RNN_SEARCH_NORMALIZE_UNICODE_UNK=True
+RNN_SEARCH_ATTEMPT_TO_RELOCATE_UNK_SOURCE=False
 
 #
 # Parse-Server

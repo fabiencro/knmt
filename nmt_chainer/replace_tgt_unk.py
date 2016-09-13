@@ -11,6 +11,47 @@ logging.basicConfig()
 log = logging.getLogger("rnns:replace_tgt")
 log.setLevel(logging.INFO)
 
+
+
+def replace_unk_from_string(translation_str, src_str, dic_fn, remove_unk, normalize_unicode_unk, 
+    attempt_to_relocate_unk_source):
+
+    dic = None
+    if dic_fn is not None:
+        dic = json.load(open(dic_fn))
+    
+    splitted_t = translation_str.strip().split(" ")
+    splitted_s = src_str.strip().split(" ")
+    new_t = []
+    for p_w, w in enumerate(splitted_t):
+        if w.startswith("#T_UNK_"):
+            src_pos = int(w[7:-1])
+            if src_pos >= len(splitted_s):
+                log.warn("link to source out of bound (%i/%i line %i)" %(src_pos, len(splitted_s), num_line + 1))
+                src_pos = len(splitted_s) -1
+            src_w = splitted_s[src_pos]
+            
+            if attempt_to_relocate_unk_source:
+                if dic is not None and src_w in dic:
+                    prec_w = splitted_t[p_w -1] if p_w != 0 else None
+#                     post_w = splitted_t[p_w  +1] if (p_w + 1) < len(splitted_t) else None
+                    if prec_w is not None and dic[src_w] == prec_w and (src_pos + 1) <  len(splitted_s):
+                        log.info("retargeting unk  (%i/%i line %i)" %(src_pos, len(splitted_s), num_line + 1))
+                        src_w = splitted_s[src_pos + 1]
+                    
+#                 log.info("replacing %s %i"%(src_w, len(dic)))
+            if dic is not None and src_w in dic:
+                new_t.append(dic[src_w])
+            else:
+#                     log.info("not found %s"%(src_w,))
+                if not remove_unk:
+                    if normalize_unicode_unk:
+                        src_w = unicodedata.normalize("NFKD", src_w)
+                    new_t.append(src_w)
+        else:
+            new_t.append(w)
+    return " ".join(new_t) + "\n"
+
 def replace_unk(translations, src_file, dest, dic_fn, remove_unk, normalize_unicode_unk,
                 attempt_to_relocate_unk_source):
 
