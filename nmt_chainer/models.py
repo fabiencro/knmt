@@ -630,7 +630,9 @@ class Decoder(Chain):
                 if loss is not None and total_local_loss.data.shape[0] != loss.data.shape[0]:
                     assert total_local_loss.data.shape[0] < loss.data.shape[0]
                     total_local_loss = F.concat(
-                                (total_local_loss, self.xp.zeros(loss.data.shape[0] - total_local_loss.data.shape[0], dtype = self.xp.float32)),
+                                (total_local_loss, Variable(
+                        self.xp.zeros(loss.data.shape[0] - total_local_loss.data.shape[0], dtype = self.xp.float32)
+                        , volatile = "auto")),
                                 axis = 0)
             else:
                 local_loss = F.softmax_cross_entropy(logits, targets[i])   
