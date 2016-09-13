@@ -359,7 +359,7 @@ def commandline():
     elif args.mode == "beam_search":
         translate_to_file_with_beam_search(args.dest_fn, args.gpu, encdec, eos_idx, src_data, args.beam_width, 
                                            args.nb_steps, args.beam_opt, 
-                                           args.b_steps_ratio, args.use_raw_score, 
+                                           args.nb_steps_ratio, args.use_raw_score, 
                                            args.groundhog,
                                            args.tgt_unk_id, tgt_indexer, force_finish = args.force_finish,
                                            prob_space_combination = args.prob_space_combination,
