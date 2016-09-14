@@ -40,7 +40,8 @@ def train_on_data(encdec, optimizer, training_data, output_files_dict,
                   noise_on_prev_word = False, curiculum_training = False,
                   use_previous_prediction = 0, no_report_or_save = False,
                   use_memory_optimization = False, sample_every = 200,
-                  use_reinf = False):
+                  use_reinf = False,
+                  save_ckpt_every = 2000):
 #     ,
 #                   lexical_probability_dictionary = None,
 #                   V_tgt = None,
@@ -312,8 +313,11 @@ def train_on_data(encdec, optimizer, training_data, output_files_dict,
                             log.info("saving best model %f" % best_dev_bleu)
                             save_model("best")
                     prev_time = time.clock()
-                if i%1000 == 0:       
+                if i%save_ckpt_every == 0:       
                     save_model("ckpt")
+                    fn_save_optimizer = output_files_dict["optimizer_ckpt"]
+                    log.info("saving optimizer parameters to %s" % fn_save_optimizer)
+                    serializers.save_npz(fn_save_optimizer, optimizer)
             
             if use_memory_optimization:
 #                 if lexicon_matrix is not None:

@@ -205,6 +205,8 @@ def command_line(arguments = None):
     
     parser.add_argument("--sample_every", default = 200, type = int)
     
+    parser.add_argument("--save_ckpt_every", default = 4000, type = int)
+    
     parser.add_argument("--use_reinf", default = False, action = "store_true")
     
     args = parser.parse_args(args = arguments)
@@ -223,6 +225,7 @@ def command_line(arguments = None):
     output_files_dict["valid_translation_output"] = args.save_prefix + ".valid.out"
     output_files_dict["valid_src_output"] = args.save_prefix + ".valid.src.out"
     output_files_dict["sqlite_db"] = args.save_prefix + ".result.sqlite"
+    output_files_dict["optimizer_ckpt"] = args.save_prefix + ".optimizer." + "ckpt" + ".npz"
     output_files_dict["optimizer_final"] = args.save_prefix + ".optimizer." + "final" + ".npz"
     
     
@@ -414,7 +417,8 @@ def command_line(arguments = None):
                       use_previous_prediction = args.use_previous_prediction, no_report_or_save = args.no_report_or_save,
                       use_memory_optimization = args.use_memory_optimization,
                       sample_every = args.sample_every,
-                      use_reinf = args.use_reinf
+                      use_reinf = args.use_reinf,
+                      save_ckpt_every = args.save_ckpt_every
 #                     lexical_probability_dictionary = lexical_probability_dictionary,
 #                     V_tgt = Vo + 1,
 #                     lexicon_prob_epsilon = args.lexicon_prob_epsilon

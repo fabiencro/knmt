@@ -181,10 +181,6 @@ class StackedCell(ChainList):
         return res
     
     
-
-
-
-            
 # class DoubleGRU(Chain):
 #     def __init__(self, H, I):
 #         log.info("using double GRU")
