@@ -14,7 +14,7 @@ from bokeh.models import HoverTool, ColumnDataSource
 
 # adapted from http://bokeh.pydata.org/en/0.7.1/tutorial/solutions/gallery/les_mis.html
 
-def make_alignment_figure(src, tgt, alignment):
+def make_alignment_figure(src, tgt, alignment, title="Attention Model", toolbar_location='right'):
     
     alignment = alignment[:,::-1]
 #     tgt = list(reversed(tgt))
@@ -50,8 +50,8 @@ def make_alignment_figure(src, tgt, alignment):
     )
     
     # create a new figure
-    p = figure(title="Attention Model",
-               x_axis_location="above", tools="resize,hover",
+    p = figure(title=title,
+               x_axis_location="above", tools="resize,hover", toolbar_location=toolbar_location,
                x_range=src, y_range=tgt,
                plot_width=800, plot_height=800)
     
