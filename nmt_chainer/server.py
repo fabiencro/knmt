@@ -22,7 +22,7 @@ from evaluation import (greedy_batch_translate,
 #                         convert_idx_to_string_with_attn
                         )
 
-# import visualisation
+import visualisation
 import bleu_computer
 import logging
 import codecs
@@ -35,6 +35,8 @@ import xml.etree.ElementTree as ET
 import re
 import subprocess
 import replace_tgt_unk
+import bokeh.embed
+import bokeh.resources
 
 logging.basicConfig()
 log = logging.getLogger("rnns:eval")
@@ -43,7 +45,7 @@ log.setLevel(logging.INFO)
 class Evaluator:
 
     def __init__(self, training_config, trained_model, additional_training_config, additional_trained_model, reverse_training_config, reverse_trained_model, 
-            max_nb_ex, beam_width, nb_steps, beam_opt, nb_steps_ratio, use_raw_score, groundhog, tgt_unk_id, force_finish, prob_space_combination, gpu,
+            max_nb_ex, mb_size, beam_width, nb_steps, beam_opt, nb_steps_ratio, use_raw_score, groundhog, tgt_unk_id, force_finish, prob_space_combination, gpu,
             dic, remove_unk, normalize_unicode_unk, attempt_to_relocate_unk_source):
         self.training_config = training_config
         self.trained_model = trained_model
@@ -52,6 +54,7 @@ class Evaluator:
         self.reverse_training_config = reverse_training_config
         self.reverse_trained_model = reverse_trained_model
         self.max_nb_ex = max_nb_ex
+        self.mb_size = mb_size
         self.beam_width = beam_width
         self.nb_steps = nb_steps
         self.beam_opt = beam_opt
@@ -168,7 +171,7 @@ class Evaluator:
             print >>sys.stderr
         return out
 
-    def eval(self, request, mode):
+    def eval(self, request, request_number, mode):
         log.info("processing source string %s" % request)
         src_data, dic_src, make_data_infos = build_dataset_one_side_from_string(request, 
                     src_voc_limit = None, max_nb_ex = self.max_nb_ex, dic_src = self.src_indexer)
@@ -189,9 +192,57 @@ class Evaluator:
                                                self.tgt_unk_id, self.tgt_indexer, self.force_finish, #force_finish = self.force_finish,
                                                self.prob_space_combination, #prob_space_combination = self.prob_space_combination,
                                                self.reverse_encdec) #reverse_encdec = self.reverse_encdec)
+            response = replace_tgt_unk.replace_unk_from_string(response, request, self.dic, self.remove_unk, self.normalize_unicode_unk, self.attempt_to_relocate_unk_source)
+
+        elif mode == "translate_attn":
+            with cuda.get_device(self.gpu):
+                translations, attn_all = greedy_batch_translate(
+                                            self.encdec, self.eos_idx, src_data, batch_size = self.mb_size, gpu = self.gpu,
+                                            get_attention = True, nb_steps = self.nb_steps)
+#         tgt_voc_with_unk = tgt_voc + ["#T_UNK#"]
+#         src_voc_with_unk = src_voc + ["#S_UNK#"]
+            assert len(translations) == len(src_data)
+            assert len(attn_all) == len(src_data)
+            plots_list = []
+            for num_t in xrange(len(src_data)):
+                src_idx_list = src_data[num_t]
+                tgt_idx_list = translations[num_t][:-1]
+                attn = attn_all[num_t]
+#             assert len(attn) == len(tgt_idx_list)
                 
-        print(timestamped_msg('Response: {0}'.format(response)))
-        response = replace_tgt_unk.replace_unk_from_string(response, request, self.dic, self.remove_unk, self.normalize_unicode_unk, self.attempt_to_relocate_unk_source)
+                alignment = np.zeros((len(src_idx_list) + 1, len(tgt_idx_list)))
+                sum_al =[0] * len(tgt_idx_list)
+                for i in xrange(len(src_idx_list)):
+                    for j in xrange(len(tgt_idx_list)):
+                        alignment[i,j] = attn[j][i]
+                        sum_al[j] += alignment[i,j]
+                for j in xrange(len(tgt_idx_list)):        
+                    alignment[len(src_idx_list), j] =  sum_al[j]
+                    
+                src_w = self.src_indexer.deconvert(src_idx_list, unk_tag = "#S_UNK#") + ["SUM_ATTN"]
+                tgt_w = self.tgt_indexer.deconvert(tgt_idx_list, unk_tag = "#T_UNK#")
+#             src_w = [src_voc_with_unk[idx] for idx in src_idx_list] + ["SUM_ATTN"]
+#             tgt_w = [tgt_voc_with_unk[idx] for idx in tgt_idx_list]
+#             for j in xrange(len(tgt_idx_list)):
+#                 tgt_idx_list.append(tgt_voc_with_unk[t_and_attn[j][0]])
+#             
+        #         print [src_voc_with_unk[idx] for idx in src_idx_list], tgt_idx_list
+                p1 = visualisation.make_alignment_figure(
+                                src_w, tgt_w, alignment, 'Sentence #%s' % str(request_number), 'below' )
+#             p2 = visualisation.make_alignment_figure(
+#                             [src_voc_with_unk[idx] for idx in src_idx_list], tgt_idx_list, alignment)
+                plots_list.append(p1)
+            p_all = visualisation.vplot(*plots_list)
+
+            js_resources = bokeh.resources.INLINE.render_js()
+            css_resources = bokeh.resources.INLINE.render_css()
+
+            script, div = bokeh.embed.components(p_all, bokeh.resources.INLINE)
+            #visualisation.output_file("/home/frederic/public_html/tmp/graph.html")
+            #visualisation.show(p_all)
+            response = [script, div]
+                
+        print(timestamped_msg('Response: {0}'.format(str(response))))
         return response
 
 class Server:
@@ -202,18 +253,23 @@ class Server:
         self.parse_server_command = parse_server_command
         self.start()
 
-    def __build_response(self, out):
+    def __build_response(self, out, graph_data):
         response = {}
         response['out'] = out
+        graphes = [];
+        for gd in graph_data:
+            script, div = gd
+            graphes.append({'script': script, 'div': div})
+        response['attn_graphes'] = graphes
         return json.dumps(response)
 
     def __handle_request(self, request):
         print(timestamped_msg("Handling request..."))
         root = ET.fromstring(request)
         article_id = root.attrib['id']
-        mode = root.attrib['mode']
         print("Article id: %s" % article_id)
         out = ""
+        graph_data = []
         sentences = root.findall('sentence')
         for idx, sentence in enumerate(sentences):
             text = sentence.findtext('i_sentence')
@@ -238,9 +294,13 @@ class Server:
             # print "splitted_sentence=" + splitted_sentence
 
             print(timestamped_msg("Translating sentence %d" % idx))
-            translation = self.evaluator.eval(splitted_sentence.decode('utf-8'), mode)
+            translation = self.evaluator.eval(splitted_sentence.decode('utf-8'), idx, 'beam_search')
             out += translation
-        response = self.__build_response(out)
+
+            script, div = self.evaluator.eval(splitted_sentence.decode('utf-8'), idx, 'translate_attn')
+            graph_data.append((script.encode('utf-8'), div.encode('utf-8')))
+
+        response = self.__build_response(out, graph_data)
         return response
 
     def start(self):
@@ -391,7 +451,7 @@ def commandline():
     args = parser.parse_args()
 
     evaluator = Evaluator(args.training_config, args.trained_model, args.additional_training_config, args.additional_trained_model, 
-                   args.reverse_training_config, args.reverse_trained_model, args.max_nb_ex, args.beam_width, args.nb_steps, args.beam_opt, args.nb_steps_ratio, args.use_raw_score, 
+                   args.reverse_training_config, args.reverse_trained_model, args.max_nb_ex, args.mb_size, args.beam_width, args.nb_steps, args.beam_opt, args.nb_steps_ratio, args.use_raw_score, 
                    args.groundhog, args.tgt_unk_id, args.force_finish, args.prob_space_combination, args.gpu, args.dic, args.remove_unk, args.normalize_unicode_unk, args.attempt_to_relocate_unk_source)
 
     server = Server(evaluator, args.parse_server_command, int(args.port))
