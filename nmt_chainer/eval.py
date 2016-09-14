@@ -60,6 +60,31 @@ class AttentionVisualizer(object):
         visualisation.output_file(output_file)
         visualisation.show(p_all)
 
+class RichOutputWriter(object):
+    def __init__(self, filename):
+        log.info("writing JSON translation infos to %s"% filename)
+        self.filename = filename
+        self.output = open(filename, "w")
+        self.no_entry_yet = True
+        self.output.write("[\n")
+        
+    def add_info(self, src, translated, t, score, attn):
+        if not self.no_entry_yet:
+            self.output.write(",\n")
+        else:
+            self.no_entry_yet = False
+        self.output.write("{\"tr\": ")
+        self.output.write(json.dumps(translated))
+        self.output.write(",\n\"attn\": ")
+        self.output.write(json.dumps([[float(a) for a in a_list] for a_list in attn]))
+        self.output.write("}")
+            
+    def finish(self):
+        self.output.write("\n]")
+        self.output.close()
+        log.info("done writing JSON translation infos to %s"% self.filename)
+          
+
 
 def beam_search_all(gpu, encdec, eos_idx, src_data, beam_width, nb_steps, beam_opt, 
        nb_steps_ratio, use_raw_score, 
@@ -109,9 +134,9 @@ def translate_to_file_with_beam_search(dest_fn, gpu, encdec, eos_idx, src_data, 
        groundhog,
        tgt_unk_id, tgt_indexer, force_finish = False,
        prob_space_combination = False, reverse_encdec = None, 
-       generate_attention_html = None, src_indexer = None):
+       generate_attention_html = None, src_indexer = None, rich_output_filename = None):
     
-    log.info("writing translation of to %s"% dest_fn)
+    log.info("writing translation of to %s "% dest_fn)
     out = codecs.open(dest_fn, "w", encoding = "utf8")
     
     translation_iterator = beam_search_all(gpu, encdec, eos_idx, src_data, beam_width, nb_steps, beam_opt, 
@@ -126,11 +151,20 @@ def translate_to_file_with_beam_search(dest_fn, gpu, encdec, eos_idx, src_data, 
         attn_vis = AttentionVisualizer()
         assert src_indexer is not None
         
+    rich_output = None
+    if rich_output_filename is not None:
+        rich_output = RichOutputWriter(rich_output_filename)
+        
     for src, translated, t, score, attn in translation_iterator:
-        ct = " ".join(translated)
-        out.write(ct + "\n")
+        if rich_output is not None:
+            rich_output.add_info(src, translated, t, score, attn)
         if attn_vis is not None:
             attn_vis.add_plot(src_indexer.deconvert(src), translated, attn)
+        ct = " ".join(translated)
+        out.write(ct + "\n")
+        
+    if rich_output is not None:
+        rich_output.finish()
     
     if attn_vis is not None:
         attn_vis.make_plot(generate_attention_html)
@@ -249,6 +283,7 @@ def commandline():
     parser.add_argument("--force_finish", default = False, action = "store_true")
     
     parser.add_argument("--generate_attention_html", help = "generate a html file with attention information")
+    parser.add_argument("--rich_output_filename", help = "generate a JSON file with attention information")
     
     # arguments for unk replace
     parser.add_argument("--dic")
@@ -365,7 +400,8 @@ def commandline():
                                            prob_space_combination = args.prob_space_combination,
                                            reverse_encdec = reverse_encdec,
                                            generate_attention_html = args.generate_attention_html,
-                                           src_indexer = src_indexer)
+                                           src_indexer = src_indexer,
+                                           rich_output_filename = args.rich_output_filename)
             
     elif args.mode == "eval_bleu":
 #         assert args.ref is not None
@@ -377,7 +413,8 @@ def commandline():
                                            prob_space_combination = args.prob_space_combination,
                                            reverse_encdec = reverse_encdec,
                                            generate_attention_html = args.generate_attention_html,
-                                           src_indexer = src_indexer)
+                                           src_indexer = src_indexer,
+                                           rich_output_filename = args.rich_output_filename)
         
         if args.ref is not None:
             bc = bleu_computer.get_bc_from_files(args.ref, args.dest_fn)
