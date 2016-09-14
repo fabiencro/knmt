@@ -186,6 +186,7 @@ def generate_graph(sqldb, dest, lib, title = "Training Evolution"):
         )
         
         data = [trace0, trace1, trace2, trace3, trace4, trace0min, trace1max, trace2min, trace3max]
+#         data = [trace2, trace3, trace4, trace2min, trace3max]
         fig = go.Figure(data=data, layout=layout)
         # Plot and embed in ipython notebook!
         plotly.offline.plot(fig, filename = dest, auto_open = False)
