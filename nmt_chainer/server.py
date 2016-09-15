@@ -45,8 +45,7 @@ log.setLevel(logging.INFO)
 class Evaluator:
 
     def __init__(self, training_config, trained_model, additional_training_config, additional_trained_model, reverse_training_config, reverse_trained_model, 
-            max_nb_ex, mb_size, beam_width, nb_steps, beam_opt, nb_steps_ratio, use_raw_score, groundhog, tgt_unk_id, force_finish, prob_space_combination, gpu,
-            dic, remove_unk, normalize_unicode_unk, attempt_to_relocate_unk_source):
+            max_nb_ex, mb_size, beam_opt, tgt_unk_id, gpu, dic):
         self.training_config = training_config
         self.trained_model = trained_model
         self.additional_training_config = additional_training_config
@@ -55,20 +54,10 @@ class Evaluator:
         self.reverse_trained_model = reverse_trained_model
         self.max_nb_ex = max_nb_ex
         self.mb_size = mb_size
-        self.beam_width = beam_width
-        self.nb_steps = nb_steps
         self.beam_opt = beam_opt
-        self.nb_steps_ratio = nb_steps_ratio
-        self.use_raw_score = use_raw_score
-        self.groundhog = groundhog
         self.tgt_unk_id = tgt_unk_id
-        self.force_finish = force_finish
-        self.prob_space_combination = prob_space_combination
         self.gpu = gpu
         self.dic = dic
-        self.remove_unk = remove_unk
-        self.normalize_unicode_unk = normalize_unicode_unk
-        self.attempt_to_relocate_unk_source = attempt_to_relocate_unk_source
     
         self.encdec, self.eos_idx, self.src_indexer, self.tgt_indexer = create_and_load_encdec_from_files(self.training_config, self.trained_model)
         if self.gpu is not None:
@@ -116,7 +105,8 @@ class Evaluator:
         else:
             self.reverse_encdec = None    
             
-    def eval(self, request, request_number):
+    def eval(self, request, request_number, beam_width, nb_steps, nb_steps_ratio, 
+            remove_unk, normalize_unicode_unk, attempt_to_relocate_unk_source, use_raw_score, groundhog, force_finish, prob_space_combination):
         log.info("processing source string %s" % request)
         src_data, dic_src, make_data_infos = build_dataset_one_side_from_string(request, 
                     src_voc_limit = None, max_nb_ex = self.max_nb_ex, dic_src = self.src_indexer)
@@ -132,11 +122,11 @@ class Evaluator:
         out = ''
         with cuda.get_device(self.gpu):
             translations_gen = beam_search_translate(
-                        self.encdec, self.eos_idx, src_data, beam_width = self.beam_width, nb_steps = self.nb_steps, 
-                                        gpu = self.gpu, beam_opt = self.beam_opt, nb_steps_ratio = self.nb_steps_ratio,
-                                        need_attention = True, score_is_divided_by_length = not self.use_raw_score,
-                                        groundhog = self.groundhog, force_finish = self.force_finish,
-                                        prob_space_combination = self.prob_space_combination,
+                        self.encdec, self.eos_idx, src_data, beam_width = beam_width, nb_steps = nb_steps, 
+                                        gpu = self.gpu, beam_opt = self.beam_opt, nb_steps_ratio = nb_steps_ratio,
+                                        need_attention = True, score_is_divided_by_length = not use_raw_score,
+                                        groundhog = groundhog, force_finish = force_finish,
+                                        prob_space_combination = prob_space_combination,
                                         reverse_encdec = self.reverse_encdec)
 
             for num_t, (t, score, attn) in enumerate(translations_gen):
@@ -159,7 +149,7 @@ class Evaluator:
                     assert False
                 
                 ct = " ".join(self.tgt_indexer.deconvert(t, unk_tag = unk_replacer))
-                ct = replace_tgt_unk.replace_unk_from_string(ct, request, self.dic, self.remove_unk, self.normalize_unicode_unk, self.attempt_to_relocate_unk_source)
+                ct = replace_tgt_unk.replace_unk_from_string(ct, request, self.dic, remove_unk, normalize_unicode_unk, attempt_to_relocate_unk_source)
 
                 out += ct + "\n"
 
@@ -212,6 +202,20 @@ class Server:
         print(timestamped_msg("Handling request..."))
         root = ET.fromstring(request)
         article_id = root.attrib['id']
+        beam_width = int(root.attrib['beam_width'])
+        nb_steps = int(root.attrib['nb_steps'])
+        nb_steps_ratio = None
+        try:
+            nb_steps_ratio = float(root.attrib['nb_steps_ratio'])
+        except:
+            pass
+        groundhog = ('true' == root.attrib['groundhog'])
+        force_finish = ('true' == root.attrib['force_finish'])
+        use_raw_score = ('true' == root.attrib['use_raw_score'])
+        prob_space_combination = ('true' == root.attrib['prob_space_combination'])
+        remove_unk = ('true' == root.attrib['remove_unk'])
+        normalize_unicode_unk = ('true' == root.attrib['normalize_unicode_unk'])
+        attempt_to_relocate_unk_source = ('true' == root.attrib['attempt_to_relocate_unk_source'])
         print("Article id: %s" % article_id)
         out = ""
         graph_data = []
@@ -239,7 +243,9 @@ class Server:
             # print "splitted_sentence=" + splitted_sentence
 
             print(timestamped_msg("Translating sentence %d" % idx))
-            translation, script, div = self.evaluator.eval(splitted_sentence.decode('utf-8'), idx)
+            translation, script, div = self.evaluator.eval(splitted_sentence.decode('utf-8'), idx, 
+                beam_width, nb_steps, nb_steps_ratio, remove_unk, normalize_unicode_unk, attempt_to_relocate_unk_source,
+                use_raw_score, groundhog, force_finish, prob_space_combination)
             out += translation
             graph_data.append((script.encode('utf-8'), div.encode('utf-8')))
 
@@ -365,35 +371,18 @@ def commandline():
     
     parser.add_argument("--nbest_to_rescore", help = "nbest list in moses format")
     
-    #parser.add_argument("--mode", default = "translate", 
-    #                    choices = ["translate", "align", "translate_attn", "beam_search", "eval_bleu",
-    #                               "score_nbest"], help = "target text")
-    
     parser.add_argument("--ref", help = "target text")
     
     parser.add_argument("--gpu", type = int, help = "specify gpu number to use, if any")
     
     parser.add_argument("--max_nb_ex", type = int, help = "only use the first MAX_NB_EX examples")
     parser.add_argument("--mb_size", type = int, default= 80, help = "Minibatch size")
-    parser.add_argument("--beam_width", type = int, default= 20, help = "beam width")
-    parser.add_argument("--nb_steps", type = int, default= 50, help = "nb_steps used in generation")
-    parser.add_argument("--nb_steps_ratio", type = float, help = "nb_steps used in generation as a ratio of input length")
     parser.add_argument("--nb_batch_to_sort", type = int, default= 20, help = "Sort this many batches by size.")
     parser.add_argument("--beam_opt", default = False, action = "store_true")
     parser.add_argument("--tgt_unk_id", choices = ["attn", "id"], default = "align")
-    parser.add_argument("--groundhog", default = False, action = "store_true")
-    
-    parser.add_argument("--force_finish", default = False, action = "store_true")
     
     # arguments for unk replace
     parser.add_argument("--dic")
-    parser.add_argument("--remove_unk", default = False, action = "store_true")
-    parser.add_argument("--normalize_unicode_unk", default = False, action = "store_true")
-    parser.add_argument("--attempt_to_relocate_unk_source", default = False, action = "store_true")
-    
-    parser.add_argument("--use_raw_score", default = False, action = "store_true")
-    
-    parser.add_argument("--prob_space_combination", default = False, action = "store_true")
     
     parser.add_argument("--reverse_training_config", help = "prefix of the trained model")
     parser.add_argument("--reverse_trained_model", help = "prefix of the trained model")
@@ -403,8 +392,8 @@ def commandline():
     args = parser.parse_args()
 
     evaluator = Evaluator(args.training_config, args.trained_model, args.additional_training_config, args.additional_trained_model, 
-                   args.reverse_training_config, args.reverse_trained_model, args.max_nb_ex, args.mb_size, args.beam_width, args.nb_steps, args.beam_opt, args.nb_steps_ratio, args.use_raw_score, 
-                   args.groundhog, args.tgt_unk_id, args.force_finish, args.prob_space_combination, args.gpu, args.dic, args.remove_unk, args.normalize_unicode_unk, args.attempt_to_relocate_unk_source)
+                   args.reverse_training_config, args.reverse_trained_model, args.max_nb_ex, args.mb_size, args.beam_opt, 
+                   args.tgt_unk_id, args.gpu, args.dic)
 
     server = Server(evaluator, args.parse_server_command, int(args.port))
     server.start()
