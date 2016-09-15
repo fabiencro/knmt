@@ -116,62 +116,7 @@ class Evaluator:
         else:
             self.reverse_encdec = None    
             
-    def __translate_with_beam_search(self, gpu, encdec, eos_idx, src_data, beam_width, nb_steps, beam_opt, 
-           nb_steps_ratio, use_raw_score, 
-           groundhog,
-           tgt_unk_id, tgt_indexer, force_finish = False,
-           prob_space_combination = False, reverse_encdec = None):
-        #log.info("writing translation of to %s"% dest_fn)
-        #out = codecs.open(dest_fn, "w", encoding = "utf8")
-        out = ''
-        with cuda.get_device(gpu):
-            translations_gen = beam_search_translate(
-                        encdec, eos_idx, src_data, beam_width = beam_width, nb_steps = nb_steps, 
-                                        gpu = gpu, beam_opt = beam_opt, nb_steps_ratio = nb_steps_ratio,
-                                        need_attention = True, score_is_divided_by_length = not use_raw_score,
-                                        groundhog = groundhog, force_finish = force_finish,
-                                        prob_space_combination = prob_space_combination,
-                                        reverse_encdec = reverse_encdec)
-            
-            
-#         for num_t in range(len(translations)):
-#             print num_t
-#             for t, score in translations[num_t]:
-#                 ct = convert_idx_to_string(t[:-1], tgt_voc + ["#T_UNK#"])
-#                 print ct, score
-#                 out.write(ct + "\n")
-            for num_t, (t, score, attn) in enumerate(translations_gen):
-                if num_t %200 == 0:
-                    print >>sys.stderr, num_t,
-                elif num_t %40 == 0:
-                    print >>sys.stderr, "*",
-#                 t, score = bests[1]
-#                 ct = convert_idx_to_string(t, tgt_voc + ["#T_UNK#"])
-#                 ct = convert_idx_to_string_with_attn(t, tgt_voc, attn, unk_idx = len(tgt_voc))
-                if tgt_unk_id == "align":
-                    def unk_replacer(num_pos, unk_id):
-                        unk_pattern = "#T_UNK_%i#"
-                        a = attn[num_pos]
-                        xp = cuda.get_array_module(a)
-                        src_pos = int(xp.argmax(a))
-                        return unk_pattern%src_pos
-                elif tgt_unk_id == "id":
-                    def unk_replacer(num_pos, unk_id):
-                        unk_pattern = "#T_UNK_%i#"
-                        return unk_pattern%unk_id         
-                else:
-                    assert False
-                
-                ct = " ".join(tgt_indexer.deconvert(t, unk_tag = unk_replacer))
-                
-#                 print convert_idx_to_string(bests[0][0], tgt_voc + ["#T_UNK#"]) , bests[0][1]
-#                 print convert_idx_to_string(bests[1][0], tgt_voc + ["#T_UNK#"]), bests[1][1], bests[1][1] / len(bests[1][0])
-                #out.write(ct + "\n")
-                out += ct + "\n"
-            print >>sys.stderr
-        return out
-
-    def eval(self, request, request_number, mode):
+    def eval(self, request, request_number):
         log.info("processing source string %s" % request)
         src_data, dic_src, make_data_infos = build_dataset_one_side_from_string(request, 
                     src_voc_limit = None, max_nb_ex = self.max_nb_ex, dic_src = self.src_indexer)
@@ -184,66 +129,66 @@ class Evaluator:
 
         tgt_data = None
 
-        if mode == "beam_search":
-            response = self.__translate_with_beam_search(self.gpu, self.encdec, self.eos_idx, src_data, self.beam_width, 
-                                               self.nb_steps, self.beam_opt, 
-                                               self.nb_steps_ratio, self.use_raw_score, 
-                                               self.groundhog,
-                                               self.tgt_unk_id, self.tgt_indexer, self.force_finish, #force_finish = self.force_finish,
-                                               self.prob_space_combination, #prob_space_combination = self.prob_space_combination,
-                                               self.reverse_encdec) #reverse_encdec = self.reverse_encdec)
-            response = replace_tgt_unk.replace_unk_from_string(response, request, self.dic, self.remove_unk, self.normalize_unicode_unk, self.attempt_to_relocate_unk_source)
+        out = ''
+        with cuda.get_device(self.gpu):
+            translations_gen = beam_search_translate(
+                        self.encdec, self.eos_idx, src_data, beam_width = self.beam_width, nb_steps = self.nb_steps, 
+                                        gpu = self.gpu, beam_opt = self.beam_opt, nb_steps_ratio = self.nb_steps_ratio,
+                                        need_attention = True, score_is_divided_by_length = not self.use_raw_score,
+                                        groundhog = self.groundhog, force_finish = self.force_finish,
+                                        prob_space_combination = self.prob_space_combination,
+                                        reverse_encdec = self.reverse_encdec)
 
-        elif mode == "translate_attn":
-            with cuda.get_device(self.gpu):
-                translations, attn_all = greedy_batch_translate(
-                                            self.encdec, self.eos_idx, src_data, batch_size = self.mb_size, gpu = self.gpu,
-                                            get_attention = True, nb_steps = self.nb_steps)
-#         tgt_voc_with_unk = tgt_voc + ["#T_UNK#"]
-#         src_voc_with_unk = src_voc + ["#S_UNK#"]
-            assert len(translations) == len(src_data)
-            assert len(attn_all) == len(src_data)
-            plots_list = []
-            for num_t in xrange(len(src_data)):
-                src_idx_list = src_data[num_t]
-                tgt_idx_list = translations[num_t][:-1]
-                attn = attn_all[num_t]
-#             assert len(attn) == len(tgt_idx_list)
+            for num_t, (t, score, attn) in enumerate(translations_gen):
+                if num_t %200 == 0:
+                    print >>sys.stderr, num_t,
+                elif num_t %40 == 0:
+                    print >>sys.stderr, "*",
+                if self.tgt_unk_id == "align":
+                    def unk_replacer(num_pos, unk_id):
+                        unk_pattern = "#T_UNK_%i#"
+                        a = attn[num_pos]
+                        xp = cuda.get_array_module(a)
+                        src_pos = int(xp.argmax(a))
+                        return unk_pattern%src_pos
+                elif self.tgt_unk_id == "id":
+                    def unk_replacer(num_pos, unk_id):
+                        unk_pattern = "#T_UNK_%i#"
+                        return unk_pattern%unk_id         
+                else:
+                    assert False
                 
+                ct = " ".join(self.tgt_indexer.deconvert(t, unk_tag = unk_replacer))
+                ct = replace_tgt_unk.replace_unk_from_string(ct, request, self.dic, self.remove_unk, self.normalize_unicode_unk, self.attempt_to_relocate_unk_source)
+
+                out += ct + "\n"
+
+                plots_list = []
+                src_idx_list = src_data[num_t]
+                tgt_idx_list = t[:-1]
                 alignment = np.zeros((len(src_idx_list) + 1, len(tgt_idx_list)))
                 sum_al =[0] * len(tgt_idx_list)
+
                 for i in xrange(len(src_idx_list)):
                     for j in xrange(len(tgt_idx_list)):
-                        alignment[i,j] = attn[j][i]
+                        alignment[i,j] = attn[j][0][i]
                         sum_al[j] += alignment[i,j]
                 for j in xrange(len(tgt_idx_list)):        
                     alignment[len(src_idx_list), j] =  sum_al[j]
                     
                 src_w = self.src_indexer.deconvert(src_idx_list, unk_tag = "#S_UNK#") + ["SUM_ATTN"]
                 tgt_w = self.tgt_indexer.deconvert(tgt_idx_list, unk_tag = "#T_UNK#")
-#             src_w = [src_voc_with_unk[idx] for idx in src_idx_list] + ["SUM_ATTN"]
-#             tgt_w = [tgt_voc_with_unk[idx] for idx in tgt_idx_list]
-#             for j in xrange(len(tgt_idx_list)):
-#                 tgt_idx_list.append(tgt_voc_with_unk[t_and_attn[j][0]])
-#             
-        #         print [src_voc_with_unk[idx] for idx in src_idx_list], tgt_idx_list
-                p1 = visualisation.make_alignment_figure(
-                                src_w, tgt_w, alignment, 'Sentence #%s' % str(request_number), 'below' )
-#             p2 = visualisation.make_alignment_figure(
-#                             [src_voc_with_unk[idx] for idx in src_idx_list], tgt_idx_list, alignment)
+                p1 = visualisation.make_alignment_figure(src_w, tgt_w, alignment, 'Sentence #%s' % str(request_number), 'below')
                 plots_list.append(p1)
-            p_all = visualisation.vplot(*plots_list)
+                p_all = visualisation.vplot(*plots_list)
 
-            js_resources = bokeh.resources.INLINE.render_js()
-            css_resources = bokeh.resources.INLINE.render_css()
+                js_resources = bokeh.resources.INLINE.render_js()
+                css_resources = bokeh.resources.INLINE.render_css()
 
-            script, div = bokeh.embed.components(p_all, bokeh.resources.INLINE)
-            #visualisation.output_file("/home/frederic/public_html/tmp/graph.html")
-            #visualisation.show(p_all)
-            response = [script, div]
-                
-        print(timestamped_msg('Response: {0}'.format(str(response))))
-        return response
+                script, div = bokeh.embed.components(p_all, bokeh.resources.INLINE)
+            print >>sys.stderr
+
+        return out, script, div
 
 class Server:
 
@@ -294,10 +239,8 @@ class Server:
             # print "splitted_sentence=" + splitted_sentence
 
             print(timestamped_msg("Translating sentence %d" % idx))
-            translation = self.evaluator.eval(splitted_sentence.decode('utf-8'), idx, 'beam_search')
+            translation, script, div = self.evaluator.eval(splitted_sentence.decode('utf-8'), idx)
             out += translation
-
-            script, div = self.evaluator.eval(splitted_sentence.decode('utf-8'), idx, 'translate_attn')
             graph_data.append((script.encode('utf-8'), div.encode('utf-8')))
 
         response = self.__build_response(out, graph_data)
