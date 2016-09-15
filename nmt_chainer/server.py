@@ -312,11 +312,20 @@ class Server:
 
         while True:
             (client_socket, address) = server_socket.accept()
+            client_socket.settimeout(2)
             print(timestamped_msg('Got connection from {0}'.format(address)))
-            request = client_socket.recv(1024)
-            # print "request=" + request
+            request = ''
+            while True:
+                try:
+                    data = client_socket.recv(1024)
+                    if data:
+                        request += data
+                    else:
+                        break
+                except:
+                    break 
             response = self.__handle_request(request)
-            client_socket.send(response)
+            client_socket.sendall(response)
             client_socket.close()
         
 def timestamped_msg(msg):
