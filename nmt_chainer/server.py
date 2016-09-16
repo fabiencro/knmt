@@ -156,17 +156,14 @@ class Evaluator:
                 plots_list = []
                 src_idx_list = src_data[num_t]
                 tgt_idx_list = t[:-1]
-                alignment = np.zeros((len(src_idx_list) + 1, len(tgt_idx_list)))
+                alignment = np.zeros((len(src_idx_list), len(tgt_idx_list)))
                 sum_al =[0] * len(tgt_idx_list)
 
                 for i in xrange(len(src_idx_list)):
                     for j in xrange(len(tgt_idx_list)):
                         alignment[i,j] = attn[j][0][i]
-                        sum_al[j] += alignment[i,j]
-                for j in xrange(len(tgt_idx_list)):        
-                    alignment[len(src_idx_list), j] =  sum_al[j]
                     
-                src_w = self.src_indexer.deconvert(src_idx_list, unk_tag = "#S_UNK#") + ["SUM_ATTN"]
+                src_w = self.src_indexer.deconvert(src_idx_list, unk_tag = "#S_UNK#")
                 tgt_w = self.tgt_indexer.deconvert(tgt_idx_list, unk_tag = "#T_UNK#")
                 p1 = visualisation.make_alignment_figure(src_w, tgt_w, alignment, 'Sentence #%s' % str(request_number), 'below')
                 plots_list.append(p1)
