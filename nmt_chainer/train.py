@@ -392,7 +392,7 @@ def command_line(arguments = None):
                                            momentum = args.momentum)    
     else:
         raise NotImplemented
-    with cuda.Device(args.gpu):
+    with cuda.get_device(args.gpu):
         optimizer.setup(encdec)
     
     if args.l2_gradient_clipping is not None and args.l2_gradient_clipping > 0:
@@ -405,7 +405,7 @@ def command_line(arguments = None):
         optimizer.add_hook(chainer.optimizer.WeightDecay(args.weight_decay))
 
     if args.load_optimizer_state is not None:
-        with cuda.Device(args.gpu):
+        with cuda.get_device(args.gpu):
             serializers.load_npz(args.load_optimizer_state, optimizer)    
     
 
