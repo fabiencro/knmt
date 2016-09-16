@@ -33,6 +33,23 @@ This implementation uses the Chainer Deep Learning Library (http://chainer.org/)
         #! shell
         python train.py /path_to_experiment_dir/prefix /path_to_experiment_dir/prefix_train --gpu 0
 
+1. Generate Training Graph
+
+        #! shell
+        pip install --user plotly
+        python graph_training.py --lib plotly /path_to_experiment_dir/prefix_train/*.result.sqlite ~/public_html/graph.html
+
+## Recommended Options
+
+        #! shell
+        python train.py /path_to_experiment_dir/prefix /path_to_experiment_dir/prefix_train --gpu 0
+        --optimizer adam
+        --weight_decay 0.000001
+        --l2_gradient_clipping 1
+        --mb_size 64
+        --max_src_tgt_length 90
+        // use smaller value if frequently running out of memory
+
 ## More options
 
 run:
