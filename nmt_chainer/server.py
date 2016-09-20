@@ -234,7 +234,7 @@ class Server:
                     break
                 else:
                     parts = line.split("\t")
-                    word = parts[3]
+                    word = parts[2]
                     words.append(word)
             splitted_sentence = ' '.join(words)
             # print "splitted_sentence=" + splitted_sentence
