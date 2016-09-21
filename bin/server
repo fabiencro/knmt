@@ -2,8 +2,8 @@
 
 display_usage() {
     echo "This script must be run in a proper python environment."
-    echo "\nUsage:\nbin/$0 config [gpu]"
-    echo "\nExample:\nbin/$0 server-je.conf 0\n"
+    echo "\nUsage:\nbin/server config [gpu]"
+    echo "\nExample:\nbin/server server-je.conf 0 2>&1 | tee server.log\n"
 }
 
 if [ $# -lt 1 ]
@@ -52,7 +52,8 @@ if [[ ! -z "$RNN_SEARCH_ADDITIONAL_MODEL" ]]; then
 	done
 fi
 
-server_cmd="python nmt_chainer/server.py --port $PORT --segmenter_command=\"$SEGMENTER_COMMAND\" $OPT_DIC \
+server_cmd="python nmt_chainer/server.py --port $PORT \
+	--segmenter_command=\"$SEGMENTER_COMMAND\" --segmenter_format $SEGMENTER_FORMAT $OPT_DIC \
     $RNN_SEARCH_CONFIG $RNN_SEARCH_MODEL $OPT_GPU \
 	$OPT_ADDITIONAL_CONFIGS $OPT_ADDITIONAL_MODELS"
 echo "$server_cmd"

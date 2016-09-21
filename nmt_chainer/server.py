@@ -179,10 +179,11 @@ class Evaluator:
 
 class Server:
 
-    def __init__(self, evaluator, segmenter_command, port=44666):
+    def __init__(self, evaluator, segmenter_command, segmenter_format = 'parse_server', port = 44666):
         self.evaluator = evaluator
         self.port = port
         self.segmenter_command = segmenter_command
+	self.segmenter_format = segmenter_format
 
     def __build_response(self, out, graph_data):
         response = {}
@@ -226,15 +227,22 @@ class Server:
             # print "parser_output=%s" % parser_output
 
             words = []
-            for line in parser_output.split("\n"):
-                if (line.startswith('#')):
-                    continue
-                elif (not line.strip()):
-                    break
-                else:
-                    parts = line.split("\t")
-                    word = parts[2]
-                    words.append(word)
+	    if 'parse_server' == self.segmenter_format:
+		for line in parser_output.split("\n"):
+		    if (line.startswith('#')):
+			continue
+		    elif (not line.strip()):
+			break
+		    else:
+			parts = line.split("\t")
+			word = parts[2]
+			words.append(word)
+	    elif 'morph' == self.segmenter_format:
+		for pair in parser_output.split(' '):
+		    word, pos = pair.split('_')
+		    words.append(word)
+	    else:
+		pass
             splitted_sentence = ' '.join(words)
             # print "splitted_sentence=" + splitted_sentence
 
@@ -385,13 +393,14 @@ def commandline():
     
     parser.add_argument("--port", help = "port for listening request", default = 44666)
     parser.add_argument("--segmenter_command", help = "command to communicate with the segmenter server")
+    parser.add_argument("--segmenter_format", help = "format to expect from the segmenter (parse_server, morph)", default = 'parse_server')
     args = parser.parse_args()
 
     evaluator = Evaluator(args.training_config, args.trained_model, args.additional_training_config, args.additional_trained_model, 
                    args.reverse_training_config, args.reverse_trained_model, args.max_nb_ex, args.mb_size, args.beam_opt, 
                    args.tgt_unk_id, args.gpu, args.dic)
 
-    server = Server(evaluator, args.segmenter_command, int(args.port))
+    server = Server(evaluator, args.segmenter_command, args.segmenter_format, int(args.port))
     server.start()
     
 if __name__ == '__main__':
