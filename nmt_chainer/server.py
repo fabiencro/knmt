@@ -179,10 +179,10 @@ class Evaluator:
 
 class Server:
 
-    def __init__(self, evaluator, parse_server_command, port=44666):
+    def __init__(self, evaluator, segmenter_command, port=44666):
         self.evaluator = evaluator
         self.port = port
-        self.parse_server_command = parse_server_command
+        self.segmenter_command = segmenter_command
 
     def __build_response(self, out, graph_data):
         response = {}
@@ -220,7 +220,7 @@ class Server:
             text = sentence.findtext('i_sentence')
             # print "text=%s" % text
             
-            cmd = self.parse_server_command % text
+            cmd = self.segmenter_command % text
             # print "cmd=%s" % cmd
             parser_output = subprocess.check_output(cmd, shell=True)
             # print "parser_output=%s" % parser_output
@@ -384,14 +384,14 @@ def commandline():
     parser.add_argument("--reverse_trained_model", help = "prefix of the trained model")
     
     parser.add_argument("--port", help = "port for listening request", default = 44666)
-    parser.add_argument("--parse_server_command", help = "command to communicate with the parse-server")
+    parser.add_argument("--segmenter_command", help = "command to communicate with the segmenter server")
     args = parser.parse_args()
 
     evaluator = Evaluator(args.training_config, args.trained_model, args.additional_training_config, args.additional_trained_model, 
                    args.reverse_training_config, args.reverse_trained_model, args.max_nb_ex, args.mb_size, args.beam_opt, 
                    args.tgt_unk_id, args.gpu, args.dic)
 
-    server = Server(evaluator, args.parse_server_command, int(args.port))
+    server = Server(evaluator, args.segmenter_command, int(args.port))
     server.start()
     
 if __name__ == '__main__':

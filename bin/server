@@ -15,14 +15,14 @@ fi
 CONFIG="$1"
 RNN_SEARCH_GPU="$2"
 
-typeset -A PARSE_SERVER_LANG
+typeset -A SEGMENTER_LANG
 
-PARSE_SERVER_LANG['ce']='zh'
-PARSE_SERVER_LANG['cj']='zh'
-PARSE_SERVER_LANG['ec']='en'
-PARSE_SERVER_LANG['ej']='en'
-PARSE_SERVER_LANG['jc']='ja'
-PARSE_SERVER_LANG['je']='ja'
+SEGMENTER_LANG['ce']='zh'
+SEGMENTER_LANG['cj']='zh'
+SEGMENTER_LANG['ec']='en'
+SEGMENTER_LANG['ej']='en'
+SEGMENTER_LANG['jc']='ja'
+SEGMENTER_LANG['je']='ja'
 
 source "$CONFIG"
 
@@ -52,7 +52,7 @@ if [[ ! -z "$RNN_SEARCH_ADDITIONAL_MODEL" ]]; then
 	done
 fi
 
-server_cmd="python nmt_chainer/server.py --port $PORT --parse_server_command=\"$PARSE_SERVER_COMMAND\" $OPT_DIC \
+server_cmd="python nmt_chainer/server.py --port $PORT --segmenter_command=\"$SEGMENTER_COMMAND\" $OPT_DIC \
     $RNN_SEARCH_CONFIG $RNN_SEARCH_MODEL $OPT_GPU \
 	$OPT_ADDITIONAL_CONFIGS $OPT_ADDITIONAL_MODELS"
 echo "$server_cmd"
