@@ -73,13 +73,13 @@ class Evaluator:
                 this_encdec, this_eos_idx, this_src_indexer, this_tgt_indexer = create_and_load_encdec_from_files(
                                 config_training_fn, trained_model_fn)
             
-                if eos_idx != this_eos_idx:
+                if self.eos_idx != this_eos_idx:
                     raise Exception("incompatible models")
                     
-                if len(src_indexer) != len(this_src_indexer):
+                if len(self.src_indexer) != len(this_src_indexer):
                     raise Exception("incompatible models")
                   
-                if len(tgt_indexer) != len(this_tgt_indexer):
+                if len(self.tgt_indexer) != len(this_tgt_indexer):
                     raise Exception("incompatible models")
                                   
                 if self.gpu is not None:
@@ -183,7 +183,6 @@ class Server:
         self.evaluator = evaluator
         self.port = port
         self.parse_server_command = parse_server_command
-        self.start()
 
     def __build_response(self, out, graph_data):
         response = {}
