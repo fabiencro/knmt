@@ -26,6 +26,7 @@ import visualisation
 import bleu_computer
 import logging
 import codecs
+import traceback
 
 import rnn_cells
 
@@ -116,8 +117,8 @@ class Evaluator:
                                                                      float(make_data_infos.total_count_unk * 100) / 
                                                                         make_data_infos.total_token))
         assert dic_src == self.src_indexer
-
-        tgt_data = None
+        
+	tgt_data = None
 
         out = ''
         with cuda.get_device(self.gpu):
@@ -185,7 +186,13 @@ class Server:
         self.segmenter_command = segmenter_command
 	self.segmenter_format = segmenter_format
 
-    def __build_response(self, out, graph_data):
+    def __build_error_response(self, error_lines):
+	response = {}
+	response['error'] = error_lines[-1]
+	response['stacktrace'] = error_lines
+        return json.dumps(response)
+	
+    def __build_successful_response(self, out, graph_data):
         response = {}
         response['out'] = out
         graphes = [];
@@ -253,7 +260,7 @@ class Server:
             out += translation
             graph_data.append((script.encode('utf-8'), div.encode('utf-8')))
 
-        response = self.__build_response(out, graph_data)
+        response = self.__build_successful_response(out, graph_data)
         return response
 
     def start(self):
@@ -277,7 +284,11 @@ class Server:
                         break
                 except:
                     break 
-            response = self.__handle_request(request)
+	    try:
+		response = self.__handle_request(request)
+	    except:
+		traceback.print_exc()
+		response = self.__build_error_response(traceback.format_exc().splitlines())
             client_socket.sendall(response)
             client_socket.close()
         
