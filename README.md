@@ -1,4 +1,4 @@
-# ChaiNMT
+# KyotoNMT
 ## An implementation of Neural Machine Translation in Chainer.
 This code mainly implements the Neural Machine Translation system described in (Bahdanau et al., 2015). Also known as "RNNSearch", or "Sequence-to-Sequence Modeling with Attention Mechanism", this is, as of 2016, the most commonly used approach in the recent field of Neural Machine Translation.
 
@@ -7,13 +7,11 @@ This implementation uses the Chainer Deep Learning Library (http://chainer.org/)
 #Requirements:
 * Python 2.7.x
 * A recent version of Chainer (> 1.9). Install with:
-
-    #! shell
+ 
     pip install chainer
 
 * Optionally, the plotting libraries plotly and bokeh are used in some visualisation scripts:
 
-    #! shell
     pip install plotly
     pip install bokeh
 
