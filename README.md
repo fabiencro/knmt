@@ -4,6 +4,8 @@ This code mainly implements the Neural Machine Translation system described in (
 
 This implementation uses the Chainer Deep Learning Library (http://chainer.org/).
 
+NB: The Code here has been used for practical purposes for some months and work well. The codebase and doc still need to be cleaned and improved a lot at this point (Mid-Sept. 2016). This should be done in the coming month. 
+
 #Requirements:
 * Python 2.7.x
 * A recent version of Chainer (> 1.9). Install with:
