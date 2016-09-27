@@ -24,16 +24,14 @@ There are essentially three steps in the use of KyotoNMT: data preparation (make
 ## Data Preparation
 The required training data is a sentence-aligned parallel corpus that is expected to be in two utf-8 text files: one for source language sentences and the other target language sentences. One sentence per line, words separated by whitespaces. Additionally, some validation data should be provided in a similar form (a source and a target file). This validation data will be used for early-stopping, as well as to visualize the progress of the training. One should also specify the maximum size of vocabulary for source and target sentences. For example:
 
-./make_data.py train.src train.tgt data_prefix 
-    --dev_src valid.src --dev_tgt valid.tgt  
-    --src_voc_size 100000 --tgt_voc_size 30000
+    python make_data.py train.src train.tgt data_prefix --dev_src valid.src --dev_tgt valid.tgt  --src_voc_size 100000 --tgt_voc_size 30000
 
 As a result of this call, two dictionaries indexing the 100000 and 30000 most common source and target words are created (with a special index for out-of-vocabulary words). The training and validation data are then converted to integer sequences according to these dictionaries and saved in a gzipped JSON file prefixed with data_prefix.
 
 ## Training
 Training is done by invoking the train.py script, passing as argument the data prefix used in the data preparation part.
 
-./train.py data_prefix train_prefix
+    python train.py data_prefix train_prefix
 
 This simple call will train a network with size and features similar to those used in the original (Bahdanau et al., 2015) paper (except that LSTMs are used in place of GRUs). But there are many options to specify different aspects of the network: embedding layer size, hidden states size, number of lstm stacks, etc. The training settings can also be specified at this point: weight decay, learning rate, training algorithm, dropout values, minibatch size, etc. 
 
@@ -46,20 +44,9 @@ The models that have given the best BLEU and best perplexity so far are saved in
 
 The sqlite database keep track of many information items during the training: validation BLEU and perplexity, training perplexity, time to process each minibatch, etc. An additional script can use this database to generate a plotly\footnote{https://github.com/plotly} graph showing the evolution of BLEU, perplexity and training loss, as shown in figure~\ref{fig:train-graph}. This graph can be generated while training is still in progress and is very useful for monitoring ongoing experiments. 
 
-0. Gather some training data.
+## Evaluation
 
-        - Training data is in the form of two files: a source language file and a target language file. Each is a utf-8 file containing one sentence per line, segmented into "words" by standard whitespace.
-
-1. Convert Data
-
-        #! shell
-        python make_data.py /path/train/ja /path/train/en /path_to_experiment_dir/prefix --test_src /path/test/ja --test_tgt /path/test/en --dev_src /path/dev/ja --dev_tgt /path/dev/en
-
-2. Train
-
-        #! shell
-        python train.py /path_to_experiment_dir/prefix /path_to_experiment_dir/prefix_train --gpu 0
-
+## Visualisation
 1. Generate Training Graph
 
         #! shell
