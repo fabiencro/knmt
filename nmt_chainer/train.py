@@ -169,6 +169,10 @@ def command_line(arguments = None):
     parser.add_argument("--max_src_tgt_length", type = int, help = "Limit length of training sentences")
     
     parser.add_argument("--l2_gradient_clipping", type = float, default = 1, help = "L2 gradient clipping. 0 for None")
+    
+    parser.add_argument("--hard_gradient_clipping", type = float, nargs = 2, help = "hard gradient clipping.")
+    
+    
     parser.add_argument("--weight_decay", type = float, help = "weight decay")
     
     parser.add_argument("--optimizer", choices=["sgd", "rmsprop", "rmspropgraves", 
@@ -394,6 +398,9 @@ def command_line(arguments = None):
     if args.l2_gradient_clipping is not None and args.l2_gradient_clipping > 0:
         optimizer.add_hook(chainer.optimizer.GradientClipping(args.l2_gradient_clipping))
 
+    if args.hard_gradient_clipping is not None and args.hard_gradient_clipping > 0:
+        optimizer.add_hook(chainer.optimizer.GradientHardClipping(*args.hard_gradient_clipping))
+
     if args.weight_decay is not None:
         optimizer.add_hook(chainer.optimizer.WeightDecay(args.weight_decay))
 
@@ -425,8 +432,10 @@ def command_line(arguments = None):
                       )
 #             finally:
 #                 print timer
-#                 print(timer.total_time())
 #                 timer.print_sorted()
+#                 print "total time:"
+#                 print(timer.total_time())
+                
                 
 
 if __name__ == '__main__':

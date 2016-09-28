@@ -43,13 +43,20 @@ def read_one_align_info_from_file_object(f):
     if len(id_line) == 0:
         raise exceptions.EOFError()
     id_line = id_line.strip()
-    sharp, id_, score = id_line.split()
+    id_data = id_line.split()
+    score = 0.0
+    if len(id_data) == 3:
+        sharp, id_, score = id_data
+        score = float(score)
+    else:
+        sharp, id_ = id_data
     assert sharp == "#"
-    score = float(score)
     align_line = f.readline().strip()
     alignment = []
     for link in align_line.split():
         left, right = link.split("-")
+        if left == "" or right == "":
+            continue
         left = [int(x) for x in left.split(",")]
         right = [int(x) for x in right.split(",")]
         alignment.append((left, right))
