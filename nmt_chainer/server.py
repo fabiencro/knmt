@@ -107,7 +107,7 @@ class Evaluator:
             self.reverse_encdec = None    
             
     def eval(self, request, request_number, beam_width, nb_steps, nb_steps_ratio, 
-            remove_unk, normalize_unicode_unk, attempt_to_relocate_unk_source, use_raw_score, groundhog, force_finish, prob_space_combination):
+            remove_unk, normalize_unicode_unk, attempt_to_relocate_unk_source, use_raw_score, groundhog, force_finish, prob_space_combination, attn_graph_width, attn_graph_height):
         log.info("processing source string %s" % request)
         src_data, dic_src, make_data_infos = build_dataset_one_side_from_string(request, 
                     src_voc_limit = None, max_nb_ex = self.max_nb_ex, dic_src = self.src_indexer)
@@ -117,7 +117,7 @@ class Evaluator:
                                                                      float(make_data_infos.total_count_unk * 100) / 
                                                                         make_data_infos.total_token))
         assert dic_src == self.src_indexer
-        
+
 	tgt_data = None
 
         out = ''
@@ -166,7 +166,7 @@ class Evaluator:
                     
                 src_w = self.src_indexer.deconvert(src_idx_list, unk_tag = "#S_UNK#")
                 tgt_w = self.tgt_indexer.deconvert(tgt_idx_list, unk_tag = "#T_UNK#")
-                p1 = visualisation.make_alignment_figure(src_w, tgt_w, alignment, 'Sentence #%s' % str(request_number), 'below')
+                p1 = visualisation.make_alignment_figure(src_w, tgt_w, alignment, 'Sentence #%s' % str(request_number), 'below', plot_width = attn_graph_width, plot_height = attn_graph_height)
                 plots_list.append(p1)
                 p_all = visualisation.vplot(*plots_list)
 
@@ -206,6 +206,8 @@ class Server:
         print(timestamped_msg("Handling request..."))
         root = ET.fromstring(request)
         article_id = root.attrib['id']
+	attn_graph_width = int(root.attrib['attn_graph_width'])
+	attn_graph_height = int(root.attrib['attn_graph_height'])
         beam_width = int(root.attrib['beam_width'])
         nb_steps = int(root.attrib['nb_steps'])
         nb_steps_ratio = None
@@ -256,7 +258,7 @@ class Server:
             print(timestamped_msg("Translating sentence %d" % idx))
             translation, script, div = self.evaluator.eval(splitted_sentence.decode('utf-8'), idx, 
                 beam_width, nb_steps, nb_steps_ratio, remove_unk, normalize_unicode_unk, attempt_to_relocate_unk_source,
-                use_raw_score, groundhog, force_finish, prob_space_combination)
+                use_raw_score, groundhog, force_finish, prob_space_combination, attn_graph_width, attn_graph_height)
             out += translation
             graph_data.append((script.encode('utf-8'), div.encode('utf-8')))
 
