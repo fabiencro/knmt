@@ -79,7 +79,7 @@ def update_next_lists(num_case, idx_in_case, new_cost, eos_idx, new_state_ensemb
         next_translations_list.append(current_translations[num_case] + [idx_in_case])
         if need_attention:
             xp = cuda.get_array_module(attn_ensemble[0].data)
-            attn_summed = xp.zeros((attn_ensemble[0].data.shape), dtype = xp.float32)
+            attn_summed = xp.zeros((attn_ensemble[0].data[0].shape), dtype = xp.float32)
             for attn in attn_ensemble:
                 attn_summed += attn.data[num_case]
             attn_summed /= len(attn_ensemble)
