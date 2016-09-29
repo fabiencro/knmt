@@ -118,7 +118,7 @@ class Evaluator:
                                                                         make_data_infos.total_token))
         assert dic_src == self.src_indexer
 
-	tgt_data = None
+        tgt_data = None
 
         out = ''
         with cuda.get_device(self.gpu):
@@ -150,30 +150,34 @@ class Evaluator:
                     assert False
                 
                 ct = " ".join(self.tgt_indexer.deconvert(t, unk_tag = unk_replacer))
-                ct = replace_tgt_unk.replace_unk_from_string(ct, request, self.dic, remove_unk, normalize_unicode_unk, attempt_to_relocate_unk_source)
+                if (ct == ''):
+                    script = ''
+                    div = '<div/>'
+                else:
+                    ct = replace_tgt_unk.replace_unk_from_string(ct, request, self.dic, remove_unk, normalize_unicode_unk, attempt_to_relocate_unk_source)
 
-                out += ct + "\n"
+                    out += ct + "\n"
 
-                plots_list = []
-                src_idx_list = src_data[num_t]
-                tgt_idx_list = t[:-1]
-                alignment = np.zeros((len(src_idx_list), len(tgt_idx_list)))
-                sum_al =[0] * len(tgt_idx_list)
+                    plots_list = []
+                    src_idx_list = src_data[num_t]
+                    tgt_idx_list = t[:-1]
+                    alignment = np.zeros((len(src_idx_list), len(tgt_idx_list)))
+                    sum_al =[0] * len(tgt_idx_list)
 
-                for i in xrange(len(src_idx_list)):
-                    for j in xrange(len(tgt_idx_list)):
-                        alignment[i,j] = attn[j][0][i]
-                    
-                src_w = self.src_indexer.deconvert(src_idx_list, unk_tag = "#S_UNK#")
-                tgt_w = self.tgt_indexer.deconvert(tgt_idx_list, unk_tag = "#T_UNK#")
-                p1 = visualisation.make_alignment_figure(src_w, tgt_w, alignment, 'Sentence #%s' % str(request_number), 'below', plot_width = attn_graph_width, plot_height = attn_graph_height)
-                plots_list.append(p1)
-                p_all = visualisation.vplot(*plots_list)
+                    for i in xrange(len(src_idx_list)):
+                        for j in xrange(len(tgt_idx_list)):
+                            alignment[i,j] = attn[j][0][i]
+                        
+                    src_w = self.src_indexer.deconvert(src_idx_list, unk_tag = "#S_UNK#")
+                    tgt_w = self.tgt_indexer.deconvert(tgt_idx_list, unk_tag = "#T_UNK#")
+                    p1 = visualisation.make_alignment_figure(src_w, tgt_w, alignment, 'Sentence #%s' % str(request_number), 'below', plot_width = attn_graph_width, plot_height = attn_graph_height)
+                    plots_list.append(p1)
+                    p_all = visualisation.vplot(*plots_list)
 
-                js_resources = bokeh.resources.INLINE.render_js()
-                css_resources = bokeh.resources.INLINE.render_css()
+                    js_resources = bokeh.resources.INLINE.render_js()
+                    css_resources = bokeh.resources.INLINE.render_css()
 
-                script, div = bokeh.embed.components(p_all, bokeh.resources.INLINE)
+                    script, div = bokeh.embed.components(p_all, bokeh.resources.INLINE)
             print >>sys.stderr
 
         return out, script, div
@@ -184,14 +188,14 @@ class Server:
         self.evaluator = evaluator
         self.port = port
         self.segmenter_command = segmenter_command
-	self.segmenter_format = segmenter_format
+        self.segmenter_format = segmenter_format
 
     def __build_error_response(self, error_lines):
-	response = {}
-	response['error'] = error_lines[-1]
-	response['stacktrace'] = error_lines
+        response = {}
+        response['error'] = error_lines[-1]
+        response['stacktrace'] = error_lines
         return json.dumps(response)
-	
+        
     def __build_successful_response(self, out, graph_data):
         response = {}
         response['out'] = out
@@ -206,8 +210,8 @@ class Server:
         print(timestamped_msg("Handling request..."))
         root = ET.fromstring(request)
         article_id = root.attrib['id']
-	attn_graph_width = int(root.attrib['attn_graph_width'])
-	attn_graph_height = int(root.attrib['attn_graph_height'])
+        attn_graph_width = int(root.attrib['attn_graph_width'])
+        attn_graph_height = int(root.attrib['attn_graph_height'])
         beam_width = int(root.attrib['beam_width'])
         nb_steps = int(root.attrib['nb_steps'])
         nb_steps_ratio = None
@@ -236,22 +240,22 @@ class Server:
             # print "parser_output=%s" % parser_output
 
             words = []
-	    if 'parse_server' == self.segmenter_format:
-		for line in parser_output.split("\n"):
-		    if (line.startswith('#')):
-			continue
-		    elif (not line.strip()):
-			break
-		    else:
-			parts = line.split("\t")
-			word = parts[2]
-			words.append(word)
-	    elif 'morph' == self.segmenter_format:
-		for pair in parser_output.split(' '):
-		    word, pos = pair.split('_')
-		    words.append(word)
-	    else:
-		pass
+            if 'parse_server' == self.segmenter_format:
+                for line in parser_output.split("\n"):
+                    if (line.startswith('#')):
+                        continue
+                    elif (not line.strip()):
+                        break
+                    else:
+                        parts = line.split("\t")
+                        word = parts[2]
+                        words.append(word)
+            elif 'morph' == self.segmenter_format:
+                for pair in parser_output.split(' '):
+                    word, pos = pair.split('_')
+                    words.append(word)
+            else:
+                pass
             splitted_sentence = ' '.join(words)
             # print "splitted_sentence=" + splitted_sentence
 
@@ -286,11 +290,11 @@ class Server:
                         break
                 except:
                     break 
-	    try:
-		response = self.__handle_request(request)
-	    except:
-		traceback.print_exc()
-		response = self.__build_error_response(traceback.format_exc().splitlines())
+            try:
+                response = self.__handle_request(request)
+            except:
+                traceback.print_exc()
+                response = self.__build_error_response(traceback.format_exc().splitlines())
             client_socket.sendall(response)
             client_socket.close()
         
