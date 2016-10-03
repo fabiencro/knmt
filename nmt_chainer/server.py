@@ -166,7 +166,7 @@ class Evaluator:
 
                     for i in xrange(len(src_idx_list)):
                         for j in xrange(len(tgt_idx_list)):
-                            alignment[i,j] = attn[j][0][i]
+                            alignment[i,j] = attn[j][i]
                         
                     src_w = self.src_indexer.deconvert(src_idx_list, unk_tag = "#S_UNK#")
                     tgt_w = self.tgt_indexer.deconvert(tgt_idx_list, unk_tag = "#T_UNK#")
