@@ -93,6 +93,9 @@ def beam_search_all(gpu, encdec, eos_idx, src_data, beam_width, nb_steps, beam_o
        prob_space_combination = False, reverse_encdec = None):
     
     log.info("starting beam search translation of %i sentences"% len(src_data))
+    if isinstance(encdec, (list, tuple)) and len(encdec) > 1:
+        log.info("using ensemble of %i models"%len(encdec))
+        
     with cuda.get_device(gpu):
         translations_gen = beam_search_translate(
                     encdec, eos_idx, src_data, beam_width = beam_width, nb_steps = nb_steps, 
@@ -136,7 +139,7 @@ def translate_to_file_with_beam_search(dest_fn, gpu, encdec, eos_idx, src_data, 
        prob_space_combination = False, reverse_encdec = None, 
        generate_attention_html = None, src_indexer = None, rich_output_filename = None):
     
-    log.info("writing translation of to %s "% dest_fn)
+    log.info("writing translation to %s "% dest_fn)
     out = codecs.open(dest_fn, "w", encoding = "utf8")
     
     translation_iterator = beam_search_all(gpu, encdec, eos_idx, src_data, beam_width, nb_steps, beam_opt, 
@@ -392,7 +395,7 @@ def commandline():
             out.write(ct + "\n")
 
     elif args.mode == "beam_search":
-        translate_to_file_with_beam_search(args.dest_fn, args.gpu, encdec, eos_idx, src_data, args.beam_width, 
+        translate_to_file_with_beam_search(args.dest_fn, args.gpu, encdec_list, eos_idx, src_data, args.beam_width, 
                                            args.nb_steps, args.beam_opt, 
                                            args.nb_steps_ratio, args.use_raw_score, 
                                            args.groundhog,
