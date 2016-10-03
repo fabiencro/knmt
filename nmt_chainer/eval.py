@@ -33,14 +33,69 @@ logging.basicConfig()
 log = logging.getLogger("rnns:eval")
 log.setLevel(logging.INFO)
 
+class AttentionVisualizer(object):
+    def __init__(self):
+        self.plots_list = []
+        
+    def add_plot(self, src_w, tgt_w, attn):
+        import visualisation
+        alignment = np.zeros((len(src_w) + 1, len(tgt_w)))
+        sum_al =[0] * len(tgt_w)
+        for i in xrange(len(src_w)):
+            for j in xrange(len(tgt_w)):
+                alignment[i,j] = attn[j][i]
+                sum_al[j] += alignment[i,j]
+        for j in xrange(len(tgt_w)):        
+            alignment[len(src_w), j] =  sum_al[j]
+            
+        p1 = visualisation.make_alignment_figure(
+                            src_w + ["SUM_ATTN"], tgt_w, alignment)
+        
+        self.plots_list.append(p1)
+            
+    def make_plot(self, output_file):
+        import visualisation
+        log.info("writing attention to %s"% output_file)
+        p_all = visualisation.vplot(*self.plots_list)
+        visualisation.output_file(output_file)
+        visualisation.show(p_all)
 
-def translate_to_file_with_beam_search(dest_fn, gpu, encdec, eos_idx, src_data, beam_width, nb_steps, beam_opt, 
+class RichOutputWriter(object):
+    def __init__(self, filename):
+        log.info("writing JSON translation infos to %s"% filename)
+        self.filename = filename
+        self.output = open(filename, "w")
+        self.no_entry_yet = True
+        self.output.write("[\n")
+        
+    def add_info(self, src, translated, t, score, attn):
+        if not self.no_entry_yet:
+            self.output.write(",\n")
+        else:
+            self.no_entry_yet = False
+        self.output.write("{\"tr\": ")
+        self.output.write(json.dumps(translated))
+        self.output.write(",\n\"attn\": ")
+        self.output.write(json.dumps([[float(a) for a in a_list] for a_list in attn]))
+        self.output.write("}")
+            
+    def finish(self):
+        self.output.write("\n]")
+        self.output.close()
+        log.info("done writing JSON translation infos to %s"% self.filename)
+          
+
+
+def beam_search_all(gpu, encdec, eos_idx, src_data, beam_width, nb_steps, beam_opt, 
        nb_steps_ratio, use_raw_score, 
        groundhog,
        tgt_unk_id, tgt_indexer, force_finish = False,
        prob_space_combination = False, reverse_encdec = None):
-    log.info("writing translation of to %s"% dest_fn)
-    out = codecs.open(dest_fn, "w", encoding = "utf8")
+    
+    log.info("starting beam search translation of %i sentences"% len(src_data))
+    if isinstance(encdec, (list, tuple)) and len(encdec) > 1:
+        log.info("using ensemble of %i models"%len(encdec))
+        
     with cuda.get_device(gpu):
         translations_gen = beam_search_translate(
                     encdec, eos_idx, src_data, beam_width = beam_width, nb_steps = nb_steps, 
@@ -50,13 +105,6 @@ def translate_to_file_with_beam_search(dest_fn, gpu, encdec, eos_idx, src_data, 
                                     prob_space_combination = prob_space_combination,
                                     reverse_encdec = reverse_encdec)
         
-        
-#         for num_t in range(len(translations)):
-#             print num_t
-#             for t, score in translations[num_t]:
-#                 ct = convert_idx_to_string(t[:-1], tgt_voc + ["#T_UNK#"])
-#                 print ct, score
-#                 out.write(ct + "\n")
         for num_t, (t, score, attn) in enumerate(translations_gen):
             if num_t %200 == 0:
                 print >>sys.stderr, num_t,
@@ -79,12 +127,50 @@ def translate_to_file_with_beam_search(dest_fn, gpu, encdec, eos_idx, src_data, 
             else:
                 assert False
             
-            ct = " ".join(tgt_indexer.deconvert(t, unk_tag = unk_replacer))
+            translated = tgt_indexer.deconvert(t, unk_tag = unk_replacer)
             
-#                 print convert_idx_to_string(bests[0][0], tgt_voc + ["#T_UNK#"]) , bests[0][1]
-#                 print convert_idx_to_string(bests[1][0], tgt_voc + ["#T_UNK#"]), bests[1][1], bests[1][1] / len(bests[1][0])
-            out.write(ct + "\n")
+            yield src_data[num_t], translated, t, score, attn 
         print >>sys.stderr
+
+def translate_to_file_with_beam_search(dest_fn, gpu, encdec, eos_idx, src_data, beam_width, nb_steps, beam_opt, 
+       nb_steps_ratio, use_raw_score, 
+       groundhog,
+       tgt_unk_id, tgt_indexer, force_finish = False,
+       prob_space_combination = False, reverse_encdec = None, 
+       generate_attention_html = None, src_indexer = None, rich_output_filename = None):
+    
+    log.info("writing translation to %s "% dest_fn)
+    out = codecs.open(dest_fn, "w", encoding = "utf8")
+    
+    translation_iterator = beam_search_all(gpu, encdec, eos_idx, src_data, beam_width, nb_steps, beam_opt, 
+       nb_steps_ratio, use_raw_score, 
+       groundhog,
+       tgt_unk_id, tgt_indexer, force_finish = force_finish,
+       prob_space_combination = prob_space_combination, reverse_encdec = reverse_encdec)
+    
+    
+    attn_vis = None
+    if generate_attention_html is not None:
+        attn_vis = AttentionVisualizer()
+        assert src_indexer is not None
+        
+    rich_output = None
+    if rich_output_filename is not None:
+        rich_output = RichOutputWriter(rich_output_filename)
+        
+    for src, translated, t, score, attn in translation_iterator:
+        if rich_output is not None:
+            rich_output.add_info(src, translated, t, score, attn)
+        if attn_vis is not None:
+            attn_vis.add_plot(src_indexer.deconvert(src), translated, attn)
+        ct = " ".join(translated)
+        out.write(ct + "\n")
+        
+    if rich_output is not None:
+        rich_output.finish()
+    
+    if attn_vis is not None:
+        attn_vis.make_plot(generate_attention_html)
 
 def create_encdec_from_config(config_training):
 
@@ -199,6 +285,9 @@ def commandline():
     
     parser.add_argument("--force_finish", default = False, action = "store_true")
     
+    parser.add_argument("--generate_attention_html", help = "generate a html file with attention information")
+    parser.add_argument("--rich_output_filename", help = "generate a JSON file with attention information")
+    
     # arguments for unk replace
     parser.add_argument("--dic")
     parser.add_argument("--remove_unk", default = False, action = "store_true")
@@ -306,13 +395,16 @@ def commandline():
             out.write(ct + "\n")
 
     elif args.mode == "beam_search":
-        translate_to_file_with_beam_search(args.dest_fn, args.gpu, encdec, eos_idx, src_data, args.beam_width, 
+        translate_to_file_with_beam_search(args.dest_fn, args.gpu, encdec_list, eos_idx, src_data, args.beam_width, 
                                            args.nb_steps, args.beam_opt, 
                                            args.nb_steps_ratio, args.use_raw_score, 
                                            args.groundhog,
                                            args.tgt_unk_id, tgt_indexer, force_finish = args.force_finish,
                                            prob_space_combination = args.prob_space_combination,
-                                           reverse_encdec = reverse_encdec)
+                                           reverse_encdec = reverse_encdec,
+                                           generate_attention_html = args.generate_attention_html,
+                                           src_indexer = src_indexer,
+                                           rich_output_filename = args.rich_output_filename)
             
     elif args.mode == "eval_bleu":
 #         assert args.ref is not None
@@ -322,7 +414,10 @@ def commandline():
                                            args.groundhog,
                                            args.tgt_unk_id, tgt_indexer, force_finish = args.force_finish,
                                            prob_space_combination = args.prob_space_combination,
-                                           reverse_encdec = reverse_encdec)
+                                           reverse_encdec = reverse_encdec,
+                                           generate_attention_html = args.generate_attention_html,
+                                           src_indexer = src_indexer,
+                                           rich_output_filename = args.rich_output_filename)
         
         if args.ref is not None:
             bc = bleu_computer.get_bc_from_files(args.ref, args.dest_fn)
@@ -351,21 +446,12 @@ def commandline():
 #         src_voc_with_unk = src_voc + ["#S_UNK#"]
         assert len(translations) == len(src_data)
         assert len(attn_all) == len(src_data)
-        plots_list = []
+        attn_vis = AttentionVisualizer()
         for num_t in xrange(len(src_data)):
             src_idx_list = src_data[num_t]
             tgt_idx_list = translations[num_t][:-1]
             attn = attn_all[num_t]
 #             assert len(attn) == len(tgt_idx_list)
-            
-            alignment = np.zeros((len(src_idx_list) + 1, len(tgt_idx_list)))
-            sum_al =[0] * len(tgt_idx_list)
-            for i in xrange(len(src_idx_list)):
-                for j in xrange(len(tgt_idx_list)):
-                    alignment[i,j] = attn[j][i]
-                    sum_al[j] += alignment[i,j]
-            for j in xrange(len(tgt_idx_list)):        
-                alignment[len(src_idx_list), j] =  sum_al[j]
                 
             src_w = src_indexer.deconvert(src_idx_list, unk_tag = "#S_UNK#") + ["SUM_ATTN"]
             tgt_w = tgt_indexer.deconvert(tgt_idx_list, unk_tag = "#T_UNK#")
@@ -375,14 +461,10 @@ def commandline():
 #                 tgt_idx_list.append(tgt_voc_with_unk[t_and_attn[j][0]])
 #             
     #         print [src_voc_with_unk[idx] for idx in src_idx_list], tgt_idx_list
-            p1 = visualisation.make_alignment_figure(
-                            src_w, tgt_w, alignment)
-#             p2 = visualisation.make_alignment_figure(
-#                             [src_voc_with_unk[idx] for idx in src_idx_list], tgt_idx_list, alignment)
-            plots_list.append(p1)
-        p_all = visualisation.vplot(*plots_list)
-        visualisation.output_file(args.dest_fn)
-        visualisation.show(p_all)
+        
+            attn_vis.add_plot(src_w, tgt_w, attn)
+        
+        attn_vis.make_plot(args.dest_fn)
         
     elif args.mode == "align":
         assert tgt_data is not None
