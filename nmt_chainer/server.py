@@ -22,6 +22,8 @@ from evaluation import (greedy_batch_translate,
 #                         convert_idx_to_string_with_attn
                         )
 
+from eval import (create_encdec_from_config, create_and_load_encdec_from_files) 
+
 import visualisation
 import bleu_computer
 import logging
@@ -302,82 +304,6 @@ def timestamped_msg(msg):
     timestamp = datetime.datetime.fromtimestamp(time.time()).strftime('%Y-%m-%d %H:%M:%S')
     return "{0}: {1}".format(timestamp, msg) 
 
-def create_encdec_from_config(config_training):
-
-    voc_fn = config_training["voc"]
-    log.info("loading voc from %s"% voc_fn)
-    src_voc, tgt_voc = json.load(open(voc_fn))
-    
-    src_indexer = Indexer.make_from_serializable(src_voc)
-    tgt_indexer = Indexer.make_from_serializable(tgt_voc)
-    tgt_voc = None
-    src_voc = None
-    
-    
-#     Vi = len(src_voc) + 1 # + UNK
-#     Vo = len(tgt_voc) + 1 # + UNK
-    
-    Vi = len(src_indexer) # + UNK
-    Vo = len(tgt_indexer) # + UNK
-    
-    print config_training
-    
-    Ei = config_training["command_line"]["Ei"]
-    Hi = config_training["command_line"]["Hi"]
-    Eo = config_training["command_line"]["Eo"]
-    Ho = config_training["command_line"]["Ho"]
-    Ha = config_training["command_line"]["Ha"]
-    Hl = config_training["command_line"]["Hl"]
-    
-    encoder_cell_type = config_training["command_line"].get("encoder_cell_type", "gru")
-    decoder_cell_type = config_training["command_line"].get("decoder_cell_type", "gru")
-    
-    use_bn_length = config_training["command_line"].get("use_bn_length", None)
-    
-    import gzip
-    
-    if "lexical_probability_dictionary" in config_training["command_line"] and config_training["command_line"]["lexical_probability_dictionary"] is not None:
-        log.info("opening lexical_probability_dictionary %s" % config_training["command_line"]["lexical_probability_dictionary"])
-        lexical_probability_dictionary_all = json.load(gzip.open(config_training["command_line"]["lexical_probability_dictionary"], "rb"))
-        log.info("computing lexical_probability_dictionary_indexed")
-        lexical_probability_dictionary_indexed = {}
-        for ws in lexical_probability_dictionary_all:
-            ws_idx = src_indexer.convert([ws])[0]
-            if ws_idx in lexical_probability_dictionary_indexed:
-                assert src_indexer.is_unk_idx(ws_idx)
-            else:
-                lexical_probability_dictionary_indexed[ws_idx] = {}
-            for wt in lexical_probability_dictionary_all[ws]:
-                wt_idx = tgt_indexer.convert([wt])[0]
-                if wt_idx in lexical_probability_dictionary_indexed[ws_idx]:
-                    assert src_indexer.is_unk_idx(ws_idx) or tgt_indexer.is_unk_idx(wt_idx)
-                    lexical_probability_dictionary_indexed[ws_idx][wt_idx] += lexical_probability_dictionary_all[ws][wt]
-                else:
-                    lexical_probability_dictionary_indexed[ws_idx][wt_idx] = lexical_probability_dictionary_all[ws][wt]
-        lexical_probability_dictionary = lexical_probability_dictionary_indexed
-    else:
-        lexical_probability_dictionary = None
-    
-    eos_idx = Vo
-    encdec = models.EncoderDecoder(Vi, Ei, Hi, Vo + 1, Eo, Ho, Ha, Hl, use_bn_length = use_bn_length,
-                                   encoder_cell_type = rnn_cells.create_cell_model_from_string(encoder_cell_type),
-                                       decoder_cell_type = rnn_cells.create_cell_model_from_string(decoder_cell_type),
-                                       lexical_probability_dictionary = lexical_probability_dictionary,
-                                       lex_epsilon = config_training["command_line"].get("lexicon_prob_epsilon", 0.001))
-    
-    return encdec, eos_idx, src_indexer, tgt_indexer
-    
-def create_and_load_encdec_from_files(config_training_fn, trained_model):
-    log.info("loading model config from %s" % config_training_fn)
-    config_training = json.load(open(config_training_fn))
-
-    encdec, eos_idx, src_indexer, tgt_indexer = create_encdec_from_config(config_training)
-    
-    log.info("loading model from %s" % trained_model)
-    serializers.load_npz(trained_model, encdec)
-    
-    return encdec, eos_idx, src_indexer, tgt_indexer
-    
 def commandline():
     import argparse
     parser = argparse.ArgumentParser(description= "Use a RNNSearch model", 
