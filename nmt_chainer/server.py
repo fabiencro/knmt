@@ -254,8 +254,9 @@ class Server:
                         words.append(word)
             elif 'morph' == self.segmenter_format:
                 for pair in parser_output.split(' '):
-                    word, pos = pair.split('_')
-                    words.append(word)
+                    if pair != '':
+                        word, pos = pair.split('_')
+                        words.append(word)
             else:
                 pass
             splitted_sentence = ' '.join(words)
