@@ -151,11 +151,10 @@ class Evaluator:
                 else:
                     assert False
                 
+                script = ''
+                div = '<div/>'
                 ct = " ".join(self.tgt_indexer.deconvert(t, unk_tag = unk_replacer))
-                if (ct == ''):
-                    script = ''
-                    div = '<div/>'
-                else:
+                if (ct != ''):
                     ct = replace_tgt_unk.replace_unk_from_string(ct, request, self.dic, remove_unk, normalize_unicode_unk, attempt_to_relocate_unk_source)
 
                     out += ct + "\n"
@@ -172,14 +171,15 @@ class Evaluator:
                         
                     src_w = self.src_indexer.deconvert(src_idx_list, unk_tag = "#S_UNK#")
                     tgt_w = self.tgt_indexer.deconvert(tgt_idx_list, unk_tag = "#T_UNK#")
-                    p1 = visualisation.make_alignment_figure(src_w, tgt_w, alignment, 'Sentence #%s' % str(request_number), 'below', plot_width = attn_graph_width, plot_height = attn_graph_height)
-                    plots_list.append(p1)
-                    p_all = visualisation.vplot(*plots_list)
+                    if (attn_graph_width > 0 and attn_graph_height > 0):
+                        p1 = visualisation.make_alignment_figure(src_w, tgt_w, alignment, 'Sentence #%s' % str(request_number), 'below', plot_width = attn_graph_width, plot_height = attn_graph_height)
+                        plots_list.append(p1)
+                        p_all = visualisation.vplot(*plots_list)
 
-                    js_resources = bokeh.resources.INLINE.render_js()
-                    css_resources = bokeh.resources.INLINE.render_css()
+                        js_resources = bokeh.resources.INLINE.render_js()
+                        css_resources = bokeh.resources.INLINE.render_css()
 
-                    script, div = bokeh.embed.components(p_all, bokeh.resources.INLINE)
+                        script, div = bokeh.embed.components(p_all, bokeh.resources.INLINE)
             print >>sys.stderr
 
         return out, script, div
@@ -211,23 +211,29 @@ class Server:
     def __handle_request(self, request):
         print(timestamped_msg("Handling request..."))
         root = ET.fromstring(request)
-        article_id = root.attrib['id']
-        attn_graph_width = int(root.attrib['attn_graph_width'])
-        attn_graph_height = int(root.attrib['attn_graph_height'])
-        beam_width = int(root.attrib['beam_width'])
-        nb_steps = int(root.attrib['nb_steps'])
+        article_id = root.get('id')
+        try:
+            attn_graph_width = int(root.get('attn_graph_width', 0))
+        except:
+            attn_graph_width = 0
+        try:
+            attn_graph_height = int(root.get('attn_graph_height', 0))
+        except:
+            attn_graph_height = 0
+        beam_width = int(root.get('beam_width', 30))
+        nb_steps = int(root.get('nb_steps', 50))
         nb_steps_ratio = None
         try:
-            nb_steps_ratio = float(root.attrib['nb_steps_ratio'])
+            nb_steps_ratio = float(root.get('nb_steps_ratio', 1.2))
         except:
             pass
-        groundhog = ('true' == root.attrib['groundhog'])
-        force_finish = ('true' == root.attrib['force_finish'])
-        use_raw_score = ('true' == root.attrib['use_raw_score'])
-        prob_space_combination = ('true' == root.attrib['prob_space_combination'])
-        remove_unk = ('true' == root.attrib['remove_unk'])
-        normalize_unicode_unk = ('true' == root.attrib['normalize_unicode_unk'])
-        attempt_to_relocate_unk_source = ('true' == root.attrib['attempt_to_relocate_unk_source'])
+        groundhog = ('true' == root.get('groundhog', 'false'))
+        force_finish = ('true' == root.get('force_finish', 'false'))
+        use_raw_score = ('true' == root.get('use_raw_score', 'false'))
+        prob_space_combination = ('true' == root.get('prob_space_combination', 'false'))
+        remove_unk = ('true' == root.get('remove_unk', 'false'))
+        normalize_unicode_unk = ('true' == root.get('normalize_unicode_unk', 'true'))
+        attempt_to_relocate_unk_source = ('true' == root.get('attempt_to_relocate_unk_source', 'false'))
         print("Article id: %s" % article_id)
         out = ""
         graph_data = []
