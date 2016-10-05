@@ -123,6 +123,7 @@ class Evaluator:
         tgt_data = None
 
         out = ''
+        unk_mapping = []
         with cuda.get_device(self.gpu):
             translations_gen = beam_search_translate(
                         self.encdec, self.eos_idx, src_data, beam_width = beam_width, nb_steps = nb_steps, 
@@ -155,6 +156,13 @@ class Evaluator:
                 div = '<div/>'
                 ct = " ".join(self.tgt_indexer.deconvert(t, unk_tag = unk_replacer))
                 if (ct != ''):
+                    unk_pattern = re.compile("#T_UNK_(\d+)#")
+                    for idx, word in enumerate(ct.split(' ')):
+                        print str(idx) + ":" + word 
+                        match = unk_pattern.match(word)
+                        if (match):
+                            unk_mapping.append(match.group(1) + '-' + str(idx))    
+
                     ct = replace_tgt_unk.replace_unk_from_string(ct, request, self.dic, remove_unk, normalize_unicode_unk, attempt_to_relocate_unk_source)
 
                     out += ct + "\n"
@@ -180,9 +188,10 @@ class Evaluator:
                         css_resources = bokeh.resources.INLINE.render_css()
 
                         script, div = bokeh.embed.components(p_all, bokeh.resources.INLINE)
+
             print >>sys.stderr
 
-        return out, script, div
+        return out, script, div, unk_mapping
 
 class Server:
 
@@ -198,9 +207,12 @@ class Server:
         response['stacktrace'] = error_lines
         return json.dumps(response)
         
-    def __build_successful_response(self, out, graph_data):
+    def __build_successful_response(self, out, graph_data, segmented_input, segmented_output, mapping):
         response = {}
         response['out'] = out
+        response['segmented_input'] = segmented_input
+        response['segmented_output'] = segmented_output
+        response['mapping'] = map(lambda x: ' '.join(x), mapping)
         graphes = [];
         for gd in graph_data:
             script, div = gd
@@ -237,6 +249,9 @@ class Server:
         print("Article id: %s" % article_id)
         out = ""
         graph_data = []
+        segmented_input = []
+        segmented_output = []
+        mapping = []
         sentences = root.findall('sentence')
         for idx, sentence in enumerate(sentences):
             text = sentence.findtext('i_sentence')
@@ -269,13 +284,16 @@ class Server:
             # print "splitted_sentence=" + splitted_sentence
 
             print(timestamped_msg("Translating sentence %d" % idx))
-            translation, script, div = self.evaluator.eval(splitted_sentence.decode('utf-8'), idx, 
+            translation, script, div, unk_mapping = self.evaluator.eval(splitted_sentence.decode('utf-8'), idx, 
                 beam_width, nb_steps, nb_steps_ratio, remove_unk, normalize_unicode_unk, attempt_to_relocate_unk_source,
                 use_raw_score, groundhog, force_finish, prob_space_combination, attn_graph_width, attn_graph_height)
             out += translation
+            segmented_input.append(splitted_sentence)
+            segmented_output.append(translation)
+            mapping.append(unk_mapping)
             graph_data.append((script.encode('utf-8'), div.encode('utf-8')))
 
-        response = self.__build_successful_response(out, graph_data)
+        response = self.__build_successful_response(out, graph_data, segmented_input, segmented_output, mapping)
         return response
 
     def start(self):
