@@ -162,7 +162,8 @@ def command_line(arguments = None):
     parser.add_argument("--noise_on_prev_word", default = False, action = "store_true")
     
     
-    parser.add_argument("--use_memory_optimization", default = False, action = "store_true")
+    parser.add_argument("--use_memory_optimization", default = False, action = "store_true",
+                        help = "Experimental option that could strongly reduce memory used.")
         
     parser.add_argument("--max_nb_iters", type = int, default= None, help = "maximum number of iterations")
     
@@ -173,11 +174,11 @@ def command_line(arguments = None):
     parser.add_argument("--hard_gradient_clipping", type = float, nargs = 2, help = "hard gradient clipping.")
     
     
-    parser.add_argument("--weight_decay", type = float, help = "weight decay")
+    parser.add_argument("--weight_decay", type = float, help = "Weight decay value. ")
     
     parser.add_argument("--optimizer", choices=["sgd", "rmsprop", "rmspropgraves", 
                             "momentum", "nesterov", "adam", "adagrad", "adadelta"], 
-                        default = "adam")
+                        default = "adam", help = "Optimizer type.")
     parser.add_argument("--learning_rate", type = float, default= 0.01, help = "Learning Rate")
     parser.add_argument("--momentum", type = float, default= 0.9, help = "Momentum term")
     parser.add_argument("--report_every", type = int, default = 200, help = "report every x iterations")
