@@ -26,7 +26,6 @@ from eval import (create_encdec_from_config, create_and_load_encdec_from_files)
 
 import visualisation
 import bleu_computer
-import logging
 import codecs
 import traceback
 
@@ -158,7 +157,6 @@ class Evaluator:
                 if (ct != ''):
                     unk_pattern = re.compile("#T_UNK_(\d+)#")
                     for idx, word in enumerate(ct.split(' ')):
-                        print str(idx) + ":" + word 
                         match = unk_pattern.match(word)
                         if (match):
                             unk_mapping.append(match.group(1) + '-' + str(idx))    
@@ -221,7 +219,7 @@ class Server:
         return json.dumps(response)
 
     def __handle_request(self, request):
-        print(timestamped_msg("Handling request..."))
+        log.info(timestamped_msg("Handling request..."))
         root = ET.fromstring(request)
         article_id = root.get('id')
         try:
@@ -246,7 +244,7 @@ class Server:
         remove_unk = ('true' == root.get('remove_unk', 'false'))
         normalize_unicode_unk = ('true' == root.get('normalize_unicode_unk', 'true'))
         attempt_to_relocate_unk_source = ('true' == root.get('attempt_to_relocate_unk_source', 'false'))
-        print("Article id: %s" % article_id)
+        log.info("Article id: %s" % article_id)
         out = ""
         graph_data = []
         segmented_input = []
@@ -255,12 +253,12 @@ class Server:
         sentences = root.findall('sentence')
         for idx, sentence in enumerate(sentences):
             text = sentence.findtext('i_sentence')
-            # print "text=%s" % text
+            # log.info("text=%s" % text)
             
             cmd = self.segmenter_command % text
-            # print "cmd=%s" % cmd
+            # log.info("cmd=%s" % cmd)
             parser_output = subprocess.check_output(cmd, shell=True)
-            # print "parser_output=%s" % parser_output
+            # log.info("parser_output=%s" % parser_output)
 
             words = []
             if 'parse_server' == self.segmenter_format:
@@ -281,9 +279,9 @@ class Server:
             else:
                 pass
             splitted_sentence = ' '.join(words)
-            # print "splitted_sentence=" + splitted_sentence
+            # log.info("splitted_sentence=" + splitted_sentence)
 
-            print(timestamped_msg("Translating sentence %d" % idx))
+            log.info(timestamped_msg("Translating sentence %d" % idx))
             translation, script, div, unk_mapping = self.evaluator.eval(splitted_sentence.decode('utf-8'), idx, 
                 beam_width, nb_steps, nb_steps_ratio, remove_unk, normalize_unicode_unk, attempt_to_relocate_unk_source,
                 use_raw_score, groundhog, force_finish, prob_space_combination, attn_graph_width, attn_graph_height)
@@ -299,14 +297,14 @@ class Server:
     def start(self):
         server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        print(timestamped_msg("Start listening for requests on {0} port {1}...".format(socket.gethostname(), self.port)))
+        log.info(timestamped_msg("Start listening for requests on {0} port {1}...".format(socket.gethostname(), self.port)))
         server_socket.bind(('', self.port))
         server_socket.listen(5)
 
         while True:
             (client_socket, address) = server_socket.accept()
             client_socket.settimeout(2)
-            print(timestamped_msg('Got connection from {0}'.format(address)))
+            log.info(timestamped_msg('Got connection from {0}'.format(address)))
             request = ''
             while True:
                 try:
