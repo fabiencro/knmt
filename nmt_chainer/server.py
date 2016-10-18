@@ -193,7 +193,23 @@ class Evaluator:
 
 class Server:
 
-    def __init__(self, evaluator, segmenter_command, segmenter_format = 'parse_server', port = 44666):
+    def __init__(self, lang_pair, evaluator, segmenter_command, segmenter_format = 'parse_server', port = 44666):
+        self.lang_pair = lang_pair
+        
+        if (self.lang_pair[0] == 'e'):
+            self.lang_src = 'en'
+        elif (self.lang_pair[0] == 'c'):
+            self.lang_src = 'zh'
+        elif (self.lang_pair[0] == 'j'):
+            self.lang_src = 'ja'
+        
+        if (self.lang_pair[1] == 'e'):
+            self.lang_dst = 'en'
+        elif (self.lang_pair[1] == 'c'):
+            self.lang_dst = 'zh'
+        elif (self.lang_pair[1] == 'j'):
+            self.lang_dst = 'ja'
+
         self.evaluator = evaluator
         self.port = port
         self.segmenter_command = segmenter_command
@@ -220,6 +236,7 @@ class Server:
 
     def __handle_request(self, request):
         log.info(timestamped_msg("Handling request..."))
+        log.info(request)
         root = ET.fromstring(request)
         article_id = root.get('id')
         try:
@@ -243,6 +260,7 @@ class Server:
         prob_space_combination = ('true' == root.get('prob_space_combination', 'false'))
         remove_unk = ('true' == root.get('remove_unk', 'false'))
         normalize_unicode_unk = ('true' == root.get('normalize_unicode_unk', 'true'))
+        log.info('normalize_unicode_unk=' + str(normalize_unicode_unk))
         attempt_to_relocate_unk_source = ('true' == root.get('attempt_to_relocate_unk_source', 'false'))
         log.info("Article id: %s" % article_id)
         out = ""
@@ -252,8 +270,11 @@ class Server:
         mapping = []
         sentences = root.findall('sentence')
         for idx, sentence in enumerate(sentences):
-            text = sentence.findtext('i_sentence')
-            # log.info("text=%s" % text)
+            text = sentence.findtext('i_sentence').strip()
+            if (self.lang_src == 'zh' or self.lang_src == 'ja'):
+                remove_whitespace_re = re.compile('\s', re.UNICODE)
+                text = remove_whitespace_re.sub('', text)
+            log.info("text=@@@%s@@@" % text)
             
             cmd = self.segmenter_command % text
             # log.info("cmd=%s" % cmd)
@@ -350,6 +371,7 @@ def commandline():
     parser.add_argument("--nb_batch_to_sort", type = int, default= 20, help = "Sort this many batches by size.")
     parser.add_argument("--beam_opt", default = False, action = "store_true")
     parser.add_argument("--tgt_unk_id", choices = ["attn", "id"], default = "align")
+    parser.add_argument("--lang_pair", help = "language pair (eg.: je)")
     
     # arguments for unk replace
     parser.add_argument("--dic")
@@ -366,7 +388,7 @@ def commandline():
                    args.reverse_training_config, args.reverse_trained_model, args.max_nb_ex, args.mb_size, args.beam_opt, 
                    args.tgt_unk_id, args.gpu, args.dic)
 
-    server = Server(evaluator, args.segmenter_command, args.segmenter_format, int(args.port))
+    server = Server(args.lang_pair, evaluator, args.segmenter_command, args.segmenter_format, int(args.port))
     server.start()
     
 if __name__ == '__main__':
