@@ -9,7 +9,7 @@ __status__ = "Development"
 import numpy as np
 
 from bokeh.plotting import figure, output_file, show
-from bokeh.io import vplot
+from bokeh.models.layouts import Column
 from bokeh.models import HoverTool, ColumnDataSource
 
 # adapted from http://bokeh.pydata.org/en/0.7.1/tutorial/solutions/gallery/les_mis.html
@@ -84,5 +84,5 @@ if __name__ == '__main__':
     print alignment
     p1 = make_alignment_figure(src, tgt, alignment)
     p2 = make_alignment_figure(src, tgt, alignment)
-    p_all = vplot(p1, p2)
+    p_all = Column(p1, p2)
     show(p)
