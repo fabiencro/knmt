@@ -32,6 +32,7 @@ import traceback
 import rnn_cells
 
 import time
+import timeit
 import socket
 import xml.etree.ElementTree as ET
 import re
@@ -215,6 +216,7 @@ class Server:
         return json.dumps(response)
 
     def __handle_request(self, request):
+        start_request = timeit.default_timer()
         log.info(timestamped_msg("Handling request..."))
         log.info(request)
         root = ET.fromstring(request)
@@ -255,7 +257,9 @@ class Server:
             
             cmd = self.segmenter_command % text
             # log.info("cmd=%s" % cmd)
+            start_cmd = timeit.default_timer()
             parser_output = subprocess.check_output(cmd, shell=True)
+            log.info("Segmenter request processed in {} s.".format(timeit.default_timer() - start_cmd))
             # log.info("parser_output=%s" % parser_output)
 
             words = []
@@ -290,6 +294,7 @@ class Server:
             graph_data.append((script.encode('utf-8'), div.encode('utf-8')))
 
         response = self.__build_successful_response(out, graph_data, segmented_input, segmented_output, mapping)
+        log.info("Request processed in {} s.".format(timeit.default_timer() - start_request))
         return response
 
     def start(self):
@@ -301,12 +306,13 @@ class Server:
 
         while True:
             (client_socket, address) = server_socket.accept()
-            client_socket.settimeout(2)
+            start_accept = timeit.default_timer()
+            client_socket.settimeout(0.1)
             log.info(timestamped_msg('Got connection from {0}'.format(address)))
             request = ''
             while True:
                 try:
-                    data = client_socket.recv(1024)
+                    data = client_socket.recv(8192)
                     if data:
                         request += data
                     else:
@@ -320,6 +326,7 @@ class Server:
                 response = self.__build_error_response(traceback.format_exc().splitlines())
             client_socket.sendall(response)
             client_socket.close()
+            log.info("Complete request processed in {} s.".format(timeit.default_timer() - start_accept))
         
 def timestamped_msg(msg):
     timestamp = datetime.datetime.fromtimestamp(time.time()).strftime('%Y-%m-%d %H:%M:%S')
