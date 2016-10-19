@@ -52,7 +52,7 @@ if [[ ! -z "$RNN_SEARCH_ADDITIONAL_MODEL" ]]; then
 	done
 fi
 
-server_cmd="python nmt_chainer/server.py --lang_pair $LANG_PAIR --port $PORT \
+server_cmd="python nmt_chainer/server.py --port $PORT \
 	--segmenter_command=\"$SEGMENTER_COMMAND\" --segmenter_format $SEGMENTER_FORMAT $OPT_DIC \
     $RNN_SEARCH_CONFIG $RNN_SEARCH_MODEL $OPT_GPU \
 	$OPT_ADDITIONAL_CONFIGS $OPT_ADDITIONAL_MODELS"
