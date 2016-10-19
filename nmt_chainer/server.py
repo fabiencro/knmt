@@ -180,7 +180,7 @@ class Evaluator:
                     if (attn_graph_width > 0 and attn_graph_height > 0):
                         p1 = visualisation.make_alignment_figure(src_w, tgt_w, alignment, 'Sentence #%s' % str(request_number), 'below', plot_width = attn_graph_width, plot_height = attn_graph_height)
                         plots_list.append(p1)
-                        p_all = visualisation.vplot(*plots_list)
+                        p_all = visualisation.Column(*plots_list)
 
                         js_resources = bokeh.resources.INLINE.render_js()
                         css_resources = bokeh.resources.INLINE.render_css()
