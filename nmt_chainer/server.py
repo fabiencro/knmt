@@ -38,7 +38,6 @@ import re
 import subprocess
 import replace_tgt_unk
 import bokeh.embed
-import bokeh.resources
 
 logging.basicConfig()
 log = logging.getLogger("rnns:eval")
@@ -182,10 +181,7 @@ class Evaluator:
                         plots_list.append(p1)
                         p_all = visualisation.Column(*plots_list)
 
-                        js_resources = bokeh.resources.INLINE.render_js()
-                        css_resources = bokeh.resources.INLINE.render_css()
-
-                        script, div = bokeh.embed.components(p_all, bokeh.resources.INLINE)
+                        script, div = bokeh.embed.components(p_all)
 
             print >>sys.stderr
 
