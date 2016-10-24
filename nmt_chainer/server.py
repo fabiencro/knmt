@@ -34,6 +34,8 @@ import rnn_cells
 import time
 import timeit
 import socket
+import threading
+import SocketServer
 import xml.etree.ElementTree as ET
 import re
 import subprocess
@@ -188,146 +190,131 @@ class Evaluator:
 
         return out, script, div, unk_mapping
 
-class Server:
+class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
 
-    def __init__(self, evaluator, segmenter_command, segmenter_format = 'parse_server', port = 44666):
-        self.evaluator = evaluator
-        self.port = port
-        self.segmenter_command = segmenter_command
-        self.segmenter_format = segmenter_format
+    def handle(self):
+        data = self.request.recv(1024)
+        cur_thread = threading.current_thread()
+        response = "{}: {}".format(cur_thread.name, data)
+        self.request.sendall(response)
 
-    def __build_error_response(self, error_lines):
-        response = {}
-        response['error'] = error_lines[-1]
-        response['stacktrace'] = error_lines
-        return json.dumps(response)
-        
-    def __build_successful_response(self, out, graph_data, segmented_input, segmented_output, mapping):
-        response = {}
-        response['out'] = out
-        response['segmented_input'] = segmented_input
-        response['segmented_output'] = segmented_output
-        response['mapping'] = map(lambda x: ' '.join(x), mapping)
-        graphes = [];
-        for gd in graph_data:
-            script, div = gd
-            graphes.append({'script': script, 'div': div})
-        response['attn_graphes'] = graphes
-        return json.dumps(response)
+class RequestHandler(SocketServer.BaseRequestHandler):
 
-    def __handle_request(self, request):
+    def handle(self):
         start_request = timeit.default_timer()
         log.info(timestamped_msg("Handling request..."))
-        log.info(request)
-        root = ET.fromstring(request)
-        article_id = root.get('id')
+        data = self.request.recv(1024)
         try:
-            attn_graph_width = int(root.get('attn_graph_width', 0))
-        except:
-            attn_graph_width = 0
-        try:
-            attn_graph_height = int(root.get('attn_graph_height', 0))
-        except:
-            attn_graph_height = 0
-        beam_width = int(root.get('beam_width', 30))
-        nb_steps = int(root.get('nb_steps', 50))
-        nb_steps_ratio = None
-        try:
-            nb_steps_ratio = float(root.get('nb_steps_ratio', 1.2))
-        except:
-            pass
-        groundhog = ('true' == root.get('groundhog', 'false'))
-        force_finish = ('true' == root.get('force_finish', 'false'))
-        use_raw_score = ('true' == root.get('use_raw_score', 'false'))
-        prob_space_combination = ('true' == root.get('prob_space_combination', 'false'))
-        remove_unk = ('true' == root.get('remove_unk', 'false'))
-        normalize_unicode_unk = ('true' == root.get('normalize_unicode_unk', 'true'))
-        log.info('normalize_unicode_unk=' + str(normalize_unicode_unk))
-        attempt_to_relocate_unk_source = ('true' == root.get('attempt_to_relocate_unk_source', 'false'))
-        log.info("Article id: %s" % article_id)
-        out = ""
-        graph_data = []
-        segmented_input = []
-        segmented_output = []
-        mapping = []
-        sentences = root.findall('sentence')
-        for idx, sentence in enumerate(sentences):
-            text = sentence.findtext('i_sentence').strip()
-            log.info("text=@@@%s@@@" % text)
-            
-            cmd = self.segmenter_command % text
-            # log.info("cmd=%s" % cmd)
-            start_cmd = timeit.default_timer()
-            parser_output = subprocess.check_output(cmd, shell=True)
-            log.info("Segmenter request processed in {} s.".format(timeit.default_timer() - start_cmd))
-            # log.info("parser_output=%s" % parser_output)
+            log.info(data)
+            cur_thread = threading.current_thread()
 
-            words = []
-            if 'parse_server' == self.segmenter_format:
-                for line in parser_output.split("\n"):
-                    if (line.startswith('#')):
-                        continue
-                    elif (not line.strip()):
-                        break
-                    else:
-                        parts = line.split("\t")
-                        word = parts[2]
-                        words.append(word)
-            elif 'morph' == self.segmenter_format:
-                for pair in parser_output.split(' '):
-                    if pair != '':
-                        word, pos = pair.split('_')
-                        words.append(word)
-            else:
-                pass
-            splitted_sentence = ' '.join(words)
-            # log.info("splitted_sentence=" + splitted_sentence)
-
-            log.info(timestamped_msg("Translating sentence %d" % idx))
-            translation, script, div, unk_mapping = self.evaluator.eval(splitted_sentence.decode('utf-8'), idx, 
-                beam_width, nb_steps, nb_steps_ratio, remove_unk, normalize_unicode_unk, attempt_to_relocate_unk_source,
-                use_raw_score, groundhog, force_finish, prob_space_combination, attn_graph_width, attn_graph_height)
-            out += translation
-            segmented_input.append(splitted_sentence)
-            segmented_output.append(translation)
-            mapping.append(unk_mapping)
-            graph_data.append((script.encode('utf-8'), div.encode('utf-8')))
-
-        response = self.__build_successful_response(out, graph_data, segmented_input, segmented_output, mapping)
-        log.info("Request processed in {} s.".format(timeit.default_timer() - start_request))
-        return response
-
-    def start(self):
-        server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        log.info(timestamped_msg("Start listening for requests on {0} port {1}...".format(socket.gethostname(), self.port)))
-        server_socket.bind(('', self.port))
-        server_socket.listen(5)
-
-        while True:
-            (client_socket, address) = server_socket.accept()
-            start_accept = timeit.default_timer()
-            client_socket.settimeout(0.1)
-            log.info(timestamped_msg('Got connection from {0}'.format(address)))
-            request = ''
-            while True:
-                try:
-                    data = client_socket.recv(8192)
-                    if data:
-                        request += data
-                    else:
-                        break
-                except:
-                    break 
+            root = ET.fromstring(data)
+            article_id = root.get('id')
             try:
-                response = self.__handle_request(request)
+                attn_graph_width = int(root.get('attn_graph_width', 0))
             except:
-                traceback.print_exc()
-                response = self.__build_error_response(traceback.format_exc().splitlines())
-            client_socket.sendall(response)
-            client_socket.close()
-            log.info("Complete request processed in {} s.".format(timeit.default_timer() - start_accept))
-        
+                attn_graph_width = 0
+            try:
+                attn_graph_height = int(root.get('attn_graph_height', 0))
+            except:
+                attn_graph_height = 0
+            beam_width = int(root.get('beam_width', 30))
+            nb_steps = int(root.get('nb_steps', 50))
+            nb_steps_ratio = None
+            try:
+                nb_steps_ratio = float(root.get('nb_steps_ratio', 1.2))
+            except:
+                pass
+            groundhog = ('true' == root.get('groundhog', 'false'))
+            force_finish = ('true' == root.get('force_finish', 'false'))
+            use_raw_score = ('true' == root.get('use_raw_score', 'false'))
+            prob_space_combination = ('true' == root.get('prob_space_combination', 'false'))
+            remove_unk = ('true' == root.get('remove_unk', 'false'))
+            normalize_unicode_unk = ('true' == root.get('normalize_unicode_unk', 'true'))
+            log.info('normalize_unicode_unk=' + str(normalize_unicode_unk))
+            attempt_to_relocate_unk_source = ('true' == root.get('attempt_to_relocate_unk_source', 'false'))
+            log.info("Article id: %s" % article_id)
+            out = ""
+            graph_data = []
+            segmented_input = []
+            segmented_output = []
+            mapping = []
+            sentences = root.findall('sentence')
+            for idx, sentence in enumerate(sentences):
+                text = sentence.findtext('i_sentence').strip()
+                log.info("text=@@@%s@@@" % text)
+                
+                cmd = self.server.segmenter_command % text
+                # log.info("cmd=%s" % cmd)
+                start_cmd = timeit.default_timer()
+                parser_output = subprocess.check_output(cmd, shell=True)
+                log.info("Segmenter request processed in {} s.".format(timeit.default_timer() - start_cmd))
+                # log.info("parser_output=%s" % parser_output)
+
+                words = []
+                if 'parse_server' == self.server.segmenter_format:
+                    for line in parser_output.split("\n"):
+                        if (line.startswith('#')):
+                            continue
+                        elif (not line.strip()):
+                            break
+                        else:
+                            parts = line.split("\t")
+                            word = parts[2]
+                            words.append(word)
+                elif 'morph' == self.segmenter_format:
+                    for pair in parser_output.split(' '):
+                        if pair != '':
+                            word, pos = pair.split('_')
+                            words.append(word)
+                else:
+                    pass
+                splitted_sentence = ' '.join(words)
+                # log.info("splitted_sentence=" + splitted_sentence)
+
+                log.info(timestamped_msg("Translating sentence %d" % idx))
+                translation, script, div, unk_mapping = self.server.evaluator.eval(splitted_sentence.decode('utf-8'), idx, 
+                    beam_width, nb_steps, nb_steps_ratio, remove_unk, normalize_unicode_unk, attempt_to_relocate_unk_source,
+                    use_raw_score, groundhog, force_finish, prob_space_combination, attn_graph_width, attn_graph_height)
+                out += translation
+                segmented_input.append(splitted_sentence)
+                segmented_output.append(translation)
+                mapping.append(unk_mapping)
+                graph_data.append((script.encode('utf-8'), div.encode('utf-8')))
+
+            response = {}
+            response['out'] = out
+            response['segmented_input'] = segmented_input
+            response['segmented_output'] = segmented_output
+            response['mapping'] = map(lambda x: ' '.join(x), mapping)
+            graphes = [];
+            for gd in graph_data:
+                script, div = gd
+                graphes.append({'script': script, 'div': div})
+            response['attn_graphes'] = graphes
+        except:
+            traceback.print_exc()
+            error_lines = traceback.format_exc().splitlines()
+            response = {}
+            response['error'] = error_lines[-1]
+            response['stacktrace'] = error_lines
+
+        log.info("Request processed in {} s.".format(timeit.default_timer() - start_request))
+
+        response = json.dumps(response)
+        self.request.sendall(response)
+
+class Server(SocketServer.ThreadingMixIn, SocketServer.TCPServer):
+
+    daemon_threads = True
+    allow_reuse_address = True
+
+    def __init__(self, server_address, handler_class, segmenter_command, segmenter_format, evaluator):
+        SocketServer.TCPServer.__init__(self, server_address, handler_class)
+        self.segmenter_command = segmenter_command
+        self.segmenter_format = segmenter_format
+        self.evaluator = evaluator
+
 def timestamped_msg(msg):
     timestamp = datetime.datetime.fromtimestamp(time.time()).strftime('%Y-%m-%d %H:%M:%S')
     return "{0}: {1}".format(timestamp, msg) 
@@ -371,8 +358,17 @@ def commandline():
                    args.reverse_training_config, args.reverse_trained_model, args.max_nb_ex, args.mb_size, args.beam_opt, 
                    args.tgt_unk_id, args.gpu, args.dic)
 
-    server = Server(evaluator, args.segmenter_command, args.segmenter_format, int(args.port))
-    server.start()
+    server = Server((socket.gethostname(), int(args.port)), RequestHandler, args.segmenter_command, args.segmenter_format, evaluator)
+    ip, port = server.server_address
+    log.info(timestamped_msg("Start listening for requests on {0}({1}) port {2}...".format(socket.gethostname(), ip, port)))
+
+    try:
+        server.serve_forever()
+    except KeyboardInterrupt:
+        server.shutdown()
+        server.server_close()
+    
+    sys.exit(0)
     
 if __name__ == '__main__':
     commandline() 
