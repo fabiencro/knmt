@@ -254,7 +254,7 @@ class RequestHandler(SocketServer.BaseRequestHandler):
                             parts = line.split("\t")
                             word = parts[2]
                             words.append(word)
-                elif 'morph' == self.segmenter_format:
+                elif 'morph' == self.server.segmenter_format:
                     for pair in parser_output.split(' '):
                         if pair != '':
                             word, pos = pair.split('_')
@@ -291,7 +291,7 @@ class RequestHandler(SocketServer.BaseRequestHandler):
             response['error'] = error_lines[-1]
             response['stacktrace'] = error_lines
 
-        log.info("Request processed in {} s.".format(timeit.default_timer() - start_request))
+        log.info("Request processed in {0} s. by {1}".format(timeit.default_timer() - start_request, cur_thread.name))
 
         response = json.dumps(response)
         self.request.sendall(response)
