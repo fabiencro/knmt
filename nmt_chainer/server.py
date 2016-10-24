@@ -190,14 +190,6 @@ class Evaluator:
 
         return out, script, div, unk_mapping
 
-class ThreadedTCPRequestHandler(SocketServer.BaseRequestHandler):
-
-    def handle(self):
-        data = self.request.recv(1024)
-        cur_thread = threading.current_thread()
-        response = "{}: {}".format(cur_thread.name, data)
-        self.request.sendall(response)
-
 class RequestHandler(SocketServer.BaseRequestHandler):
 
     def handle(self):
