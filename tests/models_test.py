@@ -31,31 +31,32 @@ class EncoderNaive(models.Encoder):
         
         mb_size = sequence[0].data.shape[0]
         assert mb_size == 1
-        mb_initial_state_f = F.broadcast_to(F.reshape(self.initial_state_f, (1, self.Hi)), (mb_size, self.Hi))
-        mb_initial_state_b = F.broadcast_to(F.reshape(self.initial_state_b, (1, self.Hi)), (mb_size, self.Hi))
-        
+
+        mb_initial_states_f = self.gru_f.get_initial_states(mb_size)
+        mb_initial_states_b = self.gru_b.get_initial_states(mb_size)
+       
         embedded_seq = []
         for elem in sequence:
             embedded_seq.append(self.emb(elem))
             
 #         self.gru_f.reset_state()
-        prev_state = mb_initial_state_f
+        prev_states = mb_initial_states_f
         forward_seq = []
-        for x in embedded_seq:
-            prev_state = self.gru_f(prev_state, x)
-            forward_seq.append(prev_state)
+        for i, x in enumerate(embedded_seq):
+            prev_states = self.gru_f(prev_states, x)
+            forward_seq.append(prev_states)
             
 #         self.gru_b.reset_state()
-        prev_state = mb_initial_state_b
+        prev_states = mb_initial_states_b
         backward_seq = []
         for pos, x in reversed(list(enumerate(embedded_seq))):
-            prev_state = self.gru_b(prev_state, x)
-            backward_seq.append(prev_state)
+            prev_states = self.gru_b(prev_states, x)
+            backward_seq.append(prev_states)
         
         assert len(backward_seq) == len(forward_seq)
         res = []
         for xf, xb in zip(forward_seq, reversed(backward_seq)):
-            res.append(F.concat((xf, xb), 1))
+            res.append(F.concat((xf[-1], xb[-1]), 1))
         
         return res
     
