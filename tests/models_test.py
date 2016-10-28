@@ -252,10 +252,10 @@ class DecoderNaive(models.Decoder):
         loss = None
         current_mb_size = targets[0].data.shape[0]
         assert current_mb_size == 1
-        previous_state = F.concat( [self.initial_state] * current_mb_size, 0)
+        previous_states = self.gru.get_initial_states(current_mb_size)
 #         previous_word = Variable(np.array([self.bos_idx] * mb_size, dtype = np.int32))
-        xp = cuda.get_array_module(self.initial_state.data)
-        with cuda.get_device(self.initial_state.data):
+        #xp = cuda.get_array_module(self.gru.initial_state.data)
+        with cuda.get_device(self.gru.initial_state.data):
             prev_y = F.broadcast_to(self.bos_embeding, (1, self.Eo))
 #             previous_word = Variable(xp.array([self.bos_idx] * current_mb_size, dtype = np.int32))
         previous_word = None
@@ -264,12 +264,12 @@ class DecoderNaive(models.Decoder):
         for i in xrange(len(targets)):
             if previous_word is not None: #else we are using the initial prev_y
                 prev_y = self.emb(previous_word)
-            ci, attn = compute_ctxt(previous_state)
+            ci, attn = compute_ctxt(previous_states[-1])
             concatenated = F.concat( (prev_y, ci) )
     #             print concatenated.data.shape
-            new_state = self.gru(previous_state, concatenated)
+            new_states = self.gru(previous_states, concatenated)
     
-            all_concatenated = F.concat((concatenated, new_state))
+            all_concatenated = F.concat((concatenated, new_states[-1]))
             logits = self.lin_o(self.maxo(all_concatenated))
 
             local_loss = F.softmax_cross_entropy(logits, targets[i])
@@ -277,7 +277,7 @@ class DecoderNaive(models.Decoder):
             loss = local_loss if loss is None else loss + local_loss
             total_nb_predictions += 1
             previous_word = targets[i]
-            previous_state = new_state
+            previous_states = new_states
             attn_list.append(attn)
             
         loss = loss / total_nb_predictions
