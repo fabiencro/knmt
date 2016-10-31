@@ -289,8 +289,9 @@ class ComputeBleuExtension(chainer.training.Extension):
         self.best_bleu = serializer("best_bleu", self.best_bleu)
         
 class TrainingLossSummaryExtension(chainer.training.Extension):
+    priority = chainer.training.PRIORITY_EDITOR
     def __init__(self, trigger=(200, 'iteration')):
-        self.trigger = chainer.training.trigger.get_trigger(trigger)
+        self.update_trigger = chainer.training.trigger.get_trigger(trigger)
         self.reset()
 #         self.previous_time = None
 
@@ -303,12 +304,20 @@ class TrainingLossSummaryExtension(chainer.training.Extension):
     def __call__(self, trainer):
         # accumulate the observations
         
+        mb_avg_loss = float(trainer.observation["mb_loss"]) / trainer.observation["mb_nb_predictions"]
+        log.info("E:%i I:%i L:%f U: %.4f = %.4f + %.4f F:%.4f"%(trainer.updater.epoch, 
+                 trainer.updater.iteration, mb_avg_loss, 
+                 trainer.observation["update_duration"],
+                 trainer.observation["mb_preparation_duration"],
+                 trainer.observation["optimizer_update_cycle_duration"],
+                 trainer.observation["forward_time"]))
+        
         self.total_loss += trainer.observation["mb_loss"]
         self.total_nb_predictions += trainer.observation["mb_nb_predictions"]
         self.total_update_time += trainer.observation["update_duration"]
         self.nb_observations += 1
         
-        if self.trigger(trainer):
+        if self.update_trigger(trainer):
             # output the result
             avg_loss = float(self.total_loss) / self.total_nb_predictions
             avg_update_time = self.total_update_time / self.nb_observations
@@ -316,110 +325,19 @@ class TrainingLossSummaryExtension(chainer.training.Extension):
             chainer.reporter.report({"avg_update_time": avg_update_time})
             self.reset()
 
-                   
-def train_on_data_chainer(encdec, optimizer, training_data, output_files_dict,
-                  src_indexer, tgt_indexer, eos_idx, 
-                  output_dir,
-                  stop_trigger = None,
-                  
-                  
-                  mb_size = 80,
-                  nb_of_batch_to_sort = 20,
-                  test_data = None, dev_data = None, valid_data = None,
-                  gpu = None, report_every = 200, randomized = False,
-                  reverse_src = False, reverse_tgt = False, max_nb_iters = None, do_not_save_data_for_resuming = False,
-                  noise_on_prev_word = False, curiculum_training = False,
-                  use_previous_prediction = 0, no_report_or_save = False,
-                  use_memory_optimization = False, sample_every = 200,
-                  use_reinf = False,
-                  save_ckpt_every = 2000,
-                  reshuffle_every_epoch = False):
-
-#     iterator_training_data = chainer.iterators.SerialIterator(training_data, mb_size, 
-#                                               repeat = True, 
-#                                               shuffle = reshuffle_every_epoch)
-    
-#     @chainer.training.make_extension(priority = chainer.training.PRIORITY_WRITER)
-#     def compute_dev_loss_extension(trainer):
-#         encdec = trainer.updater.get_optimizer("main").target
-#         log.info("computing dev loss")
-#         dev_loss = compute_loss_all(encdec, dev_data, eos_idx, mb_size, gpu = gpu,
-#                                      reverse_src = reverse_src, reverse_tgt = reverse_tgt)
-#         log.info("dev loss: %f" % dev_loss)
-#         chainer.reporter.report({"dev_loss": dev_loss})
-#         
-#         
-# 
-#         
-#     dev_src_data = [x for x,y in dev_data]
-#     dev_references = [y for x,y in dev_data]
-#     @chainer.training.make_extension(priority = chainer.training.PRIORITY_WRITER)
-#     def compute_dev_bleu_extension(trainer):
-#         encdec = trainer.updater.get_optimizer("main").target
-#         translations_fn = output_files_dict["dev_translation_output"] #save_prefix + ".test.out"
-#         control_src_fn = output_files_dict["dev_src_output"] #save_prefix + ".test.src.out"
-#         bleu = translate_to_file(encdec, eos_idx, dev_src_data, mb_size, tgt_indexer, 
-#                translations_fn, test_references = dev_references, control_src_fn = control_src_fn,
-#                src_indexer = src_indexer, gpu = gpu, nb_steps = 50, reverse_src = reverse_src, reverse_tgt = reverse_tgt,
-#                s_unk_tag = s_unk_tag, t_unk_tag = t_unk_tag)
-#         chainer.reporter.report({"dev_bleu": bleu.bleu()})
-#         
-#         
-#         
-#     class ComputeDevBleuExtension(chainer.training.Extension):
-#         priority = chainer.training.PRIORITY_WRITER
-#         
-#         def __init__(self, save_best_model_to = None):
-#             self.best_bleu = None
-#             self.save_best_model_to = save_best_model_to
-#         
-#         def __call__(self, trainer):
-#             encdec = trainer.updater.get_optimizer("main").target
-#             translations_fn = output_files_dict["dev_translation_output"] #save_prefix + ".test.out"
-#             control_src_fn = output_files_dict["dev_src_output"] #save_prefix + ".test.src.out"
-#             bleu_stats = translate_to_file(encdec, eos_idx, dev_src_data, mb_size, tgt_indexer, 
-#                    translations_fn, test_references = dev_references, control_src_fn = control_src_fn,
-#                    src_indexer = src_indexer, gpu = gpu, nb_steps = 50, reverse_src = reverse_src, reverse_tgt = reverse_tgt,
-#                    s_unk_tag = s_unk_tag, t_unk_tag = t_unk_tag)
-#             bleu = bleu_stats.bleu()
-#             chainer.reporter.report({"dev_bleu": bleu})
-#             
-#             if self.best_bleu is None or self.best_bleu < bleu:
-#                 log.info("bleu improvement: %r -> %r" % (self.best_bleu, bleu))
-#                 self.best_bleu = bleu
-#                 if self.save_best_model_to is not None:
-#                     log.info("saving best bleu model to %s" % (self.save_best_model_to,))
-#                     serializers.save_npz(self.save_best_model_to, encdec)
-#             else:
-#                 log.info("no bleu improvement: %f >= %f" %(self.best_bleu, bleu))
-#             
-#         def serialize(self, serializer):
-#             self.best_bleu = serializer("best_bleu", self.best_bleu)
+class SqliteLogExtension(chainer.training.Extension):
+    priority = chainer.training.PRIORITY_READER
+    def __init__(self, db_path):
+        self.db_path = db_path
         
-        
-    @chainer.training.make_extension()
-    def sample_extension(trainer): 
-        encdec = trainer.updater.get_optimizer("main").target
-        iterator = trainer.updater.get_iterator("main")
-        mb_raw = iterator.peek()
-        
-        src_batch, tgt_batch, src_mask = make_batch_src_tgt(mb_raw, eos_idx = eos_idx, padding_idx = 0, gpu = gpu, volatile = "on", need_arg_sort = False)  
-        s_unk_tag = lambda num,utag:"S_UNK_%i"%utag,
-        t_unk_tag = lambda num,utag:"T_UNK_%i"%utag
-        sample_once(encdec, src_batch, tgt_batch, src_mask, src_indexer, tgt_indexer, eos_idx,
-                                max_nb = 20,
-                                s_unk_tag = s_unk_tag, t_unk_tag = t_unk_tag)
-        
-        
-    @chainer.training.make_extension(priority = chainer.training.PRIORITY_READER)
-    def sqlite_log_extension(trainer):
+    def __call__(self, trainer):
         if any( (key in trainer.observation) 
                 for key in "dev_bleu dev_loss test_bleu test_loss avg_training_loss".split()):
-            db_path = output_files_dict["sqlite_db"]
-            log.info("saving dev results to %s" %(db_path))            
+            
+            log.info("saving dev results to %s" %(self.db_path))            
             
             import sqlite3, datetime
-            db_connection = sqlite3.connect(db_path)
+            db_connection = sqlite3.connect(self.db_path)
             db_cursor = db_connection.cursor()
             db_cursor.execute('''CREATE TABLE IF NOT EXISTS exp_data 
 (date text, bleu_info text, iteration real, 
@@ -452,6 +370,38 @@ avg_time real, avg_training_loss real)''')
             db_cursor.execute("INSERT INTO exp_data VALUES (?,?,?,?,?,?,?,?,?,?,?)", infos)
             db_connection.commit()
             db_connection.close()
+                   
+def train_on_data_chainer(encdec, optimizer, training_data, output_files_dict,
+                  src_indexer, tgt_indexer, eos_idx, 
+                  output_dir,
+                  stop_trigger = None,
+                  
+                  
+                  mb_size = 80,
+                  nb_of_batch_to_sort = 20,
+                  test_data = None, dev_data = None, valid_data = None,
+                  gpu = None, report_every = 200, randomized = False,
+                  reverse_src = False, reverse_tgt = False, max_nb_iters = None, do_not_save_data_for_resuming = False,
+                  noise_on_prev_word = False, curiculum_training = False,
+                  use_previous_prediction = 0, no_report_or_save = False,
+                  use_memory_optimization = False, sample_every = 200,
+                  use_reinf = False,
+                  save_ckpt_every = 2000,
+                  reshuffle_every_epoch = False):
+        
+    @chainer.training.make_extension()
+    def sample_extension(trainer): 
+        encdec = trainer.updater.get_optimizer("main").target
+        iterator = trainer.updater.get_iterator("main")
+        mb_raw = iterator.peek()
+        
+        src_batch, tgt_batch, src_mask = make_batch_src_tgt(mb_raw, eos_idx = eos_idx, padding_idx = 0, gpu = gpu, volatile = "on", need_arg_sort = False)  
+        s_unk_tag = lambda num,utag:"S_UNK_%i"%utag
+        t_unk_tag = lambda num,utag:"T_UNK_%i"%utag
+        sample_once(encdec, src_batch, tgt_batch, src_mask, src_indexer, tgt_indexer, eos_idx,
+                                max_nb = 20,
+                                s_unk_tag = s_unk_tag, t_unk_tag = t_unk_tag)
+        
         
     iterator_training_data = LengthBasedSerialIterator(training_data, mb_size, 
                                             nb_of_batch_to_sort = nb_of_batch_to_sort, 
@@ -460,11 +410,16 @@ avg_time real, avg_training_loss real)''')
                                             shuffle = reshuffle_every_epoch)
     
     def loss_func(src_batch, tgt_batch, src_mask):
+        
+        t0 = time.clock()
         (total_loss, total_nb_predictions), attn = encdec(src_batch, tgt_batch, src_mask, raw_loss_info = True,
                                                           noise_on_prev_word = noise_on_prev_word,
                                                           use_previous_prediction = use_previous_prediction,
                                                           mode = "train")
         avg_loss = total_loss / total_nb_predictions
+        
+        t1 = time.clock()
+        chainer.reporter.report({"forward_time": t1 - t0})
         
         chainer.reporter.report({"mb_loss": total_loss.data})
         chainer.reporter.report({"mb_nb_predictions": total_nb_predictions})
@@ -483,9 +438,9 @@ avg_time real, avg_training_loss real)''')
                 need_to_convert_to_variables = False)
 
     trainer = chainer.training.Trainer(updater, stop_trigger, out = output_dir)
-    trainer.extend(chainer.training.extensions.LogReport(trigger=(10, 'iteration')))
-    trainer.extend(chainer.training.extensions.PrintReport(['epoch', 'iteration', 'trg_loss', "dev_loss", "dev_bleu"]), 
-                   trigger = (1, "iteration"))
+#     trainer.extend(chainer.training.extensions.LogReport(trigger=(10, 'iteration')))
+#     trainer.extend(chainer.training.extensions.PrintReport(['epoch', 'iteration', 'trg_loss', "dev_loss", "dev_bleu"]), 
+#                    trigger = (1, "iteration"))
     
     
     if dev_data is not None:
@@ -526,7 +481,7 @@ avg_time real, avg_training_loss real)''')
     
     trainer.extend(TrainingLossSummaryExtension(trigger = (200, "iteration")))
     
-    trainer.extend(sqlite_log_extension)
+    trainer.extend(SqliteLogExtension(db_path = output_files_dict["sqlite_db"]))
     
     try:
         trainer.run()
