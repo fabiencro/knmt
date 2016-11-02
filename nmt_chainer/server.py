@@ -195,101 +195,111 @@ class RequestHandler(SocketServer.BaseRequestHandler):
     def handle(self):
         start_request = timeit.default_timer()
         log.info(timestamped_msg("Handling request..."))
-        data = self.request.recv(1024)
-        try:
-            log.info(data)
-            cur_thread = threading.current_thread()
+        data = self.request.recv(4096)
 
-            root = ET.fromstring(data)
-            article_id = root.get('id')
+        response = {}
+        if (data):
             try:
-                attn_graph_width = int(root.get('attn_graph_width', 0))
-            except:
-                attn_graph_width = 0
-            try:
-                attn_graph_height = int(root.get('attn_graph_height', 0))
-            except:
-                attn_graph_height = 0
-            beam_width = int(root.get('beam_width', 30))
-            nb_steps = int(root.get('nb_steps', 50))
-            nb_steps_ratio = None
-            try:
-                nb_steps_ratio = float(root.get('nb_steps_ratio', 1.2))
-            except:
-                pass
-            groundhog = ('true' == root.get('groundhog', 'false'))
-            force_finish = ('true' == root.get('force_finish', 'false'))
-            use_raw_score = ('true' == root.get('use_raw_score', 'false'))
-            prob_space_combination = ('true' == root.get('prob_space_combination', 'false'))
-            remove_unk = ('true' == root.get('remove_unk', 'false'))
-            normalize_unicode_unk = ('true' == root.get('normalize_unicode_unk', 'true'))
-            log.info('normalize_unicode_unk=' + str(normalize_unicode_unk))
-            attempt_to_relocate_unk_source = ('true' == root.get('attempt_to_relocate_unk_source', 'false'))
-            log.info("Article id: %s" % article_id)
-            out = ""
-            graph_data = []
-            segmented_input = []
-            segmented_output = []
-            mapping = []
-            sentences = root.findall('sentence')
-            for idx, sentence in enumerate(sentences):
-                text = sentence.findtext('i_sentence').strip()
-                log.info("text=@@@%s@@@" % text)
-                
-                cmd = self.server.segmenter_command % text
-                # log.info("cmd=%s" % cmd)
-                start_cmd = timeit.default_timer()
-                parser_output = subprocess.check_output(cmd, shell=True)
-                log.info("Segmenter request processed in {} s.".format(timeit.default_timer() - start_cmd))
-                # log.info("parser_output=%s" % parser_output)
+                cur_thread = threading.current_thread()
 
-                words = []
-                if 'parse_server' == self.server.segmenter_format:
-                    for line in parser_output.split("\n"):
-                        if (line.startswith('#')):
-                            continue
-                        elif (not line.strip()):
-                            break
-                        else:
-                            parts = line.split("\t")
-                            word = parts[2]
-                            words.append(word)
-                elif 'morph' == self.server.segmenter_format:
-                    for pair in parser_output.split(' '):
-                        if pair != '':
-                            word, pos = pair.split('_')
-                            words.append(word)
-                else:
+                log.info("data={0}".format(data))
+                root = ET.fromstring(data)
+                article_id = root.get('id')
+                try:
+                    attn_graph_width = int(root.get('attn_graph_width', 0))
+                except:
+                    attn_graph_width = 0
+                try:
+                    attn_graph_height = int(root.get('attn_graph_height', 0))
+                except:
+                    attn_graph_height = 0
+                beam_width = int(root.get('beam_width', 30))
+                nb_steps = int(root.get('nb_steps', 50))
+                nb_steps_ratio = None
+                try:
+                    nb_steps_ratio = float(root.get('nb_steps_ratio', 1.2))
+                except:
                     pass
-                splitted_sentence = ' '.join(words)
-                # log.info("splitted_sentence=" + splitted_sentence)
+                groundhog = ('true' == root.get('groundhog', 'false'))
+                force_finish = ('true' == root.get('force_finish', 'false'))
+                use_raw_score = ('true' == root.get('use_raw_score', 'false'))
+                prob_space_combination = ('true' == root.get('prob_space_combination', 'false'))
+                remove_unk = ('true' == root.get('remove_unk', 'false'))
+                normalize_unicode_unk = ('true' == root.get('normalize_unicode_unk', 'true'))
+                log.info('normalize_unicode_unk=' + str(normalize_unicode_unk))
+                attempt_to_relocate_unk_source = ('true' == root.get('attempt_to_relocate_unk_source', 'false'))
+                log.info("Article id: %s" % article_id)
+                out = ""
+                graph_data = []
+                segmented_input = []
+                segmented_output = []
+                mapping = []
+                sentences = root.findall('sentence')
+                for idx, sentence in enumerate(sentences):
+                    sentence_number = sentence.get('id');
+                    text = sentence.findtext('i_sentence').strip()
+                    log.info("text=@@@%s@@@" % text)
+                    
+                    cmd = self.server.segmenter_command % text
+                    log.info("cmd=%s" % cmd)
+                    start_cmd = timeit.default_timer()
 
-                log.info(timestamped_msg("Translating sentence %d" % idx))
-                translation, script, div, unk_mapping = self.server.evaluator.eval(splitted_sentence.decode('utf-8'), idx, 
-                    beam_width, nb_steps, nb_steps_ratio, remove_unk, normalize_unicode_unk, attempt_to_relocate_unk_source,
-                    use_raw_score, groundhog, force_finish, prob_space_combination, attn_graph_width, attn_graph_height)
-                out += translation
-                segmented_input.append(splitted_sentence)
-                segmented_output.append(translation)
-                mapping.append(unk_mapping)
-                graph_data.append((script.encode('utf-8'), div.encode('utf-8')))
+                    parser_output = subprocess.check_output(cmd, shell=True)
 
-            response = {}
-            response['out'] = out
-            response['segmented_input'] = segmented_input
-            response['segmented_output'] = segmented_output
-            response['mapping'] = map(lambda x: ' '.join(x), mapping)
-            graphes = [];
-            for gd in graph_data:
-                script, div = gd
-                graphes.append({'script': script, 'div': div})
-            response['attn_graphes'] = graphes
-        except:
-            traceback.print_exc()
-            error_lines = traceback.format_exc().splitlines()
-            response = {}
-            response['error'] = error_lines[-1]
-            response['stacktrace'] = error_lines
+                    log.info("Segmenter request processed in {} s.".format(timeit.default_timer() - start_cmd))
+                    log.info("parser_output=%s" % parser_output)
+
+                    words = []
+                    if 'parse_server' == self.server.segmenter_format:
+                        for line in parser_output.split("\n"):
+                            if (line.startswith('#')):
+                                continue
+                            elif (not line.strip()):
+                                break
+                            else:
+                                parts = line.split("\t")
+                                word = parts[2]
+                                words.append(word)
+                    elif 'morph' == self.server.segmenter_format:
+                        for pair in parser_output.split(' '):
+                            if pair != '':
+                                word, pos = pair.split('_')
+                                words.append(word)
+                    else:
+                        pass
+                    splitted_sentence = ' '.join(words)
+                    # log.info("splitted_sentence=" + splitted_sentence)
+
+                    log.info(timestamped_msg("Translating sentence %d" % idx))
+                    decoded_sentence = splitted_sentence.decode('utf-8')
+                    translation, script, div, unk_mapping = self.server.evaluator.eval(decoded_sentence, sentence_number, 
+                        beam_width, nb_steps, nb_steps_ratio, remove_unk, normalize_unicode_unk, attempt_to_relocate_unk_source,
+                        use_raw_score, groundhog, force_finish, prob_space_combination, attn_graph_width, attn_graph_height)
+                    out += translation
+                    segmented_input.append(splitted_sentence)
+                    segmented_output.append(translation)
+                    mapping.append(unk_mapping)
+                    graph_data.append((script.encode('utf-8'), div.encode('utf-8')))
+
+                    # There should always be only one sentence for now. - FB
+                    break
+
+                response['article_id'] = article_id
+                response['sentence_number'] = sentence_number
+                response['out'] = out
+                response['segmented_input'] = segmented_input
+                response['segmented_output'] = segmented_output
+                response['mapping'] = map(lambda x: ' '.join(x), mapping)
+                graphes = [];
+                for gd in graph_data:
+                    script, div = gd
+                    graphes.append({'script': script, 'div': div})
+                response['attn_graphes'] = graphes
+            except:
+                traceback.print_exc()
+                error_lines = traceback.format_exc().splitlines()
+                response['error'] = error_lines[-1]
+                response['stacktrace'] = error_lines
 
         log.info("Request processed in {0} s. by {1}".format(timeit.default_timer() - start_request, cur_thread.name))
 
