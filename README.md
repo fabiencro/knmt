@@ -80,6 +80,10 @@ The evolution of the training (training loss, validation loss, validation BLEU, 
 At any time during and after the training, one can generate a graph showing the evolution of these values. The script `graph_training.py` will take such a `*.result.sqlite` file and generate an html file containing the graph. This uses the `plotly` graphing library.
 
         python graph_training.py --lib plotly training_prefix.result.sqlite graph.html
+ 
+This will result in a graph similar to this one, where training loss appears as a green line, validation loss as a blue line, and validation BLEU appears as a scatter plot of small blue circles:
+
+<img src="images/train_graph.jpg" alt="training graph" style="width: 1000px;"/>
 
 ## Recommended Options
 
