@@ -31,31 +31,32 @@ class EncoderNaive(models.Encoder):
         
         mb_size = sequence[0].data.shape[0]
         assert mb_size == 1
-        mb_initial_state_f = F.broadcast_to(F.reshape(self.initial_state_f, (1, self.Hi)), (mb_size, self.Hi))
-        mb_initial_state_b = F.broadcast_to(F.reshape(self.initial_state_b, (1, self.Hi)), (mb_size, self.Hi))
-        
+
+        mb_initial_states_f = self.gru_f.get_initial_states(mb_size)
+        mb_initial_states_b = self.gru_b.get_initial_states(mb_size)
+       
         embedded_seq = []
         for elem in sequence:
             embedded_seq.append(self.emb(elem))
             
 #         self.gru_f.reset_state()
-        prev_state = mb_initial_state_f
+        prev_states = mb_initial_states_f
         forward_seq = []
-        for x in embedded_seq:
-            prev_state = self.gru_f(prev_state, x)
-            forward_seq.append(prev_state)
+        for i, x in enumerate(embedded_seq):
+            prev_states = self.gru_f(prev_states, x)
+            forward_seq.append(prev_states)
             
 #         self.gru_b.reset_state()
-        prev_state = mb_initial_state_b
+        prev_states = mb_initial_states_b
         backward_seq = []
         for pos, x in reversed(list(enumerate(embedded_seq))):
-            prev_state = self.gru_b(prev_state, x)
-            backward_seq.append(prev_state)
+            prev_states = self.gru_b(prev_states, x)
+            backward_seq.append(prev_states)
         
         assert len(backward_seq) == len(forward_seq)
         res = []
         for xf, xb in zip(forward_seq, reversed(backward_seq)):
-            res.append(F.concat((xf, xb), 1))
+            res.append(F.concat((xf[-1], xb[-1]), 1))
         
         return res
     
@@ -251,10 +252,10 @@ class DecoderNaive(models.Decoder):
         loss = None
         current_mb_size = targets[0].data.shape[0]
         assert current_mb_size == 1
-        previous_state = F.concat( [self.initial_state] * current_mb_size, 0)
+        previous_states = self.gru.get_initial_states(current_mb_size)
 #         previous_word = Variable(np.array([self.bos_idx] * mb_size, dtype = np.int32))
-        xp = cuda.get_array_module(self.initial_state.data)
-        with cuda.get_device(self.initial_state.data):
+        #xp = cuda.get_array_module(self.gru.initial_state.data)
+        with cuda.get_device(self.gru.initial_state.data):
             prev_y = F.broadcast_to(self.bos_embeding, (1, self.Eo))
 #             previous_word = Variable(xp.array([self.bos_idx] * current_mb_size, dtype = np.int32))
         previous_word = None
@@ -263,12 +264,12 @@ class DecoderNaive(models.Decoder):
         for i in xrange(len(targets)):
             if previous_word is not None: #else we are using the initial prev_y
                 prev_y = self.emb(previous_word)
-            ci, attn = compute_ctxt(previous_state)
+            ci, attn = compute_ctxt(previous_states[-1])
             concatenated = F.concat( (prev_y, ci) )
     #             print concatenated.data.shape
-            new_state = self.gru(previous_state, concatenated)
+            new_states = self.gru(previous_states, concatenated)
     
-            all_concatenated = F.concat((concatenated, new_state))
+            all_concatenated = F.concat((concatenated, new_states[-1]))
             logits = self.lin_o(self.maxo(all_concatenated))
 
             local_loss = F.softmax_cross_entropy(logits, targets[i])
@@ -276,7 +277,7 @@ class DecoderNaive(models.Decoder):
             loss = local_loss if loss is None else loss + local_loss
             total_nb_predictions += 1
             previous_word = targets[i]
-            previous_state = new_state
+            previous_states = new_states
             attn_list.append(attn)
             
         loss = loss / total_nb_predictions

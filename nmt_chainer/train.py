@@ -361,8 +361,8 @@ def command_line(arguments = None):
     encdec = models.EncoderDecoder(Vi, args.Ei, args.Hi, Vo + 1, args.Eo, args.Ho, args.Ha, args.Hl,
                                        init_orth = args.init_orth, use_bn_length = args.use_bn_length,
                                        attn_cls = attn_cls,
-                                       encoder_cell_type = rnn_cells.create_cell_model_from_string(args.encoder_cell_type),
-                                       decoder_cell_type = rnn_cells.create_cell_model_from_string(args.decoder_cell_type),
+                                       encoder_cell_type = args.encoder_cell_type,
+                                       decoder_cell_type = args.decoder_cell_type,
                                        lexical_probability_dictionary = lexical_probability_dictionary, 
                                        lex_epsilon = args.lexicon_prob_epsilon)
     
