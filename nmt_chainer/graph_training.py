@@ -62,13 +62,16 @@ def generate_graph(sqldb, dest, lib, title = "Training Evolution"):
 #         random_y2 = np.random.randn(N)-5
 #         
         # Create traces
-        text_trg = ["i:%i\n%s\nt:%f"%(i, d, t) for i, d, t in zip(iteration, date, avg_time)]
+        text_trg = ["i:%i\n%s\nt:%r"%(i, d, t) for i, d, t in zip(iteration, date, avg_time)]
         text_bleu = []
         for bli in bleu_info:
-            bli_splitted = bli.split()
-            ng_info = bli_splitted[1:5]
-            size_info = bli_splitted[-1]
-            text_bleu.append("\n" + "\n".join(ng_info + [size_info]))
+            if bli is None:
+               text_bleu.append("NO INFO") 
+            else:
+                bli_splitted = bli.split()
+                ng_info = bli_splitted[1:5]
+                size_info = bli_splitted[-1]
+                text_bleu.append("\n" + "\n".join(ng_info + [size_info]))
         
         trace0 = go.Scatter(
 #             x = random_x,
