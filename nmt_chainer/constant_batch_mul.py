@@ -8,6 +8,55 @@ from chainer.utils import type_check
 
 from chainer.functions.math.matmul import _get_batch_mat_shape, _check_ndim, _convert_type, _get_check_index, _matmul, _batch_matmul_gpu
 
+class MatMulConstant(function.Function):
+
+    def __init__(self, b, transa=False, transb=False):
+        self.transa = transa
+        self.transb = transb
+        self.b = b
+
+    def check_type_forward(self, in_types):
+        type_check.expect(in_types.size() == 1)
+        a_type, = in_types
+
+        type_check.expect(
+            a_type.dtype.kind == 'f',
+        )
+
+        _check_ndim(a_type)
+
+        a_type = _convert_type(a_type)
+        a_idx = _get_check_index(self.transa, False)
+
+    def forward(self, x):
+        a, = x
+        return _matmul(a, self.b, transa=self.transa, transb=self.transb),
+
+    def backward(self, x, gy):
+        gx0 = _matmul(
+            gy[0], self.b, transb=not self.transb, transout=self.transa
+        ).reshape(x[0].shape)
+        return gx0,
+
+
+def matmul_constant(a, b, transa=False, transb=False):
+    """Computes the matrix multiplication of two arrays.
+    Args:
+        a (Variable): The left operand of the matrix multiplication.
+            A 1-D array of shape ``(N,)`` is considered as an
+            :math:`N \\times 1` matrix.
+            A 2-D array of shape ``(M, N)`` is considered as an
+            :math:`M \\times N` matrix.
+        b (Variable): The right operand of the matrix multiplication.
+            Its array is treated as a matrix in the same way as ``a``'s array.
+        transa (bool): If ``True``, transpose a.
+        transb (bool): If ``True``, transpose b.
+    Returns:
+        ~chainer.Variable: The result of the matrix multiplication as a 2-D
+            array.
+    """
+    return MatMulConstant(b, transa=transa, transb=transb)(a)
+
 class BatchMatMulConstant(function.Function):
     def __init__(self, b, transa=False, transb=False):
         self.transa = transa
