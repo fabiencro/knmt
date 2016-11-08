@@ -351,6 +351,7 @@ def commandline():
     parser.add_argument("--reverse_training_config", help = "prefix of the trained model")
     parser.add_argument("--reverse_trained_model", help = "prefix of the trained model")
     
+    parser.add_argument("--netiface", help = "network interface for listening request", default = 'eth0')
     parser.add_argument("--port", help = "port for listening request", default = 44666)
     parser.add_argument("--segmenter_command", help = "command to communicate with the segmenter server")
     parser.add_argument("--segmenter_format", help = "format to expect from the segmenter (parse_server, morph)", default = 'parse_server')
@@ -360,9 +361,11 @@ def commandline():
                    args.reverse_training_config, args.reverse_trained_model, args.max_nb_ex, args.mb_size, args.beam_opt, 
                    args.tgt_unk_id, args.gpu, args.dic)
 
-    server = Server((socket.gethostname(), int(args.port)), RequestHandler, args.segmenter_command, args.segmenter_format, evaluator)
+    retrieve_ip_cmd = "/sbin/ifconfig | grep -A1 '{0}' | grep 'inet addr' | cut -f 2 -d ':' | cut -f 1 -d ' '".format(args.netiface)
+    external_ip = subprocess.check_output(retrieve_ip_cmd, shell=True) 
+    server = Server((external_ip, int(args.port)), RequestHandler, args.segmenter_command, args.segmenter_format, evaluator)
     ip, port = server.server_address
-    log.info(timestamped_msg("Start listening for requests on {0}({1}) port {2}...".format(socket.gethostname(), ip, port)))
+    log.info(timestamped_msg("Start listening for requests on {0}({1}) port {2}...".format(socket.gethostname(), external_ip, port)))
 
     try:
         server.serve_forever()
