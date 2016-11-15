@@ -41,6 +41,65 @@ class BNList(ChainList):
         else:
             return self[self.max_length - 1](x, test = test)
 
+
+class FFEncoder(Chain):
+    """ Chain that encode a sequence.
+        This is a feedforward encoder that simply applies a RELU and does not
+        assume any temporal relationships in the sequence since the attention and
+        the decoder should be able to take care of it.
+        The __call_ takes 2 parameters: sequence and mask.
+        mask and length should be 2 python lists of same length #length.
+        
+        sequence should be a python list of Chainer Variables wrapping a numpy/cupy array of shape (mb_size,) and type int32 each.
+            -- where mb_size is the minibatch size
+        sequence[i].data[j] should be the jth element of source sequence number i, or a padding value if the sequence number i is
+            shorter than j.
+        
+        mask should be a python list of Chainer Variables wrapping a numpy/cupy array of shape (mb_size,) and type bool each.
+        mask[i].data[j] should be True if and only if sequence[i].data[j] is not a padding value.
+        
+        Return a chainer variable of shape (mb_size, #length, 2*Hi) and type float32
+    """
+    def __init__(self, Vi, Ei, Hi, init_orth = False, use_bn_length = 0, cell_type = L.Linear, is_multitarget = False):
+        log.info("constructing encoder [%s]"%(cell_type,))
+        super(FFEncoder, self).__init__(
+            emb = EmbedID(Vi, Ei),
+            gru_f = L.Linear(Ei, Hi, nobias = False),
+            gru_b = L.Linear(Ei, Hi, nobias = False)
+        )
+        self.Hi = Hi
+
+        self.is_multitarget = is_multitarget
+
+        if use_bn_length > 0:
+            self.add_link("bn_f", BNList(Hi, use_bn_length))
+#             self.add_link("bn_b", BNList(Hi, use_bn_length)) #TODO
+        self.use_bn_length = use_bn_length
+        
+        if init_orth:
+            ortho_init(self.gru_f)
+            ortho_init(self.gru_b)
+        
+    def __call__(self, sequence, mask, mode = "test", multi_target_signal = None):
+        assert mode in "test train".split()
+        
+        mb_size = sequence[0].data.shape[0]
+                
+        embedded_seq = self.emb(F.concat(sequence,1))
+            
+        embedded_seq = F.reshape((mb_size * len(sequence), self.Hi), embedded_seq)
+
+        fwd_hidden = F.relu(self.gru_f(embedded_seq))
+        bwd_hidden = F.relu(self.gru_b(embedded_seq))
+        fwd_bwd_res = F.reshape(F.concat((fwd_hidden, bwd_hidden), 1), (mb_size, len(sequence), 2*self.Hi))
+
+        if self.is_multitarget:
+            assert multi_target_signal == []
+            trigger_signal = F.relu(self.gru_b(self.emb(sequence[0])))
+            multi_target_signal.append(trigger_signal[-1])
+
+        return fwd_bwd_res
+
 class Encoder(Chain):
     """ Chain that encode a sequence. 
         The __call_ takes 2 parameters: sequence and mask.
@@ -56,7 +115,7 @@ class Encoder(Chain):
         
         Return a chainer variable of shape (mb_size, #length, 2*Hi) and type float32
     """
-    def __init__(self, Vi, Ei, Hi, init_orth = False, use_bn_length = 0, cell_type = rnn_cells.LSTMCell):
+    def __init__(self, Vi, Ei, Hi, init_orth = False, use_bn_length = 0, cell_type = rnn_cells.LSTMCell, is_multitarget = False):
         if (type(cell_type) == type):
             gru_f = cell_type(Ei, Hi)
             gru_b = cell_type(Ei, Hi)
@@ -74,7 +133,9 @@ class Encoder(Chain):
             gru_b = gru_b
         )
         self.Hi = Hi
-        
+
+        self.is_multitarget = is_multitarget
+
         if use_bn_length > 0:
             self.add_link("bn_f", BNList(Hi, use_bn_length))
 #             self.add_link("bn_b", BNList(Hi, use_bn_length)) #TODO
@@ -84,7 +145,7 @@ class Encoder(Chain):
             ortho_init(self.gru_f)
             ortho_init(self.gru_b)
         
-    def __call__(self, sequence, mask, mode = "test"):
+    def __call__(self, sequence, mask, mode = "test", multi_target_signal = None):
         assert mode in "test train".split()
         
         mb_size = sequence[0].data.shape[0]
@@ -111,10 +172,13 @@ class Encoder(Chain):
         prev_states = mb_initial_states_b
             
         backward_seq = []
+        gru_b_last = None
+
         for pos, x in reversed(list(enumerate(embedded_seq))):
             if pos < mask_offset:
                 prev_states = self.gru_b(prev_states, x, mode = mode)
                 output = prev_states[-1]
+                gru_b_last = prev_states[0]
             else:
                 reshaped_mask = F.broadcast_to(
                                 Variable(self.xp.reshape(mask[pos - mask_offset], 
@@ -122,6 +186,7 @@ class Encoder(Chain):
                 
                 prev_states = self.gru_b(prev_states, x, mode = mode)
                 output = prev_states[-1]
+                gru_b_last = prev_states[0]
                 
                 masked_prev_states = [None] * len(prev_states)
                 for num_state in xrange(len(prev_states)):
@@ -129,6 +194,7 @@ class Encoder(Chain):
                                     prev_states[num_state], mb_initial_states_b[num_state]) #TODO: optimize?
                 prev_states = tuple(masked_prev_states)
                 output = prev_states[-1]
+                gru_b_last = prev_states[0]
 
             
             backward_seq.append(output)
@@ -138,6 +204,10 @@ class Encoder(Chain):
         for xf, xb in zip(forward_seq, reversed(backward_seq)):
             res.append(F.reshape(F.concat((xf, xb), 1), (-1, 1, 2 * self.Hi)))
         
+        if self.is_multitarget:
+            assert multi_target_signal == []
+            multi_target_signal.append(gru_b_last)
+
         return F.concat(res, 1)
     
 class AttentionModule(Chain):
@@ -725,19 +795,20 @@ class EncoderDecoder(Chain):
     """
     def __init__(self, Vi, Ei, Hi, Vo, Eo, Ho, Ha, Hl, attn_cls = AttentionModule, init_orth = False, use_bn_length = 0,
                 encoder_cell_type = "gru", decoder_cell_type = "gru",
-                lexical_probability_dictionary = None, lex_epsilon = 1e-3
+                lexical_probability_dictionary = None, lex_epsilon = 1e-3, is_multitarget = False
                 ):
         log.info("constructing encoder decoder with Vi:%i Ei:%i Hi:%i Vo:%i Eo:%i Ho:%i Ha:%i Hl:%i" % 
                                         (Vi, Ei, Hi, Vo, Eo, Ho, Ha, Hl))
         super(EncoderDecoder, self).__init__(
             enc = Encoder(Vi, Ei, Hi, init_orth = init_orth, use_bn_length = use_bn_length,
-                          cell_type = encoder_cell_type),
+                          cell_type = encoder_cell_type, is_multitarget = is_multitarget),
             dec = decoder_cells.Decoder(Vo, Eo, Ho, Ha, 2 * Hi, Hl, attn_cls = attn_cls, init_orth = init_orth, 
-                          cell_type = decoder_cell_type)
+                          cell_type = decoder_cell_type, is_multitarget = is_multitarget)
         )
         self.Vo = Vo
         self.lexical_probability_dictionary = lexical_probability_dictionary
         self.lex_epsilon = lex_epsilon
+        self.is_multitarget = is_multitarget
         
     def compute_lexicon_probability_matrix(self, src_batch):
         if self.lexical_probability_dictionary is not None:
@@ -756,9 +827,15 @@ class EncoderDecoder(Chain):
 
             
         lexicon_probability_matrix = self.compute_lexicon_probability_matrix(src_batch)
-            
-        fb_concat = self.enc(src_batch, src_mask, mode = mode)
         
+        multi_target_signal = []
+        
+        fb_concat = self.enc(src_batch, src_mask, mode = mode, multi_target_signal = multi_target_signal)
+        
+        if self.is_multitarget:
+            assert multi_target_signal is not []
+            assert len(multi_target_signal) == 1
+            multi_target_signal = multi_target_signal[0]
         
         mb_size, nb_elems, Hi = fb_concat.data.shape
 
@@ -766,14 +843,14 @@ class EncoderDecoder(Chain):
             return self.dec.sample(fb_concat, src_mask, tgt_batch, mb_size, 
                                    lexicon_probability_matrix = lexicon_probability_matrix, 
                                    lex_epsilon = self.lex_epsilon, best = use_best_for_sample, 
-                                   keep_attn_values = keep_attn_values, need_score = need_score)
+                                   keep_attn_values = keep_attn_values, need_score = need_score, multi_target_signal = multi_target_signal)
 
         else:
             return self.dec.compute_loss(fb_concat, src_mask, tgt_batch, raw_loss_info = raw_loss_info,
                                          keep_attn_values = keep_attn_values, noise_on_prev_word = noise_on_prev_word,
                                          use_previous_prediction = use_previous_prediction, mode = "test", 
                                          per_sentence = False, lexicon_probability_matrix = lexicon_probability_matrix, 
-                                         lex_epsilon = self.lex_epsilon)
+                                         lex_epsilon = self.lex_epsilon, multi_target_signal = multi_target_signal)
                                          
     def give_conditionalized_cell(self, src_batch, src_mask, noise_on_prev_word = False,
                     mode = "test", demux = False):
@@ -784,8 +861,15 @@ class EncoderDecoder(Chain):
                 lexicon_probability_matrix = cuda.to_gpu(lexicon_probability_matrix, cuda.get_device(self.dec.lin_o.W.data))
         else:
             lexicon_probability_matrix = None
-            
-        fb_concat = self.enc(src_batch, src_mask, mode = mode)
+        
+        multi_target_signal = []
+        
+        fb_concat = self.enc(src_batch, src_mask, mode = mode, multi_target_signal = multi_target_signal)
+        
+        if self.is_multitarget:
+            assert multi_target_signal is not []
+            assert len(multi_target_signal) == 1
+            multi_target_signal = multi_target_signal[0]
         
         
         mb_size, nb_elems, Hi = fb_concat.data.shape
@@ -793,7 +877,7 @@ class EncoderDecoder(Chain):
         return self.dec.give_conditionalized_cell(fb_concat, src_mask, 
                     noise_on_prev_word = noise_on_prev_word,
                     mode = mode, lexicon_probability_matrix = lexicon_probability_matrix, 
-                    lex_epsilon = self.lex_epsilon, demux = demux)                     
+                    lex_epsilon = self.lex_epsilon, demux = demux, multi_target_signal = multi_target_signal)                     
 
     def nbest_scorer(self, src_batch, src_mask, keep_attn = False):
         assert len(src_batch[0].data) == 1

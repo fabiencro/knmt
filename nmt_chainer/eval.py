@@ -21,6 +21,7 @@ from evaluation import (greedy_batch_translate,
 #                         convert_idx_to_string_with_attn
                         )
 
+from prepostprocessor import *
 # import visualisation
 import bleu_computer
 import logging
@@ -199,6 +200,11 @@ def create_encdec_from_config(config_training):
     Ha = config_training["command_line"]["Ha"]
     Hl = config_training["command_line"]["Hl"]
     
+    is_multitarget = config_training["is_multitarget"]
+
+    if is_multitarget:
+        print "Multiple target languages"
+
     encoder_cell_type = config_training["command_line"].get("encoder_cell_type", "gru")
     decoder_cell_type = config_training["command_line"].get("decoder_cell_type", "gru")
     
@@ -233,7 +239,7 @@ def create_encdec_from_config(config_training):
                                    encoder_cell_type = rnn_cells.create_cell_model_from_string(encoder_cell_type),
                                        decoder_cell_type = rnn_cells.create_cell_model_from_string(decoder_cell_type),
                                        lexical_probability_dictionary = lexical_probability_dictionary,
-                                       lex_epsilon = config_training["command_line"].get("lexicon_prob_epsilon", 0.001))
+                                       lex_epsilon = config_training["command_line"].get("lexicon_prob_epsilon", 0.001), is_multitarget = is_multitarget)
     
     return encdec, eos_idx, src_indexer, tgt_indexer
     
@@ -301,11 +307,35 @@ def commandline():
     parser.add_argument("--reverse_training_config", help = "prefix of the trained model")
     parser.add_argument("--reverse_trained_model", help = "prefix of the trained model")
     
+    parser.add_argument("--apply_preprocessing", default = True, action = "store_true")
+    parser.add_argument("--apply_postprocessing", default = True, action = "store_true")
+    parser.add_argument("--prepostprocessor", default = None, help = "path to prepostprocessor models. For BPE these are the merge operations models as .src and .tgt files.")
+    parser.add_argument("--tgt_lang", default = None, help = "target language")
+
     args = parser.parse_args()
     
+    
+
     encdec, eos_idx, src_indexer, tgt_indexer = create_and_load_encdec_from_files(
                             args.training_config, args.trained_model)
     
+    is_multitarget = encdec.is_multitarget
+    src_prepostprocessor = None
+    tgt_prepostprocessor = None
+    if args.prepostprocessor is not None:
+        if is_multitarget:
+            assert args.tgt_lang is not None
+        src_prepostprocessor = BPEPrePostProcessor(is_multitarget = is_multitarget, target_language = args.tgt_lang)
+        tgt_prepostprocessor = BPEPrePostProcessor()
+        src_prepostprocessor.load_model(args.prepostprocessor + "/bpe_model.src")
+        tgt_prepostprocessor.load_model(args.prepostprocessor + "/bpe_model.tgt")
+        if args.apply_preprocessing:
+            log.info("Applying the preprocessor on the source and target data")
+            src_prepostprocessor.apply_preprocessing(args.src_fn, args.src_fn + ".segmented")
+            tgt_prepostprocessor.apply_preprocessing(args.tgt_fn, args.tgt_fn + ".segmented")
+            args.src_fn += ".segmented"
+            args.tgt_fn += ".segmented"
+
     if args.gpu is not None:
         encdec = encdec.to_gpu(args.gpu)
         
@@ -393,6 +423,9 @@ def commandline():
             ct = " ".join(tgt_indexer.deconvert(t, unk_tag = "#T_UNK#"))
 #             ct = convert_idx_to_string(t, tgt_voc + ["#T_UNK#"])
             out.write(ct + "\n")
+        if args.prepostprocessor is not None:
+            if args.apply_postprocessing:
+                src_prepostprocessor.apply_preprocessing(args.dest_fn, args.dest_fn + ".restored")
 
     elif args.mode == "beam_search":
         translate_to_file_with_beam_search(args.dest_fn, args.gpu, encdec_list, eos_idx, src_data, args.beam_width, 
@@ -405,6 +438,9 @@ def commandline():
                                            generate_attention_html = args.generate_attention_html,
                                            src_indexer = src_indexer,
                                            rich_output_filename = args.rich_output_filename)
+        if args.prepostprocessor is not None:
+            if args.apply_postprocessing:
+                src_prepostprocessor.apply_preprocessing(args.dest_fn, args.dest_fn + ".restored")
             
     elif args.mode == "eval_bleu":
 #         assert args.ref is not None
@@ -419,16 +455,30 @@ def commandline():
                                            src_indexer = src_indexer,
                                            rich_output_filename = args.rich_output_filename)
         
+        if args.prepostprocessor is not None:
+            if args.apply_postprocessing:
+                src_prepostprocessor.apply_preprocessing(args.dest_fn, args.dest_fn + ".restored")
+                args.dest_fn += ".restored"
+        
         if args.ref is not None:
             bc = bleu_computer.get_bc_from_files(args.ref, args.dest_fn)
             print "bleu before unk replace:", bc
         else:
             print "bleu before unk replace: No Ref Provided"
         
+        if args.prepostprocessor is not None:
+            if args.apply_postprocessing:
+                args.dest_fn.replace(".restored","")
+        
         import replace_tgt_unk
         replace_tgt_unk.replace_unk(args.dest_fn, args.src_fn, args.dest_fn + ".unk_replaced", args.dic, args.remove_unk, 
                 args.normalize_unicode_unk,
                 args.attempt_to_relocate_unk_source)
+        
+        if args.prepostprocessor is not None:
+            if args.apply_postprocessing:
+                src_prepostprocessor.apply_preprocessing(args.dest_fn + ".unk_replaced", args.dest_fn + ".unk_replaced.restored")
+                args.dest_fn += ".unk_replaced.restored"
          
         if args.ref is not None: 
             bc = bleu_computer.get_bc_from_files(args.ref, args.dest_fn + ".unk_replaced")

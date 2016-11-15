@@ -30,7 +30,7 @@ log.setLevel(logging.INFO)
 
 class ConditionalizedDecoderCell(object):
     def __init__(self, decoder_chain, compute_ctxt, mb_size, noise_on_prev_word = False,
-                    mode = "test", lexicon_probability_matrix = None, lex_epsilon = 1e-3, demux = False):
+                    mode = "test", lexicon_probability_matrix = None, lex_epsilon = 1e-3, demux = False, multi_target_signal = None):
         self.decoder_chain = decoder_chain
         self.compute_ctxt = compute_ctxt
         self.noise_on_prev_word = noise_on_prev_word
@@ -43,6 +43,8 @@ class ConditionalizedDecoderCell(object):
         
         self.xp = decoder_chain.xp
         
+        self.multi_target_signal = multi_target_signal
+
         if noise_on_prev_word:
             self.noise_mean = self.xp.ones((mb_size, self.decoder_chain.Eo), dtype = self.xp.float32)
             self.noise_lnvar = self.xp.zeros((mb_size, self.decoder_chain.Eo), dtype = self.xp.float32)
@@ -121,7 +123,7 @@ class ConditionalizedDecoderCell(object):
             mb_size = self.mb_size
         assert mb_size is not None
         
-        previous_states = self.decoder_chain.gru.get_initial_states(mb_size)
+        previous_states = self.multi_target_signal if self.multi_target_signal is not None else self.decoder_chain.gru.get_initial_states(mb_size)
 
         prev_y = F.broadcast_to(self.decoder_chain.bos_embeding, (mb_size, self.decoder_chain.Eo))
         
@@ -249,7 +251,7 @@ class Decoder(Chain):
         Return a loss and the attention model values
     """
     def __init__(self, Vo, Eo, Ho, Ha, Hi, Hl, attn_cls = AttentionModule, init_orth = False,
-                 cell_type = rnn_cells.LSTMCell):
+                 cell_type = rnn_cells.LSTMCell, is_multitarget = False):
 #         assert cell_type in "gru dgru lstm slow_gru".split()
 #         self.cell_type = cell_type
 #         if cell_type == "gru":
@@ -282,6 +284,7 @@ class Decoder(Chain):
         self.Hi = Hi
         self.Ho = Ho
         self.Eo = Eo
+        self.is_multitarget = is_multitarget
 #         self.initial_state.data[...] = np.random.randn(Ho)
         self.bos_embeding.data[...] = np.random.randn(Eo)
         
@@ -291,7 +294,7 @@ class Decoder(Chain):
             ortho_init(self.maxo)
         
     def give_conditionalized_cell(self, fb_concat, src_mask, noise_on_prev_word = False,
-                    mode = "test", lexicon_probability_matrix = None, lex_epsilon = 1e-3, demux = False):
+                    mode = "test", lexicon_probability_matrix = None, lex_epsilon = 1e-3, demux = False, multi_target_signal = None):
         assert mode in "test train".split()
         mb_size, nb_elems, Hi = fb_concat.data.shape
         assert Hi == self.Hi, "%i != %i"%(Hi, self.Hi)
@@ -300,21 +303,21 @@ class Decoder(Chain):
         
         if not demux:
             return ConditionalizedDecoderCell(self, compute_ctxt, mb_size, noise_on_prev_word = noise_on_prev_word,
-                    mode = mode, lexicon_probability_matrix = lexicon_probability_matrix, lex_epsilon = lex_epsilon)
+                    mode = mode, lexicon_probability_matrix = lexicon_probability_matrix, lex_epsilon = lex_epsilon, multi_target_signal = multi_target_signal)
         else:
             assert mb_size == 1
             assert demux >= 1
             compute_ctxt = self.attn_module.compute_ctxt_demux(fb_concat, src_mask)
             return ConditionalizedDecoderCell(self, compute_ctxt, None, noise_on_prev_word = noise_on_prev_word,
                     mode = mode, lexicon_probability_matrix = lexicon_probability_matrix, lex_epsilon = lex_epsilon,
-                    demux = True)    
+                    demux = True, multi_target_signal = multi_target_signal)    
     
     def compute_loss(self, fb_concat, src_mask, targets, raw_loss_info = False, keep_attn_values = False, 
                      noise_on_prev_word = False, use_previous_prediction = 0, mode = "test", per_sentence = False,
-                     lexicon_probability_matrix = None, lex_epsilon = 1e-3
+                     lexicon_probability_matrix = None, lex_epsilon = 1e-3, multi_target_signal = None
                      ):
         decoding_cell = self.give_conditionalized_cell(fb_concat, src_mask, noise_on_prev_word = noise_on_prev_word,
-                    mode = mode, lexicon_probability_matrix = lexicon_probability_matrix, lex_epsilon = lex_epsilon)
+                    mode = mode, lexicon_probability_matrix = lexicon_probability_matrix, lex_epsilon = lex_epsilon, multi_target_signal = multi_target_signal)
         loss, attn_list = compute_loss_from_decoder_cell(decoding_cell, targets, 
                                                          use_previous_prediction = use_previous_prediction,
                                                          raw_loss_info = raw_loss_info,
@@ -323,10 +326,10 @@ class Decoder(Chain):
         return loss, attn_list
     
     def sample(self, fb_concat, src_mask, nb_steps, mb_size, lexicon_probability_matrix = None, 
-               lex_epsilon = 1e-3, best = False, keep_attn_values = False, need_score = False):
+               lex_epsilon = 1e-3, best = False, keep_attn_values = False, need_score = False, multi_target_signal = None):
         decoding_cell = self.give_conditionalized_cell(fb_concat, src_mask, noise_on_prev_word = False,
                     mode = "test", lexicon_probability_matrix = lexicon_probability_matrix,
-                     lex_epsilon = lex_epsilon)
+                     lex_epsilon = lex_epsilon, multi_target_signal = multi_target_signal)
         sequences, score, attn_list = sample_from_decoder_cell(decoding_cell, nb_steps, best = best, 
                                                 keep_attn_values = keep_attn_values,
                                                 need_score = need_score)

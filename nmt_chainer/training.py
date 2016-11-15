@@ -41,7 +41,8 @@ def train_on_data(encdec, optimizer, training_data, output_files_dict,
                   use_previous_prediction = 0, no_report_or_save = False,
                   use_memory_optimization = False, sample_every = 200,
                   use_reinf = False,
-                  save_ckpt_every = 2000):
+                  save_ckpt_every = 2000,
+                  postprocess = False):
 #     ,
 #                   lexical_probability_dictionary = None,
 #                   V_tgt = None,
@@ -153,7 +154,7 @@ def train_on_data(encdec, optimizer, training_data, output_files_dict,
             return translate_to_file(encdec, eos_idx, test_src_data, mb_size, tgt_indexer, 
                    translations_fn, test_references = test_references, control_src_fn = control_src_fn,
                    src_indexer = src_indexer, gpu = gpu, nb_steps = 50, reverse_src = reverse_src, reverse_tgt = reverse_tgt,
-                   s_unk_tag = s_unk_tag, t_unk_tag = t_unk_tag)
+                   s_unk_tag = s_unk_tag, t_unk_tag = t_unk_tag, postprocess = postprocess)
         def compute_test_loss():
             log.info("computing test loss")
             test_loss = compute_loss_all(encdec, test_data, eos_idx, mb_size, gpu = gpu,
@@ -177,7 +178,7 @@ def train_on_data(encdec, optimizer, training_data, output_files_dict,
             return translate_to_file(encdec, eos_idx, dev_src_data, mb_size, tgt_indexer, 
                    translations_fn, test_references = dev_references, control_src_fn = control_src_fn,
                    src_indexer = src_indexer, gpu = gpu, nb_steps = 50, reverse_src = reverse_src, reverse_tgt = reverse_tgt,
-                   s_unk_tag = s_unk_tag, t_unk_tag = t_unk_tag)
+                   s_unk_tag = s_unk_tag, t_unk_tag = t_unk_tag, postprocess = postprocess)
         def compute_dev_loss():
             log.info("computing dev loss")
             dev_loss = compute_loss_all(encdec, dev_data, eos_idx, mb_size, gpu = gpu,
@@ -201,7 +202,7 @@ def train_on_data(encdec, optimizer, training_data, output_files_dict,
             return translate_to_file(encdec, eos_idx, valid_src_data, mb_size, tgt_indexer, 
                    translations_fn, test_references = valid_references, control_src_fn = control_src_fn,
                    src_indexer = src_indexer, gpu = gpu, nb_steps = 50, reverse_src = reverse_src, reverse_tgt = reverse_tgt,
-                   s_unk_tag = s_unk_tag, t_unk_tag = t_unk_tag)
+                   s_unk_tag = s_unk_tag, t_unk_tag = t_unk_tag, postprocess = postprocess)
         def compute_valid_loss():
             log.info("computing valid loss")
             dev_loss = compute_loss_all(encdec, valid_data, eos_idx, mb_size, gpu = gpu,

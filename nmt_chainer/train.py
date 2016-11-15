@@ -20,7 +20,7 @@ import json
 import os.path
 import gzip
 # import h5py
-
+from prepostprocessor import *
 from utils import ensure_path
 # , make_batch_src_tgt, make_batch_src, minibatch_provider, compute_bleu_with_unk_as_wrong,de_batch
 # from evaluation import (
@@ -213,6 +213,9 @@ def command_line(arguments = None):
     parser.add_argument("--save_ckpt_every", default = 4000, type = int)
     
     parser.add_argument("--use_reinf", default = False, action = "store_true")
+
+    parser.add_argument("--is_multitarget", default = False, action = "store_true") 
+    parser.add_argument("--postprocess", default = False, action = "store_true" help = "This flag indicates whether the translations should be postprocessed or not. For now it simply indicates that the BPE segmentation should be undone.") 
     
     args = parser.parse_args(args = arguments)
     
@@ -338,8 +341,10 @@ def command_line(arguments = None):
 #     
 #     Vi = len(src_voc) + 1 # + UNK
 #     Vo = len(tgt_voc) + 1 # + UNK
+
+    is_multitarget = args.is_multitarget
     
-    config_training = {"command_line" : args.__dict__, "Vi": Vi, "Vo" : Vo, "voc" : voc_fn, "data" : data_fn}
+    config_training = {"command_line" : args.__dict__, "Vi": Vi, "Vo" : Vo, "voc" : voc_fn, "data" : data_fn, "is_multitarget" : is_multitarget}
     save_train_config_fn = output_files_dict["train_config"]
     log.info("Saving training config to %s" % save_train_config_fn)
     json.dump(config_training, open(save_train_config_fn, "w"), indent=2, separators=(',', ': '))
@@ -364,8 +369,10 @@ def command_line(arguments = None):
                                        encoder_cell_type = args.encoder_cell_type,
                                        decoder_cell_type = args.decoder_cell_type,
                                        lexical_probability_dictionary = lexical_probability_dictionary, 
-                                       lex_epsilon = args.lexicon_prob_epsilon)
+                                       lex_epsilon = args.lexicon_prob_epsilon, is_multitarget = is_multitarget)
     
+
+
     if args.load_model is not None:
         serializers.load_npz(args.load_model, encdec)
     
@@ -426,7 +433,8 @@ def command_line(arguments = None):
                       use_memory_optimization = args.use_memory_optimization,
                       sample_every = args.sample_every,
                       use_reinf = args.use_reinf,
-                      save_ckpt_every = args.save_ckpt_every
+                      save_ckpt_every = args.save_ckpt_every,
+                      postprocess = args.postprocess
 #                     lexical_probability_dictionary = lexical_probability_dictionary,
 #                     V_tgt = Vo + 1,
 #                     lexicon_prob_epsilon = args.lexicon_prob_epsilon
@@ -450,7 +458,8 @@ def command_line(arguments = None):
                       use_memory_optimization = args.use_memory_optimization,
                       sample_every = args.sample_every,
                       use_reinf = args.use_reinf,
-                      save_ckpt_every = args.save_ckpt_every
+                      save_ckpt_every = args.save_ckpt_every,
+                      postprocess = args.postprocess
 #                     lexical_probability_dictionary = lexical_probability_dictionary,
 #                     V_tgt = Vo + 1,
 #                     lexicon_prob_epsilon = args.lexicon_prob_epsilon

@@ -16,6 +16,7 @@ import gzip
 import io
 from subword_nmt.apply_bpe import *
 from subword_nmt.learn_bpe import *
+import re
 
 from utils import ensure_path
 
@@ -39,17 +40,38 @@ class PrePostProcessor:
 		raise "Not Implemented"
 
 class BPEPrePostProcessor(PrePostProcessor):
-	def __init__(self):
+	def __init__(self, is_multitarget = False, target_language = None):
+		self.is_multitarget = is_multitarget
+		self.target_language = target_language
+		if is_multitarget:
+			assert target_language is not None
+		self.prefix = "<2" + target_language + "> " if is_multitarget else ""
 		log.info("Initializing the prepostprocessor")
 
-	def apply_postprocessing(self, input_data):
-		log.info("Applying post-processing to %s" % input_data)
-		return input_data.replace(self.bpe.separator+ " ", "").strip()
+	def apply_postprocessing(self, input_data_file, output_data_file):
+		log.info("Applying post-processing to %s" % input_data_file)
+		output_data_file = io.open(output_data_file, 'w', encoding="utf-8")
+		for input_data in io.open(input_data_file, encoding="utf-8"):
+			if self.is_multitarget:
+				input_data = re.sub(r'^<2..> ', '', input_data)
+			output_data_file.write(input_data.replace(self.bpe.separator+ " ", "").strip() + "\n")
+		output_data_file.flush()
+		output_data_file.close()
+		input_data_file.close()
+		log.info("post-processing done")
+
 		
-	def apply_preprocessing(self, input_data):
-		log.info("Applying pre-processing to %s" % input_data)
-		return self.bpe.segment(input_data).strip()
-	
+	def apply_preprocessing(self, input_data_file, output_data_file):
+		log.info("Applying pre-processing to %s" % input_data_file)
+		output_data_file = io.open(output_data_file, 'w', encoding="utf-8")
+		for input_data in io.open(input_data_file, encoding="utf-8"):
+			output_data_file.write(self.prefix + self.bpe.segment(input_data).strip() + "\n")
+		output_data_file.flush()
+		output_data_file.close()
+		input_data_file.close()
+		log.info("pre-processing done")
+		
 	def load_model(self, model_path):
 		log.info("Loading existing BPE model from %s" % model_path)
+		self.model_path = model_path
 		self.bpe = BPE(io.open(model_path))

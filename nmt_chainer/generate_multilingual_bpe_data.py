@@ -60,7 +60,7 @@ class DataPreparationPipeline:
 		self.is_multi_target = False
 		if len(set(self.tgts)) > 1:
 			self.is_multi_target = True
-			log.info("Multiple target languages detected. Appending the <2xx> token to the beginning of the target side sentences to condition the NMT model to know which target language it should translate to.")
+			log.info("Multiple target languages detected. Appending the <2xx> token to the beginning of the source side sentences to condition the NMT model to know which target language it should translate to.")
 		
 		self.merge_operations = args.num_bpe_merge_operations
 		self.min_frequency = 2
@@ -230,8 +230,11 @@ class DataPreparationPipeline:
 			log.info("Segmenting %s " % self.src_corpora[i])
 			infile = io.open(self.src_corpora[i], encoding="utf-8")
 			outfile = io.open(self.src_corpora[i] + ".segmented", 'w', encoding="utf-8")
+			prefix = ""
+			if self.is_multi_target:
+				prefix = "<2" + self.tgts[i] + "> "
 			for inline in infile:
-				segmented = self.bpe.segment(inline).strip() + "\n"
+				segmented = prefix + self.bpe.segment(inline).strip() + "\n"
 				outfile.write(segmented)
 		infile.close()
 		outfile.close()
@@ -240,13 +243,10 @@ class DataPreparationPipeline:
 		self.load_model(self.save_prefix + "/bpe_model.tgt")
 		for i in range(len(self.srcs)):
 			log.info("Segmenting %s " % self.tgt_corpora[i])
-			prefix = ""
-			if self.is_multi_target:
-				prefix = "<2" + self.tgts[i] + "> "
 			infile = io.open(self.tgt_corpora[i], encoding="utf-8")
 			outfile = io.open(self.tgt_corpora[i] + ".segmented", 'w', encoding="utf-8")
 			for inline in infile:
-				segmented = prefix + self.bpe.segment(inline).strip() + "\n"
+				segmented = self.bpe.segment(inline).strip() + "\n"
 				outfile.write(segmented)
 			infile.close()
 			outfile.close()

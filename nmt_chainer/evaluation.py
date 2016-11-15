@@ -14,6 +14,8 @@ import logging
 import codecs
 import operator
 import beam_search
+import re
+import bleu_computer
 # import h5py
 
 logging.basicConfig()
@@ -23,8 +25,7 @@ log.setLevel(logging.INFO)
 def translate_to_file(encdec, eos_idx, test_src_data, mb_size, tgt_indexer, 
                    translations_fn, test_references = None, control_src_fn = None, src_indexer = None, gpu = None, nb_steps = 50,
                    reverse_src = False, reverse_tgt = False,
-                   s_unk_tag = "#S_UNK#", t_unk_tag = "#T_UNK#"):
-    
+                   s_unk_tag = "#S_UNK#", t_unk_tag = "#T_UNK#", postprocess = False):
     log.info("computing translations")
     translations = greedy_batch_translate(encdec, eos_idx, test_src_data, 
                         batch_size = mb_size, gpu = gpu, nb_steps = nb_steps, 
@@ -32,26 +33,49 @@ def translate_to_file(encdec, eos_idx, test_src_data, mb_size, tgt_indexer,
     
     log.info("writing translation of set to %s"% translations_fn)
     out = codecs.open(translations_fn, "w", encoding = "utf8")
+    if postprocess:
+        ppp_out = codecs.open(translations_fn + ".restored", "w", encoding = "utf8")
     for t in translations:
         if t[-1] == eos_idx:
             t = t[:-1]
 #         out.write(convert_idx_to_string(t, tgt_voc) + "\n")
-        out.write(" ".join(tgt_indexer.deconvert(t, unk_tag = t_unk_tag)) + "\n")
+        deconverted = " ".join(tgt_indexer.deconvert(t, unk_tag = t_unk_tag)) + "\n"
+        out.write(deconverted)
+        if postprocess:
+            ppp_out.write(deconverted.replace("__"+ " ", "").strip() + "\n")
         
     
     if control_src_fn is not None:
         assert src_indexer is not None
         control_out = codecs.open(control_src_fn, "w", encoding = "utf8")
+        ppp_control_out = None
+        if postprocess:
+            ppp_control_out = codecs.open(control_src_fn + ".restored", "w", encoding = "utf8")
+
         log.info("writing src of test set to %s"% control_src_fn)
         for s in test_src_data:
 #             control_out.write(convert_idx_to_string(s, src_voc) + "\n")
-            control_out.write(" ".join(src_indexer.deconvert(s, unk_tag = s_unk_tag)) + "\n")
+            deconverted = " ".join(src_indexer.deconvert(s, unk_tag = s_unk_tag)) + "\n"
+            control_out.write(deconverted)
+            if postprocess:
+                if encdec.is_multitarget:
+                    deconverted = re.sub(r'^<2..> ', '', deconverted)
+                ppp_control_out.write(deconverted.replace("__"+ " ", "").strip() + "\n")
+
         
     if test_references is not None:
 #         unk_id = tgt_indexer.get_unk_idx()  #len(tgt_voc) - 1
-        new_unk_id_ref = len(tgt_indexer) + 7777
-        new_unk_id_cand = len(tgt_indexer) + 9999
-        bc = compute_bleu_with_unk_as_wrong(test_references, [t[:-1] for t in translations], tgt_indexer.is_unk_idx, new_unk_id_ref, new_unk_id_cand)
+        bc = None
+        if postprocess:
+            ppp_references = codecs.open(translations_fn + ".restored.references", "w", encoding = "utf8")
+            for r in test_references:
+                deconverted = " ".join(tgt_indexer.deconvert(r, unk_tag = t_unk_tag)) + "\n"
+                ppp_references.write(deconverted.replace("__"+ " ", "").strip() + "\n")
+            bc = bleu_computer.get_bc_from_files(translations_fn + ".restored", translations_fn + ".restored.references")    
+        else:
+            new_unk_id_ref = len(tgt_indexer) + 7777
+            new_unk_id_cand = len(tgt_indexer) + 9999
+            bc = compute_bleu_with_unk_as_wrong(test_references, [t[:-1] for t in translations], tgt_indexer.is_unk_idx, new_unk_id_ref, new_unk_id_cand)
         log.info("bleu: %r"%bc)
         return bc
     else:
