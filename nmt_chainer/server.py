@@ -180,7 +180,7 @@ class Evaluator:
                     src_w = self.src_indexer.deconvert(src_idx_list, unk_tag = "#S_UNK#")
                     tgt_w = self.tgt_indexer.deconvert(tgt_idx_list, unk_tag = "#T_UNK#")
                     if (attn_graph_width > 0 and attn_graph_height > 0):
-                        p1 = visualisation.make_alignment_figure(src_w, tgt_w, alignment, 'Sentence #%s' % str(request_number), 'below', plot_width = attn_graph_width, plot_height = attn_graph_height)
+                        p1 = visualisation.make_alignment_figure(src_w, tgt_w, alignment, toolbar_location = 'below', plot_width = attn_graph_width, plot_height = attn_graph_height)
                         plots_list.append(p1)
                         p_all = visualisation.Column(*plots_list)
 
