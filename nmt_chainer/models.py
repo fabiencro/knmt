@@ -836,7 +836,8 @@ class EncoderDecoder(Chain):
             assert multi_target_signal is not []
             assert len(multi_target_signal) == 1
             multi_target_signal = multi_target_signal[0]
-        
+        else:
+            multi_target_signal = None
         mb_size, nb_elems, Hi = fb_concat.data.shape
 
         if isinstance(tgt_batch, int):
@@ -870,7 +871,8 @@ class EncoderDecoder(Chain):
             assert multi_target_signal is not []
             assert len(multi_target_signal) == 1
             multi_target_signal = multi_target_signal[0]
-        
+        else:
+            multi_target_signal = None
         
         mb_size, nb_elems, Hi = fb_concat.data.shape
         

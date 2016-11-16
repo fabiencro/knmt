@@ -27,7 +27,9 @@ from utils import ensure_path
 #                   greedy_batch_translate, convert_idx_to_string, 
 #                   compute_loss_all, translate_to_file, sample_once)
 
-
+import sys
+reload(sys)  
+sys.setdefaultencoding('utf8')
 
 import time
 
@@ -205,8 +207,8 @@ def command_line(arguments = None):
     parser.add_argument("--lexical_probability_dictionary", help = "lexical translation probabilities in zipped JSON format. Used to implement https://arxiv.org/abs/1606.02006")
     parser.add_argument("--lexicon_prob_epsilon", default = 1e-3, type = float, help = "epsilon value for combining the lexical probabilities")
     
-    parser.add_argument("--encoder_cell_type", default = "lstm", help = "cell type of encoder. format: type,param1:val1,param2:val2,... where type is in [%s]"%(" ".join(rnn_cells.cell_dict.keys())))
-    parser.add_argument("--decoder_cell_type", default = "lstm", help = "cell type of decoder. format same as for encoder")
+    parser.add_argument("--encoder_cell_type", default = "gru", help = "cell type of encoder. format: type,param1:val1,param2:val2,... where type is in [%s]"%(" ".join(rnn_cells.cell_dict.keys())))
+    parser.add_argument("--decoder_cell_type", default = "gru", help = "cell type of decoder. format same as for encoder")
     
     parser.add_argument("--sample_every", default = 200, type = int)
     
@@ -215,7 +217,7 @@ def command_line(arguments = None):
     parser.add_argument("--use_reinf", default = False, action = "store_true")
 
     parser.add_argument("--is_multitarget", default = False, action = "store_true") 
-    parser.add_argument("--postprocess", default = False, action = "store_true" help = "This flag indicates whether the translations should be postprocessed or not. For now it simply indicates that the BPE segmentation should be undone.") 
+    parser.add_argument("--postprocess", default = False, action = "store_true", help = "This flag indicates whether the translations should be postprocessed or not. For now it simply indicates that the BPE segmentation should be undone.") 
     
     args = parser.parse_args(args = arguments)
     
@@ -247,7 +249,7 @@ def command_line(arguments = None):
             already_existing_files.append(filename)
     if len(already_existing_files) > 0:
         print "Warning: existing files are going to be replaced / updated: ",  already_existing_files
-        raw_input("Press Enter to Continue")
+        #raw_input("Press Enter to Continue")
     
     
     config_fn = args.data_prefix + ".data.config"
@@ -347,7 +349,9 @@ def command_line(arguments = None):
     config_training = {"command_line" : args.__dict__, "Vi": Vi, "Vo" : Vo, "voc" : voc_fn, "data" : data_fn, "is_multitarget" : is_multitarget}
     save_train_config_fn = output_files_dict["train_config"]
     log.info("Saving training config to %s" % save_train_config_fn)
-    json.dump(config_training, open(save_train_config_fn, "w"), indent=2, separators=(',', ': '))
+    with io.open(save_train_config_fn,'w',encoding="utf-8") as outfile:
+        outfile.write(unicode(json.dumps(config_training, ensure_ascii=False)))
+    #json.dump(config_training, open(save_train_config_fn, "w"), indent=2, separators=(',', ': '))
     
     eos_idx = Vo
     
@@ -416,33 +420,6 @@ def command_line(arguments = None):
         with cuda.get_device(args.gpu):
             serializers.load_npz(args.load_optimizer_state, optimizer)    
     
-
-    import training_chainer
-    with cuda.get_device(args.gpu):
-        training_chainer.train_on_data_chainer(encdec, optimizer, training_data, output_files_dict,
-                      src_indexer, tgt_indexer, eos_idx = eos_idx, 
-                      output_dir = args.save_prefix,
-                      stop_trigger = None,
-                      mb_size = args.mb_size,
-                      nb_of_batch_to_sort = args.nb_batch_to_sort,
-                      test_data = test_data, dev_data = dev_data, valid_data = valid_data, gpu = args.gpu, report_every = args.report_every,
-                      randomized = args.randomized_data, reverse_src = args.reverse_src, reverse_tgt = args.reverse_tgt,
-                      max_nb_iters = args.max_nb_iters, do_not_save_data_for_resuming = args.no_resume,
-                      noise_on_prev_word = args.noise_on_prev_word, curiculum_training = args.curiculum_training,
-                      use_previous_prediction = args.use_previous_prediction, no_report_or_save = args.no_report_or_save,
-                      use_memory_optimization = args.use_memory_optimization,
-                      sample_every = args.sample_every,
-                      use_reinf = args.use_reinf,
-                      save_ckpt_every = args.save_ckpt_every,
-                      postprocess = args.postprocess
-#                     lexical_probability_dictionary = lexical_probability_dictionary,
-#                     V_tgt = Vo + 1,
-#                     lexicon_prob_epsilon = args.lexicon_prob_epsilon
-                      )
-
-
-    import sys
-    sys.exit(0)
     with cuda.get_device(args.gpu):
 #         with MyTimerHook() as timer:
 #             try:
@@ -470,6 +447,33 @@ def command_line(arguments = None):
 #                 print "total time:"
 #                 print(timer.total_time())
                 
+    import sys
+    sys.exit(0)
+
+    import training_chainer
+    with cuda.get_device(args.gpu):
+        training_chainer.train_on_data_chainer(encdec, optimizer, training_data, output_files_dict,
+                      src_indexer, tgt_indexer, eos_idx = eos_idx, 
+                      output_dir = args.save_prefix,
+                      stop_trigger = None,
+                      mb_size = args.mb_size,
+                      nb_of_batch_to_sort = args.nb_batch_to_sort,
+                      test_data = test_data, dev_data = dev_data, valid_data = valid_data, gpu = args.gpu, report_every = args.report_every,
+                      randomized = args.randomized_data, reverse_src = args.reverse_src, reverse_tgt = args.reverse_tgt,
+                      max_nb_iters = args.max_nb_iters, do_not_save_data_for_resuming = args.no_resume,
+                      noise_on_prev_word = args.noise_on_prev_word, curiculum_training = args.curiculum_training,
+                      use_previous_prediction = args.use_previous_prediction, no_report_or_save = args.no_report_or_save,
+                      use_memory_optimization = args.use_memory_optimization,
+                      sample_every = args.sample_every,
+                      use_reinf = args.use_reinf,
+                      save_ckpt_every = args.save_ckpt_every,
+                      postprocess = args.postprocess
+#                     lexical_probability_dictionary = lexical_probability_dictionary,
+#                     V_tgt = Vo + 1,
+#                     lexicon_prob_epsilon = args.lexicon_prob_epsilon
+                      )
+
+
                 
 
 if __name__ == '__main__':

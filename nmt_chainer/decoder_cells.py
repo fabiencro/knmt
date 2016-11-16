@@ -122,9 +122,13 @@ class ConditionalizedDecoderCell(object):
         if mb_size is None:
             mb_size = self.mb_size
         assert mb_size is not None
-        
-        previous_states = self.multi_target_signal if self.multi_target_signal is not None else self.decoder_chain.gru.get_initial_states(mb_size)
-
+        #print self.multi_target_signal.data.shape
+        previous_states = None
+        if self.multi_target_signal is not None:
+            previous_states = (self.multi_target_signal,)
+        else:
+            previous_states = self.decoder_chain.gru.get_initial_states(mb_size)
+        #print previous_states
         prev_y = F.broadcast_to(self.decoder_chain.bos_embeding, (mb_size, self.decoder_chain.Eo))
         
         new_states, logits, attn = self.advance_one_step(previous_states, prev_y)
@@ -252,18 +256,12 @@ class Decoder(Chain):
     """
     def __init__(self, Vo, Eo, Ho, Ha, Hi, Hl, attn_cls = AttentionModule, init_orth = False,
                  cell_type = rnn_cells.LSTMCell, is_multitarget = False):
-#         assert cell_type in "gru dgru lstm slow_gru".split()
-#         self.cell_type = cell_type
-#         if cell_type == "gru":
-#             gru = faster_gru.GRU(Ho, Eo + Hi)
-#         elif cell_type == "dgru":
-#             gru = DoubleGRU(Ho, Eo + Hi)
-#         elif cell_type == "lstm":
-#             gru = L.StatelessLSTM(Eo + Hi, Ho) #, forget_bias_init = 3)
-#         elif cell_type == "slow_gru":
-#             gru = L.GRU(Ho, Eo + Hi)
+        if (type(cell_type) == type):
+            gru = cell_type(Eo + Hi, Ho)
+        else:
+            gru = rnn_cells.create_cell_model_from_string(cell_type)(Eo + Hi, Ho)
         
-        gru = cell_type(Eo + Hi, Ho)
+        #gru = cell_type(Eo + Hi, Ho)
         
         log.info("constructing decoder [%r]"%(cell_type,))
         
