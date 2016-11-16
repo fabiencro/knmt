@@ -15,15 +15,6 @@ fi
 CONFIG="$1"
 RNN_SEARCH_GPU="$2"
 
-typeset -A SEGMENTER_LANG
-
-SEGMENTER_LANG['ce']='zh'
-SEGMENTER_LANG['cj']='zh'
-SEGMENTER_LANG['ec']='en'
-SEGMENTER_LANG['ej']='en'
-SEGMENTER_LANG['jc']='ja'
-SEGMENTER_LANG['je']='ja'
-
 source "$CONFIG"
 
 OPT_GPU=""
