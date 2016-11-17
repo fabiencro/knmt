@@ -57,12 +57,8 @@ class Encoder(Chain):
         Return a chainer variable of shape (mb_size, #length, 2*Hi) and type float32
     """
     def __init__(self, Vi, Ei, Hi, init_orth = False, use_bn_length = 0, cell_type = rnn_cells.LSTMCell):
-        if (type(cell_type) == type):
-            gru_f = cell_type(Ei, Hi)
-            gru_b = cell_type(Ei, Hi)
-        else:
-            gru_f = rnn_cells.create_cell_model_from_string(cell_type)(Ei, Hi)
-            gru_b = rnn_cells.create_cell_model_from_string(cell_type)(Ei, Hi)
+        gru_f = rnn_cells.create_cell_model_from_string(cell_type)(Ei, Hi)
+        gru_b = rnn_cells.create_cell_model_from_string(cell_type)(Ei, Hi)
 
         log.info("constructing encoder [%s]"%(cell_type,))
         super(Encoder, self).__init__(
@@ -349,10 +345,7 @@ class Decoder(Chain):
 #         elif cell_type == "slow_gru":
 #             gru = L.GRU(Ho, Eo + Hi)
         
-        if (type(cell_type) == type):
-            gru = cell_type(Eo + Hi, Ho)
-        else:
-            gru = rnn_cells.create_cell_model_from_string(cell_type)(Eo + Hi, Ho)
+        gru = rnn_cells.create_cell_model_from_string(cell_type)(Eo + Hi, Ho)
         
         log.info("constructing decoder [%r]"%(cell_type,))
         

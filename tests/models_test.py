@@ -25,8 +25,8 @@ log.setLevel(logging.INFO)
 
 class EncoderNaive(models.Encoder):
     def __init__(self, Vi, Ei, Hi):
-        super(EncoderNaive, self).__init__(Vi, Ei, Hi)
-        
+        super(EncoderNaive, self).__init__(Vi, Ei, Hi, cell_type = 'lstm')
+         
     def naive_call(self, sequence, mask):
         
         mb_size = sequence[0].data.shape[0]
@@ -244,7 +244,7 @@ class TestAttention:
     
 class DecoderNaive(models.Decoder):
     def __init__(self, Vo, Eo, Ho, Ha, Hi, Hl):
-        super(DecoderNaive, self).__init__(Vo, Eo, Ho, Ha, Hi, Hl)
+        super(DecoderNaive, self).__init__(Vo, Eo, Ho, Ha, Hi, Hl, cell_type = 'gru')
         self.attn_module = AttentionModuleNaive(Hi, Ha, Ho)
         
     def naive_call(self, fb_concat, targets, mask):
