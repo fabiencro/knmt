@@ -331,7 +331,7 @@ if __name__ == '__main__':
 		"--test_lang_corpora_pairs", nargs='+', type=str, help="list of colon separated quadruplet of language pairs and their corpora. ex: ja:zh:/tmp/corpus-ja-zh.ja:/tmp/corpus-ja-zh.zh en:ja:/tmp/corpus-en-ja.en:/tmp/corpus-en-ja.ja")
 	parser.add_argument("--balance_vocab_counts", default=None, help="Before learning the BPE model do we want to adjust the count information? This might be needed if one language pair has more data than the other. For now the balancing will be done based on the ratio of the total word count for the text with the maximum total number of words to the total word count for the current text.")
 	parser.add_argument("--balance_corpora", default=None, help="After learning the BPE model and segmenting the data do we want to oversample the smaller corpora? This might be needed if one language pair has more data than the other. For now the balancing will be done based on the ratio of the total line count for the text with the maximum total number of lines to the total line count for the current text.")
-	parser.add_argument("--num_bpe_merge_operations", type=int, default=32000, help="Number of merge operations that the BPE model should perform on the training vocabulary to learn the BPE codes.")
+	parser.add_argument("--num_bpe_merge_operations", type=int, default=90000, help="Number of merge operations that the BPE model should perform on the training vocabulary to learn the BPE codes.")
 	args = parser.parse_args()
 
 	dpp = DataPreparationPipeline(args)

@@ -1,6 +1,27 @@
-python generate_multilingual_bpe_data.py --train_lang_corpora_pairs mr:hi:/windroot/raj/parallel_corpora_normalized/general/mr-hi/train.mr:/windroot/raj/parallel_corpora_normalized/general/mr-hi/train.hi en:hi:/windroot/raj/parallel_corpora_normalized/general/en-hi/train.en:/windroot/raj/parallel_corpora_normalized/general/en-hi/train.hi hi:ta:/windroot/raj/parallel_corpora_normalized/general/ta-hi/train.hi:/windroot/raj/parallel_corpora_normalized/general/ta-hi/train.ta --dev_lang_corpora_pairs mr:hi:/windroot/raj/parallel_corpora_normalized/general/mr-hi/tun.mr:/windroot/raj/parallel_corpora_normalized/general/mr-hi/tun.hi en:hi:/windroot/raj/parallel_corpora_normalized/general/en-hi/tun.en:/windroot/raj/parallel_corpora_normalized/general/en-hi/tun.hi hi:ta:/windroot/raj/parallel_corpora_normalized/general/ta-hi/tun.hi:/windroot/raj/parallel_corpora_normalized/general/ta-hi/tun.ta --test_lang_corpora_pairs mr:hi:/windroot/raj/parallel_corpora_normalized/general/mr-hi/test.mr:/windroot/raj/parallel_corpora_normalized/general/mr-hi/test.hi en:hi:/windroot/raj/parallel_corpora_normalized/general/en-hi/test.en:/windroot/raj/parallel_corpora_normalized/general/en-hi/test.hi hi:ta:/windroot/raj/parallel_corpora_normalized/general/ta-hi/test.hi:/windroot/raj/parallel_corpora_normalized/general/ta-hi/test.ta --balance_vocab_counts True --balance_corpora True --save_prefix /windroot/raj/parallel_corpora_normalized/general/ --num_bpe_merge_operations 32000
+python generate_multilingual_bpe_data.py --train_lang_corpora_pairs mr:hi:/windroot/raj/parallel_corpora_normalized/general/mr-hi/train.mr:/windroot/raj/parallel_corpora_normalized/general/mr-hi/train.hi hi:en:/windroot/raj/parallel_corpora_normalized/general/en-hi/train.hi:/windroot/raj/parallel_corpora_normalized/general/en-hi/train.en hi:ta:/windroot/raj/parallel_corpora_normalized/general/ta-hi/train.hi:/windroot/raj/parallel_corpora_normalized/general/ta-hi/train.ta --dev_lang_corpora_pairs mr:hi:/windroot/raj/parallel_corpora_normalized/general/mr-hi/tun.mr:/windroot/raj/parallel_corpora_normalized/general/mr-hi/tun.hi hi:en:/windroot/raj/parallel_corpora_normalized/general/en-hi/tun.hi:/windroot/raj/parallel_corpora_normalized/general/en-hi/tun.en hi:ta:/windroot/raj/parallel_corpora_normalized/general/ta-hi/tun.hi:/windroot/raj/parallel_corpora_normalized/general/ta-hi/tun.ta --test_lang_corpora_pairs mr:hi:/windroot/raj/parallel_corpora_normalized/general/mr-hi/test.mr:/windroot/raj/parallel_corpora_normalized/general/mr-hi/test.hi hi:en:/windroot/raj/parallel_corpora_normalized/general/en-hi/test.hi:/windroot/raj/parallel_corpora_normalized/general/en-hi/test.en hi:ta:/windroot/raj/parallel_corpora_normalized/general/ta-hi/test.hi:/windroot/raj/parallel_corpora_normalized/general/ta-hi/test.ta --balance_vocab_counts True --balance_corpora True --save_prefix /windroot/raj/parallel_corpora_normalized/general/ --num_bpe_merge_operations 32000
 
 python make_data.py /windroot/raj/parallel_corpora_normalized/general/mlnmt.train.src /windroot/raj/parallel_corpora_normalized/general/mlnmt.train.tgt /windroot/raj/parallel_corpora_normalized/general/mlnmt.3s2t --src_voc_size 33000 --tgt_voc_size 33000 --test_src /windroot/raj/parallel_corpora_normalized/general/mlnmt.test.src --test_tgt /windroot/raj/parallel_corpora_normalized/general/mlnmt.test.tgt --dev_src /windroot/raj/parallel_corpora_normalized/general/mlnmt.dev.src --dev_tgt /windroot/raj/parallel_corpora_normalized/general/mlnmt.dev.tgt
 
 
 python train.py /windroot/raj/parallel_corpora_normalized/general/mlnmt.3s2t /windroot/raj/parallel_corpora_normalized/general/mlnmt.3s2t.trial --gpu 0 --Ei 100 --Eo 100 --Hi 200 --Ho 200 --Ha 200 --Hl 200 --mb_size 64 --weight_decay 0.000001 --is_multitarget --postprocess
+
+python train.py /windroot/raj/parallel_corpora_normalized/general/mlnmt.3s2t /windroot/raj/parallel_corpora_normalized/general/mlnmt.3s2t.trial --gpu 2 --mb_size 80 --weight_decay 0.000001 --postprocess
+
+
+
+
+
+python generate_multilingual_bpe_data.py --train_lang_corpora_pairs src:tgt:/tmp/train.src:/tmp/train.tgt --dev_lang_corpora_pairs src:tgt:/tmp/tun.src.raw:/tmp/tun.tgt --balance_vocab_counts True --balance_corpora True --save_prefix /tmp/ --num_bpe_merge_operations 32000
+
+python make_data.py /tmp/mlnmt.train.src /tmp/mlnmt.train.tgt /tmp/mlnmt.3s2t --src_voc_size 33000 --tgt_voc_size 33000 --test_src /tmp/mlnmt.test.src --test_tgt /tmp/mlnmt.test.tgt --dev_src /tmp/mlnmt.dev.src --dev_tgt /tmp/mlnmt.dev.tgt
+
+python train.py /tmp/mlnmt.3s2t /tmp/mlnmt.3s2t.trial --gpu 1 --mb_size 64 --weight_decay 0.000001 --is_multitarget --postprocess
+
+
+
+## CHU's commands (B103, GPU1)
+
+python /home/chu/work/knmt/nmt_chainer/train.py /loquat/chu/nmt-experiments/wiki_zh_ja/ASPEC-CJ-adapt/multilingual/mlnmt.2s2t /loquat/raj/mlnmt.2s2t.trial --gpu 1 --optimizer adam \
+        --weight_decay 0.000001 --l2_gradient_clipping 1 --mb_size 32 --max_src_tgt_length 80 \
+        --encoder_cell_type dlstm --decoder_cell_type dlstm \
+        --postprocess --is_multitarget
