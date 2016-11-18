@@ -335,8 +335,8 @@ def train_on_data(encdec, optimizer, training_data, output_files_dict,
             total_nb_predictions_this_interval += total_nb_predictions
     finally:
         if not do_not_save_data_for_resuming and not no_report_or_save:
-            save_model("final")
+            #save_model("final")
             fn_save_optimizer = output_files_dict["optimizer_final"]
             log.info("saving optimizer parameters to %s" % fn_save_optimizer)
-            serializers.save_npz(fn_save_optimizer, optimizer)
+            #serializers.save_npz(fn_save_optimizer, optimizer)
         

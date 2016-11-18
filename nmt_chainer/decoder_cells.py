@@ -125,7 +125,7 @@ class ConditionalizedDecoderCell(object):
         #print self.multi_target_signal.data.shape
         previous_states = None
         if self.multi_target_signal is not None:
-            previous_states = (self.multi_target_signal,)
+            previous_states = self.multi_target_signal
         else:
             previous_states = self.decoder_chain.gru.get_initial_states(mb_size)
         #print previous_states

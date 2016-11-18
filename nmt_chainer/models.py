@@ -63,12 +63,12 @@ class FFEncoder(Chain):
     def __init__(self, Vi, Ei, Hi, init_orth = False, use_bn_length = 0, cell_type = L.Linear, is_multitarget = False):
         log.info("constructing encoder [%s]"%(cell_type,))
         super(FFEncoder, self).__init__(
-            emb = EmbedID(Vi, Ei),
+            emb = L.EmbedID(Vi, Ei),
             gru_f = L.Linear(Ei, Hi, nobias = False),
             gru_b = L.Linear(Ei, Hi, nobias = False)
         )
         self.Hi = Hi
-
+        self.Ei = Ei
         self.is_multitarget = is_multitarget
 
         if use_bn_length > 0:
@@ -84,20 +84,17 @@ class FFEncoder(Chain):
         assert mode in "test train".split()
         
         mb_size = sequence[0].data.shape[0]
-                
-        embedded_seq = self.emb(F.concat(sequence,1))
-            
-        embedded_seq = F.reshape((mb_size * len(sequence), self.Hi), embedded_seq)
+        
+        embedded_seq = self.emb(F.concat((F.reshape(i, (mb_size, 1)) for i in sequence),1))
+        embedded_seq = F.reshape(embedded_seq, (mb_size*len(sequence), self.Ei))
 
-        fwd_hidden = F.relu(self.gru_f(embedded_seq))
-        bwd_hidden = F.relu(self.gru_b(embedded_seq))
+        fwd_hidden = F.tanh(self.gru_f(embedded_seq))
+        bwd_hidden = F.tanh(self.gru_b(embedded_seq))
         fwd_bwd_res = F.reshape(F.concat((fwd_hidden, bwd_hidden), 1), (mb_size, len(sequence), 2*self.Hi))
-
         if self.is_multitarget:
             assert multi_target_signal == []
-            trigger_signal = F.relu(self.gru_b(self.emb(sequence[0])))
-            multi_target_signal.append(trigger_signal[-1])
-
+            trigger_signal = F.logsumexp(F.reshape(bwd_hidden, (mb_size, len(sequence), self.Hi)), 1)
+            multi_target_signal.append(trigger_signal)
         return fwd_bwd_res
 
 class Encoder(Chain):
@@ -178,7 +175,7 @@ class Encoder(Chain):
             if pos < mask_offset:
                 prev_states = self.gru_b(prev_states, x, mode = mode)
                 output = prev_states[-1]
-                gru_b_last = prev_states[0]
+                gru_b_last = prev_states
             else:
                 reshaped_mask = F.broadcast_to(
                                 Variable(self.xp.reshape(mask[pos - mask_offset], 
@@ -186,7 +183,7 @@ class Encoder(Chain):
                 
                 prev_states = self.gru_b(prev_states, x, mode = mode)
                 output = prev_states[-1]
-                gru_b_last = prev_states[0]
+                gru_b_last = prev_states
                 
                 masked_prev_states = [None] * len(prev_states)
                 for num_state in xrange(len(prev_states)):
@@ -194,7 +191,7 @@ class Encoder(Chain):
                                     prev_states[num_state], mb_initial_states_b[num_state]) #TODO: optimize?
                 prev_states = tuple(masked_prev_states)
                 output = prev_states[-1]
-                gru_b_last = prev_states[0]
+                gru_b_last = prev_states
 
             
             backward_seq.append(output)
@@ -207,7 +204,7 @@ class Encoder(Chain):
         if self.is_multitarget:
             assert multi_target_signal == []
             multi_target_signal.append(gru_b_last)
-
+        #print multi_target_signal
         return F.concat(res, 1)
     
 class AttentionModule(Chain):
