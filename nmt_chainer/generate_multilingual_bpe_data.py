@@ -255,7 +255,9 @@ class DataPreparationPipeline:
 
 	def learn_model(self, vocab, model_path):
 		model_path = io.open(model_path, 'w', encoding="utf-8")
-		vocab = dict([(tuple(x)+('</w>',) ,y) for (x,y) in vocab.items()])
+		dict_list = [(tuple(x)+('</w>',) ,round(y)) for (x,y) in vocab.items()]
+		random.shuffle(dict_list)
+		vocab = dict(dict_list)
 		sorted_vocab = sorted(vocab.items(), key=lambda x: x[1], reverse=True)
 		stats, indices = get_pair_statistics(sorted_vocab)
 		big_stats = copy.deepcopy(stats)
@@ -332,6 +334,7 @@ class DataPreparationPipeline:
 				num_lines = self.all_corpora_sizes[self.src_corpora[i] + self.tgt_corpora[i]]
 				if num_lines != self.largest_corpus_size:
 					oversample_ratio = 1.0 * self.largest_corpus_size / num_lines
+			log.info("Oversampling ratio is %f" % oversample_ratio)
 			self.oversample_corpus_and_write(src_file, tgt_file, src_lang, tgt_lang, mlnmt_src_file, mlnmt_tgt_file, oversample_ratio)
 			mlnmt_src_file.flush()
 			mlnmt_tgt_file.flush()
