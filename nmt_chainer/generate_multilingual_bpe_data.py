@@ -68,8 +68,11 @@ class DataPreparationPipeline:
 		log.info("Initialization complete.")
 	
 	def prepare_data(self):
-		log.info("Processing training data")
+		log.info("Preprocessing training data")
 		self.preprocess_training_data()
+		self.mlnmt_src_file = io.open(self.save_prefix + "/mlnmt.train.src.raw", "w", encoding = "utf-8")
+		self.mlnmt_tgt_file = io.open(self.save_prefix + "/mlnmt.train.tgt.raw", "w", encoding = "utf-8")
+		self.generate_multilingual_data_raw()
 
 		if self.args.dev_lang_corpora_pairs:
 			self.srcs = [i.split(":")[0] for i in self.args.dev_lang_corpora_pairs]
@@ -80,7 +83,7 @@ class DataPreparationPipeline:
 			self.mlnmt_tgt_file = io.open(self.save_prefix + "/mlnmt.dev.tgt", "w", encoding = "utf-8")
 			assert len(self.srcs) == len(self.tgts) == len(self.src_corpora) == len(self.tgt_corpora)
 			log.info("Preprocessing dev data")
-			self.preprocess_eval_data()
+			self.preprocess_eval_data("dev")
 			self.mlnmt_src_file = io.open(self.save_prefix + "/mlnmt.dev.src.raw", "w", encoding = "utf-8")
 			self.mlnmt_tgt_file = io.open(self.save_prefix + "/mlnmt.dev.tgt.raw", "w", encoding = "utf-8")
 			self.generate_multilingual_data_raw()
@@ -95,14 +98,14 @@ class DataPreparationPipeline:
 			self.mlnmt_tgt_file = io.open(self.save_prefix + "/mlnmt.test.tgt", "w", encoding = "utf-8")
 			assert len(self.srcs) == len(self.tgts) == len(self.src_corpora) == len(self.tgt_corpora)
 			log.info("Preprocessing test data")
-			self.preprocess_eval_data()
+			self.preprocess_eval_data("test")
 			self.mlnmt_src_file = io.open(self.save_prefix + "/mlnmt.test.src.raw", "w", encoding = "utf-8")
 			self.mlnmt_tgt_file = io.open(self.save_prefix + "/mlnmt.test.tgt.raw", "w", encoding = "utf-8")
 			self.generate_multilingual_data_raw()
 
-	def preprocess_eval_data(self):
-		self.segment_corpora()
-		self.generate_multilingual_data(False)
+	def preprocess_eval_data(self, train_dev_test = "dev"):
+		self.segment_corpora(train_dev_test)
+		self.generate_multilingual_data(train_dev_test)
 		
 	def preprocess_training_data(self):
 		log.info("Running the pipeline")
@@ -289,13 +292,13 @@ class DataPreparationPipeline:
 			if not i % 100:
 				prune_stats(stats, big_stats, threshold)
 
-	def segment_corpora(self):
+	def segment_corpora(self, train_dev_test = "train"):
 		log.info("Segmenting all the source side corpora using the unified BPE model")
 		self.load_model(self.save_prefix + "/bpe_model.src")
 		for i in range(len(self.srcs)):
 			log.info("Segmenting %s " % self.src_corpora[i])
 			infile = io.open(self.src_corpora[i], encoding="utf-8")
-			outfile = io.open(self.src_corpora[i] + ".segmented", 'w', encoding="utf-8")
+			outfile = io.open(self.save_prefix + "/" + self.srcs[i] + "-" + self.tgts[i] + "." + self.srcs[i] + "." +train_dev_test + ".segmented", 'w', encoding="utf-8")
 			prefix = ""
 			if self.is_multi_target:
 				prefix = "<2" + self.tgts[i] + "> "
@@ -310,7 +313,7 @@ class DataPreparationPipeline:
 		for i in range(len(self.srcs)):
 			log.info("Segmenting %s " % self.tgt_corpora[i])
 			infile = io.open(self.tgt_corpora[i], encoding="utf-8")
-			outfile = io.open(self.tgt_corpora[i] + ".segmented", 'w', encoding="utf-8")
+			outfile = io.open(self.save_prefix + "/" + self.srcs[i] + "-" + self.tgts[i] + "." + self.tgts[i] + "." +train_dev_test + ".segmented", 'w', encoding="utf-8")
 			for inline in infile:
 				segmented = self.bpe.segment(inline).strip() + "\n"
 				outfile.write(segmented)
@@ -318,19 +321,19 @@ class DataPreparationPipeline:
 			outfile.close()
 		log.info("Segmentation of all target side corpora is done")
 
-	def generate_multilingual_data(self, is_train = True):
+	def generate_multilingual_data(self, train_dev_test = "train"):
 		log.info("Generating data for MLNMT")
 		mlnmt_src_file = self.mlnmt_src_file
 		mlnmt_tgt_file = self.mlnmt_tgt_file
 		log.info("Writing merged source and target files at %s and %s respectively" % (mlnmt_src_file, mlnmt_tgt_file))
 		for i in range(len(self.srcs)):
-			log.info("Processing: %s and %s" % (self.src_corpora[i] + ".segmented", self.tgt_corpora[i] + ".segmented"))
-			src_file = io.open(self.src_corpora[i] + ".segmented", encoding="utf-8")
-			tgt_file = io.open(self.tgt_corpora[i] + ".segmented", encoding="utf-8")
+			log.info("Processing: %s and %s" % (self.save_prefix + "/" + self.srcs[i] + "-" + self.tgts[i] + "." + self.srcs[i] + "." +train_dev_test + ".segmented", self.save_prefix + "/" + self.srcs[i] + "-" + self.tgts[i] + "." + self.tgts[i] + "." +train_dev_test + ".segmented"))
+			src_file = io.open(self.save_prefix + "/" + self.srcs[i] + "-" + self.tgts[i] + "." + self.srcs[i] + "." +train_dev_test + ".segmented", encoding="utf-8")
+			tgt_file = io.open(self.save_prefix + "/" + self.srcs[i] + "-" + self.tgts[i] + "." + self.tgts[i] + "." +train_dev_test + ".segmented", encoding="utf-8")
 			src_lang = self.srcs[i]
 			tgt_lang = self.tgts[i]
 			oversample_ratio = 1.0
-			if is_train:
+			if train_dev_test == "train":
 				num_lines = self.all_corpora_sizes[self.src_corpora[i] + self.tgt_corpora[i]]
 				if num_lines != self.largest_corpus_size:
 					oversample_ratio = 1.0 * self.largest_corpus_size / num_lines
