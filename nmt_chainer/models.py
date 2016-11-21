@@ -57,12 +57,8 @@ class Encoder(Chain):
         Return a chainer variable of shape (mb_size, #length, 2*Hi) and type float32
     """
     def __init__(self, Vi, Ei, Hi, init_orth = False, use_bn_length = 0, cell_type = rnn_cells.LSTMCell):
-        if (type(cell_type) == type):
-            gru_f = cell_type(Ei, Hi)
-            gru_b = cell_type(Ei, Hi)
-        else:
-            gru_f = rnn_cells.create_cell_model_from_string(cell_type)(Ei, Hi)
-            gru_b = rnn_cells.create_cell_model_from_string(cell_type)(Ei, Hi)
+        gru_f = rnn_cells.create_cell_model_from_string(cell_type)(Ei, Hi)
+        gru_b = rnn_cells.create_cell_model_from_string(cell_type)(Ei, Hi)
 
         log.info("constructing encoder [%s]"%(cell_type,))
         super(Encoder, self).__init__(
@@ -389,6 +385,7 @@ class ConstantFunction(chainer.Function):
 #             if lexicon_probability_matrix is not None:
 #                 # Just making sure data shape is as expected
 #                 attn_mb_size, max_source_length_attn = attn.data.shape 
+
 #                 assert attn_mb_size == current_mb_size
 #                 lex_mb_size, max_source_length_lexicon, v_size_lexicon = lexicon_probability_matrix.shape
 #                 assert max_source_length_lexicon == max_source_length_attn
