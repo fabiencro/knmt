@@ -261,6 +261,11 @@ class Decoder(Chain):
 #         elif cell_type == "slow_gru":
 #             gru = L.GRU(Ho, Eo + Hi)
         
+        
+                
+        if isinstance(cell_type, str):
+            cell_type = rnn_cells.create_cell_model_from_string(cell_type)
+        
         gru = cell_type(Eo + Hi, Ho)
         
         log.info("constructing decoder [%r]"%(cell_type,))
