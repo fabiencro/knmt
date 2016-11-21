@@ -207,8 +207,8 @@ def command_line(arguments = None):
     parser.add_argument("--lexical_probability_dictionary", help = "lexical translation probabilities in zipped JSON format. Used to implement https://arxiv.org/abs/1606.02006")
     parser.add_argument("--lexicon_prob_epsilon", default = 1e-3, type = float, help = "epsilon value for combining the lexical probabilities")
     
-    parser.add_argument("--encoder_cell_type", default = "dlstm", help = "cell type of encoder. format: type,param1:val1,param2:val2,... where type is in [%s]"%(" ".join(rnn_cells.cell_dict.keys())))
-    parser.add_argument("--decoder_cell_type", default = "dlstm", help = "cell type of decoder. format same as for encoder")
+    parser.add_argument("--encoder_cell_type", default = "lstm", help = "cell type of encoder. format: type,param1:val1,param2:val2,... where type is in [%s]"%(" ".join(rnn_cells.cell_dict.keys())))
+    parser.add_argument("--decoder_cell_type", default = "lstm", help = "cell type of decoder. format same as for encoder")
     
     parser.add_argument("--sample_every", default = 200, type = int)
     

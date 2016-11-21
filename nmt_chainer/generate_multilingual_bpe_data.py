@@ -39,7 +39,7 @@ class DataPreparationPipeline:
 		log.info("Initializing the Data Preprocessing Pipeline")
 		self.args = args
 		self.save_prefix = args.save_prefix
-		
+		self.joint_bpe_model = args.joint_bpe_model
 		self.srcs = [i.split(":")[0] for i in args.train_lang_corpora_pairs]
 		self.tgts = [i.split(":")[1] for i in args.train_lang_corpora_pairs]
 		self.src_corpora = [i.split(":")[2] for i in args.train_lang_corpora_pairs]
@@ -124,6 +124,11 @@ class DataPreparationPipeline:
 		self.all_vocs_tgt_sizes = {}
 		self.largest_voc_size_tgt = 0
 		
+		self.all_vocs_src_tgt = {}
+		self.all_vocs_src_tgt_sizes = {}
+		self.largest_voc_size_src_tgt = 0
+		
+
 		self.all_corpora_sizes = {}
 		self.largest_corpus_size = 0
 		
@@ -135,59 +140,118 @@ class DataPreparationPipeline:
 
 			self.all_corpora_sizes[self.src_corpora[i] + self.tgt_corpora[i]] = corpus_src_size
 
-			if self.all_vocs_src.has_key(self.srcs[i]):
-				self.all_vocs_src[self.srcs[i]] += vocab_src
-				self.all_vocs_src_sizes[self.srcs[i]] += vocab_src_size
-			else:
-				self.all_vocs_src[self.srcs[i]] = vocab_src
-				self.all_vocs_src_sizes[self.srcs[i]] = vocab_src_size
+			if self.joint_bpe_model:
+				if self.all_vocs_src_tgt.has_key(self.srcs[i]):
+					self.all_vocs_src_tgt[self.srcs[i]] += vocab_src
+					self.all_vocs_src_tgt_sizes[self.srcs[i]] += vocab_src_size
+				else:
+					self.all_vocs_src_tgt[self.srcs[i]] = vocab_src
+					self.all_vocs_src_tgt_sizes[self.srcs[i]] = vocab_src_size
 
-			if self.all_vocs_tgt.has_key(self.tgts[i]):
-				self.all_vocs_tgt[self.tgts[i]] += vocab_tgt
-				self.all_vocs_tgt_sizes[self.tgts[i]] += vocab_tgt_size
-			else:
-				self.all_vocs_tgt[self.tgts[i]] = vocab_tgt
-				self.all_vocs_tgt_sizes[self.tgts[i]] = vocab_tgt_size
-			
-			if self.largest_voc_size_src < self.all_vocs_src_sizes[self.srcs[i]]:
-				self.largest_voc_size_src = self.all_vocs_src_sizes[self.srcs[i]]
-			if self.largest_voc_size_tgt < self.all_vocs_tgt_sizes[self.tgts[i]]:
-				self.largest_voc_size_tgt = self.all_vocs_tgt_sizes[self.tgts[i]]
+				if self.all_vocs_src_tgt.has_key(self.tgts[i]):
+					self.all_vocs_src_tgt[self.tgts[i]] += vocab_tgt
+					self.all_vocs_src_tgt_sizes[self.tgts[i]] += vocab_tgt_size
+				else:
+					self.all_vocs_src_tgt[self.tgts[i]] = vocab_tgt
+					self.all_vocs_src_tgt_sizes[self.tgts[i]] = vocab_tgt_size
+				
+				if self.largest_voc_size_src_tgt < max(self.all_vocs_src_tgt_sizes[self.srcs[i]], self.all_vocs_src_tgt_sizes[self.tgts[i]]):
+					self.largest_voc_size_src_tgt = max(self.all_vocs_src_tgt_sizes[self.srcs[i]], self.all_vocs_src_tgt_sizes[self.tgts[i]])
+			else:				
+				if self.all_vocs_src.has_key(self.srcs[i]):
+					self.all_vocs_src[self.srcs[i]] += vocab_src
+					self.all_vocs_src_sizes[self.srcs[i]] += vocab_src_size
+				else:
+					self.all_vocs_src[self.srcs[i]] = vocab_src
+					self.all_vocs_src_sizes[self.srcs[i]] = vocab_src_size
+
+				if self.all_vocs_tgt.has_key(self.tgts[i]):
+					self.all_vocs_tgt[self.tgts[i]] += vocab_tgt
+					self.all_vocs_tgt_sizes[self.tgts[i]] += vocab_tgt_size
+				else:
+					self.all_vocs_tgt[self.tgts[i]] = vocab_tgt
+					self.all_vocs_tgt_sizes[self.tgts[i]] = vocab_tgt_size
+				
+				if self.largest_voc_size_src < self.all_vocs_src_sizes[self.srcs[i]]:
+					self.largest_voc_size_src = self.all_vocs_src_sizes[self.srcs[i]]
+				if self.largest_voc_size_tgt < self.all_vocs_tgt_sizes[self.tgts[i]]:
+					self.largest_voc_size_tgt = self.all_vocs_tgt_sizes[self.tgts[i]]
 
 			if self.largest_corpus_size < corpus_src_size:
 				self.largest_corpus_size = corpus_src_size
+
+			
+
 
 		log.info("Vocabularies generated")
 
 	def balance_vocabularies(self):
 		log.info("Adjusting vocabulary counts to match the largest corpus")
 		for i in range(len(self.srcs)):
-			src_voc = self.all_vocs_src[self.srcs[i]]
-			src_voc_size = self.all_vocs_src_sizes[self.srcs[i]]
-			if src_voc_size != self.largest_voc_size_src:
-				for word in src_voc:
-					src_voc[word] *= 1.0*self.largest_voc_size_src/src_voc_size
-			tgt_voc = self.all_vocs_tgt[self.tgts[i]]
-			tgt_voc_size = self.all_vocs_tgt_sizes[self.tgts[i]]
-			if tgt_voc_size != self.largest_voc_size_tgt:
-				for word in tgt_voc:
-					tgt_voc[word] *= 1.0*self.largest_voc_size_tgt/tgt_voc_size
+			if self.joint_bpe_model:
+				src_voc = self.all_vocs_src_tgt[self.srcs[i]]
+				src_voc_size = self.all_vocs_src_tgt_sizes[self.srcs[i]]
+				if src_voc_size != self.largest_voc_size_src_tgt:
+					for word in src_voc:
+						src_voc[word] *= 1.0*self.largest_voc_size_src_tgt/src_voc_size
+					self.all_vocs_src_tgt_sizes[self.srcs[i]] = self.largest_voc_size_src_tgt
+				tgt_voc = self.all_vocs_src_tgt[self.tgts[i]]
+				tgt_voc_size = self.all_vocs_src_tgt_sizes[self.tgts[i]]
+				if tgt_voc_size != self.largest_voc_size_src_tgt:
+					for word in tgt_voc:
+						tgt_voc[word] *= 1.0*self.largest_voc_size_src_tgt/tgt_voc_size
+					self.all_vocs_src_tgt_sizes[self.tgts[i]] = self.largest_voc_size_src_tgt
+			else:
+				src_voc = self.all_vocs_src[self.srcs[i]]
+				src_voc_size = self.all_vocs_src_sizes[self.srcs[i]]
+				if src_voc_size != self.largest_voc_size_src:
+					for word in src_voc:
+						src_voc[word] *= 1.0*self.largest_voc_size_src/src_voc_size
+					self.all_vocs_src_sizes[self.srcs[i]] = self.largest_voc_size_src
+				tgt_voc = self.all_vocs_tgt[self.tgts[i]]
+				tgt_voc_size = self.all_vocs_tgt_sizes[self.tgts[i]]
+				if tgt_voc_size != self.largest_voc_size_tgt:
+					for word in tgt_voc:
+						tgt_voc[word] *= 1.0*self.largest_voc_size_tgt/tgt_voc_size
+					self.all_vocs_tgt_sizes[self.tgts[i]] = self.largest_voc_size_tgt
 		log.info("Vocabulary counts adjusted")
 	
 	def merge_vocabularies(self):
 		log.info("Merging all vocabularies")
 		log.info("This merged vocabulary will be used to train the BPE model")
-		self.merged_voc_src = reduce(lambda x,y: x+y, [self.all_vocs_src[vocs] for vocs in self.all_vocs_src])
-		self.merged_voc_tgt = reduce(lambda x,y: x+y, [self.all_vocs_tgt[vocs] for vocs in self.all_vocs_tgt])
+		if self.joint_bpe_model:
+			self.merged_voc_src_tgt = reduce(lambda x,y: x+y, [self.all_vocs_src_tgt[vocs] for vocs in self.all_vocs_src_tgt])
+		else:
+			self.merged_voc_src = reduce(lambda x,y: x+y, [self.all_vocs_src[vocs] for vocs in self.all_vocs_src])
+			self.merged_voc_tgt = reduce(lambda x,y: x+y, [self.all_vocs_tgt[vocs] for vocs in self.all_vocs_tgt])
 		log.info("Merging complete")
 
+	def replicate_bpe_model(self, in_model, model_path):
+		log.info("Replicating the BPE model.")
+		model_path = io.open(model_path, 'w', encoding="utf-8")
+		in_model = io.open(in_model, encoding="utf-8")
+		for line in in_model:
+			model_path.write(line)
+		model_path.flush()
+		model_path.close()
+		in_model.close()
+
 	def learn_bpe_models(self):
-		log.info("Learning BPE model for source")
-		log.info("Number of merges to be done: %d" % self.merge_operations)
-		self.learn_model(self.merged_voc_src, self.save_prefix + "/bpe_model.src")
-		log.info("Learning BPE model for target")
-		log.info("Number of merges to be done: %d" % self.merge_operations)
-		self.learn_model(self.merged_voc_tgt, self.save_prefix + "/bpe_model.tgt")
+		if self.joint_bpe_model:
+			log.info("Learning joint BPE model for source and target")
+			log.info("Number of merges to be done: %d" % self.merge_operations)
+			self.learn_model(self.merged_voc_src_tgt, self.save_prefix + "/bpe_model.src")
+			log.info("Model learned. Now replicating it for target side")
+			self.replicate_bpe_model(self.save_prefix + "/bpe_model.src", self.save_prefix + "/bpe_model.tgt")
+			log.info("Replication completed")
+
+		else:
+			log.info("Learning BPE model for source")
+			log.info("Number of merges to be done: %d" % self.merge_operations)
+			self.learn_model(self.merged_voc_src, self.save_prefix + "/bpe_model.src")
+			log.info("Learning BPE model for target")
+			log.info("Number of merges to be done: %d" % self.merge_operations)
+			self.learn_model(self.merged_voc_tgt, self.save_prefix + "/bpe_model.tgt")
 
 	def learn_model(self, vocab, model_path):
 		model_path = io.open(model_path, 'w', encoding="utf-8")
@@ -332,6 +396,7 @@ if __name__ == '__main__':
 	parser.add_argument("--balance_vocab_counts", default=None, help="Before learning the BPE model do we want to adjust the count information? This might be needed if one language pair has more data than the other. For now the balancing will be done based on the ratio of the total word count for the text with the maximum total number of words to the total word count for the current text.")
 	parser.add_argument("--balance_corpora", default=None, help="After learning the BPE model and segmenting the data do we want to oversample the smaller corpora? This might be needed if one language pair has more data than the other. For now the balancing will be done based on the ratio of the total line count for the text with the maximum total number of lines to the total line count for the current text.")
 	parser.add_argument("--num_bpe_merge_operations", type=int, default=90000, help="Number of merge operations that the BPE model should perform on the training vocabulary to learn the BPE codes.")
+	parser.add_argument("--joint_bpe_model", default=None, help="Do you want to learn a single BPE model for both the source and target side corpora so that the merge operations are consistent on both sides? This might be useful in the cases where the languages share cognates.")
 	args = parser.parse_args()
 
 	dpp = DataPreparationPipeline(args)
