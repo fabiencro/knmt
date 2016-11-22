@@ -13,6 +13,7 @@ from chainer import Link, Chain, ChainList
 import chainer.functions as F
 import chainer.links as L
 import math, random
+import types
 
 import rnn_cells
 from utils import ortho_init, minibatch_sampling
@@ -256,7 +257,7 @@ class Decoder(Chain):
     """
     def __init__(self, Vo, Eo, Ho, Ha, Hi, Hl, attn_cls = AttentionModule, init_orth = False,
                  cell_type = rnn_cells.LSTMCell, is_multitarget = False):
-        if (type(cell_type) == type):
+        if (type(cell_type) == types.FunctionType):
             gru = cell_type(Eo + Hi, Ho)
         else:
             gru = rnn_cells.create_cell_model_from_string(cell_type)(Eo + Hi, Ho)

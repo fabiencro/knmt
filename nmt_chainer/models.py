@@ -14,6 +14,7 @@ from chainer import Link, Chain, ChainList
 import chainer.functions as F
 import chainer.links as L
 import math, random
+import types
 
 import rnn_cells
 from utils import ortho_init, compute_lexicon_matrix, minibatch_sampling
@@ -113,7 +114,7 @@ class Encoder(Chain):
         Return a chainer variable of shape (mb_size, #length, 2*Hi) and type float32
     """
     def __init__(self, Vi, Ei, Hi, init_orth = False, use_bn_length = 0, cell_type = rnn_cells.LSTMCell, is_multitarget = False):
-        if (type(cell_type) == type):
+        if (type(cell_type) == types.FunctionType):
             gru_f = cell_type(Ei, Hi)
             gru_b = cell_type(Ei, Hi)
         else:
