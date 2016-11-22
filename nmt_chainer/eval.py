@@ -407,7 +407,8 @@ def commandline():
     
     save_eval_config_fn = args.dest_fn + ".eval.config.json"
     log.info("Saving eval config to %s" % save_eval_config_fn)
-    json.dump(args.__dict__, open(save_eval_config_fn, "w"), indent=2, separators=(',', ': '))
+    with io.open(save_train_config_fn,'w',encoding="utf-8") as outfile:
+        outfile.write(unicode(json.dumps(args.__dict__, ensure_ascii=False)))
     
 #     translations = greedy_batch_translate(encdec, eos_idx, src_data, batch_size = args.mb_size, gpu = args.gpu)
     
