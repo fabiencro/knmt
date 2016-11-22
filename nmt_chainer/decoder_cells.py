@@ -213,9 +213,15 @@ def sample_from_decoder_cell(cell, nb_steps, best = False, keep_attn_values = Fa
             curr_idx = cell.xp.argmax(probs.data, 1).astype(np.int32)
         else:
 #                 curr_idx = self.xp.empty((mb_size,), dtype = np.int32)
-            probs_data = cuda.to_cpu(probs.data)
+            if cell.xp != np:
+                probs_data = cuda.to_cpu(probs.data)
+            else:
+                probs_data = probs.data
             curr_idx = minibatch_sampling(probs_data)
-            curr_idx = cuda.to_gpu(curr_idx.astype(np.int32))
+            if cell.xp != np:
+                curr_idx = cuda.to_gpu(curr_idx.astype(np.int32))
+            else:
+                curr_idx = curr_idx.astype(np.int32)
 #                 for i in xrange(mb_size):
 #                     sampler = chainer.utils.WalkerAlias(probs_data[i])
 #                     curr_idx[i] =  sampler.sample(1)[0]
@@ -262,8 +268,7 @@ class Decoder(Chain):
 #             gru = L.GRU(Ho, Eo + Hi)
         
         
-                
-        if isinstance(cell_type, str):
+        if isinstance(cell_type, (str,unicode)):
             cell_type = rnn_cells.create_cell_model_from_string(cell_type)
         
         gru = cell_type(Eo + Hi, Ho)
