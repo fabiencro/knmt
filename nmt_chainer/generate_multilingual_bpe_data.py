@@ -17,6 +17,7 @@ import io
 import random
 from subword_nmt.apply_bpe import *
 from subword_nmt.learn_bpe import *
+from collections import defaultdict
 
 import sys
 reload(sys)
@@ -39,7 +40,12 @@ class DataPreparationPipeline:
 		log.info("Initializing the Data Preprocessing Pipeline")
 		self.args = args
 		self.save_prefix = args.save_prefix
+		self.merge_operations = args.num_bpe_merge_operations
+		self.min_frequency = 2
+		self.verbose = True
 		self.joint_bpe_model = args.joint_bpe_model
+		self.max_src_vocab = args.max_src_vocab
+		self.max_tgt_vocab = args.max_tgt_vocab
 		self.srcs = [i.split(":")[0] for i in args.train_lang_corpora_pairs]
 		self.tgts = [i.split(":")[1] for i in args.train_lang_corpora_pairs]
 		self.src_corpora = [i.split(":")[2] for i in args.train_lang_corpora_pairs]
@@ -47,14 +53,12 @@ class DataPreparationPipeline:
 		self.mlnmt_src_file = io.open(self.save_prefix + "/mlnmt.train.src", "w", encoding = "utf-8")
 		self.mlnmt_tgt_file = io.open(self.save_prefix + "/mlnmt.train.tgt", "w", encoding = "utf-8")
 		assert len(self.srcs) == len(self.tgts) == len(self.src_corpora) == len(self.tgt_corpora)
-		self.balance_vocab_counts = False
+		self.balance_vocab_counts = args.balance_vocab_counts
 		if args.balance_vocab_counts:
-			self.balance_vocab_counts = True
 			log.info("The vocab counts will be balanced to ensure equal importance to all languages")
 
-		self.balance_corpora = False
+		self.balance_corpora = args.balance_corpora
 		if args.balance_corpora:
-			self.balance_corpora = True
 			log.info("The corpora for the language pairs with lesser data will be oversampled to ensure that the model focuses equally on all the language pairs.")
 
 		self.is_multi_target = False
@@ -62,9 +66,6 @@ class DataPreparationPipeline:
 			self.is_multi_target = True
 			log.info("Multiple target languages detected. Appending the <2xx> token to the beginning of the source side sentences to condition the NMT model to know which target language it should translate to.")
 		
-		self.merge_operations = args.num_bpe_merge_operations
-		self.min_frequency = 2
-		self.verbose = True
 		log.info("Initialization complete.")
 	
 	def prepare_data(self):
@@ -223,8 +224,10 @@ class DataPreparationPipeline:
 		log.info("Merging all vocabularies")
 		log.info("This merged vocabulary will be used to train the BPE model")
 		if self.joint_bpe_model:
+			log.info("Merging the source and target vocab into a single collection")
 			self.merged_voc_src_tgt = reduce(lambda x,y: x+y, [self.all_vocs_src_tgt[vocs] for vocs in self.all_vocs_src_tgt])
 		else:
+			log.info("Merging the source and target vocab into a their respective collections")
 			self.merged_voc_src = reduce(lambda x,y: x+y, [self.all_vocs_src[vocs] for vocs in self.all_vocs_src])
 			self.merged_voc_tgt = reduce(lambda x,y: x+y, [self.all_vocs_tgt[vocs] for vocs in self.all_vocs_tgt])
 		log.info("Merging complete")
@@ -242,31 +245,55 @@ class DataPreparationPipeline:
 	def learn_bpe_models(self):
 		if self.joint_bpe_model:
 			log.info("Learning joint BPE model for source and target")
-			log.info("Number of merges to be done: %d" % self.merge_operations)
-			self.learn_model(self.merged_voc_src_tgt, self.save_prefix + "/bpe_model.src")
+			if self.max_src_vocab or self.max_tgt_vocab:
+				self.max_tgt_vocab = self.max_src_vocab if not self.max_tgt_vocab else self.max_tgt_vocab
+				self.max_src_vocab = self.max_tgt_vocab if not self.max_src_vocab else self.max_src_vocab
+				log.info("The number of merge operations will be determined based on how many merge rules it takes to reach the goal of a joint vocabulary of size %d for source and target" % self.max_src_vocab)
+				self.learn_model(self.merged_voc_src_tgt, self.save_prefix + "/bpe_model.src", self.max_src_vocab)
+			else:
+				log.info("Number of merges to be done: %d" % self.merge_operations)
+				self.learn_model(self.merged_voc_src_tgt, self.save_prefix + "/bpe_model.src")
 			log.info("Model learned. Now replicating it for target side")
 			self.replicate_bpe_model(self.save_prefix + "/bpe_model.src", self.save_prefix + "/bpe_model.tgt")
 			log.info("Replication completed")
-
 		else:
 			log.info("Learning BPE model for source")
-			log.info("Number of merges to be done: %d" % self.merge_operations)
-			self.learn_model(self.merged_voc_src, self.save_prefix + "/bpe_model.src")
+			if self.max_src_vocab:
+				log.info("The number of merge operations will be determined based on how many merge rules it takes to reach the goal of a vocabulary of size %d for source" % self.max_src_vocab)
+				self.learn_model(self.merged_voc_src, self.save_prefix + "/bpe_model.src", self.max_src_vocab)
+			else:
+				log.info("Number of merges to be done: %d" % self.merge_operations)
+				self.learn_model(self.merged_voc_src, self.save_prefix + "/bpe_model.src")
+			
 			log.info("Learning BPE model for target")
-			log.info("Number of merges to be done: %d" % self.merge_operations)
-			self.learn_model(self.merged_voc_tgt, self.save_prefix + "/bpe_model.tgt")
+			if self.max_tgt_vocab:
+				log.info("The number of merge operations will be determined based on how many merge rules it takes to reach the goal of a vocabulary of size %d for target" % self.max_tgt_vocab)
+				self.learn_model(self.merged_voc_tgt, self.save_prefix + "/bpe_model.tgt", self.max_tgt_vocab)
+			else:
+				log.info("Number of merges to be done: %d" % self.merge_operations)
+				self.learn_model(self.merged_voc_tgt, self.save_prefix + "/bpe_model.tgt")
 
-	def learn_model(self, vocab, model_path):
+	def learn_model(self, vocab, model_path, max_vocab = None):
+		if max_vocab:
+			self.merge_operations = sys.maxint
 		model_path = io.open(model_path, 'w', encoding="utf-8")
 		dict_list = [(tuple(x)+('</w>',) ,round(y)) for (x,y) in vocab.items()]
 		random.shuffle(dict_list)
 		vocab = dict(dict_list)
 		sorted_vocab = sorted(vocab.items(), key=lambda x: x[1], reverse=True)
-		stats, indices = get_pair_statistics(sorted_vocab)
+		stats, indices, symbol_list = get_pair_statistics(sorted_vocab)
 		big_stats = copy.deepcopy(stats)
+		curr_vocab_size = 0
+		#print len(symbol_list)
 		# threshold is inspired by Zipfian assumption, but should only affect speed
 		threshold = max(stats.values()) / 10
-		for i in range(self.merge_operations):
+		for i in xrange(self.merge_operations):
+			if max_vocab:
+				curr_vocab_size = len(symbol_list)
+				log.info("The current vocab size is %d. " % curr_vocab_size)
+				if curr_vocab_size > max_vocab:
+					log.info("Exceeded the permissible limit of %d vocab size. No more BPE merges needed. Maximal model learned." % max_vocab)
+					break
 			if stats:
 				most_frequent = max(stats, key=stats.get)
 
@@ -287,7 +314,7 @@ class DataPreparationPipeline:
 				sys.stderr.write(unicode('pair {0}: {1} {2} -> {1}{2} (frequency {3})\n'.format(i, most_frequent[0], most_frequent[1], stats[most_frequent])))
 			model_path.write(unicode('{0} {1}\n'.format(*most_frequent)))
 			changes = replace_pair(most_frequent, sorted_vocab, indices)
-			update_pair_statistics(most_frequent, changes, stats, indices)
+			update_pair_statistics(most_frequent, changes, stats, indices, symbol_list)
 			stats[most_frequent] = 0
 			if not i % 100:
 				prune_stats(stats, big_stats, threshold)
@@ -399,12 +426,14 @@ if __name__ == '__main__':
 		"--dev_lang_corpora_pairs", nargs='+', type=str, help="list of colon separated quadruplet of language pairs and their corpora. ex: ja:zh:/tmp/corpus-ja-zh.ja:/tmp/corpus-ja-zh.zh en:ja:/tmp/corpus-en-ja.en:/tmp/corpus-en-ja.ja")
 	parser.add_argument(
 		"--test_lang_corpora_pairs", nargs='+', type=str, help="list of colon separated quadruplet of language pairs and their corpora. ex: ja:zh:/tmp/corpus-ja-zh.ja:/tmp/corpus-ja-zh.zh en:ja:/tmp/corpus-en-ja.en:/tmp/corpus-en-ja.ja")
-	parser.add_argument("--balance_vocab_counts", default=None, help="Before learning the BPE model do we want to adjust the count information? This might be needed if one language pair has more data than the other. For now the balancing will be done based on the ratio of the total word count for the text with the maximum total number of words to the total word count for the current text.")
-	parser.add_argument("--balance_corpora", default=None, help="After learning the BPE model and segmenting the data do we want to oversample the smaller corpora? This might be needed if one language pair has more data than the other. For now the balancing will be done based on the ratio of the total line count for the text with the maximum total number of lines to the total line count for the current text.")
+	parser.add_argument("--balance_vocab_counts", default=False, action = "store_true", help="Before learning the BPE model do we want to adjust the count information? This might be needed if one language pair has more data than the other. For now the balancing will be done based on the ratio of the total word count for the text with the maximum total number of words to the total word count for the current text.")
+	parser.add_argument("--balance_corpora", default=False, action = "store_true", help="After learning the BPE model and segmenting the data do we want to oversample the smaller corpora? This might be needed if one language pair has more data than the other. For now the balancing will be done based on the ratio of the total line count for the text with the maximum total number of lines to the total line count for the current text.")
 	parser.add_argument("--num_bpe_merge_operations", type=int, default=90000, help="Number of merge operations that the BPE model should perform on the training vocabulary to learn the BPE codes.")
-	parser.add_argument("--joint_bpe_model", default=None, help="Do you want to learn a single BPE model for both the source and target side corpora so that the merge operations are consistent on both sides? This might be useful in the cases where the languages share cognates.")
+	parser.add_argument("--joint_bpe_model", default=False, action = "store_true", help="Do you want to learn a single BPE model for both the source and target side corpora so that the merge operations are consistent on both sides? This might be useful in the cases where the languages share cognates.")
+	parser.add_argument("--max_src_vocab", type=int, default=None, help="Maximum number of source side symbols desired. This will automatically limit the number of BPE merge operations by stopping when this limit has been reached.  When the joint_bpe_model flag has been specified the limit will be decided by the value of this flag.")
+	parser.add_argument("--max_tgt_vocab", type=int, default=None, help="Maximum number of target side symbols desired. This will automatically limit the number of BPE merge operations by stopping when this limit has been reached. When the joint_bpe_model flag has been specified the limit will be decided by the value of the max_src_vocab flag.")
 	args = parser.parse_args()
-
+		
 	dpp = DataPreparationPipeline(args)
 
 	dpp.prepare_data()
