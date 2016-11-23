@@ -41,18 +41,18 @@ class BPE(object):
         self.bpe_codes = dict([(code,i) for (i,code) in reversed(list(enumerate(self.bpe_codes)))])
 
         self.separator = separator
+        self.cache = {}
 
     def segment(self, sentence):
         """segment single sentence (whitespace-tokenized string) with BPE encoding"""
 
         output = []
         for word in sentence.split():
-            new_word = encode(word, self.bpe_codes)
-
+            new_word = encode(word, self.bpe_codes, self.cache)
             for item in new_word[:-1]:
                 output.append(item + self.separator)
             output.append(new_word[-1])
-
+        #print output
         return ' '.join(output)
 
 def create_parser():
@@ -90,10 +90,9 @@ def get_pairs(word):
         prev_char = char
     return pairs
 
-def encode(orig, bpe_codes, cache={}):
+def encode(orig, bpe_codes, cache):
     """Encode word based on list of BPE merge operations, which are applied consecutively
     """
-
     if orig in cache:
         return cache[orig]
 

@@ -41,11 +41,13 @@ class DataPreparationPipeline:
 		self.args = args
 		self.save_prefix = args.save_prefix
 		self.merge_operations = args.num_bpe_merge_operations
-		self.min_frequency = 2
+		self.min_frequency = 1
 		self.verbose = True
 		self.joint_bpe_model = args.joint_bpe_model
 		self.max_src_vocab = args.max_src_vocab
 		self.max_tgt_vocab = args.max_tgt_vocab
+		self.mlnmt_src_vocab = set()
+		self.mlnmt_tgt_vocab = set()
 		self.srcs = [i.split(":")[0] for i in args.train_lang_corpora_pairs]
 		self.tgts = [i.split(":")[1] for i in args.train_lang_corpora_pairs]
 		self.src_corpora = [i.split(":")[2] for i in args.train_lang_corpora_pairs]
@@ -243,13 +245,16 @@ class DataPreparationPipeline:
 		in_model.close()
 
 	def learn_bpe_models(self):
+		adjustment = 0
+		if self.is_multi_target:
+			adjustment = len(set(self.tgts))
 		if self.joint_bpe_model:
 			log.info("Learning joint BPE model for source and target")
 			if self.max_src_vocab or self.max_tgt_vocab:
 				self.max_tgt_vocab = self.max_src_vocab if not self.max_tgt_vocab else self.max_tgt_vocab
 				self.max_src_vocab = self.max_tgt_vocab if not self.max_src_vocab else self.max_src_vocab
-				log.info("The number of merge operations will be determined based on how many merge rules it takes to reach the goal of a joint vocabulary of size %d for source and target" % self.max_src_vocab)
-				self.learn_model(self.merged_voc_src_tgt, self.save_prefix + "/bpe_model.src", self.max_src_vocab)
+				log.info("The number of merge operations will be determined based on how many merge rules it takes to reach the goal of a joint vocabulary of size %d for source and target. Note that %d vocab symbols will have to be accounted to accommodate the <2xx> tokens in case of multiple target languages." % (self.max_src_vocab, adjustment))
+				self.learn_model(self.merged_voc_src_tgt, self.save_prefix + "/bpe_model.src", self.max_src_vocab - adjustment)
 			else:
 				log.info("Number of merges to be done: %d" % self.merge_operations)
 				self.learn_model(self.merged_voc_src_tgt, self.save_prefix + "/bpe_model.src")
@@ -259,8 +264,8 @@ class DataPreparationPipeline:
 		else:
 			log.info("Learning BPE model for source")
 			if self.max_src_vocab:
-				log.info("The number of merge operations will be determined based on how many merge rules it takes to reach the goal of a vocabulary of size %d for source" % self.max_src_vocab)
-				self.learn_model(self.merged_voc_src, self.save_prefix + "/bpe_model.src", self.max_src_vocab)
+				log.info("The number of merge operations will be determined based on how many merge rules it takes to reach the goal of a vocabulary of size %d for source. Note that %d vocab symbols will have to be accounted to accommodate the <2xx> tokens in case of multiple target languages." % (self.max_src_vocab, adjustment))
+				self.learn_model(self.merged_voc_src, self.save_prefix + "/bpe_model.src", self.max_src_vocab - adjustment)
 			else:
 				log.info("Number of merges to be done: %d" % self.merge_operations)
 				self.learn_model(self.merged_voc_src, self.save_prefix + "/bpe_model.src")
@@ -284,8 +289,10 @@ class DataPreparationPipeline:
 		stats, indices, symbol_list = get_pair_statistics(sorted_vocab)
 		big_stats = copy.deepcopy(stats)
 		curr_vocab_size = 0
-		#print len(symbol_list)
+		#print symbol_list
 		# threshold is inspired by Zipfian assumption, but should only affect speed
+		curr_vocab_size = len(symbol_list)
+		log.info("The current vocab size is %d. " % curr_vocab_size)
 		threshold = max(stats.values()) / 10
 		for i in xrange(self.merge_operations):
 			if max_vocab:
@@ -320,8 +327,8 @@ class DataPreparationPipeline:
 				prune_stats(stats, big_stats, threshold)
 
 	def segment_corpora(self, train_dev_test = "train"):
-		log.info("Segmenting all the source side corpora using the unified BPE model")
-		self.load_model(self.save_prefix + "/bpe_model.src")
+		log.info("Segmenting all the source side corpora using the source side BPE model")
+		self.load_model(self.save_prefix + "/bpe_model.src", self.save_prefix + "/bpe_model.tgt")
 		for i in range(len(self.srcs)):
 			log.info("Segmenting %s " % self.src_corpora[i])
 			infile = io.open(self.src_corpora[i], encoding="utf-8")
@@ -330,19 +337,25 @@ class DataPreparationPipeline:
 			if self.is_multi_target:
 				prefix = "<2" + self.tgts[i] + "> "
 			for inline in infile:
-				segmented = prefix + self.bpe.segment(inline).strip() + "\n"
+				segmented = prefix + self.bpe_src.segment(inline.strip()).strip() + "\n"
+				if train_dev_test == "train":
+					for word in segmented.strip().split(" "):
+						self.mlnmt_src_vocab.add(word)
 				outfile.write(segmented)
 		infile.close()
 		outfile.close()
 		log.info("Segmentation of all source side corpora is done")
-		log.info("Segmenting all the target side corpora using the unified BPE model")
-		self.load_model(self.save_prefix + "/bpe_model.tgt")
+		log.info("Segmenting all the target side corpora using the target side BPE model")
+		#self.load_model()
 		for i in range(len(self.srcs)):
 			log.info("Segmenting %s " % self.tgt_corpora[i])
 			infile = io.open(self.tgt_corpora[i], encoding="utf-8")
 			outfile = io.open(self.save_prefix + "/" + self.srcs[i] + "-" + self.tgts[i] + "." + self.tgts[i] + "." +train_dev_test + ".segmented", 'w', encoding="utf-8")
 			for inline in infile:
-				segmented = self.bpe.segment(inline).strip() + "\n"
+				segmented = self.bpe_tgt.segment(inline.strip()).strip() + "\n"
+				if train_dev_test == "train":
+					for word in segmented.strip().split(" "):
+						self.mlnmt_tgt_vocab.add(word)
 				outfile.write(segmented)
 			infile.close()
 			outfile.close()
@@ -409,9 +422,12 @@ class DataPreparationPipeline:
 			mlnmt_tgt_file.write(tgt_line)
 
 	
-	def load_model(self, model_path):
-		log.info("Loading existing BPE model from %s" % model_path)
-		self.bpe = BPE(io.open(model_path))
+	def load_model(self, src_model_path, tgt_model_path):
+		log.info("Loading existing BPE models from %s and %s" % (src_model_path, tgt_model_path))
+		self.bpe_src = None
+		self.bpe_tgt = None
+		self.bpe_src = BPE(io.open(src_model_path))
+		self.bpe_tgt = BPE(io.open(tgt_model_path))
 
 if __name__ == '__main__':
 	import sys

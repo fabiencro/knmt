@@ -88,6 +88,7 @@ def update_pair_statistics(pair, changed, stats, indices, symbol_list):
     first, second = pair
     new_pair = first+second
     for j, word, old_word, freq in changed:
+        #print old_word, word, freq
         old_word_mod = old_word
         word_mod = word
         if word_mod[-1] == '</w>':
@@ -100,16 +101,16 @@ def update_pair_statistics(pair, changed, stats, indices, symbol_list):
             old_word_mod = old_word_mod[:-1] + (old_word_mod[-1].replace('</w>',''),)
         
         for sym in old_word_mod[:-1]:
-            symbol_list[sym + "__"] -= 1
+            symbol_list[sym + "__"] -= freq
             if symbol_list[sym + "__"] <= 0:
                 del symbol_list[sym + "__"]
-        symbol_list[old_word_mod[-1]] -= 1
+        symbol_list[old_word_mod[-1]] -= freq
         if symbol_list[old_word_mod[-1]] <= 0:
             del symbol_list[old_word_mod[-1]]
 
         for sym in word_mod[:-1]:
-            symbol_list[sym + "__"] += 1
-        symbol_list[word_mod[-1]] += 1
+            symbol_list[sym + "__"] += freq
+        symbol_list[word_mod[-1]] += freq
         
         # find all instances of pair, and update frequency/indices around it
         i = 0
@@ -169,8 +170,8 @@ def get_pair_statistics(vocab):
             indices[prev_char, char][i] += 1
             prev_char = char
         for char in word[:-2]:
-            symbol_list[char + "__"] += 1
-        symbol_list[word[-2]] += 1
+            symbol_list[char + "__"] += freq
+        symbol_list[word[-2]] += freq
     return stats, indices, symbol_list
 
 
