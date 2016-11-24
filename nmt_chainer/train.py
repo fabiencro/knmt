@@ -436,36 +436,36 @@ def command_line(arguments = None):
 #                     lexicon_prob_epsilon = args.lexicon_prob_epsilon
                       )
 
-
-    import sys
-    sys.exit(0)
-    with cuda.get_device(args.gpu):
-#         with MyTimerHook() as timer:
-#             try:
-                train_on_data(encdec, optimizer, training_data, output_files_dict,
-                      src_indexer, tgt_indexer, eos_idx = eos_idx, 
-                      mb_size = args.mb_size,
-                      nb_of_batch_to_sort = args.nb_batch_to_sort,
-                      test_data = test_data, dev_data = dev_data, valid_data = valid_data, gpu = args.gpu, report_every = args.report_every,
-                      randomized = args.randomized_data, reverse_src = args.reverse_src, reverse_tgt = args.reverse_tgt,
-                      max_nb_iters = args.max_nb_iters, do_not_save_data_for_resuming = args.no_resume,
-                      noise_on_prev_word = args.noise_on_prev_word, curiculum_training = args.curiculum_training,
-                      use_previous_prediction = args.use_previous_prediction, no_report_or_save = args.no_report_or_save,
-                      use_memory_optimization = args.use_memory_optimization,
-                      sample_every = args.sample_every,
-                      use_reinf = args.use_reinf,
-                      save_ckpt_every = args.save_ckpt_every
-#                     lexical_probability_dictionary = lexical_probability_dictionary,
-#                     V_tgt = Vo + 1,
-#                     lexicon_prob_epsilon = args.lexicon_prob_epsilon
-                      )
-#             finally:
-#                 print timer
-#                 timer.print_sorted()
-#                 print "total time:"
-#                 print(timer.total_time())
-                
-                
+# 
+#     import sys
+#     sys.exit(0)
+#     with cuda.get_device(args.gpu):
+# #         with MyTimerHook() as timer:
+# #             try:
+#                 train_on_data(encdec, optimizer, training_data, output_files_dict,
+#                       src_indexer, tgt_indexer, eos_idx = eos_idx, 
+#                       mb_size = args.mb_size,
+#                       nb_of_batch_to_sort = args.nb_batch_to_sort,
+#                       test_data = test_data, dev_data = dev_data, valid_data = valid_data, gpu = args.gpu, report_every = args.report_every,
+#                       randomized = args.randomized_data, reverse_src = args.reverse_src, reverse_tgt = args.reverse_tgt,
+#                       max_nb_iters = args.max_nb_iters, do_not_save_data_for_resuming = args.no_resume,
+#                       noise_on_prev_word = args.noise_on_prev_word, curiculum_training = args.curiculum_training,
+#                       use_previous_prediction = args.use_previous_prediction, no_report_or_save = args.no_report_or_save,
+#                       use_memory_optimization = args.use_memory_optimization,
+#                       sample_every = args.sample_every,
+#                       use_reinf = args.use_reinf,
+#                       save_ckpt_every = args.save_ckpt_every
+# #                     lexical_probability_dictionary = lexical_probability_dictionary,
+# #                     V_tgt = Vo + 1,
+# #                     lexicon_prob_epsilon = args.lexicon_prob_epsilon
+#                       )
+# #             finally:
+# #                 print timer
+# #                 timer.print_sorted()
+# #                 print "total time:"
+# #                 print(timer.total_time())
+#                 
+#                 
 
 if __name__ == '__main__':
     command_line()
