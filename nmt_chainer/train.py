@@ -412,15 +412,19 @@ def command_line(arguments = None):
 
     import training_chainer
     with cuda.get_device(args.gpu):
+        if args.max_nb_iters is not None:
+            stop_trigger = (args.max_nb_iters, "iteration")
+        else:
+            stop_trigger = None
         training_chainer.train_on_data_chainer(encdec, optimizer, training_data, output_files_dict,
                       src_indexer, tgt_indexer, eos_idx = eos_idx, 
                       output_dir = args.save_prefix,
-                      stop_trigger = None,
+                      stop_trigger = stop_trigger,
                       mb_size = args.mb_size,
                       nb_of_batch_to_sort = args.nb_batch_to_sort,
                       test_data = test_data, dev_data = dev_data, valid_data = valid_data, gpu = args.gpu, report_every = args.report_every,
                       randomized = args.randomized_data, reverse_src = args.reverse_src, reverse_tgt = args.reverse_tgt,
-                      max_nb_iters = args.max_nb_iters, do_not_save_data_for_resuming = args.no_resume,
+                      do_not_save_data_for_resuming = args.no_resume,
                       noise_on_prev_word = args.noise_on_prev_word, curiculum_training = args.curiculum_training,
                       use_previous_prediction = args.use_previous_prediction, no_report_or_save = args.no_report_or_save,
                       use_memory_optimization = args.use_memory_optimization,
