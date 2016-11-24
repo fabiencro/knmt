@@ -57,8 +57,8 @@ class Encoder(Chain):
         Return a chainer variable of shape (mb_size, #length, 2*Hi) and type float32
     """
     def __init__(self, Vi, Ei, Hi, init_orth = False, use_bn_length = 0, cell_type = rnn_cells.LSTMCell):
-        gru_f = rnn_cells.create_cell_model_from_string(cell_type)(Ei, Hi)
-        gru_b = rnn_cells.create_cell_model_from_string(cell_type)(Ei, Hi)
+        gru_f = cell_type(Ei, Hi)
+        gru_b = cell_type(Ei, Hi)
 
         log.info("constructing encoder [%s]"%(cell_type,))
         super(Encoder, self).__init__(
@@ -713,6 +713,19 @@ class ConstantFunction(chainer.Function):
 import decoder_cells
 class EncoderDecoder(Chain):
     """ Do RNNSearch Encoding/Decoding
+    
+        Args:
+            Vi: Source vocabulary size
+            Ei: Size of Source word embeddings
+            Hi: Size of source encoder hidden layer
+            Vo: Target Vocabulary Size
+            Eo: Size of Target word embeddings
+            Ho: Size of Decoder hidden state
+            Ha: Size of Attention mechanism hidden layer size
+            Hl: Size of maxout output layer
+            attn_cls: class of the Attention to be used
+            
+    
         The __call__ takes 3 required parameters: src_batch, tgt_batch, src_mask
         src_batch is as in the sequence parameter of Encoder
         tgt_batch is as in the targets parameter of Decoder
@@ -720,8 +733,11 @@ class EncoderDecoder(Chain):
         
         return loss and attention values
     """
+    
+    
     def __init__(self, Vi, Ei, Hi, Vo, Eo, Ho, Ha, Hl, attn_cls = AttentionModule, init_orth = False, use_bn_length = 0,
-                encoder_cell_type = "gru", decoder_cell_type = "gru",
+                encoder_cell_type = rnn_cells.LSTMCell,
+                decoder_cell_type = rnn_cells.LSTMCell,
                 lexical_probability_dictionary = None, lex_epsilon = 1e-3
                 ):
         log.info("constructing encoder decoder with Vi:%i Ei:%i Hi:%i Vo:%i Eo:%i Ho:%i Ha:%i Hl:%i" % 
