@@ -15,6 +15,7 @@ import chainer.links as L
 
 import nmt_chainer.models as models
 import nmt_chainer.utils as utils
+import nmt_chainer.decoder_cells as decoder_cells
 
 import logging
 logging.basicConfig()
@@ -25,7 +26,7 @@ log.setLevel(logging.INFO)
 
 class EncoderNaive(models.Encoder):
     def __init__(self, Vi, Ei, Hi):
-        super(EncoderNaive, self).__init__(Vi, Ei, Hi, cell_type = 'lstm')
+        super(EncoderNaive, self).__init__(Vi, Ei, Hi)
          
     def naive_call(self, sequence, mask):
         
@@ -242,7 +243,7 @@ class TestAttention:
             assert np.allclose(attn.data[i][:len(raw_s)], attn_naive.data[0], atol = 1e-6)
             assert np.all(attn.data[i][len(raw_s):] == 0)
     
-class DecoderNaive(models.Decoder):
+class DecoderNaive(decoder_cells.Decoder):
     def __init__(self, Vo, Eo, Ho, Ha, Hi, Hl):
         super(DecoderNaive, self).__init__(Vo, Eo, Ho, Ha, Hi, Hl, cell_type = 'gru')
         self.attn_module = AttentionModuleNaive(Hi, Ha, Ho)
