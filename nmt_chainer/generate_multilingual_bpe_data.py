@@ -41,7 +41,7 @@ class DataPreparationPipeline:
 		self.args = args
 		self.save_prefix = args.save_prefix
 		self.merge_operations = args.num_bpe_merge_operations
-		self.min_frequency = 1
+		self.min_frequency = 2
 		self.verbose = True
 		self.joint_bpe_model = args.joint_bpe_model
 		self.max_src_vocab = args.max_src_vocab
