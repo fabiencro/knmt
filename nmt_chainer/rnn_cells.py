@@ -140,8 +140,8 @@ class GatedLSTMCell(Chain):
     
 class StackedCell(ChainList):
     def __init__(self, in_size, out_size, cell_type = LSTMCell, nb_stacks = 2, 
-                 dropout = 0.5, pass_by = False, no_dropout_on_input = False,
-                 no_pass_by_on_output = True):
+                 dropout = 0.5, residual_connection = False, no_dropout_on_input = False,
+                 no_residual_connection_on_output = False, no_residual_connection_on_input = False):
         nb_stacks = nb_stacks or 2
         cell_type = cell_type or LSTMCell
         
@@ -160,8 +160,9 @@ class StackedCell(ChainList):
         assert len(self) == nb_stacks
         
         self.dropout = dropout
-        self.pass_by = pass_by
-        self.no_pass_by_on_output = no_pass_by_on_output
+        self.residual_connection = residual_connection
+        self.no_residual_connection_on_output = no_residual_connection_on_output
+        self.no_residual_connection_on_input = no_residual_connection_on_input
         self.no_dropout_on_input = no_dropout_on_input
         
     def get_initial_states(self, mb_size):
@@ -182,7 +183,9 @@ class StackedCell(ChainList):
                                  mode = mode)
             states_cursor += self.nb_of_states[i]
             
-            if self.pass_by and not (i == len(self) -1 and self.no_pass_by_on_output):
+            if (self.residual_connection 
+                    and not (i == len(self) -1 and self.no_residual_connection_on_output)
+                    and not (i == 0 and self.no_residual_connection_on_input)):
                 input_below = new_states[-1] + input_below
             else:
                 input_below = new_states[-1]
@@ -225,9 +228,10 @@ cell_description_keywords = {
     "dropout": float,
     "nb_stacks": int,
     "sub_cell_type": lambda k:cell_dict[k],
-    "pass_by": int,
+    "residual_connection": int,
     "no_dropout_on_input": int,
-    "no_pass_by_on_output": int,
+    "no_residual_connection_on_output": int,
+    "no_residual_connection_on_input": int,
     }
 
 def create_cell_model_from_string(model_str):
@@ -250,7 +254,7 @@ def create_cell_model(type_str, **cell_parameters):
         raise ValueError("bad cell type: %s (possible types: %s)"%
                              (type_str, " ".join(cell_dict.keys())))
     cell_type = cell_dict[type_str]
-    if type_str == "dlstm":
+    if type_str == "dlstm" or type_str == "stack":
         def instantiate(in_size, out_size):
             return cell_type(in_size, out_size, **cell_parameters)        
     else:
