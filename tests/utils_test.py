@@ -79,7 +79,7 @@ class TestMakeData:
         train_dir = tmpdir.mkdir("train")
         data_prefix = str(train_dir.join("test1.data"))
         train_prefix = str(train_dir.join("test1.train"))
-        args = [os.path.join(test_data_dir, "src.txt"), os.path.join(test_data_dir, "tgt.txt"), data_prefix ]
+        args = [os.path.join(test_data_dir, "src2.txt"), os.path.join(test_data_dir, "tgt2.txt"), data_prefix ]
         make_data.cmdline(arguments = args)
         
         args_train = [data_prefix, train_prefix] + "--max_nb_iters 5 --mb_size 2 --Ei 10 --Eo 12 --Hi 30 --Ha 70 --Ho 15 --Hl 23".split(" ")

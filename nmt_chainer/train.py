@@ -162,7 +162,8 @@ def command_line(arguments = None):
     parser.add_argument("--noise_on_prev_word", default = False, action = "store_true")
     
     
-    parser.add_argument("--use_memory_optimization", default = False, action = "store_true")
+    parser.add_argument("--use_memory_optimization", default = False, action = "store_true",
+                        help = "Experimental option that could strongly reduce memory used.")
         
     parser.add_argument("--max_nb_iters", type = int, default= None, help = "maximum number of iterations")
     
@@ -173,11 +174,11 @@ def command_line(arguments = None):
     parser.add_argument("--hard_gradient_clipping", type = float, nargs = 2, help = "hard gradient clipping.")
     
     
-    parser.add_argument("--weight_decay", type = float, help = "weight decay")
+    parser.add_argument("--weight_decay", type = float, help = "Weight decay value. ")
     
     parser.add_argument("--optimizer", choices=["sgd", "rmsprop", "rmspropgraves", 
                             "momentum", "nesterov", "adam", "adagrad", "adadelta"], 
-                        default = "adam")
+                        default = "adam", help = "Optimizer type.")
     parser.add_argument("--learning_rate", type = float, default= 0.01, help = "Learning Rate")
     parser.add_argument("--momentum", type = float, default= 0.9, help = "Momentum term")
     parser.add_argument("--report_every", type = int, default = 200, help = "report every x iterations")
@@ -409,17 +410,21 @@ def command_line(arguments = None):
             serializers.load_npz(args.load_optimizer_state, optimizer)    
     
 
-
+    import training_chainer
     with cuda.get_device(args.gpu):
-#         with MyTimerHook() as timer:
-#             try:
-                train_on_data(encdec, optimizer, training_data, output_files_dict,
+        if args.max_nb_iters is not None:
+            stop_trigger = (args.max_nb_iters, "iteration")
+        else:
+            stop_trigger = None
+        training_chainer.train_on_data_chainer(encdec, optimizer, training_data, output_files_dict,
                       src_indexer, tgt_indexer, eos_idx = eos_idx, 
+                      output_dir = args.save_prefix,
+                      stop_trigger = stop_trigger,
                       mb_size = args.mb_size,
                       nb_of_batch_to_sort = args.nb_batch_to_sort,
                       test_data = test_data, dev_data = dev_data, valid_data = valid_data, gpu = args.gpu, report_every = args.report_every,
                       randomized = args.randomized_data, reverse_src = args.reverse_src, reverse_tgt = args.reverse_tgt,
-                      max_nb_iters = args.max_nb_iters, do_not_save_data_for_resuming = args.no_resume,
+                      do_not_save_data_for_resuming = args.no_resume,
                       noise_on_prev_word = args.noise_on_prev_word, curiculum_training = args.curiculum_training,
                       use_previous_prediction = args.use_previous_prediction, no_report_or_save = args.no_report_or_save,
                       use_memory_optimization = args.use_memory_optimization,
@@ -430,13 +435,37 @@ def command_line(arguments = None):
 #                     V_tgt = Vo + 1,
 #                     lexicon_prob_epsilon = args.lexicon_prob_epsilon
                       )
-#             finally:
-#                 print timer
-#                 timer.print_sorted()
-#                 print "total time:"
-#                 print(timer.total_time())
-                
-                
+
+# 
+#     import sys
+#     sys.exit(0)
+#     with cuda.get_device(args.gpu):
+# #         with MyTimerHook() as timer:
+# #             try:
+#                 train_on_data(encdec, optimizer, training_data, output_files_dict,
+#                       src_indexer, tgt_indexer, eos_idx = eos_idx, 
+#                       mb_size = args.mb_size,
+#                       nb_of_batch_to_sort = args.nb_batch_to_sort,
+#                       test_data = test_data, dev_data = dev_data, valid_data = valid_data, gpu = args.gpu, report_every = args.report_every,
+#                       randomized = args.randomized_data, reverse_src = args.reverse_src, reverse_tgt = args.reverse_tgt,
+#                       max_nb_iters = args.max_nb_iters, do_not_save_data_for_resuming = args.no_resume,
+#                       noise_on_prev_word = args.noise_on_prev_word, curiculum_training = args.curiculum_training,
+#                       use_previous_prediction = args.use_previous_prediction, no_report_or_save = args.no_report_or_save,
+#                       use_memory_optimization = args.use_memory_optimization,
+#                       sample_every = args.sample_every,
+#                       use_reinf = args.use_reinf,
+#                       save_ckpt_every = args.save_ckpt_every
+# #                     lexical_probability_dictionary = lexical_probability_dictionary,
+# #                     V_tgt = Vo + 1,
+# #                     lexicon_prob_epsilon = args.lexicon_prob_epsilon
+#                       )
+# #             finally:
+# #                 print timer
+# #                 timer.print_sorted()
+# #                 print "total time:"
+# #                 print(timer.total_time())
+#                 
+#                 
 
 if __name__ == '__main__':
     command_line()
