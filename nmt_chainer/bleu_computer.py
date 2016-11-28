@@ -31,7 +31,12 @@ class BleuComputer(object):
         res = []
         res.append("bleu:%f%%   "%(self.bleu() * 100))
         for n in xrange(1, 5):
-            res.append("%i/%i[%f%%]"%(self.ngrams_corrects[n], self.ngrams_total[n], 100.0 *self.ngrams_corrects[n] / self.ngrams_total[n]))
+            if self.ngrams_total[n] == 0:
+                assert self.ngrams_corrects[n] == 0
+                ratio_n = 1
+            else:
+                ratio_n = self.ngrams_corrects[n] / self.ngrams_total[n]
+            res.append("%i/%i[%f%%]"%(self.ngrams_corrects[n], self.ngrams_total[n], 100.0 *ratio_n))
         res.append("size of cand/ref: %i/%i[%f]"%(self.total_length, self.ref_length, float(self.total_length) / self.ref_length))
         return " ".join(res)
     
