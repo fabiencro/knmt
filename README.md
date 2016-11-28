@@ -22,6 +22,14 @@ NB: The Code here has been used for practical purposes for some months and work 
 There are essentially three steps in the use of KyotoNMT: data preparation (`make_data.py`), training (`train.py`), evaluation (`eval.py`). Each of these scripts has many options that can be displayed by running them with the `--help` option.
 
 ## Data Preparation
+The training data should be first preprocessed before training can begin. This is done by the script `make_data.py`. The important things that this processing will do is:
+1. Tokenize the training data
+2. Reduce the vocabulary: select the top X most frequent token types and replace others by a special symbol (eg. `UNK`)
+3. Assign a unique id number from 0 to X to each remaining token type
+4. Convert the training sentences into sequence of id numbers
+
+Step 2 is often necessary due to performance and memory issues when using a large target vocabulary. Step 4 is necessary because the implemented models work on sequence of integers, not sequence of strings.
+
 The required training data is a sentence-aligned parallel corpus that is expected to be in two utf-8 text files: one for source language sentences and the other target language sentences. One sentence per line, words separated by whitespaces. Additionally, some validation data should be provided in a similar form (a source and a target file). This validation data will be used for early-stopping, as well as to visualize the progress of the training. One should also specify the maximum size of vocabulary for source and target sentences. For example:
 
     python make_data.py train.src train.tgt data_prefix --dev_src valid.src --dev_tgt valid.tgt  --src_voc_size 100000 --tgt_voc_size 30000
@@ -53,14 +61,29 @@ Evaluation is done by running the script `eval.py`. It allows, among other thing
 
 We usually find that it is better to use the parameters that gave the best validation BLEU rather than the ones that gave the best validation loss. Although it can be even better to do an ensemble translation with the two. The `eval.py` script has many options for tuning the beam search, ensembling several trained models, displaying the attention for each translation, etc.
 
-TODO: describe UNK replacement
+### UNK replacement
+In general, the translation process may generate some tags `T_UNK_X`, where `X` is an integer. The model learned to generate these tags if it was given some training data containing `UNK` tags (see data preparation section). If the model generate a `T_UNK_X` tag, it indicates it thinks that the correct word that should have been generated is outside of its vocabulary, but corresponds to the translation of the source word at position `X`. One can then try to replace these tags with the correct translation using bilingual dictionnnaries (such an idea was originally proposed in (Luang et al., 2015) ).
+
+A simple small script `replace_tgt_unk.py` is provided that can do this automatically. It expects a dictionnary in JSON format associating source language words to their translation. After having generated the translation `translation.txt` of input file `input.txt` using the `eval.py` command, one can generate a file `translation.no_unk.txt` in which `UNK` tags have been replaced with the following command:
+
+      ./replace_tgt_unk.py translation.txt input.txt translation.no_unk.txt --dic dictionary.json
+
+## Using GPUs
+
+Neural Network training and evaluation can often be much faster on a GPU than on a CPU. Both `eval.py` and `train.py` accept a `--gpu` argument to specify a GPU device to use. `--gpu` should be followed by a number indicating the specific device to use. eg. `--gpu 0` to use the first GPU device of the system; `--gpu 2` to use the third GPU device (assuming the machine has at least 3 GPUs).
 
 ## Visualisation
-1. Generate Training Graph
 
-        #! shell
-        pip install --user plotly
-        python graph_training.py --lib plotly /path_to_experiment_dir/prefix_train/*.result.sqlite ~/public_html/graph.html
+### Visualisation of training
+The evolution of the training (training loss, validation loss, validation BLEU, ...) is curently stored in a sqlite file `training_prefix.result.sqlite` created during the training process.
+
+At any time during and after the training, one can generate a graph showing the evolution of these values. The script `graph_training.py` will take such a `*.result.sqlite` file and generate an html file containing the graph. This uses the `plotly` graphing library.
+
+        python graph_training.py --lib plotly training_prefix.result.sqlite graph.html
+ 
+This will result in a graph similar to this one, where training loss appears as a green line, validation loss as a blue line, and validation BLEU appears as a scatter plot of small blue circles:
+
+<img src="images/train_graph.jpg" alt="training graph" style="width: 1000px;"/>
 
 ## Recommended Options
 

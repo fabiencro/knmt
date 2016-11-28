@@ -248,7 +248,7 @@ def create_and_load_encdec_from_files(config_training_fn, trained_model):
     
     return encdec, eos_idx, src_indexer, tgt_indexer
     
-def commandline():
+def command_line(arguments = None):
     
     import argparse
     parser = argparse.ArgumentParser(description= "Use a RNNSearch model", 
@@ -301,7 +301,7 @@ def commandline():
     parser.add_argument("--reverse_training_config", help = "prefix of the trained model")
     parser.add_argument("--reverse_trained_model", help = "prefix of the trained model")
     
-    args = parser.parse_args()
+    args = parser.parse_args(args = arguments)
     
     encdec, eos_idx, src_indexer, tgt_indexer = create_and_load_encdec_from_files(
                             args.training_config, args.trained_model)
@@ -582,6 +582,6 @@ def commandline():
                 out.write("%i %f\n"%(num, score))
     
 if __name__ == '__main__':
-    commandline() 
+    command_line() 
     
     
