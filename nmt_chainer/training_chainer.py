@@ -209,11 +209,11 @@ class ComputeLossExtension(chainer.training.Extension):
     
     def __call__(self, trainer):
         encdec = trainer.updater.get_optimizer("main").target
-        log.info("computing dev loss")
+        log.info("computing %s" % self.observation_name)
         dev_loss = compute_loss_all(encdec, self.data, self.eos_idx, self.mb_size, 
                                     gpu = self.gpu,
                                      reverse_src = self.reverse_src, reverse_tgt = self.reverse_tgt)
-        log.info("%s: %f ( current best: %r)" % (self.observation_name, dev_loss, self.best_loss))
+        log.info("%s: %f (current best: %r)" % (self.observation_name, dev_loss, self.best_loss))
         chainer.reporter.report({self.observation_name: dev_loss})
         
         if self.best_loss is None or self.best_loss > dev_loss:
