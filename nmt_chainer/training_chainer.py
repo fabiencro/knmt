@@ -38,14 +38,19 @@ def example_complexity(ex):
 
 import numpy
 class SerialIteratorWithPeek(chainer.iterators.SerialIterator):
+    
     def peek(self):
+        """
+        Return the next batch of data without updating its internal state.
+        Several call to peek() should return the same result. A call to next()
+        after a call to peek() will return the same result as the previous peek.
+        """
         if not self._repeat and self.epoch > 0:
             raise StopIteration
 
         i = self.current_position
         i_end = i + self.batch_size
         N = len(self.dataset)
-
         if self._order is None:
             batch = self.dataset[i:i_end]
         else:
@@ -65,6 +70,11 @@ class SerialIteratorWithPeek(chainer.iterators.SerialIterator):
         return batch
 
 class LengthBasedSerialIterator(chainer.dataset.iterator.Iterator):
+    """
+    This iterator will try to return batches with sequences of similar length.
+    This is done by first extracting nb_of_batch_to_sort x batch_size sequences, sorting them by size, 
+    and then successively yielding nb_of_batch_to_sort batches of size batch_size.
+    """
     def __init__(self, dataset, batch_size, nb_of_batch_to_sort = 20, sort_key = lambda x:len(x[1]),
                  repeat=True, shuffle=True):
         
