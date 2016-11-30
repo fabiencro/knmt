@@ -38,14 +38,19 @@ def example_complexity(ex):
 
 import numpy
 class SerialIteratorWithPeek(chainer.iterators.SerialIterator):
+    
     def peek(self):
+        """
+        Return the next batch of data without updating its internal state.
+        Several call to peek() should return the same result. A call to next()
+        after a call to peek() will return the same result as the previous peek.
+        """
         if not self._repeat and self.epoch > 0:
             raise StopIteration
 
         i = self.current_position
         i_end = i + self.batch_size
         N = len(self.dataset)
-
         if self._order is None:
             batch = self.dataset[i:i_end]
         else:
@@ -65,6 +70,11 @@ class SerialIteratorWithPeek(chainer.iterators.SerialIterator):
         return batch
 
 class LengthBasedSerialIterator(chainer.dataset.iterator.Iterator):
+    """
+    This iterator will try to return batches with sequences of similar length.
+    This is done by first extracting nb_of_batch_to_sort x batch_size sequences, sorting them by size, 
+    and then successively yielding nb_of_batch_to_sort batches of size batch_size.
+    """
     def __init__(self, dataset, batch_size, nb_of_batch_to_sort = 20, sort_key = lambda x:len(x[1]),
                  repeat=True, shuffle=True):
         
@@ -194,13 +204,13 @@ class Updater(chainer.training.StandardUpdater):
 class ComputeLossExtension(chainer.training.Extension):
     priority = chainer.training.PRIORITY_WRITER
     
-    def __init__(self, dev_data, eos_idx, 
+    def __init__(self, data, eos_idx, 
                  mb_size, gpu, reverse_src, reverse_tgt,
                  save_best_model_to = None, observation_name = "dev_loss"):
         self.best_loss = None
         self.save_best_model_to = save_best_model_to
         self.observation_name = observation_name
-        self.dev_data = dev_data
+        self.data = data
         self.eos_idx = eos_idx
         self.mb_size = mb_size
         self.gpu = gpu
@@ -209,11 +219,11 @@ class ComputeLossExtension(chainer.training.Extension):
     
     def __call__(self, trainer):
         encdec = trainer.updater.get_optimizer("main").target
-        log.info("computing dev loss")
-        dev_loss = compute_loss_all(encdec, self.dev_data, self.eos_idx, self.mb_size, 
+        log.info("computing %s" % self.observation_name)
+        dev_loss = compute_loss_all(encdec, self.data, self.eos_idx, self.mb_size, 
                                     gpu = self.gpu,
                                      reverse_src = self.reverse_src, reverse_tgt = self.reverse_tgt)
-        log.info("%s: %f ( current best: %r)" % (self.observation_name, dev_loss, self.best_loss))
+        log.info("%s: %f (current best: %r)" % (self.observation_name, dev_loss, self.best_loss))
         chainer.reporter.report({self.observation_name: dev_loss})
         
         if self.best_loss is None or self.best_loss > dev_loss:
@@ -231,7 +241,7 @@ class ComputeLossExtension(chainer.training.Extension):
 class ComputeBleuExtension(chainer.training.Extension):
     priority = chainer.training.PRIORITY_WRITER
     
-    def __init__(self, dev_data, eos_idx, src_indexer, tgt_indexer,
+    def __init__(self, data, eos_idx, src_indexer, tgt_indexer,
                  translations_fn, control_src_fn,
                  mb_size, gpu, reverse_src = False, reverse_tgt = False,
                  save_best_model_to = None, observation_name = "dev_bleu",
@@ -241,7 +251,7 @@ class ComputeBleuExtension(chainer.training.Extension):
         self.best_bleu = None
         self.save_best_model_to = save_best_model_to
         self.observation_name = observation_name
-        self.dev_data = dev_data
+        self.data = data
         self.eos_idx = eos_idx
         self.mb_size = mb_size
         self.gpu = gpu
@@ -250,7 +260,6 @@ class ComputeBleuExtension(chainer.training.Extension):
         self.s_unk_tag = s_unk_tag
         self.t_unk_tag = t_unk_tag
         
-#         self.dev_references = dev_references
         self.src_indexer = src_indexer
         self.tgt_indexer = tgt_indexer
         self.nb_steps = nb_steps
@@ -258,16 +267,16 @@ class ComputeBleuExtension(chainer.training.Extension):
         self.translations_fn = translations_fn
         self.control_src_fn = control_src_fn
         
-        self.dev_src_data = [x for x,y in dev_data]
-        self.dev_references = [y for x,y in dev_data]
+        self.src_data = [x for x,y in data]
+        self.references = [y for x,y in data]
         
     def __call__(self, trainer):
         encdec = trainer.updater.get_optimizer("main").target
 #         translations_fn = output_files_dict["dev_translation_output"] #save_prefix + ".test.out"
 #         control_src_fn = output_files_dict["dev_src_output"] #save_prefix + ".test.src.out"
-        bleu_stats = translate_to_file(encdec, self.eos_idx, self.dev_src_data, self.mb_size, 
+        bleu_stats = translate_to_file(encdec, self.eos_idx, self.src_data, self.mb_size, 
                                        self.tgt_indexer, 
-               self.translations_fn, test_references = self.dev_references, 
+               self.translations_fn, test_references = self.references, 
                control_src_fn = self.control_src_fn,
                src_indexer = self.src_indexer, gpu = self.gpu, nb_steps = 50, 
                reverse_src = self.reverse_src, reverse_tgt = self.reverse_tgt,
