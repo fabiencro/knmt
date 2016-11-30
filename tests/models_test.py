@@ -26,7 +26,7 @@ log.setLevel(logging.INFO)
 
 class EncoderNaive(models.Encoder):
     def __init__(self, Vi, Ei, Hi):
-        super(EncoderNaive, self).__init__(Vi, Ei, Hi, cell_type = 'lstm')
+        super(EncoderNaive, self).__init__(Vi, Ei, Hi)
          
     def naive_call(self, sequence, mask):
         

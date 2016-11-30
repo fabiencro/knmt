@@ -711,8 +711,8 @@ def cmdline(arguments=None):
     if args.use_voc is not None:
         log.info("loading voc from %s" % args.use_voc)
         src_voc, tgt_voc = json.load(open(args.use_voc))
-        dic_src = Indexer.make_from_list(src_voc)
-        dic_tgt = Indexer.make_from_list(tgt_voc)
+        dic_src = Indexer.make_from_serializable(src_voc)
+        dic_tgt = Indexer.make_from_serializable(tgt_voc)
 
     log.info("loading training data from %s and %s" %
              (args.src_fn, args.tgt_fn))
