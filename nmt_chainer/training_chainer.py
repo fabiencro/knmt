@@ -384,9 +384,9 @@ def train_on_data_chainer(encdec, optimizer, training_data, output_files_dict,
                   reverse_src = False, reverse_tgt = False, do_not_save_data_for_resuming = False,
                   noise_on_prev_word = False, curiculum_training = False,
                   use_previous_prediction = 0, no_report_or_save = False,
-                  use_memory_optimization = False, sample_every = 200,
+                  use_memory_optimization = False, sample_every = 500,
                   use_reinf = False,
-                  save_ckpt_every = 2000,
+                  save_ckpt_every = 5000,
                   reshuffle_every_epoch = False):
         
     @chainer.training.make_extension()
@@ -448,7 +448,7 @@ def train_on_data_chainer(encdec, optimizer, training_data, output_files_dict,
                      mb_size, gpu, reverse_src, reverse_tgt,
                      save_best_model_to = output_files_dict["model_best_loss"], 
                      observation_name = "dev_loss")
-        trainer.extend(dev_loss_extension, trigger = (200, "iteration"))
+        trainer.extend(dev_loss_extension, trigger = (report_every, "iteration"))
         
         
         dev_bleu_extension = ComputeBleuExtension(dev_data, eos_idx, src_indexer, tgt_indexer,
@@ -458,13 +458,13 @@ def train_on_data_chainer(encdec, optimizer, training_data, output_files_dict,
                      save_best_model_to = output_files_dict["model_best"],
                      observation_name = "dev_bleu")
         
-        trainer.extend(dev_bleu_extension, trigger = (200, "iteration"))
+        trainer.extend(dev_bleu_extension, trigger = (report_every, "iteration"))
     
     if test_data is not None:
         test_loss_extension = ComputeLossExtension(test_data, eos_idx, 
                      mb_size, gpu, reverse_src, reverse_tgt,
                      observation_name = "test_loss")
-        trainer.extend(test_loss_extension, trigger = (200, "iteration"))
+        trainer.extend(test_loss_extension, trigger = (report_every, "iteration"))
         
         
         test_bleu_extension = ComputeBleuExtension(test_data, eos_idx, src_indexer, tgt_indexer,
@@ -473,13 +473,13 @@ def train_on_data_chainer(encdec, optimizer, training_data, output_files_dict,
                      mb_size, gpu, reverse_src, reverse_tgt,
                      observation_name = "test_bleu")
         
-        trainer.extend(test_bleu_extension, trigger = (200, "iteration"))
+        trainer.extend(test_bleu_extension, trigger = (report_every, "iteration"))
     
-    trainer.extend(sample_extension, trigger = (500, "iteration"))
+    trainer.extend(sample_extension, trigger = (sample_every, "iteration"))
     
-    trainer.extend(chainer.training.extensions.snapshot(), trigger = (5000, "iteration"))
+    trainer.extend(chainer.training.extensions.snapshot(), trigger = (save_ckpt_every, "iteration"))
     
-    trainer.extend(TrainingLossSummaryExtension(trigger = (200, "iteration")))
+    trainer.extend(TrainingLossSummaryExtension(trigger = (report_every, "iteration")))
     
     trainer.extend(SqliteLogExtension(db_path = output_files_dict["sqlite_db"]))
     
