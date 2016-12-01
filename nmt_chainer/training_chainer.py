@@ -86,10 +86,11 @@ class LengthBasedSerialIterator(chainer.dataset.iterator.Iterator):
         self.sort_key = sort_key
         self.batch_size = batch_size
         self.nb_of_batch_to_sort = nb_of_batch_to_sort
+        self.repeat = repeat
                 
     def update_sub_batch(self):
         self.sub_batch = list(self.sub_iterator.next()) # copy the result so that we can sort without side effects
-        if len(self.sub_batch) != self.batch_size * self.nb_of_batch_to_sort:
+        if self.repeat and len(self.sub_batch) != self.batch_size * self.nb_of_batch_to_sort:
             raise AssertionError
         self.sub_batch.sort(key = self.sort_key)
         self.index_in_sub_batch = 0
