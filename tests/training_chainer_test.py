@@ -20,15 +20,7 @@ from nmt_chainer.utils import de_batch
 import nmt_chainer.training_chainer as iterators
 from numpy.random import RandomState
 
-#dataset_size = 64
-#dataset_size = 500
-dataset_size = 400
-batch_size = 20
-#dataset_size = 8
-#batch_size = 3
-sequence_avg_size = 16
-
-def generate_random_dataset():
+def generate_random_dataset(dataset_size, sequence_avg_size):
     """
     Build a dummy data structure with random numbers similar to our
     usual datasets that is a list of pairs of sequences of numbers:
@@ -54,11 +46,15 @@ def generate_random_dataset():
 
 class TestSerialIterator:
 
-    def test_repeat_loop(self):
+    @pytest.mark.parametrize("dataset_size, batch_size, sequence_avg_size", [
+        (64, 20, 16),
+        (200, 20, 20)
+    ])
+    def test_repeat_loop(self, dataset_size, batch_size, sequence_avg_size):
         """
         Test if the order of the elements of the dataset is the same when repeat = True.
         """
-        dataset = generate_random_dataset()
+        dataset = generate_random_dataset(dataset_size, sequence_avg_size)
 
         random_generator = RandomState(0)
 
@@ -81,25 +77,33 @@ class TestSerialIterator:
         
     # The test where shuffle, repeat, and check_peek fails because the peek() method
     # cannot foresee how the elements will be shuffled by the next() method at the end of an epoch. - FB
-    @pytest.mark.parametrize("shuffle,repeat,check_peek", 
+    @pytest.mark.parametrize("dataset_size, batch_size, sequence_avg_size, shuffle, repeat, check_peek", 
         [
-         (True, True, False), 
-         (False, True, False), 
-         (True, False, False), 
-         (False, False, False),
-         #(True, True, True),
-         (False, True, True), 
-         (True, False, True), 
-         (False, False, True),
+         (64, 20, 16, True, True, False), 
+         (64, 20, 16, False, True, False), 
+         (64, 20, 16, True, False, False), 
+         (64, 20, 16, False, False, False),
+         #(64, 20, 16, True, True, True),
+         (64, 20, 16, False, True, True), 
+         (64, 20, 16, True, False, True), 
+         (64, 20, 16, False, False, True),
+         (200, 20, 20, True, True, False), 
+         (200, 20, 20, False, True, False), 
+         (200, 20, 20, True, False, False), 
+         (200, 20, 20, False, False, False),
+         #(200, 20, 20, True, True, True),
+         (200, 20, 20, False, True, True), 
+         (200, 20, 20, True, False, True), 
+         (200, 20, 20, False, False, True),
          ])
-    def test_retrieve_all_items(self, shuffle, repeat, check_peek):
+    def test_retrieve_all_items(self, dataset_size, batch_size, sequence_avg_size, shuffle, repeat, check_peek):
         """
         Test if we can retrieve all the items of the dataset from the iterator,
         no matter what options we choose.  Essentially, this tests that the next()
         method works properly.  When check_peek is True, it also tests if
         iter.peek() == iter.next() right before calling iter.next().
         """
-        dataset = generate_random_dataset()
+        dataset = generate_random_dataset(dataset_size, sequence_avg_size)
         
         random_generator = RandomState(0)
 
@@ -142,12 +146,16 @@ class TestSerialIterator:
 
 class TestLengthBasedSerialIterator():
 
-    def test_peek_egal_next(self):
+    @pytest.mark.parametrize("dataset_size, batch_size, sequence_avg_size", [
+        (64, 20, 16),
+        (200, 20, 20)
+    ])
+    def test_peek_egal_next(self, dataset_size, batch_size, sequence_avg_size):
         """
         Test if the value returned by the peek() method matches
         the value returned by the next() method right after calling peek().
         """
-        dataset = generate_random_dataset()
+        dataset = generate_random_dataset(dataset_size, sequence_avg_size)
 
         iter = iterators.LengthBasedSerialIterator(dataset, batch_size, shuffle = False, repeat = False)
         while True:
@@ -159,7 +167,11 @@ class TestLengthBasedSerialIterator():
             except StopIteration:
                 break
 
-    def test_batch_size(self):
+    @pytest.mark.parametrize("dataset_size, batch_size, sequence_avg_size", [
+        (64, 20, 16),
+        (200, 20, 20)
+    ])
+    def test_batch_size(self, dataset_size, batch_size, sequence_avg_size):
         """
         Test if the batches have sequences of similar length.
         We start by measuring the average sequence length.
@@ -170,7 +182,7 @@ class TestLengthBasedSerialIterator():
         For each pair, we also make sure that the length of the second
         sequence does not differ too much with the average sequence length.
         """
-        dataset = generate_random_dataset()
+        dataset = generate_random_dataset(dataset_size, sequence_avg_size)
 
         iter = iterators.LengthBasedSerialIterator(dataset, batch_size, shuffle = False, repeat = False)
 
