@@ -7,7 +7,9 @@ setup(name='nmt_chainer',
       description='Implementation of RNNSearch and other Neural MT models in Chainer',
       author='Fabien Cromieres',
       author_email='fabien.cromieres@gmail.com',
-#       url='https://www.python.org/sigs/distutils-sig/',
+      url='https://github.com/fabiencro/knmt/',
       packages=['nmt_chainer'],
+      license='GPL-3',
+      install_requires=['chainer'],
      )
 

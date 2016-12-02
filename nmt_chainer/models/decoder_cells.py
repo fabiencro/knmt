@@ -19,7 +19,7 @@ from utils import ortho_init, minibatch_sampling
 
 from constant_batch_mul import batch_matmul_constant, matmul_constant
 
-from models import AttentionModule
+from attention import AttentionModule
 
 import logging
 logging.basicConfig()
