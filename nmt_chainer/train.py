@@ -27,6 +27,8 @@ from utils import ensure_path
 #                   greedy_batch_translate, convert_idx_to_string, 
 #                   compute_loss_all, translate_to_file, sample_once)
 
+import models.attention
+import models.encoder_decoder
 
 
 import time
@@ -37,7 +39,7 @@ from chainer import cuda
 from chainer import function
 from collections import defaultdict
 
-import rnn_cells
+import models.rnn_cells as rnn_cells
 
 def function_namer(function, in_data):
     in_shapes = []
@@ -347,18 +349,20 @@ def command_line(arguments = None):
     eos_idx = Vo
     
     # Selecting Attention type
-    attn_cls = models.AttentionModule
+
+    attn_cls = models.attention.AttentionModule
     if args.use_accumulated_attn:
         raise NotImplemented
 #         encdec = models.EncoderDecoder(Vi, args.Ei, args.Hi, Vo + 1, args.Eo, args.Ho, args.Ha, args.Hl,
 #                                        attn_cls= models.AttentionModuleAcumulated,
 #                                        init_orth = args.init_orth)
     if args.use_deep_attn:
-        attn_cls = models.DeepAttentionModule
+        attn_cls = models.attention.DeepAttentionModule
+    
     
     
     # Creating encoder/decoder
-    encdec = models.EncoderDecoder(Vi, args.Ei, args.Hi, Vo + 1, args.Eo, args.Ho, args.Ha, args.Hl,
+    encdec = models.encoder_decoder.EncoderDecoder(Vi, args.Ei, args.Hi, Vo + 1, args.Eo, args.Ho, args.Ha, args.Hl,
                                        init_orth = args.init_orth, use_bn_length = args.use_bn_length,
                                        attn_cls = attn_cls,
                                        encoder_cell_type = rnn_cells.create_cell_model_from_string(args.encoder_cell_type),
