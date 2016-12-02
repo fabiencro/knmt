@@ -24,7 +24,37 @@ log = logging.getLogger("rnns:models")
 log.setLevel(logging.INFO)
 
 
+class CopyMechanism(Chain):
+    def __init__(self, Hi, Ho):
+        super(CopyMechanism, self).__init__(
+            lin = L.Linear(Hi, Ho)
+            )
+        self.Hi = Hi
+        self.Ho = Ho
+        
+    def __call__(self, inpt, mask):
+        mb_size = inpt.data.shape[0]
+        max_length = inpt.data.shape[1]
+        
+        precomp = F.reshape(F.tanh(self.lin(F.reshape(inpt, (-1, self.Hi)))),(mb_size, -1, self.Ho))
+        
+        mask_offset = max_length - len(mask)
 
+        precomp_mask_penalties = self.xp.concatenate(
+                                    [
+                self.xp.zeros((mb_size, mask_offset), dtype = self.xp.float32),
+                        -10000 * (1-self.xp.concatenate([
+                self.xp.reshape(mask_elem, (mb_size, 1)).astype(self.xp.float32) for mask_elem in mask], 1))
+                ], 1
+                )
+
+        
+        def compute_copy_coefficients(state):
+            betas = F.reshape(F.batch_matmul(precomp, state),(mb_size, -1) )
+            masked_betas = betas + precomp_mask_penalties
+            return masked_betas
+        
+        return compute_copy_coefficients
         
 class BNList(ChainList):
     def __init__(self, size, max_length):

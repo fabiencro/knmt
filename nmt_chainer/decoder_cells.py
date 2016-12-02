@@ -26,8 +26,6 @@ logging.basicConfig()
 log = logging.getLogger("rnns:dec")
 log.setLevel(logging.INFO)
 
-
-
 class ConditionalizedDecoderCell(object):
     def __init__(self, decoder_chain, compute_ctxt, mb_size, noise_on_prev_word = False,
                     mode = "test", lexicon_probability_matrix = None, lex_epsilon = 1e-3, demux = False):
