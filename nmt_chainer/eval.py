@@ -10,7 +10,7 @@ import json
 import numpy as np
 from chainer import cuda, serializers
 import sys
-import models
+import models.encoder_decoder
 from make_data import Indexer, build_dataset_one_side
 import make_data
 # from utils import make_batch_src, make_batch_src_tgt, minibatch_provider, compute_bleu_with_unk_as_wrong, de_batch
@@ -229,7 +229,7 @@ def create_encdec_from_config(config_training):
         lexical_probability_dictionary = None
     
     eos_idx = Vo
-    encdec = models.EncoderDecoder(Vi, Ei, Hi, Vo + 1, Eo, Ho, Ha, Hl, use_bn_length = use_bn_length,
+    encdec = models.encoder_decoder.EncoderDecoder(Vi, Ei, Hi, Vo + 1, Eo, Ho, Ha, Hl, use_bn_length = use_bn_length,
                                    encoder_cell_type = rnn_cells.create_cell_model_from_string(encoder_cell_type),
                                        decoder_cell_type = rnn_cells.create_cell_model_from_string(decoder_cell_type),
                                        lexical_probability_dictionary = lexical_probability_dictionary,
