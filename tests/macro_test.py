@@ -93,7 +93,7 @@ class TestMacro:
 
             assert(beam_search_translations == greedy_search_translations)
 
-    def test_compare_beam_search_vs_ensemble_search(self, tmpdir):
+    def test_compare_beam_search_vs_same_ensemble_search(self, tmpdir):
         """
         Compare beam_search and a ensemble_beam_search using 3 identical models and
         check whether the translation results are equal or not.
@@ -134,4 +134,58 @@ class TestMacro:
             print p
 
         assert(beam_search_translations == ensemble_search_translations)
+
+    def test_compare_beam_search_vs_diff_ensemble_search(self, tmpdir):
+        """
+        Compare beam_search and a ensemble_beam_search using 3 different models and
+        check whether the translation results are equal or not.  The results should
+        differ most of the time although in theory, it's possible to be equal.
+        """
+        for i in range(0, 4):
+            print i
+            test_data_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "tests_data")
+            train_dir = tmpdir.mkdir("train_{0}".format(i))
+            data_prefix = str(train_dir.join("test1.data"))
+            train_prefix = str(train_dir.join("test1.train"))
+            data_src_file = os.path.join(test_data_dir, "src2.txt")
+            data_tgt_file = os.path.join(test_data_dir, "tgt2.txt")
+            args = '{0} {1} {2} --dev_src {0} --dev_tgt {1}'.format(
+                data_src_file, data_tgt_file, data_prefix).split(' ')
+            make_data.cmdline(arguments = args)
+            
+            args_train = [data_prefix, train_prefix] + "--max_nb_iters 200 --mb_size 2 --Ei 10 --Eo 12 --Hi 30 --Ha 70 --Ho 15 --Hl 23".split(" ")
+            train.command_line(arguments = args_train)
+
+        train_dir = str(tmpdir.join("train_0"))
+        train_prefix = os.path.join(train_dir, "test1.train")
+        beam_search_eval_dir = tmpdir.mkdir("eval_beam_search")
+        beam_search_file = os.path.join(str(beam_search_eval_dir), 'translations.txt')
+        args_eval_beam_search = [train_prefix + '.train.config', train_prefix + '.model.best.npz', data_src_file, beam_search_file] + '--mode beam_search --beam_width 30'.split(' ') 
+        eval.command_line(arguments = args_eval_beam_search)
+
+        ensemble_search_eval_dir = tmpdir.mkdir("eval_ensemble_search")
+        ensemble_search_file = os.path.join(str(ensemble_search_eval_dir), 'translations.txt')
+        train_dir_1 = str(tmpdir.join("train_1"))
+        train_prefix_1 = os.path.join(train_dir_1, "test1.train")
+        train_dir_2 = str(tmpdir.join("train_2"))
+        train_prefix_2 = os.path.join(train_dir_2, "test1.train")
+        train_dir_3 = str(tmpdir.join("train_3"))
+        train_prefix_3 = os.path.join(train_dir_3, "test1.train")
+        args_eval_ensemble_search = [train_prefix_1 + '.train.config', train_prefix_1 + '.model.best.npz', data_src_file, ensemble_search_file] + \
+            '--mode beam_search --beam_width 30 --additional_training_config {0} {1} --additional_trained_model {2} {3}'.format(
+                train_prefix_2 + '.train.config', train_prefix_3 + '.train.config', train_prefix_2 + '.model.best.npz', train_prefix_3 + '.model.best.npz').split(' ') 
+        eval.command_line(arguments = args_eval_ensemble_search)
+
+        with open(beam_search_file) as f:
+            beam_search_translations = f.readlines()
+        with open(ensemble_search_file) as f:
+            ensemble_search_translations = f.readlines()
+        print "beam_search_translations"
+        for p in beam_search_translations:
+            print p
+        print "ensemble_search_translations"
+        for p in ensemble_search_translations:
+            print p
+
+        assert(beam_search_translations != ensemble_search_translations)
 
