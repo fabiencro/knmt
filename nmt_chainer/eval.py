@@ -90,7 +90,8 @@ def beam_search_all(gpu, encdec, eos_idx, src_data, beam_width, nb_steps, beam_o
        nb_steps_ratio, use_raw_score, 
        groundhog,
        tgt_unk_id, tgt_indexer, force_finish = False,
-       prob_space_combination = False, reverse_encdec = None):
+       prob_space_combination = False, reverse_encdec = None,
+       use_unfinished_translation_if_none_found = False):
     
     log.info("starting beam search translation of %i sentences"% len(src_data))
     if isinstance(encdec, (list, tuple)) and len(encdec) > 1:
@@ -103,7 +104,8 @@ def beam_search_all(gpu, encdec, eos_idx, src_data, beam_width, nb_steps, beam_o
                                     need_attention = True, score_is_divided_by_length = not use_raw_score,
                                     groundhog = groundhog, force_finish = force_finish,
                                     prob_space_combination = prob_space_combination,
-                                    reverse_encdec = reverse_encdec)
+                                    reverse_encdec = reverse_encdec,
+                                    use_unfinished_translation_if_none_found = use_unfinished_translation_if_none_found)
         
         for num_t, (t, score, attn) in enumerate(translations_gen):
             if num_t %200 == 0:
@@ -137,7 +139,8 @@ def translate_to_file_with_beam_search(dest_fn, gpu, encdec, eos_idx, src_data, 
        groundhog,
        tgt_unk_id, tgt_indexer, force_finish = False,
        prob_space_combination = False, reverse_encdec = None, 
-       generate_attention_html = None, src_indexer = None, rich_output_filename = None):
+       generate_attention_html = None, src_indexer = None, rich_output_filename = None,
+       use_unfinished_translation_if_none_found = False):
     
     log.info("writing translation to %s "% dest_fn)
     out = codecs.open(dest_fn, "w", encoding = "utf8")
@@ -146,7 +149,8 @@ def translate_to_file_with_beam_search(dest_fn, gpu, encdec, eos_idx, src_data, 
        nb_steps_ratio, use_raw_score, 
        groundhog,
        tgt_unk_id, tgt_indexer, force_finish = force_finish,
-       prob_space_combination = prob_space_combination, reverse_encdec = reverse_encdec)
+       prob_space_combination = prob_space_combination, reverse_encdec = reverse_encdec,
+       use_unfinished_translation_if_none_found = use_unfinished_translation_if_none_found)
     
     
     attn_vis = None
@@ -404,7 +408,8 @@ def command_line(arguments = None):
                                            reverse_encdec = reverse_encdec,
                                            generate_attention_html = args.generate_attention_html,
                                            src_indexer = src_indexer,
-                                           rich_output_filename = args.rich_output_filename)
+                                           rich_output_filename = args.rich_output_filename,
+                                           use_unfinished_translation_if_none_found = True)
             
     elif args.mode == "eval_bleu":
 #         assert args.ref is not None
@@ -417,7 +422,8 @@ def command_line(arguments = None):
                                            reverse_encdec = reverse_encdec,
                                            generate_attention_html = args.generate_attention_html,
                                            src_indexer = src_indexer,
-                                           rich_output_filename = args.rich_output_filename)
+                                           rich_output_filename = args.rich_output_filename,
+                                           use_unfinished_translation_if_none_found = True)
         
         if args.ref is not None:
             bc = bleu_computer.get_bc_from_files(args.ref, args.dest_fn)
