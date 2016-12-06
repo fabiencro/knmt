@@ -197,7 +197,7 @@ def advance_one_step(dec_cell_ensemble, eos_idx, current_translations_states, be
 
 def ensemble_beam_search(model_ensemble, src_batch, src_mask, nb_steps, eos_idx, beam_width = 20, need_attention = False,
                          force_finish = False,
-                         prob_space_combination = False):
+                         prob_space_combination = False, use_unfinished_translation_if_none_found = False):
     
     mb_size = src_batch[0].data.shape[0]
     assert len(model_ensemble) >= 1
@@ -241,10 +241,18 @@ def ensemble_beam_search(model_ensemble, src_batch, src_mask, nb_steps, eos_idx,
         
     # Return finished translations
     if len (finished_translations) == 0:
-        if need_attention:
-            finished_translations.append(([], 0, []))
+        if use_unfinished_translation_if_none_found:
+            assert current_translations_states is not None
+            if need_attention:
+                translations, scores, _, _, attentions = current_translations_states
+                finished_translations.append((translations[0], scores[0], attentions[0]))
+            else:
+                finished_translations.append((translations[0], scores[0]))
         else:
-            finished_translations.append(([], 0))
+            if need_attention:
+                finished_translations.append(([], 0, []))
+            else:
+                finished_translations.append(([], 0))
     return finished_translations
 
 
