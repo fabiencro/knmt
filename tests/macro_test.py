@@ -10,10 +10,11 @@ import nmt_chainer.make_data as make_data
 import nmt_chainer.train as train
 import nmt_chainer.eval as eval
 import os.path
+import pytest
 
 class TestMacro:
-
-    def test_overfitting(self, tmpdir):
+    
+    def test_overfitting(self, tmpdir, gpu):
         """
         Test whether the translation results are equal to the target translations or not 
         when the model is overtrained.
@@ -29,11 +30,15 @@ class TestMacro:
         make_data.cmdline(arguments = args)
         
         args_train = [data_prefix, train_prefix] + "--max_nb_iters 1000 --mb_size 2 --Ei 10 --Eo 12 --Hi 30 --Ha 70 --Ho 15 --Hl 23".split(" ")
+        if gpu is not None:
+            args_train += ['--gpu', gpu]
         train.command_line(arguments = args_train)
 
         eval_dir = tmpdir.mkdir("eval")
         translation_file = os.path.join(str(eval_dir), 'translations.txt')
         args_eval = [train_prefix + '.train.config', train_prefix + '.model.best.npz', data_src_file, translation_file] + '--mode beam_search --beam_width 30'.split(' ') 
+        if gpu is not None:
+            args_eval += ['--gpu', gpu]
         eval.command_line(arguments = args_eval)
 
         with open(data_tgt_file) as f:
@@ -49,7 +54,7 @@ class TestMacro:
 
         assert(actual_translations == expected_translations)
 
-    def test_compare_beam_search_vs_greedy_search(self, tmpdir):
+    def test_compare_beam_search_vs_greedy_search(self, tmpdir, gpu):
         """
         Compare a beam search using a width of 1 with a greedy search and check
         whether the translation results are equal or not.
@@ -68,16 +73,22 @@ class TestMacro:
             make_data.cmdline(arguments = args)
             
             args_train = [data_prefix, train_prefix] + "--max_nb_iters 200 --mb_size 2 --Ei 10 --Eo 12 --Hi 30 --Ha 70 --Ho 15 --Hl 23".split(" ")
+            if gpu is not None:
+                args_train += ['--gpu', gpu]
             train.command_line(arguments = args_train)
 
             beam_search_eval_dir = tmpdir.mkdir("eval_beam_search_{0}".format(i))
             beam_search_file = os.path.join(str(beam_search_eval_dir), 'translations.txt')
             args_eval = [train_prefix + '.train.config', train_prefix + '.model.best.npz', data_src_file, beam_search_file] + '--mode beam_search --beam_width 1'.split(' ') 
+            if gpu is not None:
+                args_eval += ['--gpu', gpu]
             eval.command_line(arguments = args_eval)
 
             greedy_search_eval_dir = tmpdir.mkdir("eval_greedy_search_{0}".format(i))
             greedy_search_file = os.path.join(str(greedy_search_eval_dir), 'translations.txt')
             args_eval = [train_prefix + '.train.config', train_prefix + '.model.best.npz', data_src_file, greedy_search_file] + '--mode translate'.split(' ') 
+            if gpu is not None:
+                args_eval += ['--gpu', gpu]
             eval.command_line(arguments = args_eval)
 
             with open(beam_search_file) as f:
@@ -93,7 +104,7 @@ class TestMacro:
 
             assert(beam_search_translations == greedy_search_translations)
 
-    def test_compare_beam_search_vs_same_ensemble_search(self, tmpdir):
+    def test_compare_beam_search_vs_same_ensemble_search(self, tmpdir, gpu):
         """
         Compare beam_search and a ensemble_beam_search using 3 identical models and
         check whether the translation results are equal or not.
@@ -109,17 +120,23 @@ class TestMacro:
         make_data.cmdline(arguments = args)
         
         args_train = [data_prefix, train_prefix] + "--max_nb_iters 200 --mb_size 2 --Ei 10 --Eo 12 --Hi 30 --Ha 70 --Ho 15 --Hl 23".split(" ")
+        if gpu is not None:
+            args_train += ['--gpu', gpu]
         train.command_line(arguments = args_train)
 
         beam_search_eval_dir = tmpdir.mkdir("eval_beam_search")
         beam_search_file = os.path.join(str(beam_search_eval_dir), 'translations.txt')
         args_eval = [train_prefix + '.train.config', train_prefix + '.model.best.npz', data_src_file, beam_search_file] + '--mode beam_search --beam_width 30'.split(' ') 
+        if gpu is not None:
+            args_eval += ['--gpu', gpu]
         eval.command_line(arguments = args_eval)
 
         ensemble_search_eval_dir = tmpdir.mkdir("eval_ensemble_search")
         ensemble_search_file = os.path.join(str(ensemble_search_eval_dir), 'translations.txt')
         args_eval = [train_prefix + '.train.config', train_prefix + '.model.best.npz', data_src_file, ensemble_search_file] + \
             '--mode beam_search --beam_width 30 --additional_training_config {0} {0} --additional_trained_model {1} {1}'.format(train_prefix + '.train.config', train_prefix + '.model.best.npz').split(' ') 
+        if gpu is not None:
+            args_eval += ['--gpu', gpu]
         eval.command_line(arguments = args_eval)
 
         with open(beam_search_file) as f:
@@ -135,7 +152,7 @@ class TestMacro:
 
         assert(beam_search_translations == ensemble_search_translations)
 
-    def test_compare_beam_search_vs_diff_ensemble_search(self, tmpdir):
+    def test_compare_beam_search_vs_diff_ensemble_search(self, tmpdir, gpu):
         """
         Compare beam_search and a ensemble_beam_search using 3 different models and
         check whether the translation results are equal or not.  The results should
@@ -154,6 +171,8 @@ class TestMacro:
             make_data.cmdline(arguments = args)
             
             args_train = [data_prefix, train_prefix] + "--max_nb_iters 200 --mb_size 2 --Ei 10 --Eo 12 --Hi 30 --Ha 70 --Ho 15 --Hl 23".split(" ")
+            if gpu is not None:
+                args_train += ['--gpu', gpu]
             train.command_line(arguments = args_train)
 
         train_dir = str(tmpdir.join("train_0"))
@@ -161,6 +180,8 @@ class TestMacro:
         beam_search_eval_dir = tmpdir.mkdir("eval_beam_search")
         beam_search_file = os.path.join(str(beam_search_eval_dir), 'translations.txt')
         args_eval_beam_search = [train_prefix + '.train.config', train_prefix + '.model.best.npz', data_src_file, beam_search_file] + '--mode beam_search --beam_width 30'.split(' ') 
+        if gpu is not None:
+            args_eval_beam_search += ['--gpu', gpu]
         eval.command_line(arguments = args_eval_beam_search)
 
         ensemble_search_eval_dir = tmpdir.mkdir("eval_ensemble_search")
@@ -174,6 +195,8 @@ class TestMacro:
         args_eval_ensemble_search = [train_prefix_1 + '.train.config', train_prefix_1 + '.model.best.npz', data_src_file, ensemble_search_file] + \
             '--mode beam_search --beam_width 30 --additional_training_config {0} {1} --additional_trained_model {2} {3}'.format(
                 train_prefix_2 + '.train.config', train_prefix_3 + '.train.config', train_prefix_2 + '.model.best.npz', train_prefix_3 + '.model.best.npz').split(' ') 
+        if gpu is not None:
+            args_eval_ensemble_search += ['--gpu', gpu]
         eval.command_line(arguments = args_eval_ensemble_search)
 
         with open(beam_search_file) as f:
