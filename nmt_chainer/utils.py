@@ -266,7 +266,6 @@ def de_batch(batch, mask = None, eos_idx = None, is_variable = False, raw = Fals
         batch is a list of Variable/numpy/cupy of shape[0] <= mb_size
         
         returns a list of the sequences in the batch
-    
     """
     res = []  
     mb_size = len(batch[0].data) if is_variable else len(batch[0])
