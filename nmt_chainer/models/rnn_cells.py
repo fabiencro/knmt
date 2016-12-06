@@ -194,6 +194,31 @@ class StackedCell(ChainList):
         return res
     
     
+class NStepsCell(Chain):
+    def __init__(self, in_size, out_size, nb_stacks, dropout):
+        super(NStepsCell, self).__init__(
+            nstep_lstm = L.NStepLSTM(nb_stacks, in_size, out_size, dropout)
+            )
+        self.add_param("initial_state", (nb_stacks, 1, out_size))
+        self.initial_state.data[...] = self.xp.random.randn(nb_stacks, 1, out_size)
+        self.add_persistent("initial_cell", self.xp.zeros((nb_stacks, 1, out_size), dtype = self.xp.float32))
+        
+        self.nb_stacks = nb_stacks
+        self.out_size = out_size
+        self.in_size = in_size
+    
+    def get_initial_states(self, mb_size):
+        mb_initial_state = F.broadcast_to(self.initial_state, (self.nb_stacks, mb_size, self.out_size))
+        mb_initial_cell = Variable(self.xp.broadcast_to(self.initial_cell, (self.nb_stacks, mb_size, self.out_size)), volatile = "auto")
+        return (mb_initial_cell, mb_initial_state)
+    
+    def apply_to_seq(self, seq_list, mode = "test"):
+        assert mode in "test train".split()
+        mb_size = len(seq_list)
+        mb_initial_cell, mb_initial_state = self.get_initial_states(mb_size)
+        return self.nstep_lstm(mb_initial_cell, mb_initial_state, seq_list, train = mode == "train")
+
+    
 # class DoubleGRU(Chain):
 #     def __init__(self, H, I):
 #         log.info("using double GRU")
@@ -218,7 +243,8 @@ cell_dict = {
              "stack": StackedCell,
              "slow_gru": GRUCell,
              "gru": FastGRUCell,
-             "glstm": GatedLSTMCell
+             "glstm": GatedLSTMCell,
+             "nsteps": NStepsCell
              }
 
 # has_dropout = set(["dlno_dropout_on_input = Falsestm"])
@@ -254,14 +280,16 @@ def create_cell_model(type_str, **cell_parameters):
         raise ValueError("bad cell type: %s (possible types: %s)"%
                              (type_str, " ".join(cell_dict.keys())))
     cell_type = cell_dict[type_str]
-    if type_str == "dlstm" or type_str == "stack":
+    if type_str == "dlstm" or type_str == "stack" or type_str == "nsteps":
         def instantiate(in_size, out_size):
-            return cell_type(in_size, out_size, **cell_parameters)        
+            return cell_type(in_size, out_size, **cell_parameters)
+        instantiate.meta_data_cell_type = cell_type   
     else:
         if len(cell_parameters) != 0:
             raise ValueError("unexpected cell parameters: %r" % cell_parameters)
         def instantiate(in_size, out_size):
             return cell_type(in_size, out_size)
+        instantiate.meta_data_cell_type = cell_type
     return instantiate
         
         

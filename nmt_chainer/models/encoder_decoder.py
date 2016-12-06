@@ -462,7 +462,7 @@ class ConstantFunction(chainer.Function):
 #         return total_score
 
 import decoder_cells
-from encoders import Encoder
+import encoders
 
 class EncoderDecoder(Chain):
     """ Do RNNSearch Encoding/Decoding
@@ -496,7 +496,7 @@ class EncoderDecoder(Chain):
         log.info("constructing encoder decoder with Vi:%i Ei:%i Hi:%i Vo:%i Eo:%i Ho:%i Ha:%i Hl:%i" % 
                                         (Vi, Ei, Hi, Vo, Eo, Ho, Ha, Hl))
         super(EncoderDecoder, self).__init__(
-            enc = Encoder(Vi, Ei, Hi, init_orth = init_orth, use_bn_length = use_bn_length,
+            enc = encoders.make_encoder(Vi, Ei, Hi, init_orth = init_orth, use_bn_length = use_bn_length,
                           cell_type = encoder_cell_type),
             dec = decoder_cells.Decoder(Vo, Eo, Ho, Ha, 2 * Hi, Hl, attn_cls = attn_cls, init_orth = init_orth, 
                           cell_type = decoder_cell_type)

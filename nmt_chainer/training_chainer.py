@@ -451,43 +451,44 @@ def train_on_data_chainer(encdec, optimizer, training_data, output_files_dict,
 #     trainer.extend(chainer.training.extensions.PrintReport(['epoch', 'iteration', 'trg_loss', "dev_loss", "dev_bleu"]), 
 #                    trigger = (1, "iteration"))
     
+    if not no_report_or_save:
     
-    if dev_data is not None:
-        dev_loss_extension = ComputeLossExtension(dev_data, eos_idx, 
-                     mb_size, gpu, reverse_src, reverse_tgt,
-                     save_best_model_to = output_files_dict["model_best_loss"], 
-                     observation_name = "dev_loss")
-        trainer.extend(dev_loss_extension, trigger = (report_every, "iteration"))
+        if dev_data is not None:
+            dev_loss_extension = ComputeLossExtension(dev_data, eos_idx, 
+                         mb_size, gpu, reverse_src, reverse_tgt,
+                         save_best_model_to = output_files_dict["model_best_loss"], 
+                         observation_name = "dev_loss")
+            trainer.extend(dev_loss_extension, trigger = (report_every, "iteration"))
+            
+            
+            dev_bleu_extension = ComputeBleuExtension(dev_data, eos_idx, src_indexer, tgt_indexer,
+                         output_files_dict["dev_translation_output"],
+                         output_files_dict["dev_src_output"],
+                         mb_size, gpu, reverse_src, reverse_tgt,
+                         save_best_model_to = output_files_dict["model_best"],
+                         observation_name = "dev_bleu")
+            
+            trainer.extend(dev_bleu_extension, trigger = (report_every, "iteration"))
         
+        if test_data is not None:
+            test_loss_extension = ComputeLossExtension(test_data, eos_idx, 
+                         mb_size, gpu, reverse_src, reverse_tgt,
+                         observation_name = "test_loss")
+            trainer.extend(test_loss_extension, trigger = (report_every, "iteration"))
+            
+            
+            test_bleu_extension = ComputeBleuExtension(test_data, eos_idx, src_indexer, tgt_indexer,
+                         output_files_dict["test_translation_output"],
+                         output_files_dict["test_src_output"],
+                         mb_size, gpu, reverse_src, reverse_tgt,
+                         observation_name = "test_bleu")
+            
+            trainer.extend(test_bleu_extension, trigger = (report_every, "iteration"))
         
-        dev_bleu_extension = ComputeBleuExtension(dev_data, eos_idx, src_indexer, tgt_indexer,
-                     output_files_dict["dev_translation_output"],
-                     output_files_dict["dev_src_output"],
-                     mb_size, gpu, reverse_src, reverse_tgt,
-                     save_best_model_to = output_files_dict["model_best"],
-                     observation_name = "dev_bleu")
+        trainer.extend(sample_extension, trigger = (sample_every, "iteration"))
         
-        trainer.extend(dev_bleu_extension, trigger = (report_every, "iteration"))
-    
-    if test_data is not None:
-        test_loss_extension = ComputeLossExtension(test_data, eos_idx, 
-                     mb_size, gpu, reverse_src, reverse_tgt,
-                     observation_name = "test_loss")
-        trainer.extend(test_loss_extension, trigger = (report_every, "iteration"))
+        trainer.extend(chainer.training.extensions.snapshot(), trigger = (save_ckpt_every, "iteration"))
         
-        
-        test_bleu_extension = ComputeBleuExtension(test_data, eos_idx, src_indexer, tgt_indexer,
-                     output_files_dict["test_translation_output"],
-                     output_files_dict["test_src_output"],
-                     mb_size, gpu, reverse_src, reverse_tgt,
-                     observation_name = "test_bleu")
-        
-        trainer.extend(test_bleu_extension, trigger = (report_every, "iteration"))
-    
-    trainer.extend(sample_extension, trigger = (sample_every, "iteration"))
-    
-    trainer.extend(chainer.training.extensions.snapshot(), trigger = (save_ckpt_every, "iteration"))
-    
     trainer.extend(TrainingLossSummaryExtension(trigger = (report_every, "iteration")))
     
     trainer.extend(SqliteLogExtension(db_path = output_files_dict["sqlite_db"]))
@@ -495,9 +496,10 @@ def train_on_data_chainer(encdec, optimizer, training_data, output_files_dict,
     try:
         trainer.run()
     except:
-        final_snapshot_fn = "final.npz"
-        log.info("Exception met. Trying to save current trainer state to file %s" % final_snapshot_fn)
-        chainer.training.extensions.snapshot(filename = final_snapshot_fn)(trainer)
-        log.info("Saved trainer snapshot to file %s" % final_snapshot_fn)
+        if not no_report_or_save:
+            final_snapshot_fn = "final.npz"
+            log.info("Exception met. Trying to save current trainer state to file %s" % final_snapshot_fn)
+            chainer.training.extensions.snapshot(filename = final_snapshot_fn)(trainer)
+            log.info("Saved trainer snapshot to file %s" % final_snapshot_fn)
         raise
         
