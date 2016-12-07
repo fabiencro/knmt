@@ -41,6 +41,8 @@ class DataPreparationPipeline:
 		self.args = args
 		self.save_prefix = args.save_prefix
 		self.merge_operations = args.num_bpe_merge_operations
+		self.is_multisource = args.is_multisource
+		self.drop_source_sentences = args.drop_source_sentences
 		self.min_frequency = 2
 		self.verbose = True
 		self.joint_bpe_model = args.joint_bpe_model
@@ -365,23 +367,45 @@ class DataPreparationPipeline:
 		log.info("Generating data for MLNMT")
 		mlnmt_src_file = self.mlnmt_src_file
 		mlnmt_tgt_file = self.mlnmt_tgt_file
-		log.info("Writing merged source and target files at %s and %s respectively" % (mlnmt_src_file, mlnmt_tgt_file))
-		for i in range(len(self.srcs)):
-			log.info("Processing: %s and %s" % (self.save_prefix + "/" + self.srcs[i] + "-" + self.tgts[i] + "." + self.srcs[i] + "." +train_dev_test + ".segmented", self.save_prefix + "/" + self.srcs[i] + "-" + self.tgts[i] + "." + self.tgts[i] + "." +train_dev_test + ".segmented"))
-			src_file = io.open(self.save_prefix + "/" + self.srcs[i] + "-" + self.tgts[i] + "." + self.srcs[i] + "." +train_dev_test + ".segmented", encoding="utf-8")
-			tgt_file = io.open(self.save_prefix + "/" + self.srcs[i] + "-" + self.tgts[i] + "." + self.tgts[i] + "." +train_dev_test + ".segmented", encoding="utf-8")
-			src_lang = self.srcs[i]
-			tgt_lang = self.tgts[i]
-			oversample_ratio = 1.0
-			if train_dev_test == "train":
-				num_lines = self.all_corpora_sizes[self.src_corpora[i] + self.tgt_corpora[i]]
-				if num_lines != self.largest_corpus_size:
-					oversample_ratio = 1.0 * self.largest_corpus_size / num_lines
-			log.info("Oversampling ratio is %f" % oversample_ratio)
-			self.oversample_corpus_and_write(src_file, tgt_file, src_lang, tgt_lang, mlnmt_src_file, mlnmt_tgt_file, oversample_ratio)
-			mlnmt_src_file.flush()
-			mlnmt_tgt_file.flush()
+		if self.is_multisource:
+			assert len(set(self.tgts)) == 1
+			a = self.all_corpora_sizes.values()
+			assert len(set(a)) == 1
+			#assert all(e == a[0] for e in a)
+			log.info("Generating multisource data and writing to %s and %s" % (mlnmt_src_file, mlnmt_tgt_file))
+			total_lines = a[0]
+			all_source_files = [io.open(self.save_prefix + "/" + self.srcs[i] + "-" + self.tgts[i] + "." + self.srcs[i] + "." +train_dev_test + ".segmented", encoding="utf-8") for i in range(len(self.srcs))]
+			tgt_file = io.open(self.save_prefix + "/" + self.srcs[0] + "-" + self.tgts[0] + "." + self.tgts[0] + "." +train_dev_test + ".segmented", encoding="utf-8")
+			for j in xrange(total_lines):
+				all_source_sents = [src_sent_file[i].readline().strip() for i in range(len(self.srcs))]
+				final_src_sents = self.generate_sentence_dropped_multisource_sentences(all_source_sents)
+				final_tgt_sent = tgt_file.readline().strip() + "\n"
+				for final_src_sent in final_src_sents:
+					mlnmt_src_file.write(final_src_sent)
+					mlnmt_tgt_file.write(final_tgt_sent)
+				mlnmt_src_file.flush()
+				mlnmt_tgt_file.flush()
+			mlnmt_src_file.close()
+			mlnmt_tgt_file.close()
 			log.info("Done")
+		else:
+			log.info("Writing merged source and target files at %s and %s respectively" % (mlnmt_src_file, mlnmt_tgt_file))
+			for i in range(len(self.srcs)):
+				log.info("Processing: %s and %s" % (self.save_prefix + "/" + self.srcs[i] + "-" + self.tgts[i] + "." + self.srcs[i] + "." +train_dev_test + ".segmented", self.save_prefix + "/" + self.srcs[i] + "-" + self.tgts[i] + "." + self.tgts[i] + "." +train_dev_test + ".segmented"))
+				src_file = io.open(self.save_prefix + "/" + self.srcs[i] + "-" + self.tgts[i] + "." + self.srcs[i] + "." +train_dev_test + ".segmented", encoding="utf-8")
+				tgt_file = io.open(self.save_prefix + "/" + self.srcs[i] + "-" + self.tgts[i] + "." + self.tgts[i] + "." +train_dev_test + ".segmented", encoding="utf-8")
+				src_lang = self.srcs[i]
+				tgt_lang = self.tgts[i]
+				oversample_ratio = 1.0
+				if train_dev_test == "train":
+					num_lines = self.all_corpora_sizes[self.src_corpora[i] + self.tgt_corpora[i]]
+					if num_lines != self.largest_corpus_size:
+						oversample_ratio = 1.0 * self.largest_corpus_size / num_lines
+				log.info("Oversampling ratio is %f" % oversample_ratio)
+				self.oversample_corpus_and_write(src_file, tgt_file, src_lang, tgt_lang, mlnmt_src_file, mlnmt_tgt_file, oversample_ratio)
+				mlnmt_src_file.flush()
+				mlnmt_tgt_file.flush()
+				log.info("Done")
 		mlnmt_src_file.close()
 		mlnmt_tgt_file.close()
 		log.info("MLNMT data has been generated")
@@ -390,21 +414,54 @@ class DataPreparationPipeline:
 		log.info("Merging raw, unsegmented evaluation data for references")
 		mlnmt_src_file = self.mlnmt_src_file
 		mlnmt_tgt_file = self.mlnmt_tgt_file
-		log.info("Writing merged source and target raw files at %s and %s respectively" % (mlnmt_src_file, mlnmt_tgt_file))
-		for i in range(len(self.srcs)):
-			log.info("Processing: %s and %s" % (self.src_corpora[i], self.tgt_corpora[i]))
-			src_file = io.open(self.src_corpora[i], encoding="utf-8")
+		if self.is_multisource:
+			assert len(set(self.tgts)) == 1
+			a = self.all_corpora_sizes.values()
+			assert len(set(a)) == 1
+			#assert all(e == a[0] for e in a)
+			log.info("Generating multisource data and writing to %s and %s" % (mlnmt_src_file, mlnmt_tgt_file))
+			total_lines = a[0]
+			all_source_files = [io.open(self.src_corpora[i], encoding="utf-8") for i in range(len(self.srcs))]
 			tgt_file = io.open(self.tgt_corpora[i], encoding="utf-8")
-			src_lang = self.srcs[i]
-			tgt_lang = self.tgts[i]
-			oversample_ratio = 1.0
-			self.oversample_corpus_and_write(src_file, tgt_file, src_lang, tgt_lang, mlnmt_src_file, mlnmt_tgt_file, oversample_ratio)
-			mlnmt_src_file.flush()
-			mlnmt_tgt_file.flush()
+			for j in xrange(total_lines):
+				all_source_sents = [src_sent_file[i].readline().strip() for i in range(len(self.srcs))]
+				final_src_sents = self.generate_sentence_dropped_multisource_sentences(all_source_sents)
+				final_tgt_sent = tgt_file.readline().strip() + "\n"
+				for final_src_sent in final_src_sents:
+					mlnmt_src_file.write(final_src_sent)
+					mlnmt_tgt_file.write(final_tgt_sent)
+				mlnmt_src_file.flush()
+				mlnmt_tgt_file.flush()
+			mlnmt_src_file.close()
+			mlnmt_tgt_file.close()
 			log.info("Done")
+		else:
+			log.info("Writing merged source and target raw files at %s and %s respectively" % (mlnmt_src_file, mlnmt_tgt_file))
+			for i in range(len(self.srcs)):
+				log.info("Processing: %s and %s" % (self.src_corpora[i], self.tgt_corpora[i]))
+				src_file = io.open(self.src_corpora[i], encoding="utf-8")
+				tgt_file = io.open(self.tgt_corpora[i], encoding="utf-8")
+				src_lang = self.srcs[i]
+				tgt_lang = self.tgts[i]
+				oversample_ratio = 1.0
+				self.oversample_corpus_and_write(src_file, tgt_file, src_lang, tgt_lang, mlnmt_src_file, mlnmt_tgt_file, oversample_ratio)
+				mlnmt_src_file.flush()
+				mlnmt_tgt_file.flush()
+				log.info("Done")
 		mlnmt_src_file.close()
 		mlnmt_tgt_file.close()
 		log.info("Raw MLNMT data has been generated")
+
+	def generate_sentence_dropped_multisource_sentences(self, all_source_sents):
+		final_src_sents = [" ".join(all_source_sents) + "\n"]
+		if self.drop_source_sentences:
+			max_drops = len(all_source_sents)-1
+			for i in range(max_drops):
+				drop_index = random.randint(0, len(all_source_sents))
+				all_source_sents.pop(drop_index)
+				final_src_sents.append(" ".join(all_source_sents) + "\n")
+		return final_src_sents
+
 
 	def oversample_corpus_and_write(self, src_file, tgt_file, src_lang, tgt_lang, mlnmt_src_file, mlnmt_tgt_file, oversample_ratio):
 		for src_line, tgt_line in zip(src_file, tgt_file):
@@ -448,6 +505,8 @@ if __name__ == '__main__':
 	parser.add_argument("--joint_bpe_model", default=False, action = "store_true", help="Do you want to learn a single BPE model for both the source and target side corpora so that the merge operations are consistent on both sides? This might be useful in the cases where the languages share cognates.")
 	parser.add_argument("--max_src_vocab", type=int, default=None, help="Maximum number of source side symbols desired. This will automatically limit the number of BPE merge operations by stopping when this limit has been reached.  When the joint_bpe_model flag has been specified the limit will be decided by the value of this flag.")
 	parser.add_argument("--max_tgt_vocab", type=int, default=None, help="Maximum number of target side symbols desired. This will automatically limit the number of BPE merge operations by stopping when this limit has been reached. When the joint_bpe_model flag has been specified the limit will be decided by the value of the max_src_vocab flag.")
+	parser.add_argument("--is_multisource", default=False, action = "store_true", help="Do you want to generate multisource data? This assumes that the target side of each sentence is the same.")
+	parser.add_argument("--drop_source_sentences", default=False, action = "store_true", help="Do you want to generate multisource data with randomly dropped source sentences? Is to ensure that the NMT system becomes robust enough to deal with situations where multiple source sentences might not exist.")
 	args = parser.parse_args()
 		
 	dpp = DataPreparationPipeline(args)
