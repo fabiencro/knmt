@@ -40,24 +40,20 @@ class PrePostProcessor:
 		raise "Not Implemented"
 
 class BPEPrePostProcessor(PrePostProcessor):
-	def __init__(self, is_multitarget = False, target_language = None):
-		self.is_multitarget = is_multitarget
+	def __init__(self, target_language = None):
 		self.target_language = target_language
-		if is_multitarget:
-			assert target_language is not None
-		self.prefix = "<2" + target_language + "> " if is_multitarget else ""
+		self.prefix = "<2" + target_language + "> " if target_language else ""
 		log.info("Initializing the prepostprocessor")
 
 	def apply_postprocessing(self, input_data_file, output_data_file):
 		log.info("Applying post-processing to %s" % input_data_file)
 		output_data_file = io.open(output_data_file, 'w', encoding="utf-8")
 		for input_data in io.open(input_data_file, encoding="utf-8"):
-			if self.is_multitarget:
+			if self.target_language:
 				input_data = re.sub(r'^<2..> ', '', input_data)
 			output_data_file.write(input_data.replace(self.bpe.separator+ " ", "").strip() + "\n")
 		output_data_file.flush()
 		output_data_file.close()
-		input_data_file.close()
 		log.info("post-processing done")
 
 		
@@ -68,7 +64,6 @@ class BPEPrePostProcessor(PrePostProcessor):
 			output_data_file.write(self.prefix + self.bpe.segment(input_data).strip() + "\n")
 		output_data_file.flush()
 		output_data_file.close()
-		input_data_file.close()
 		log.info("pre-processing done")
 		
 	def load_model(self, model_path):
