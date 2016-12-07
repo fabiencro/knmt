@@ -370,6 +370,7 @@ class DataPreparationPipeline:
 		if self.is_multisource:
 			assert len(set(self.tgts)) == 1
 			a = self.all_corpora_sizes.values()
+			#print a
 			assert len(set(a)) == 1
 			#assert all(e == a[0] for e in a)
 			log.info("Generating multisource data and writing to %s and %s" % (mlnmt_src_file, mlnmt_tgt_file))
@@ -377,7 +378,7 @@ class DataPreparationPipeline:
 			all_source_files = [io.open(self.save_prefix + "/" + self.srcs[i] + "-" + self.tgts[i] + "." + self.srcs[i] + "." +train_dev_test + ".segmented", encoding="utf-8") for i in range(len(self.srcs))]
 			tgt_file = io.open(self.save_prefix + "/" + self.srcs[0] + "-" + self.tgts[0] + "." + self.tgts[0] + "." +train_dev_test + ".segmented", encoding="utf-8")
 			for j in xrange(total_lines):
-				all_source_sents = [src_sent_file[i].readline().strip() for i in range(len(self.srcs))]
+				all_source_sents = [all_source_files[i].readline().strip() for i in range(len(self.srcs))]
 				final_src_sents = self.generate_sentence_dropped_multisource_sentences(all_source_sents)
 				final_tgt_sent = tgt_file.readline().strip() + "\n"
 				for final_src_sent in final_src_sents:
@@ -424,7 +425,7 @@ class DataPreparationPipeline:
 			all_source_files = [io.open(self.src_corpora[i], encoding="utf-8") for i in range(len(self.srcs))]
 			tgt_file = io.open(self.tgt_corpora[i], encoding="utf-8")
 			for j in xrange(total_lines):
-				all_source_sents = [src_sent_file[i].readline().strip() for i in range(len(self.srcs))]
+				all_source_sents = [all_source_files[i].readline().strip() for i in range(len(self.srcs))]
 				final_src_sents = self.generate_sentence_dropped_multisource_sentences(all_source_sents)
 				final_tgt_sent = tgt_file.readline().strip() + "\n"
 				for final_src_sent in final_src_sents:
@@ -457,7 +458,7 @@ class DataPreparationPipeline:
 		if self.drop_source_sentences:
 			max_drops = len(all_source_sents)-1
 			for i in range(max_drops):
-				drop_index = random.randint(0, len(all_source_sents))
+				drop_index = random.randint(0, len(all_source_sents)-1)
 				all_source_sents.pop(drop_index)
 				final_src_sents.append(" ".join(all_source_sents) + "\n")
 		return final_src_sents
