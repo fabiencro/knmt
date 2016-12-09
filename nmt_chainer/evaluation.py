@@ -171,7 +171,7 @@ def beam_search_translate(encdec, eos_idx, src_data, beam_width = 20, nb_steps =
                           need_attention = False, nb_steps_ratio = None, score_is_divided_by_length = True, 
                           groundhog = False, force_finish = False,
                           prob_space_combination = False,
-                          reverse_encdec = None):
+                          reverse_encdec = None, all_activations = None):
     nb_ex = len(src_data)
 #     res = []
     for i in range(nb_ex):
@@ -188,13 +188,13 @@ def beam_search_translate(encdec, eos_idx, src_data, beam_width = 20, nb_steps =
 #                                           beam_width = beam_width,
 #                                           beam_opt = beam_opt, need_attention = need_attention,
 #                                     groundhog = groundhog)
-        
+        activations = [] if all_activations is not None else None
         if not isinstance(encdec, (tuple, list)):
             encdec = [encdec]
         translations = beam_search.ensemble_beam_search(encdec, src_batch, src_mask, nb_steps = nb_steps, eos_idx = eos_idx, 
                                           beam_width = beam_width,
                                           need_attention = need_attention, force_finish = force_finish,
-                                          prob_space_combination = prob_space_combination)
+                                          prob_space_combination = prob_space_combination, activations = activations)
 
         
         #TODO: This is a quick patch, but actually ensemble_beam_search probably should not return empty translations except when no translation found

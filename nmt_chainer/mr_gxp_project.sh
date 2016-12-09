@@ -5,6 +5,7 @@ input_file=$4
 reference_file=$5
 ppp_path=$6
 tgt_lang=$7
+decoding_method=$8
 
 
 rm -rf $save_path
@@ -20,7 +21,7 @@ echo "Number of shards to be processed:" $num_shards
 
 for i in `seq -w 0 999 | head -$num_shards`
 do
-	echo "bash /home/raj/softwares-and-scripts/NNProjects/knmt/nmt_chainer/mr_project.sh $model_config $model_path $save_path/src-shard-$i $save_path/tgt-shard-$i $ppp_path $tgt_lang"
+	echo "bash /home/raj/softwares-and-scripts/NNProjects/knmt/nmt_chainer/mr_project.sh $model_config $model_path $save_path/src-shard-$i $save_path/tgt-shard-$i $ppp_path $tgt_lang $decoding_method"
 done > $save_path/gxp_instructions
 
 source /home/raj/gxprc
@@ -39,4 +40,4 @@ do
 	cat $save_path/src-shard-$i.trans.restored >> $save_path/src-shard.trans.restored.merged
 done
 
-#paste $save_path/src-shard $save_path/src-shard.trans.restored.merged $save_path/tgt-shard > $save_path/all_labels
+paste $input_file $save_path/src-shard.trans.restored.merged $reference_file > $save_path/all_labels
