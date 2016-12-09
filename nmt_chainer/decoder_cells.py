@@ -203,15 +203,19 @@ def compute_loss_from_decoder_cell(cell, targets, use_previous_prediction = 0,
         return loss, attn_list
 
 def sample_from_decoder_cell(cell, nb_steps, best = False, keep_attn_values = False,
-           need_score = False):
+           need_score = False, activations = None):
     
     states, logits, attn = cell.get_initial_logits()
     
+        
     score = 0
     sequences = []
     attn_list = []
     
     for _ in xrange(nb_steps):
+        if activations is not None:
+            activations.append(states)
+    
         if keep_attn_values:
             attn_list.append(attn)
             
@@ -325,13 +329,13 @@ class Decoder(Chain):
         return loss, attn_list
     
     def sample(self, fb_concat, src_mask, nb_steps, mb_size, lexicon_probability_matrix = None, 
-               lex_epsilon = 1e-3, best = False, keep_attn_values = False, need_score = False, multi_target_signal = None):
+               lex_epsilon = 1e-3, best = False, keep_attn_values = False, need_score = False, multi_target_signal = None, activations = None):
         decoding_cell = self.give_conditionalized_cell(fb_concat, src_mask, noise_on_prev_word = False,
                     mode = "test", lexicon_probability_matrix = lexicon_probability_matrix,
                      lex_epsilon = lex_epsilon, multi_target_signal = multi_target_signal)
         sequences, score, attn_list = sample_from_decoder_cell(decoding_cell, nb_steps, best = best, 
                                                 keep_attn_values = keep_attn_values,
-                                                need_score = need_score)
+                                                need_score = need_score, activations = activations)
          
         return sequences, score, attn_list
         

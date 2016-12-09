@@ -8,6 +8,7 @@ __email__ = "fabien.cromieres@gmail.com"
 __status__ = "Development"
 
 from chainer import cuda
+import chainer.functions as F
 
 from utils import make_batch_src, make_batch_src_tgt, minibatch_provider, compute_bleu_with_unk_as_wrong, de_batch
 import logging
@@ -96,7 +97,7 @@ def compute_loss_all(encdec, test_data, eos_idx, mb_size, gpu = None, reverse_sr
     return test_loss
 
 def greedy_batch_translate(encdec, eos_idx, src_data, batch_size = 80, gpu = None, get_attention = False, nb_steps = 50,
-                           reverse_src = False, reverse_tgt = False):
+                           reverse_src = False, reverse_tgt = False, all_activations = None):
     nb_ex = len(src_data)
     nb_batch = nb_ex / batch_size + (1 if nb_ex % batch_size != 0 else 0)
     res = []
@@ -111,8 +112,14 @@ def greedy_batch_translate(encdec, eos_idx, src_data, batch_size = 80, gpu = Non
             current_batch_raw_data = current_batch_raw_data_new
             
         src_batch, src_mask = make_batch_src(current_batch_raw_data, gpu = gpu, volatile = "on")
+        activations = [] if all_activations is not None else None
         sample_greedy, score, attn_list = encdec(src_batch, nb_steps, src_mask, use_best_for_sample = True, 
-                                                 keep_attn_values = get_attention, mode = "test")
+                                                 keep_attn_values = get_attention, mode = "test", activations = activations)
+        if all_activations is not None:
+            #print activations
+            #print sample_greedy
+            averaged_activation = reduce(lambda x, y: F.reshape(x[-1], (batch_size, encdec.dec.Ho)) + F.reshape(y[-1], (batch_size, encdec.dec.Ho)), activations)/len(activations)
+            all_activations += [averaged_activation.data[i] for i in range(len(averaged_activation.data))]
         deb = de_batch(sample_greedy, mask = None, eos_idx = eos_idx, is_variable = False)
         res += deb
         if get_attention:

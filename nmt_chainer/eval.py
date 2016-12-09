@@ -307,13 +307,17 @@ def commandline():
     parser.add_argument("--reverse_training_config", help = "prefix of the trained model")
     parser.add_argument("--reverse_trained_model", help = "prefix of the trained model")
     
-    parser.add_argument("--apply_preprocessing", default = True, action = "store_true")
-    parser.add_argument("--apply_postprocessing", default = True, action = "store_true")
+    parser.add_argument("--apply_preprocessing", default = False, action = "store_true")
+    parser.add_argument("--apply_postprocessing", default = False, action = "store_true")
     parser.add_argument("--prepostprocessor", default = None, help = "path to prepostprocessor models. For BPE these are the merge operations models as .src and .tgt files.")
     parser.add_argument("--tgt_lang", default = None, help = "target language")
+    parser.add_argument("--retrieve_activations", default = False, action = "store_true")
 
+    
     args = parser.parse_args()
     
+    all_activations = [] if args.retrieve_activations else None
+
     if args.tgt_lang == "None":
         args.tgt_lang = None
     
@@ -417,17 +421,24 @@ def commandline():
         log.info("writing translation of to %s"% args.dest_fn)
         with cuda.get_device(args.gpu):
             translations = greedy_batch_translate(
-                                        encdec, eos_idx, src_data, batch_size = args.mb_size, gpu = args.gpu, nb_steps = args.nb_steps)
+                                        encdec, eos_idx, src_data, batch_size = args.mb_size, gpu = args.gpu, nb_steps = args.nb_steps, all_activations = all_activations)
         out = codecs.open(args.dest_fn, "w", encoding = "utf8")
+        out_act = codecs.open(args.dest_fn + ".activations", "w", encoding = "utf8") if all_activations is not None else None
+        
         for t in translations:
             if t[-1] == eos_idx:
                 t = t[:-1]
             ct = " ".join(tgt_indexer.deconvert(t, unk_tag = "#T_UNK#"))
 #             ct = convert_idx_to_string(t, tgt_voc + ["#T_UNK#"])
             out.write(ct + "\n")
+        if all_activations is not None:
+            for act in all_activations:
+                out_act.write("\t".join([str(val) for val in act]) + "\n")
+            out_act.flush()
+            out_act.close()
         if args.prepostprocessor is not None:
             if args.apply_postprocessing:
-                tgt_prepostprocessor.apply_preprocessing(args.dest_fn, args.dest_fn + ".restored")
+                tgt_prepostprocessor.apply_postprocessing(args.dest_fn, args.dest_fn + ".restored")
 
     elif args.mode == "beam_search":
         translate_to_file_with_beam_search(args.dest_fn, args.gpu, encdec_list, eos_idx, src_data, args.beam_width, 
@@ -439,7 +450,8 @@ def commandline():
                                            reverse_encdec = reverse_encdec,
                                            generate_attention_html = args.generate_attention_html,
                                            src_indexer = src_indexer,
-                                           rich_output_filename = args.rich_output_filename)
+                                           rich_output_filename = args.rich_output_filename,
+                                           all_activations = all_activations)
         if args.prepostprocessor is not None:
             if args.apply_postprocessing:
                 tgt_prepostprocessor.apply_postprocessing(args.dest_fn, args.dest_fn + ".restored")
@@ -455,7 +467,8 @@ def commandline():
                                            reverse_encdec = reverse_encdec,
                                            generate_attention_html = args.generate_attention_html,
                                            src_indexer = src_indexer,
-                                           rich_output_filename = args.rich_output_filename)
+                                           rich_output_filename = args.rich_output_filename,
+                                           all_activations = all_activations)
         
         if args.prepostprocessor is not None:
             if args.apply_postprocessing:

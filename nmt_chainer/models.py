@@ -819,7 +819,7 @@ class EncoderDecoder(Chain):
         
     def __call__(self, src_batch, tgt_batch, src_mask, use_best_for_sample = False, display_attn = False,
                  raw_loss_info = False, keep_attn_values = False, need_score = False, noise_on_prev_word = False,
-                 use_previous_prediction = 0, mode = "test"
+                 use_previous_prediction = 0, mode = "test", activations = None
                  ):
         assert mode in "test train".split()
 
@@ -842,7 +842,7 @@ class EncoderDecoder(Chain):
             return self.dec.sample(fb_concat, src_mask, tgt_batch, mb_size, 
                                    lexicon_probability_matrix = lexicon_probability_matrix, 
                                    lex_epsilon = self.lex_epsilon, best = use_best_for_sample, 
-                                   keep_attn_values = keep_attn_values, need_score = need_score, multi_target_signal = multi_target_signal)
+                                   keep_attn_values = keep_attn_values, need_score = need_score, multi_target_signal = multi_target_signal, activations = activations)
 
         else:
             return self.dec.compute_loss(fb_concat, src_mask, tgt_batch, raw_loss_info = raw_loss_info,
