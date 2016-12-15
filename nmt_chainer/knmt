@@ -1,7 +1,9 @@
 #!/usr/bin/env python
 
 import argparse
-import train, eval, make_data
+import nmt_chainer.train as train
+import nmt_chainer.eval as eval
+import nmt_chainer.make_data as make_data
 
 # create the top-level parser
 parser = argparse.ArgumentParser(description = "Kyoto-NMT: an Implementation of the RNNSearch model", 
