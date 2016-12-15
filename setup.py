@@ -14,7 +14,7 @@ setup(
     packages=['nmt_chainer'],
     install_requires=[
         'bokeh>=0.12.2',
-        'chainer>=1.16.0', 
+        'chainer==1.17.0', 
         'h5py>=2.6.0'
     ],
     entry_points={ 
