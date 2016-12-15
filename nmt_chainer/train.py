@@ -142,10 +142,7 @@ logging.basicConfig()
 log = logging.getLogger("rnns:train")
 log.setLevel(logging.INFO)
 
-def command_line(arguments = None):
-    import argparse
-    parser = argparse.ArgumentParser(description= "Train a RNNSearch model", 
-                                     formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+def define_parser(parser):
     parser.add_argument("data_prefix", help = "prefix of the training data created by make_data.py")
     parser.add_argument("save_prefix", help = "prefix to be added to all files created during the training")
     parser.add_argument("--gpu", type = int, help = "specify gpu number to use, if any")
@@ -214,7 +211,17 @@ def command_line(arguments = None):
     
     parser.add_argument("--use_reinf", default = False, action = "store_true")
     
+def command_line(arguments = None):
+    import argparse
+    parser = argparse.ArgumentParser(description= "Train a RNNSearch model", 
+                                     formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+    
+    define_parser(parser)
     args = parser.parse_args(args = arguments)
+    
+    do_train(args)
+    
+def do_train(args):
     
     output_files_dict = {}
     output_files_dict["train_config"] = args.save_prefix + ".train.config"

@@ -612,11 +612,7 @@ def build_dataset_with_align_info(src_fn, tgt_fn, align_fn,
                                                        )
 
 
-def cmdline(arguments=None):
-    import sys
-    import argparse
-    parser = argparse.ArgumentParser(description="Prepare training data.",
-                                     formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+def define_parser(parser):
     parser.add_argument(
         "src_fn", help="source language text file for training data")
     parser.add_argument(
@@ -645,7 +641,23 @@ def cmdline(arguments=None):
     parser.add_argument("--tgt_segmentation_type", choices = ["word", "word2char", "char"], default = "word")
     parser.add_argument("--src_segmentation_type", choices = ["word", "word2char", "char"], default = "word")
     
+    
+    
+def cmdline(arguments=None):
+    import sys
+    import argparse
+    parser = argparse.ArgumentParser(description="Prepare training data.",
+                                     formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+    
+    define_parser(parser)
+    
     args = parser.parse_args(args = arguments)
+    
+    do_make_data(args)
+    
+    
+def do_make_data(args):
+    
     
     if not ((args.test_src is None) == (args.test_tgt is None)):
         print >>sys.stderr, "Command Line Error: either specify both --test_src and --test_tgt or neither"
