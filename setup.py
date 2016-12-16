@@ -15,14 +15,22 @@ CLASSIFIERS = [
 ]
 
 setup(name='knmt',
-      version='0.9',
+      version='0.9.3',
       description='Implementation of RNNSearch and other Neural MT models in Chainer',
       author='Fabien Cromieres',
       author_email='fabien.cromieres@gmail.com',
         #packages=find_packages()
       packages=['nmt_chainer'],
-      url="https://github/fabiencro/knmt",
-      scripts=["nmt_chainer/knmt"],
+      url="https://github.com/fabiencro/knmt",
+#       scripts=["nmt_chainer/knmt.py"],
+      
+      entry_points= {
+          'console_scripts': [
+              'knmt = nmt_chainer.__main__:main'
+          ]
+                     
+                     },
+      
       install_requires=['chainer', 'bokeh', 'plotly']
      )
 
