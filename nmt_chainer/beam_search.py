@@ -44,16 +44,19 @@ def iterate_eos_scores(new_scores, eos_idx):
 
 def update_next_lists(num_case, idx_in_case, new_cost, eos_idx, new_state_ensemble, finished_translations, current_translations, current_attentions,
            next_states_list, next_words_list, next_score_list, next_translations_list, 
-           attn_ensemble, next_attentions_list, need_attention = False):
+           attn_ensemble, next_attentions_list, current_states_sum, next_states_sum_list, need_attention = False):
     if idx_in_case == eos_idx:
         if need_attention:
             finished_translations.append((current_translations[num_case], 
                                       -new_cost,
-                                      current_attentions[num_case]
+                                      current_attentions[num_case],
+                                      current_states_sum[num_case]/len(current_translations[num_case])
                                       ))
         else:
             finished_translations.append((current_translations[num_case], 
-                                      -new_cost))
+                                      -new_cost,
+                                      current_states_sum[num_case]/len(current_translations[num_case])
+                                      ))
     else:
         next_states_list.append(
             [tuple([Variable(substates.data[num_case].reshape(1,-1), volatile = "auto") for substates in new_state])
@@ -74,6 +77,10 @@ def update_next_lists(num_case, idx_in_case, new_cost, eos_idx, new_state_ensemb
         next_words_list.append(idx_in_case)
         next_score_list.append(-new_cost)
         next_translations_list.append(current_translations[num_case] + [idx_in_case])
+        if len(current_states_sum) != 0:
+            next_states_sum_list.append(current_states_sum[num_case] + next_states_list[-1][0][-1])
+        else:
+            next_states_sum_list.append(next_states_list[-1][0][-1])
         if need_attention:
             xp = cuda.get_array_module(attn_ensemble[0].data)
             attn_summed = xp.zeros((attn_ensemble[0].data[0].shape), dtype = xp.float32)
@@ -83,14 +90,15 @@ def update_next_lists(num_case, idx_in_case, new_cost, eos_idx, new_state_ensemb
             next_attentions_list.append(current_attentions[num_case] + [attn_summed])
             
 def compute_next_lists(new_state_ensemble, new_scores, beam_width, eos_idx, current_translations, finished_translations, 
-      current_attentions, attn_ensemble, force_finish = False, need_attention = False):
+      current_attentions, attn_ensemble, current_states_sum, force_finish = False, need_attention = False):
 
     next_states_list = []
     next_words_list = []
     next_score_list = []
     next_translations_list = []
     next_attentions_list = []
-    
+    next_states_sum_list = []
+
     if force_finish:
         score_iterator = iterate_eos_scores(new_scores, eos_idx)
     else:
@@ -100,12 +108,12 @@ def compute_next_lists(new_state_ensemble, new_scores, beam_width, eos_idx, curr
         update_next_lists(num_case, idx_in_case, new_cost, eos_idx, new_state_ensemble, 
                           finished_translations, current_translations, current_attentions,
            next_states_list, next_words_list, next_score_list, next_translations_list, 
-           attn_ensemble, next_attentions_list, need_attention = need_attention)
+           attn_ensemble, next_attentions_list, current_states_sum, next_states_sum_list, need_attention = need_attention)
         assert len(next_states_list) <= beam_width
 #             if len(next_states_list) >= beam_width:
 #                 break
 
-    return next_states_list, next_words_list, next_score_list, next_translations_list, next_attentions_list
+    return next_states_list, next_words_list, next_score_list, next_translations_list, next_attentions_list, next_states_sum_list
 
 def compute_next_states_and_scores(dec_cell_ensemble, current_states_ensemble, current_words,
                                    prob_space_combination = False):
@@ -143,7 +151,7 @@ def advance_one_step(dec_cell_ensemble, eos_idx, current_translations_states, be
                      prob_space_combination = False):
 #     xp = cuda.get_array_module(dec_ensemble[0].initial_state.data)
     xp = dec_cell_ensemble[0].xp
-    current_translations, current_scores, current_states_ensemble, current_words, current_attentions = current_translations_states
+    current_translations, current_scores, current_states_ensemble, current_words, current_attentions, current_states_sum = current_translations_states
 
     # Compute the next states and associated next word scores
     combined_scores, new_state_ensemble, attn_ensemble = compute_next_states_and_scores(
@@ -157,10 +165,10 @@ def advance_one_step(dec_cell_ensemble, eos_idx, current_translations_states, be
     new_scores = current_scores[:, xp.newaxis] + combined_scores
     
     # Compute the list of new translation states after pruning
-    next_states_list, next_words_list, next_score_list, next_translations_list, next_attentions_list = compute_next_lists(
+    next_states_list, next_words_list, next_score_list, next_translations_list, next_attentions_list, next_states_sum_list = compute_next_lists(
                 new_state_ensemble, new_scores, beam_width, eos_idx, 
                 current_translations, finished_translations, 
-                current_attentions, attn_ensemble, force_finish = force_finish, need_attention = need_attention)
+                current_attentions, attn_ensemble, current_states_sum, force_finish = force_finish, need_attention = need_attention)
 
     if len(next_states_list) == 0:
         return None # We only found finished translations
@@ -190,7 +198,8 @@ def advance_one_step(dec_cell_ensemble, eos_idx, current_translations_states, be
                                 xp.array(next_score_list),
                                 concatenated_next_states_list,
                                 Variable(next_words_array, volatile = "auto"),
-                                next_attentions_list
+                                next_attentions_list,
+                                next_states_sum_list
                                 )
     
     return current_translations_states
@@ -202,10 +211,11 @@ def ensemble_beam_search(model_ensemble, src_batch, src_mask, nb_steps, eos_idx,
     mb_size = src_batch[0].data.shape[0]
     assert len(model_ensemble) >= 1
     xp = model_ensemble[0].xp
-    
+    enc_fb_concat = []
     dec_cell_ensemble = [model.give_conditionalized_cell(src_batch, src_mask, noise_on_prev_word = False,
-                    mode = "test", demux = True) for model in model_ensemble]
+                    mode = "test", demux = True, enc_fb_concat = enc_fb_concat) for model in model_ensemble]
     
+    #print enc_fb_concat[0].data.shape
 
     assert mb_size == 1
     finished_translations = []
@@ -218,7 +228,8 @@ def ensemble_beam_search(model_ensemble, src_batch, src_mask, nb_steps, eos_idx,
                             xp.array([0]), # scores
                             previous_states_ensemble,  #previous states
                             None, #previous words
-                            [[]] #attention
+                            [[]], #attention
+                            [], # sum of decoder states
                             )
     
     
@@ -242,9 +253,12 @@ def ensemble_beam_search(model_ensemble, src_batch, src_mask, nb_steps, eos_idx,
     # Return finished translations
     if len (finished_translations) == 0:
         if need_attention:
-            finished_translations.append(([], 0, []))
+            finished_translations.append(([], 0, [], 0, enc_fb_concat[0]))
         else:
-            finished_translations.append(([], 0))
+            finished_translations.append(([], 0, 0, enc_fb_concat[0]))
+    else:
+        for i in range(len(finished_translations)):
+            finished_translations[i] = finished_translations[i] + (enc_fb_concat[0],)
     return finished_translations
 
 

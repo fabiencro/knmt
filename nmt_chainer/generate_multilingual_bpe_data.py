@@ -109,6 +109,7 @@ class DataPreparationPipeline:
 			self.generate_multilingual_data_raw()
 
 	def preprocess_eval_data(self, train_dev_test = "dev"):
+		self.drop_source_sentences = False
 		self.segment_corpora(train_dev_test)
 		self.generate_multilingual_data(train_dev_test)
 		
@@ -382,8 +383,9 @@ class DataPreparationPipeline:
 				final_src_sents = self.generate_sentence_dropped_multisource_sentences(all_source_sents)
 				final_tgt_sent = tgt_file.readline().strip() + "\n"
 				for final_src_sent in final_src_sents:
-					mlnmt_src_file.write(final_src_sent)
-					mlnmt_tgt_file.write(final_tgt_sent)
+					if len(final_src_sent.strip()) != 0:
+						mlnmt_src_file.write(final_src_sent)
+						mlnmt_tgt_file.write(final_tgt_sent)
 				mlnmt_src_file.flush()
 				mlnmt_tgt_file.flush()
 			mlnmt_src_file.close()
@@ -429,8 +431,9 @@ class DataPreparationPipeline:
 				final_src_sents = self.generate_sentence_dropped_multisource_sentences(all_source_sents)
 				final_tgt_sent = tgt_file.readline().strip() + "\n"
 				for final_src_sent in final_src_sents:
-					mlnmt_src_file.write(final_src_sent)
-					mlnmt_tgt_file.write(final_tgt_sent)
+					if len(final_src_sent.strip()) != 0:
+						mlnmt_src_file.write(final_src_sent)
+						mlnmt_tgt_file.write(final_tgt_sent)
 				mlnmt_src_file.flush()
 				mlnmt_tgt_file.flush()
 			mlnmt_src_file.close()

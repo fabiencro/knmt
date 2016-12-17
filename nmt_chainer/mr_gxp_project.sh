@@ -40,4 +40,5 @@ do
 	cat $save_path/src-shard-$i.trans.restored >> $save_path/src-shard.trans.restored.merged
 done
 
-paste $input_file $save_path/src-shard.trans.restored.merged $reference_file > $save_path/all_labels
+echo "SRC\tTRANS\tREF" > $save_path/all_labels
+paste $input_file $save_path/src-shard.trans.restored.merged $reference_file >> $save_path/all_labels

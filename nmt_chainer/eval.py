@@ -91,7 +91,7 @@ def beam_search_all(gpu, encdec, eos_idx, src_data, beam_width, nb_steps, beam_o
        nb_steps_ratio, use_raw_score, 
        groundhog,
        tgt_unk_id, tgt_indexer, force_finish = False,
-       prob_space_combination = False, reverse_encdec = None, all_activations = None):
+       prob_space_combination = False, reverse_encdec = None):
     
     log.info("starting beam search translation of %i sentences"% len(src_data))
     if isinstance(encdec, (list, tuple)) and len(encdec) > 1:
@@ -104,9 +104,8 @@ def beam_search_all(gpu, encdec, eos_idx, src_data, beam_width, nb_steps, beam_o
                                     need_attention = True, score_is_divided_by_length = not use_raw_score,
                                     groundhog = groundhog, force_finish = force_finish,
                                     prob_space_combination = prob_space_combination,
-                                    reverse_encdec = reverse_encdec, all_activations = all_activations)
-        
-        for num_t, (t, score, attn) in enumerate(translations_gen):
+                                    reverse_encdec = reverse_encdec)
+        for num_t, (t, score, attn, state, enc_state) in enumerate(translations_gen):
             if num_t %200 == 0:
                 print >>sys.stderr, num_t,
             elif num_t %40 == 0:
@@ -130,7 +129,7 @@ def beam_search_all(gpu, encdec, eos_idx, src_data, beam_width, nb_steps, beam_o
             
             translated = tgt_indexer.deconvert(t, unk_tag = unk_replacer)
             
-            yield src_data[num_t], translated, t, score, attn 
+            yield src_data[num_t], translated, t, score, attn, state, enc_state 
         print >>sys.stderr
 
 def translate_to_file_with_beam_search(dest_fn, gpu, encdec, eos_idx, src_data, beam_width, nb_steps, beam_opt, 
@@ -142,12 +141,14 @@ def translate_to_file_with_beam_search(dest_fn, gpu, encdec, eos_idx, src_data, 
     
     log.info("writing translation to %s "% dest_fn)
     out = codecs.open(dest_fn, "w", encoding = "utf8")
-    
+    if all_activations is not None:
+        activations_out = codecs.open(dest_fn + ".activations", "w", encoding = "utf8")
+
     translation_iterator = beam_search_all(gpu, encdec, eos_idx, src_data, beam_width, nb_steps, beam_opt, 
        nb_steps_ratio, use_raw_score, 
        groundhog,
        tgt_unk_id, tgt_indexer, force_finish = force_finish,
-       prob_space_combination = prob_space_combination, reverse_encdec = reverse_encdec, all_activations = all_activations)
+       prob_space_combination = prob_space_combination, reverse_encdec = reverse_encdec)
     
     
     attn_vis = None
@@ -158,20 +159,30 @@ def translate_to_file_with_beam_search(dest_fn, gpu, encdec, eos_idx, src_data, 
     rich_output = None
     if rich_output_filename is not None:
         rich_output = RichOutputWriter(rich_output_filename)
-        
-    for src, translated, t, score, attn in translation_iterator:
+    
+
+    for src, translated, t, score, attn, state, enc_state in translation_iterator:
         if rich_output is not None:
             rich_output.add_info(src, translated, t, score, attn)
         if attn_vis is not None:
             attn_vis.add_plot(src_indexer.deconvert(src), translated, attn)
         ct = " ".join(translated)
         out.write(ct + "\n")
+        if all_activations is not None:
+            if type(enc_state) != int:
+                #print enc_state.data.shape
+                activations_out.write("\t".join([str(val) for val in enc_state.data[0]]) + "\n")
+            else:
+                activations_out.write("\t".join([str(val) for val in [0.0]*2*encdec[0].enc.Hi]) + "\n")
+            activations_out.flush()
         
     if rich_output is not None:
         rich_output.finish()
     
     if attn_vis is not None:
         attn_vis.make_plot(generate_attention_html)
+    if all_activations is not None:
+        activations_out.close()
 
 def create_encdec_from_config(config_training):
 

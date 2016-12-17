@@ -171,7 +171,7 @@ def beam_search_translate(encdec, eos_idx, src_data, beam_width = 20, nb_steps =
                           need_attention = False, nb_steps_ratio = None, score_is_divided_by_length = True, 
                           groundhog = False, force_finish = False,
                           prob_space_combination = False,
-                          reverse_encdec = None, all_activations = None):
+                          reverse_encdec = None):
     nb_ex = len(src_data)
 #     res = []
     for i in range(nb_ex):
@@ -188,14 +188,14 @@ def beam_search_translate(encdec, eos_idx, src_data, beam_width = 20, nb_steps =
 #                                           beam_width = beam_width,
 #                                           beam_opt = beam_opt, need_attention = need_attention,
 #                                     groundhog = groundhog)
-        activations = [] if all_activations is not None else None
         if not isinstance(encdec, (tuple, list)):
             encdec = [encdec]
         translations = beam_search.ensemble_beam_search(encdec, src_batch, src_mask, nb_steps = nb_steps, eos_idx = eos_idx, 
                                           beam_width = beam_width,
                                           need_attention = need_attention, force_finish = force_finish,
-                                          prob_space_combination = prob_space_combination, activations = activations)
-
+                                          prob_space_combination = prob_space_combination)
+            #averaged_activation = reduce(lambda x, y: F.reshape(x[-1], (batch_size, encdec[0].dec.Ho)) + F.reshape(y[-1], (batch_size, encdec[0].dec.Ho)), activations)/len(activations)
+            #all_activations += [averaged_activation.data[0]]
         
         #TODO: This is a quick patch, but actually ensemble_beam_search probably should not return empty translations except when no translation found
         if len(translations) > 1:
@@ -303,12 +303,12 @@ def sample_once(encdec, src_batch, tgt_batch, src_mask, src_indexer, tgt_indexer
         
         print "sent num", sent_num
         print "src idx:", src_idx_seq
-        print "src:", " ".join(src_indexer.deconvert(src_idx_seq, unk_tag = s_unk_tag)) #convert_idx_to_string(src_idx_seq, src_voc)
+        #print "src:", " ".join(src_indexer.deconvert(src_idx_seq, unk_tag = s_unk_tag)) #convert_idx_to_string(src_idx_seq, src_voc)
         print "tgt idx:", tgt_idx_seq
-        print "tgt:", " ".join(tgt_indexer.deconvert(tgt_idx_seq, unk_tag = t_unk_tag, eos_idx = eos_idx)) # convert_idx_to_string(tgt_idx_seq, tgt_voc, eos_idx = eos_idx)
+        #print "tgt:", " ".join(tgt_indexer.deconvert(tgt_idx_seq, unk_tag = t_unk_tag, eos_idx = eos_idx)) # convert_idx_to_string(tgt_idx_seq, tgt_voc, eos_idx = eos_idx)
         print "sample idx:", sample_idx_seq
-        print "sample:", " ".join(tgt_indexer.deconvert(sample_idx_seq, unk_tag = t_unk_tag, eos_idx = eos_idx)) #convert_idx_to_string(sample_idx_seq, tgt_voc, eos_idx = eos_idx)
+        #print "sample:", " ".join(tgt_indexer.deconvert(sample_idx_seq, unk_tag = t_unk_tag, eos_idx = eos_idx)) #convert_idx_to_string(sample_idx_seq, tgt_voc, eos_idx = eos_idx)
         print "sample random idx:", sample_random_idx_seq
-        print "sample random:", " ".join(tgt_indexer.deconvert(sample_random_idx_seq, unk_tag = t_unk_tag, eos_idx = eos_idx)) #convert_idx_to_string(sample_idx_seq, tgt_voc, eos_idx = eos_idx)
+        #print "sample random:", " ".join(tgt_indexer.deconvert(sample_random_idx_seq, unk_tag = t_unk_tag, eos_idx = eos_idx)) #convert_idx_to_string(sample_idx_seq, tgt_voc, eos_idx = eos_idx)
         
         

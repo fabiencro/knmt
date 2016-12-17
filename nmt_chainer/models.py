@@ -852,7 +852,7 @@ class EncoderDecoder(Chain):
                                          lex_epsilon = self.lex_epsilon, multi_target_signal = multi_target_signal)
                                          
     def give_conditionalized_cell(self, src_batch, src_mask, noise_on_prev_word = False,
-                    mode = "test", demux = False):
+                    mode = "test", demux = False, enc_fb_concat = None):
              
         if self.lexical_probability_dictionary is not None:
             lexicon_probability_matrix = compute_lexicon_matrix(src_batch, self.lexical_probability_dictionary, self.Vo)
@@ -865,6 +865,9 @@ class EncoderDecoder(Chain):
         
         fb_concat = self.enc(src_batch, src_mask, mode = mode, multi_target_signal = multi_target_signal)
         
+        if enc_fb_concat is not None:
+            enc_fb_concat.append(F.sum(fb_concat,1)/len(src_batch))
+
         if self.is_multitarget:
             assert multi_target_signal is not []
             assert len(multi_target_signal) == 1

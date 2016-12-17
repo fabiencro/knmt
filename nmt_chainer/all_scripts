@@ -825,13 +825,14 @@ next=`echo $x+1 | bc`
 for y in `seq $next 4`
 do
 j=$langs[$y]
-if [[ $i != $j ]]
+if [[ $i != $j ]] && [[ $i != de ]] || [[ $j != fr ]]
 then
 echo $i $j
-python train.py /windroot/raj/corpora_downloads/IWSLT2016/3s3t_"$i"_"$j"_en/mlnmt.basic /windroot/raj/corpora_downloads/IWSLT2016/3s3t_"$i"_"$j"_en/mlnmt.basic --gpu 1 --mb_size 32 --weight_decay 0.000001 --postprocess --max_nb_iters 130000 --max_src_tgt_length 100
+python train.py /windroot/raj/corpora_downloads/IWSLT2016/3s3t_"$i"_"$j"_en/mlnmt.basic /windroot/raj/corpora_downloads/IWSLT2016/3s3t_"$i"_"$j"_en/mlnmt.basic --gpu 0 --mb_size 64 --weight_decay 0.000001 --postprocess --max_nb_iters 100000 --max_src_tgt_length 90 --load_model /windroot/raj/corpora_downloads/IWSLT2016/3s3t_"$i"_"$j"_en/mlnmt.basic.model.final.npz --load_optimizer_state /windroot/raj/corpora_downloads/IWSLT2016/3s3t_"$i"_"$j"_en/mlnmt.basic.optimizer.final.npz
 fi
 done
 done
+
 
 
 langs=(ar cs de fr)
@@ -891,11 +892,16 @@ nextnext=`echo $y+1 | bc`
 for z in `seq $nextnext 4`
 do
 k=$langs[$z]
+if [[ $j == de ]] && [[ $k == fr ]]
+then
 echo $i $j $k
-python train.py /windroot/raj/corpora_downloads/IWSLT2016/4s4t_en_"$i"_"$j"_"$k"/mlnmt.basic /windroot/raj/corpora_downloads/IWSLT2016/4s4t_en_"$i"_"$j"_"$k"/mlnmt.basic --gpu 2 --mb_size 64 --weight_decay 0.000001 --postprocess --max_nb_iters 100000 --max_src_tgt_length 100
+python train.py /windroot/raj/corpora_downloads/IWSLT2016/4s4t_en_"$i"_"$j"_"$k"/mlnmt.basic /windroot/raj/corpora_downloads/IWSLT2016/4s4t_en_"$i"_"$j"_"$k"/mlnmt.basic --gpu 2 --mb_size 16 --weight_decay 0.000001 --postprocess --max_nb_iters 400000 --max_src_tgt_length 90 --load_model /windroot/raj/corpora_downloads/IWSLT2016/4s4t_en_"$i"_"$j"_"$k"/mlnmt.basic.model.final.npz --load_optimizer_state /windroot/raj/corpora_downloads/IWSLT2016/4s4t_en_"$i"_"$j"_"$k"/mlnmt.basic.optimizer.final.npz
+fi
 done
 done
 done
+
+
 
 langs=(ar cs de fr)
 
@@ -1012,3 +1018,8 @@ python generate_multilingual_bpe_data.py --train_lang_corpora_pairs bn:hi:/windr
 
 
 python generate_multilingual_bpe_data.py --train_lang_corpora_pairs bn:hi:/windroot/raj/parallel_corpora_normalized/health/bn-hi/train.bn:/windroot/raj/parallel_corpora_normalized/health/bn-hi/train.hi en:hi:/windroot/raj/parallel_corpora_normalized/health/en-hi/train.en:/windroot/raj/parallel_corpora_normalized/health/en-hi/train.hi mr:hi:/windroot/raj/parallel_corpora_normalized/health/mr-hi/train.mr:/windroot/raj/parallel_corpora_normalized/health/mr-hi/train.hi ta:hi:/windroot/raj/parallel_corpora_normalized/health/ta-hi/train.ta:/windroot/raj/parallel_corpora_normalized/health/ta-hi/train.hi te:hi:/windroot/raj/parallel_corpora_normalized/health/te-hi/train.te:/windroot/raj/parallel_corpora_normalized/health/te-hi/train.hi --dev_lang_corpora_pairs bn:hi:/windroot/raj/parallel_corpora_normalized/health/bn-hi/tun.bn:/windroot/raj/parallel_corpora_normalized/health/bn-hi/tun.hi en:hi:/windroot/raj/parallel_corpora_normalized/health/en-hi/tun.en:/windroot/raj/parallel_corpora_normalized/health/en-hi/tun.hi mr:hi:/windroot/raj/parallel_corpora_normalized/health/mr-hi/tun.mr:/windroot/raj/parallel_corpora_normalized/health/mr-hi/tun.hi ta:hi:/windroot/raj/parallel_corpora_normalized/health/ta-hi/tun.ta:/windroot/raj/parallel_corpora_normalized/health/ta-hi/tun.hi te:hi:/windroot/raj/parallel_corpora_normalized/health/te-hi/tun.te:/windroot/raj/parallel_corpora_normalized/health/te-hi/tun.hi --test_lang_corpora_pairs bn:hi:/windroot/raj/parallel_corpora_normalized/health/bn-hi/test.bn:/windroot/raj/parallel_corpora_normalized/health/bn-hi/test.hi en:hi:/windroot/raj/parallel_corpora_normalized/health/en-hi/test.en:/windroot/raj/parallel_corpora_normalized/health/en-hi/test.hi mr:hi:/windroot/raj/parallel_corpora_normalized/health/mr-hi/test.mr:/windroot/raj/parallel_corpora_normalized/health/mr-hi/test.hi ta:hi:/windroot/raj/parallel_corpora_normalized/health/ta-hi/test.ta:/windroot/raj/parallel_corpora_normalized/health/ta-hi/test.hi te:hi:/windroot/raj/parallel_corpora_normalized/health/te-hi/test.te:/windroot/raj/parallel_corpora_normalized/health/te-hi/test.hi --balance_vocab_counts --balance_corpora --save_prefix /home/raj/softwares-and-scripts/NNProjects/knmt/nmt_chainer/5s1tMS --max_src_vocab 1000 --max_tgt_vocab 1000 --is_multisource --drop_source_sentences
+
+
+######### Projections
+
+bash softwares-and-scripts/NNProjects/knmt/nmt_chainer/mr_gxp_project.sh /home/raj/softwares-and-scripts/NNProjects/knmt/nmt_chainer/5s1t_fewer/all_project_greedy /home/raj/softwares-and-scripts/NNProjects/knmt/nmt_chainer/5s1t_fewer/mlnmt.basic.train.config /home/raj/softwares-and-scripts/NNProjects/knmt/nmt_chainer/5s1t_fewer/mlnmt.basic.model.best.npz /home/raj/softwares-and-scripts/NNProjects/knmt/nmt_chainer/5s1t_fewer/mlnmt.test.src.raw /home/raj/softwares-and-scripts/NNProjects/knmt/nmt_chainer/5s1t_fewer/mlnmt.test.tgt.raw /home/raj/softwares-and-scripts/NNProjects/knmt/nmt_chainer/5s1t_fewer/ None beam_search
