@@ -147,8 +147,9 @@ class LengthBasedSerialIterator(chainer.dataset.iterator.Iterator):
 
 
     # We do not serialize index_in_sub_batch. A deserialized iterator will start from the next sub_batch.
-    def serialize(self, serializer):
-        self.sub_iterator = serializer("sub_iterator", self.sub_iterator)
+#     def serialize(self, serializer):
+#         self.sub_iterator = serializer("sub_iterator", self.sub_iterator)
+#         self.sub_iterator.serialize(serializer["sub_iterator"])
 
 import six
 def make_collection_of_variables(in_arrays, volatile = "off"):
@@ -396,7 +397,8 @@ def train_on_data_chainer(encdec, optimizer, training_data, output_files_dict,
                   use_memory_optimization = False, sample_every = 500,
                   use_reinf = False,
                   save_ckpt_every = 5000,
-                  reshuffle_every_epoch = False):
+                  reshuffle_every_epoch = False,
+                  trainer_snapshot = None):
         
     @chainer.training.make_extension()
     def sample_extension(trainer): 
@@ -492,10 +494,13 @@ def train_on_data_chainer(encdec, optimizer, training_data, output_files_dict,
     
     trainer.extend(SqliteLogExtension(db_path = output_files_dict["sqlite_db"]))
     
+    if trainer_snapshot is not None:
+        serializers.load_npz(trainer_snapshot, trainer)
+    
     try:
         trainer.run()
     except:
-        final_snapshot_fn = "final.npz"
+        final_snapshot_fn = "final_snapshot"
         log.info("Exception met. Trying to save current trainer state to file %s" % final_snapshot_fn)
         chainer.training.extensions.snapshot(filename = final_snapshot_fn)(trainer)
         log.info("Saved trainer snapshot to file %s" % final_snapshot_fn)

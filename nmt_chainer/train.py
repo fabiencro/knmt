@@ -159,6 +159,8 @@ def define_parser(parser):
     parser.add_argument("--noise_on_prev_word", default = False, action = "store_true")
     
     
+    parser.add_argument("--load_trainer_snapshot", help = "load previously saved trainer states")
+    
     parser.add_argument("--use_memory_optimization", default = False, action = "store_true",
                         help = "Experimental option that could strongly reduce memory used.")
         
@@ -437,7 +439,8 @@ def do_train(args):
                       use_memory_optimization = args.use_memory_optimization,
                       sample_every = args.sample_every,
                       use_reinf = args.use_reinf,
-                      save_ckpt_every = args.save_ckpt_every
+                      save_ckpt_every = args.save_ckpt_every,
+                      trainer_snapshot = args.load_trainer_snapshot,
 #                     lexical_probability_dictionary = lexical_probability_dictionary,
 #                     V_tgt = Vo + 1,
 #                     lexicon_prob_epsilon = args.lexicon_prob_epsilon
