@@ -15,7 +15,7 @@ CLASSIFIERS = [
 ]
 
 setup(name='knmt',
-      version='0.9.3',
+      vhersion='0.9.3',
       description='Implementation of RNNSearch and other Neural MT models in Chainer',
       author='Fabien Cromieres',
       author_email='fabien.cromieres@gmail.com',
@@ -33,4 +33,5 @@ setup(name='knmt',
       
       install_requires=['chainer', 'bokeh', 'plotly']
      )
+
 

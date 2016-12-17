@@ -74,7 +74,7 @@ import os.path
 # test_data_dir = "tests_data"
 
 class TestMakeData:
-    def test_data_creation(self, tmpdir):
+    def test_data_creation(self, tmpdir, gpu):
         test_data_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "tests_data")
         train_dir = tmpdir.mkdir("train")
         data_prefix = str(train_dir.join("test1.data"))
@@ -83,6 +83,8 @@ class TestMakeData:
         make_data.cmdline(arguments = args)
         
         args_train = [data_prefix, train_prefix] + "--max_nb_iters 5 --mb_size 2 --Ei 10 --Eo 12 --Hi 30 --Ha 70 --Ho 15 --Hl 23".split(" ")
+        if gpu is not None:
+            args_train += ['--gpu', gpu]
         train.command_line(arguments = args_train)
         
         

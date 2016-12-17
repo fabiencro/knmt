@@ -202,12 +202,12 @@ def compute_output(z_x, z_h, h_x, h, hh):
 
 class GRUBase(link.Chain):
 
-    def __init__(self, n_units, n_inputs=None):
+    def __init__(self, n_units, n_inputs=None, init = None, bias_init = None):
         if n_inputs is None:
             n_inputs = n_units
         super(GRUBase, self).__init__(
-            W_r_z_h = linear.Linear(n_inputs, n_units * 3),
-            U_r_z = linear.Linear(n_units, n_units * 2),
+            W_r_z_h = linear.Linear(n_inputs, n_units * 3, initialW = init, initial_bias = bias_init),
+            U_r_z = linear.Linear(n_units, n_units * 2, initialW = init, initial_bias = bias_init),
 #             W_r=linear.Linear(n_inputs, n_units),
 #             U_r = linear.Linear(n_units, n_units),
 #             W_z=linear.Linear(n_inputs, n_units),
