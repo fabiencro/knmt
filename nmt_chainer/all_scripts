@@ -818,14 +818,14 @@ done
 
 langs=(ar cs de fr)
 
-for x in `seq 1 4`
+for x in `seq 1 3`
 do
 i=$langs[$x]
 next=`echo $x+1 | bc`
-for y in `seq $next 4`
+for y in `seq $next 3`
 do
 j=$langs[$y]
-if [[ $i != $j ]] && [[ $i != de ]] || [[ $j != fr ]]
+if [[ $i != $j ]] && [[ $j == fr ]]
 then
 echo $i $j
 python train.py /windroot/raj/corpora_downloads/IWSLT2016/3s3t_"$i"_"$j"_en/mlnmt.basic /windroot/raj/corpora_downloads/IWSLT2016/3s3t_"$i"_"$j"_en/mlnmt.basic --gpu 0 --mb_size 64 --weight_decay 0.000001 --postprocess --max_nb_iters 100000 --max_src_tgt_length 90 --load_model /windroot/raj/corpora_downloads/IWSLT2016/3s3t_"$i"_"$j"_en/mlnmt.basic.model.final.npz --load_optimizer_state /windroot/raj/corpora_downloads/IWSLT2016/3s3t_"$i"_"$j"_en/mlnmt.basic.optimizer.final.npz

@@ -277,6 +277,8 @@ def commandline():
     
     parser.add_argument("--additional_training_config", nargs = "*", help = "prefix of the trained model")
     parser.add_argument("--additional_trained_model", nargs = "*", help = "prefix of the trained model")
+    parser.add_argument("--additional_src_fn", nargs = "*", help = "additional source languages")
+    parser.add_argument("--additional_prepostprocessor", nargs = "*", help = "additional prepostprocessors")
     
     parser.add_argument("--tgt_fn", help = "target text")
     
@@ -324,6 +326,7 @@ def commandline():
     parser.add_argument("--tgt_lang", default = None, help = "target language")
     parser.add_argument("--retrieve_activations", default = False, action = "store_true")
 
+
     
     args = parser.parse_args()
     
@@ -346,11 +349,23 @@ def commandline():
         src_prepostprocessor.load_model(args.prepostprocessor + "/bpe_model.src")
         tgt_prepostprocessor.load_model(args.prepostprocessor + "/bpe_model.tgt")
         if args.apply_preprocessing:
-            log.info("Applying the preprocessor on the source and target data")
+            log.info("Applying the preprocessor to the source and target data")
             src_prepostprocessor.apply_preprocessing(args.src_fn, args.src_fn + ".segmented")
             tgt_prepostprocessor.apply_preprocessing(args.tgt_fn, args.tgt_fn + ".segmented")
             args.src_fn += ".segmented"
             args.tgt_fn += ".segmented"
+    
+    if args.additional_prepostprocessor is not None:
+        for i in range(len(args.additional_prepostprocessor)):
+            if args.tgt_lang:
+                log.info("Translating to %s" % args.tgt_lang)
+            src_prepostprocessor = BPEPrePostProcessor(target_language = args.tgt_lang)
+            src_prepostprocessor.load_model(args.additional_prepostprocessor[i] + "/bpe_model.src")
+            if args.apply_preprocessing:
+                log.info("Applying the preprocessor to the additional source data")
+                src_prepostprocessor.apply_preprocessing(args.additional_src_fn[i], args.additional_src_fn[i] + ".segmented")
+                args.additional_src_fn[i] += ".segmented"
+                
 
     if args.gpu is not None:
         encdec = encdec.to_gpu(args.gpu)
