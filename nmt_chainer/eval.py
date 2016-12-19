@@ -137,7 +137,7 @@ def translate_to_file_with_beam_search(dest_fn, gpu, encdec, eos_idx, src_data, 
        groundhog,
        tgt_unk_id, tgt_indexer, force_finish = False,
        prob_space_combination = False, reverse_encdec = None, 
-       generate_attention_html = None, src_indexer = None, rich_output_filename = None, all_activations = None):
+       generate_attention_html = None, src_indexer = None, rich_output_filename = None, all_activations = None, src_data_list = None):
     
     log.info("writing translation to %s "% dest_fn)
     out = codecs.open(dest_fn, "w", encoding = "utf8")
@@ -325,11 +325,14 @@ def commandline():
     parser.add_argument("--prepostprocessor", default = None, help = "path to prepostprocessor models. For BPE these are the merge operations models as .src and .tgt files.")
     parser.add_argument("--tgt_lang", default = None, help = "target language")
     parser.add_argument("--retrieve_activations", default = False, action = "store_true")
-
+    parser.add_argument("--is_multisource", default = False, action = "store_true")
 
     
     args = parser.parse_args()
     
+    if args.is_multisource:
+        log.info("Multisource ensembling will be done.")
+
     all_activations = [] if args.retrieve_activations else None
 
     if args.tgt_lang == "None":
@@ -356,6 +359,9 @@ def commandline():
             args.tgt_fn += ".segmented"
     
     if args.additional_prepostprocessor is not None:
+        assert args.is_multisource
+        assert len(args.additional_prepostprocessor) == len(args.additional_src_fn)
+        log.info("Prepostprocessors specified for additional source languages.")
         for i in range(len(args.additional_prepostprocessor)):
             if args.tgt_lang:
                 log.info("Translating to %s" % args.tgt_lang)
@@ -371,7 +377,8 @@ def commandline():
         encdec = encdec.to_gpu(args.gpu)
         
     encdec_list = [encdec]
-    
+    src_indexer_list = [src_indexer]
+
     if args.additional_training_config is not None:
         assert len(args.additional_training_config) == len(args.additional_trained_model)
     
@@ -384,7 +391,7 @@ def commandline():
             if eos_idx != this_eos_idx:
                 raise Exception("incompatible models")
                 
-            if len(src_indexer) != len(this_src_indexer):
+            if len(src_indexer) != len(this_src_indexer) and not args.is_multisource:
                 raise Exception("incompatible models")
               
             if len(tgt_indexer) != len(this_tgt_indexer):
@@ -394,6 +401,8 @@ def commandline():
                 this_encdec = this_encdec.to_gpu(args.gpu)
             
             encdec_list.append(this_encdec)
+            if args.is_multisource:
+                src_indexer_list.append(this_src_indexer)
             
     if args.reverse_training_config is not None:
         reverse_encdec, reverse_eos_idx, reverse_src_indexer, reverse_tgt_indexer = create_and_load_encdec_from_files(
@@ -423,6 +432,24 @@ def commandline():
                                                                     make_data_infos.total_token))
     assert dic_src == src_indexer
     
+    src_data_list = [src_data]
+
+    if args.is_multisource:
+        assert len(src_indexer_list) > 1:
+        assert additional_src_fn is not None
+        assert len(additional_src_fn) + 1 == len(src_indexer_list)
+        assert len(additional_src_fn) + 1 == len(encdec_list)
+        for i in range(len(args.additional_src_fn)):
+            log.info("opening source file %s" % args.additional_src_fn[i])
+            src_data, dic_src, make_data_infos = build_dataset_one_side(args.args.additional_src_fn[i], 
+                                            src_voc_limit = None, max_nb_ex = args.max_nb_ex, dic_src = src_indexer_list[i+1])
+            log.info("%i sentences loaded" % make_data_infos.nb_ex)
+            log.info("#tokens src: %i   of which %i (%f%%) are unknown"%(make_data_infos.total_token, 
+                                                                         make_data_infos.total_count_unk, 
+                                                                         float(make_data_infos.total_count_unk * 100) / 
+                                                                            make_data_infos.total_token))
+            src_data_list.append(src_data)
+
     tgt_data = None
     if args.tgt_fn is not None:
         log.info("opening target file %s" % args.tgt_fn)
@@ -477,7 +504,8 @@ def commandline():
                                            generate_attention_html = args.generate_attention_html,
                                            src_indexer = src_indexer,
                                            rich_output_filename = args.rich_output_filename,
-                                           all_activations = all_activations)
+                                           all_activations = all_activations,
+                                           src_data_list = src_data_list)
         if args.prepostprocessor is not None:
             if args.apply_postprocessing:
                 tgt_prepostprocessor.apply_postprocessing(args.dest_fn, args.dest_fn + ".restored")
@@ -494,7 +522,8 @@ def commandline():
                                            generate_attention_html = args.generate_attention_html,
                                            src_indexer = src_indexer,
                                            rich_output_filename = args.rich_output_filename,
-                                           all_activations = all_activations)
+                                           all_activations = all_activations,
+                                           src_data_list = src_data_list)
         
         if args.prepostprocessor is not None:
             if args.apply_postprocessing:
