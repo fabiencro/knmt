@@ -7,6 +7,7 @@ __email__ = "fabien.cromieres@gmail.com"
 __status__ = "Development"
 
 from chainer import serializers
+import cupy
 import time
 
 import logging
@@ -239,6 +240,15 @@ class ComputeLossExtension(chainer.training.Extension):
         
     def serialize(self, serializer):
         self.best_loss = serializer("best_loss", self.best_loss)
+        # Make sure that best_loss is at the right location.
+        # For some reasons, after deserialization, the best_loss is
+        # instanciated on the CPU instead of the GPU. 
+        if self.gpu is None:
+            if isinstance(self.best_loss, cupy.core.ndarray):
+                self.best_loss = cupy.asnumpy(self.best_loss)
+        else:
+            if isinstance(self.best_loss, numpy.ndarray) or self.best_loss.device != self.gpu:
+                with cupy.cuda.Device(self.gpu): self.best_loss = cupy.array(self.best_loss)
                
 class ComputeBleuExtension(chainer.training.Extension):
     priority = chainer.training.PRIORITY_WRITER
