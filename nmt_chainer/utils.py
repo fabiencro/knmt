@@ -184,7 +184,37 @@ def batch_sort_and_split(batch, size_parts, sort_key = lambda x:len(x[1]), inpla
     for num_batch in xrange(nb_mb_for_sorting):
         mb_raw = batch[num_batch * size_parts : (num_batch + 1) * size_parts]
         yield mb_raw
-     
+
+def batch_sort_and_split_exp_bin(batch, size_parts, sort_key = lambda x:len(x[1]), inplace = False):
+    if not inplace:
+        batch = list(batch)
+    batch.sort(key = sort_key)
+    #print [len(x) for x,y in batch]
+    #print sum([max(len(x), len(y)) for x,y in batch])/len(batch)    
+    #nb_mb_for_sorting = len(batch) / size_parts + (1 if len(batch) % size_parts != 0 else 0)
+    curr_pos = -1
+    curr_bin = 0
+    bins = [(5, 2048), (10, 1024), (20, 512), (40, 256), (50, 128), (60, 64)]
+    mb_raw = []
+    while curr_pos < len(batch)-1:
+        curr_pos += 1
+        if len(mb_raw) >= bins[curr_bin][1]:
+            print "yielding batch of size", len(mb_raw) 
+            yield mb_raw
+            mb_raw = []
+        elif len(batch[curr_pos][0]) > bins[curr_bin][0] and curr_bin != 5:
+            #print len(batch[curr_pos][0])
+            print "yielding existing and switching to new batch size"
+            if len(mb_raw) != 0:
+                yield mb_raw
+            mb_raw = [batch[curr_pos]]
+            curr_bin = 5 if curr_bin + 1 > 5 else curr_bin + 1
+        else:
+            mb_raw.append(batch[curr_pos]) 
+    #for num_batch in xrange(nb_mb_for_sorting):
+    #    mb_raw = batch[num_batch * size_parts : (num_batch + 1) * size_parts]
+    #    yield mb_raw
+ 
 def mb_reverser(mb_raw, reverse_src = False, reverse_tgt = False):
     if reverse_src or reverse_tgt:
         mb_raw_new = []
@@ -235,7 +265,7 @@ def minibatch_provider(data, eos_idx, mb_size, nb_mb_for_sorting = 1, loop = Tru
                 yield src_batch, tgt_batch, src_mask
     else:
         assert nb_mb_for_sorting > 0
-        required_data = nb_mb_for_sorting * mb_size
+        required_data = nb_mb_for_sorting *  mb_size
         if randomized:
 #             assert not loop
             looper = minibatch_looper_random(data, required_data)
