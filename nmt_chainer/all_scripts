@@ -1023,3 +1023,9 @@ python generate_multilingual_bpe_data.py --train_lang_corpora_pairs bn:hi:/windr
 ######### Projections
 
 bash softwares-and-scripts/NNProjects/knmt/nmt_chainer/mr_gxp_project.sh /home/raj/softwares-and-scripts/NNProjects/knmt/nmt_chainer/5s1t_fewer/all_project_greedy /home/raj/softwares-and-scripts/NNProjects/knmt/nmt_chainer/5s1t_fewer/mlnmt.basic.train.config /home/raj/softwares-and-scripts/NNProjects/knmt/nmt_chainer/5s1t_fewer/mlnmt.basic.model.best.npz /home/raj/softwares-and-scripts/NNProjects/knmt/nmt_chainer/5s1t_fewer/mlnmt.test.src.raw /home/raj/softwares-and-scripts/NNProjects/knmt/nmt_chainer/5s1t_fewer/mlnmt.test.tgt.raw /home/raj/softwares-and-scripts/NNProjects/knmt/nmt_chainer/5s1t_fewer/ None beam_search
+
+
+
+####### Exponential binning tests
+
+python train.py /windroot/raj/corpora_downloads/IWSLT2016/1s1t_fr_en/mlnmt.basic /tmp/mlnmt.eb --gpu 0 --mb_size 512 --weight_decay 0.000001 --postprocess --max_nb_iters 100 --max_src_tgt_length 5
