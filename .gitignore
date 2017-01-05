@@ -3,4 +3,5 @@
 .pydevproject
 .cache
 nmt_chainer.egg-info
+*.conf
 tags
