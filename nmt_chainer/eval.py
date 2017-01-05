@@ -56,7 +56,7 @@ class AttentionVisualizer(object):
     def make_plot(self, output_file):
         import visualisation
         log.info("writing attention to %s"% output_file)
-        p_all = visualisation.vplot(*self.plots_list)
+        p_all = visualisation.Column(*self.plots_list)
         visualisation.output_file(output_file)
         visualisation.show(p_all)
 
@@ -519,7 +519,7 @@ def do_eval(args):
 #             p2 = visualisation.make_alignment_figure(
 #                             [src_voc_with_unk[idx] for idx in src_idx_list], tgt_idx_list, alignment)
             plots_list.append(p1)
-        p_all = visualisation.vplot(*plots_list)
+        p_all = visualisation.Column(*plots_list)
         visualisation.output_file(args.dest_fn)
         visualisation.show(p_all)
 #     for t in translations_with_attn:
