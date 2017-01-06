@@ -321,10 +321,7 @@ def timestamped_msg(msg):
     timestamp = datetime.datetime.fromtimestamp(time.time()).strftime('%Y-%m-%d %H:%M:%S')
     return "{0}: {1}".format(timestamp, msg) 
 
-def commandline():
-    import argparse
-    parser = argparse.ArgumentParser(description= "Use a RNNSearch model", 
-                                     formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+def define_parser(parser):
     parser.add_argument("training_config", help = "prefix of the trained model")
     parser.add_argument("trained_model", help = "prefix of the trained model")
     
@@ -355,8 +352,16 @@ def commandline():
     parser.add_argument("--port", help = "port for listening request", default = 44666)
     parser.add_argument("--segmenter_command", help = "command to communicate with the segmenter server")
     parser.add_argument("--segmenter_format", help = "format to expect from the segmenter (parse_server, morph)", default = 'parse_server')
-    args = parser.parse_args()
 
+def command_line(arguments = None):
+    import argparse
+    parser = argparse.ArgumentParser(description= "Launch a RNNSearch server", 
+                                     formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+    define_parser(parser)
+    args = parser.parse_args(args = arguments)
+    do_start_server(args)
+   
+def do_start_server(args):
     evaluator = Evaluator(args.training_config, args.trained_model, args.additional_training_config, args.additional_trained_model, 
                    args.reverse_training_config, args.reverse_trained_model, args.max_nb_ex, args.mb_size, args.beam_opt, 
                    args.tgt_unk_id, args.gpu, args.dic)
@@ -374,6 +379,6 @@ def commandline():
         server.server_close()
     
     sys.exit(0)
-    
+
 if __name__ == '__main__':
-    commandline() 
+    command_line() 

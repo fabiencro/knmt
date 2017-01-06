@@ -15,7 +15,7 @@ CLASSIFIERS = [
 ]
 
 setup(name='knmt',
-      version='0.9.4',
+      version='0.9.5',
       description='Implementation of RNNSearch and other Neural MT models in Chainer',
       author='Fabien Cromieres',
       author_email='fabien.cromieres@gmail.com',
@@ -24,7 +24,7 @@ setup(name='knmt',
       url="https://github.com/fabiencro/knmt",
 #       scripts=["nmt_chainer/knmt.py"],
 
-      scripts=["bin/knmt", "bin/knmt-debug"],
+      scripts=["bin/knmt", "bin/knmt-debug", "bin/knmt-server"],
       
 #       entry_points= {
 #           'console_scripts': [

@@ -4,6 +4,7 @@ import argparse
 import nmt_chainer.train as train
 import nmt_chainer.eval as eval_module
 import nmt_chainer.make_data as make_data
+import nmt_chainer.server as server
 
 
 
@@ -60,9 +61,14 @@ def main():
     eval_module.define_parser(parser_eval)
     parser_eval.set_defaults(func_str = "eval")
     
+    # create the parser for the "server" command
+    parser_server = subparsers.add_parser('server', description= "Launch a server.", formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+    server.define_parser(parser_server)
+    parser_server.set_defaults(func_str = "server")
+
     args = parser.parse_args()
     
-    func = {"make_data": make_data.do_make_data, "train": train.do_train, "eval":eval_module.do_eval}[args.func_str]
+    func = {"make_data": make_data.do_make_data, "train": train.do_train, "eval":eval_module.do_eval, "server": server.do_start_server }[args.func_str]
     
     if args.run_in_pdb:
         run_in_pdb(func, args)
