@@ -265,6 +265,8 @@ class RequestHandler(SocketServer.BaseRequestHandler):
                             if pair != '':
                                 word, pos = pair.split('_')
                                 words.append(word)
+                    elif 'plain' == self.server.segmenter_format:
+                        words = parser_output.split(' ')
                     else:
                         pass
                     splitted_sentence = ' '.join(words)
