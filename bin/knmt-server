@@ -47,7 +47,7 @@ if [[ ! -z "$RNN_SEARCH_ADDITIONAL_MODEL" ]]; then
 	done
 fi
 
-server_cmd="CHAINER_TYPE_CHECK=0 python -O -m nmt_chainer server --netiface $NETWORK_INTERFACE --port $PORT \
+server_cmd="knmt server --netiface $NETWORK_INTERFACE --port $PORT \
 	--segmenter_command=\"$SEGMENTER_COMMAND\" --segmenter_format $SEGMENTER_FORMAT $OPT_DIC \
     $RNN_SEARCH_CONFIG $RNN_SEARCH_MODEL $OPT_GPU \
 	$OPT_ADDITIONAL_CONFIGS $OPT_ADDITIONAL_MODELS"
