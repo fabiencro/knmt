@@ -15,7 +15,7 @@ CLASSIFIERS = [
 ]
 
 setup(name='knmt',
-      version='0.9.6',
+      version='0.9.7',
       description='Implementation of RNNSearch and other Neural MT models in Chainer',
       author='Fabien Cromieres',
       author_email='fabien.cromieres@gmail.com',
