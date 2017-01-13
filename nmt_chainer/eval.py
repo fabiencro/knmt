@@ -280,7 +280,7 @@ def define_parser(parser):
     parser.add_argument("--nb_steps_ratio", type = float, help = "nb_steps used in generation as a ratio of input length")
     parser.add_argument("--nb_batch_to_sort", type = int, default= 20, help = "Sort this many batches by size.")
     parser.add_argument("--beam_opt", default = False, action = "store_true")
-    parser.add_argument("--tgt_unk_id", choices = ["attn", "id"], default = "align")
+    parser.add_argument("--tgt_unk_id", choices = ["align", "id"], default = "align")
     parser.add_argument("--groundhog", default = False, action = "store_true")
     
     parser.add_argument("--force_finish", default = False, action = "store_true")
