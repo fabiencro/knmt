@@ -1,5 +1,8 @@
 # KyotoNMT
 ## An implementation of Neural Machine Translation in Chainer.
+
+[![Build Status](https://travis-ci.org/fabiencro/knmt.svg?branch=master)](https://travis-ci.org/fabiencro/knmt)
+
 This code mainly implements the Neural Machine Translation system described in (Bahdanau et al., 2015). Also known as "RNNSearch", or "Sequence-to-Sequence Modeling with Attention Mechanism", this is, as of 2016, the most commonly used approach in the recent field of Neural Machine Translation. This code is being developped at Kyoto University in Kurohashi-Kawahara lab (http://nlp.ist.i.kyoto-u.ac.jp/).
 
 This implementation uses the Chainer Deep Learning Library (http://chainer.org/).
