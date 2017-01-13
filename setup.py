@@ -32,7 +32,7 @@ setup(name='knmt',
 #           ]
 #                      },
       
-      install_requires=['chainer', 'bokeh', 'plotly']
+      install_requires=['chainer>=1.18.0', 'numpy>=1.10.0', 'bokeh', 'plotly']
      )
 
 
