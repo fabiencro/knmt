@@ -410,7 +410,8 @@ def train_on_data_chainer(encdec, optimizer, training_data, output_files_dict,
                   use_reinf = False,
                   save_ckpt_every = 5000,
                   reshuffle_every_epoch = False,
-                  trainer_snapshot = None):
+                  trainer_snapshot = None,
+                  save_initial_model_to = None):
         
     @chainer.training.make_extension()
     def sample_extension(trainer): 
@@ -510,6 +511,11 @@ def train_on_data_chainer(encdec, optimizer, training_data, output_files_dict,
         serializers.load_npz(trainer_snapshot, trainer)
     
     try:
+        if save_initial_model_to is not None:
+            log.info("Saving initial parameters to %s"%save_initial_model_to)
+            encdec = trainer.updater.get_optimizer("main").target
+            serializers.save_npz(save_initial_model_to, encdec)
+            
         trainer.run()
     except:
         final_snapshot_fn = "final_snapshot"
