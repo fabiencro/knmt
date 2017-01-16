@@ -506,7 +506,7 @@ def train_on_data_chainer(encdec, optimizer, training_data, output_files_dict,
 
         trainer.extend(SqliteLogExtension(db_path = output_files_dict["sqlite_db"]))
     
-    trainer.extend(TrainingLossSummaryExtension(trigger = (200, "iteration")))
+    trainer.extend(TrainingLossSummaryExtension(trigger = (report_every, "iteration")))
     
     
     if trainer_snapshot is not None:
