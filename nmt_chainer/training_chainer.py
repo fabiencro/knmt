@@ -520,9 +520,11 @@ def train_on_data_chainer(encdec, optimizer, training_data, output_files_dict,
             
         trainer.run()
     except:
-        final_snapshot_fn = "final_snapshot"
-        log.info("Exception met. Trying to save current trainer state to file %s" % final_snapshot_fn)
-        chainer.training.extensions.snapshot(filename = final_snapshot_fn)(trainer)
-        log.info("Saved trainer snapshot to file %s" % final_snapshot_fn)
+        if not no_report_or_save:
+            final_snapshot_fn = "final_snapshot"
+            log.info("Exception met. Trying to save current trainer state to file %s" % final_snapshot_fn)
+            chainer.training.extensions.snapshot(filename = final_snapshot_fn)(trainer)
+            log.info("Saved trainer snapshot to file %s" % final_snapshot_fn)
+
         raise
         
