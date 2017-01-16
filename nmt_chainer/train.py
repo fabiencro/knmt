@@ -213,6 +213,9 @@ def define_parser(parser):
     
     parser.add_argument("--use_reinf", default = False, action = "store_true")
     
+    parser.add_argument("--save_initial_model_to", help = "save the initial model parameters to given file in npz format")
+    
+    
 def command_line(arguments = None):
     import argparse
     parser = argparse.ArgumentParser(description= "Train a RNNSearch model", 
@@ -444,6 +447,7 @@ def do_train(args):
 #                     lexical_probability_dictionary = lexical_probability_dictionary,
 #                     V_tgt = Vo + 1,
 #                     lexicon_prob_epsilon = args.lexicon_prob_epsilon
+                      save_initial_model_to = args.save_initial_model_to
                       )
 
 # 
