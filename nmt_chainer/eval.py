@@ -86,12 +86,13 @@ class RichOutputWriter(object):
           
 
 
-def beam_search_all(gpu, encdec, eos_idx, src_data, beam_width, nb_steps, beam_opt, 
+def beam_search_all(gpu, encdec, eos_idx, src_data, beam_width, beam_size, nb_steps, beam_opt, 
        nb_steps_ratio, use_raw_score, 
        groundhog,
        tgt_unk_id, tgt_indexer, force_finish = False,
        prob_space_combination = False, reverse_encdec = None,
-       use_unfinished_translation_if_none_found = False):
+       use_unfinished_translation_if_none_found = False,
+       consider_beam_size_when_pruning = False):
     
     log.info("starting beam search translation of %i sentences"% len(src_data))
     if isinstance(encdec, (list, tuple)) and len(encdec) > 1:
@@ -100,12 +101,13 @@ def beam_search_all(gpu, encdec, eos_idx, src_data, beam_width, nb_steps, beam_o
     with cuda.get_device(gpu):
         translations_gen = beam_search_translate(
                     encdec, eos_idx, src_data, beam_width = beam_width, nb_steps = nb_steps, 
-                                    gpu = gpu, beam_opt = beam_opt, nb_steps_ratio = nb_steps_ratio,
+                                    gpu = gpu, beam_opt = beam_opt, beam_size = beam_size, nb_steps_ratio = nb_steps_ratio,
                                     need_attention = True, score_is_divided_by_length = not use_raw_score,
                                     groundhog = groundhog, force_finish = force_finish,
                                     prob_space_combination = prob_space_combination,
                                     reverse_encdec = reverse_encdec,
-                                    use_unfinished_translation_if_none_found = use_unfinished_translation_if_none_found)
+                                    use_unfinished_translation_if_none_found = use_unfinished_translation_if_none_found,
+                                    consider_beam_size_when_pruning = consider_beam_size_when_pruning)
         
         for num_t, (t, score, attn) in enumerate(translations_gen):
             if num_t %200 == 0:
@@ -134,23 +136,25 @@ def beam_search_all(gpu, encdec, eos_idx, src_data, beam_width, nb_steps, beam_o
             yield src_data[num_t], translated, t, score, attn 
         print >>sys.stderr
 
-def translate_to_file_with_beam_search(dest_fn, gpu, encdec, eos_idx, src_data, beam_width, nb_steps, beam_opt, 
+def translate_to_file_with_beam_search(dest_fn, gpu, encdec, eos_idx, src_data, beam_width, beam_size, nb_steps, beam_opt, 
        nb_steps_ratio, use_raw_score, 
        groundhog,
        tgt_unk_id, tgt_indexer, force_finish = False,
        prob_space_combination = False, reverse_encdec = None, 
        generate_attention_html = None, src_indexer = None, rich_output_filename = None,
-       use_unfinished_translation_if_none_found = False):
+       use_unfinished_translation_if_none_found = False,
+       consider_beam_size_when_pruning = False):
     
     log.info("writing translation to %s "% dest_fn)
     out = codecs.open(dest_fn, "w", encoding = "utf8")
     
-    translation_iterator = beam_search_all(gpu, encdec, eos_idx, src_data, beam_width, nb_steps, beam_opt, 
+    translation_iterator = beam_search_all(gpu, encdec, eos_idx, src_data, beam_width, beam_size, nb_steps, beam_opt, 
        nb_steps_ratio, use_raw_score, 
        groundhog,
        tgt_unk_id, tgt_indexer, force_finish = force_finish,
        prob_space_combination = prob_space_combination, reverse_encdec = reverse_encdec,
-       use_unfinished_translation_if_none_found = use_unfinished_translation_if_none_found)
+       use_unfinished_translation_if_none_found = use_unfinished_translation_if_none_found,
+       consider_beam_size_when_pruning = consider_beam_size_when_pruning)
     
     
     attn_vis = None
@@ -276,6 +280,8 @@ def define_parser(parser):
     parser.add_argument("--max_nb_ex", type = int, help = "only use the first MAX_NB_EX examples")
     parser.add_argument("--mb_size", type = int, default= 80, help = "Minibatch size")
     parser.add_argument("--beam_width", type = int, default= 20, help = "beam width")
+    parser.add_argument("--beam_size", type = float, default= 3.0, help = "beam size")
+    parser.add_argument("--consider_beam_size_when_pruning", default= False, help = "Prune in function of the beam size")
     parser.add_argument("--nb_steps", type = int, default= 50, help = "nb_steps used in generation")
     parser.add_argument("--nb_steps_ratio", type = float, help = "nb_steps used in generation as a ratio of input length")
     parser.add_argument("--nb_batch_to_sort", type = int, default= 20, help = "Sort this many batches by size.")
@@ -406,7 +412,7 @@ def do_eval(args):
             out.write(ct + "\n")
 
     elif args.mode == "beam_search":
-        translate_to_file_with_beam_search(args.dest_fn, args.gpu, encdec_list, eos_idx, src_data, args.beam_width, 
+        translate_to_file_with_beam_search(args.dest_fn, args.gpu, encdec_list, eos_idx, src_data, args.beam_width, args.beam_size,
                                            args.nb_steps, args.beam_opt, 
                                            args.nb_steps_ratio, args.use_raw_score, 
                                            args.groundhog,
@@ -416,11 +422,12 @@ def do_eval(args):
                                            generate_attention_html = args.generate_attention_html,
                                            src_indexer = src_indexer,
                                            rich_output_filename = args.rich_output_filename,
-                                           use_unfinished_translation_if_none_found = True)
+                                           use_unfinished_translation_if_none_found = True,
+                                           consider_beam_size_when_pruning = args.consider_beam_size_when_pruning)
             
     elif args.mode == "eval_bleu":
 #         assert args.ref is not None
-        translate_to_file_with_beam_search(args.dest_fn, args.gpu, encdec_list, eos_idx, src_data, args.beam_width, 
+        translate_to_file_with_beam_search(args.dest_fn, args.gpu, encdec_list, eos_idx, src_data, args.beam_width, args.beam_size,
                                            args.nb_steps, args.beam_opt, 
                                            args.nb_steps_ratio, args.use_raw_score, 
                                            args.groundhog,
@@ -430,7 +437,8 @@ def do_eval(args):
                                            generate_attention_html = args.generate_attention_html,
                                            src_indexer = src_indexer,
                                            rich_output_filename = args.rich_output_filename,
-                                           use_unfinished_translation_if_none_found = True)
+                                           use_unfinished_translation_if_none_found = True,
+                                           consider_beam_size_when_pruning = args.consider_beam_size_when_pruning)
         
         if args.ref is not None:
             bc = bleu_computer.get_bc_from_files(args.ref, args.dest_fn)
