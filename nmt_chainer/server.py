@@ -109,8 +109,8 @@ class Evaluator:
         else:
             self.reverse_encdec = None    
             
-    def eval(self, request, request_number, beam_width, beam_size, nb_steps, nb_steps_ratio, 
-            remove_unk, normalize_unicode_unk, attempt_to_relocate_unk_source, consider_beam_size_when_pruning, use_raw_score, groundhog, force_finish, prob_space_combination, attn_graph_width, attn_graph_height):
+    def eval(self, request, request_number, beam_width, beam_pruning_margin, nb_steps, nb_steps_ratio, 
+            remove_unk, normalize_unicode_unk, attempt_to_relocate_unk_source, use_raw_score, groundhog, force_finish, prob_space_combination, attn_graph_width, attn_graph_height):
         log.info("processing source string %s" % request)
         src_data, dic_src, make_data_infos = build_dataset_one_side_from_string(request, 
                     src_voc_limit = None, max_nb_ex = self.max_nb_ex, dic_src = self.src_indexer)
@@ -127,14 +127,14 @@ class Evaluator:
         unk_mapping = []
         with cuda.get_device(self.gpu):
             translations_gen = beam_search_translate(
-                        self.encdec, self.eos_idx, src_data, beam_width = beam_width, beam_size = beam_size, 
+                        self.encdec, self.eos_idx, src_data, beam_width = beam_width, beam_pruning_margin = beam_pruning_margin, 
                                         nb_steps = nb_steps, 
                                         gpu = self.gpu, beam_opt = self.beam_opt, nb_steps_ratio = nb_steps_ratio,
                                         need_attention = True, score_is_divided_by_length = not use_raw_score,
                                         groundhog = groundhog, force_finish = force_finish,
                                         prob_space_combination = prob_space_combination,
-                                        reverse_encdec = self.reverse_encdec, 
-                                        consider_beam_size_when_pruning = consider_beam_size_when_pruning)
+                                        reverse_encdec = self.reverse_encdec)
+                                        
 
             for num_t, (t, score, attn) in enumerate(translations_gen):
                 if num_t %200 == 0:
@@ -217,9 +217,9 @@ class RequestHandler(SocketServer.BaseRequestHandler):
                     attn_graph_height = 0
                 beam_width = int(root.get('beam_width', 30))
                 nb_steps = int(root.get('nb_steps', 50))
-                beam_size = None
+                beam_pruning_margin = None
                 try:
-                    beam_size = float(root.get('beam_size', 3.0))
+                    beam_pruning_margin = float(root.get('beam_pruning_margin'))
                 except:
                     pass
                 nb_steps_ratio = None
@@ -235,7 +235,6 @@ class RequestHandler(SocketServer.BaseRequestHandler):
                 normalize_unicode_unk = ('true' == root.get('normalize_unicode_unk', 'true'))
                 log.info('normalize_unicode_unk=' + str(normalize_unicode_unk))
                 attempt_to_relocate_unk_source = ('true' == root.get('attempt_to_relocate_unk_source', 'false'))
-                consider_beam_size_when_pruning = ('true' == root.get('consider_beam_size_when_pruning', 'false'))
                 log.info("Article id: %s" % article_id)
                 out = ""
                 graph_data = []
@@ -283,7 +282,7 @@ class RequestHandler(SocketServer.BaseRequestHandler):
                     log.info(timestamped_msg("Translating sentence %d" % idx))
                     decoded_sentence = splitted_sentence.decode('utf-8')
                     translation, script, div, unk_mapping = self.server.evaluator.eval(decoded_sentence, sentence_number, 
-                        beam_width, beam_size, nb_steps, nb_steps_ratio, remove_unk, normalize_unicode_unk, attempt_to_relocate_unk_source, consider_beam_size_when_pruning,
+                        beam_width, beam_pruning_margin, nb_steps, nb_steps_ratio, remove_unk, normalize_unicode_unk, attempt_to_relocate_unk_source,
                         use_raw_score, groundhog, force_finish, prob_space_combination, attn_graph_width, attn_graph_height)
                     out += translation
                     segmented_input.append(splitted_sentence)

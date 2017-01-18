@@ -136,12 +136,11 @@ def reverse_rescore(encdec, src_batch, src_mask, eos_idx, translations, gpu = No
         de_sorted_scores[original_pos] = scores[xpos]
     return de_sorted_scores
      
-def beam_search_translate(encdec, eos_idx, src_data, beam_width = 20, beam_size = 3.0, nb_steps = 50, gpu = None, beam_opt = False,
+def beam_search_translate(encdec, eos_idx, src_data, beam_width = 20, beam_pruning_margin = None, nb_steps = 50, gpu = None, beam_opt = False,
                           need_attention = False, nb_steps_ratio = None, score_is_divided_by_length = True, 
                           groundhog = False, force_finish = False,
                           prob_space_combination = False,
-                          reverse_encdec = None, use_unfinished_translation_if_none_found = False,
-                          consider_beam_size_when_pruning = False):
+                          reverse_encdec = None, use_unfinished_translation_if_none_found = False):
     nb_ex = len(src_data)
 #     res = []
     for i in range(nb_ex):
@@ -163,10 +162,10 @@ def beam_search_translate(encdec, eos_idx, src_data, beam_width = 20, beam_size 
             encdec = [encdec]
         translations = beam_search.ensemble_beam_search(encdec, src_batch, src_mask, nb_steps = nb_steps, eos_idx = eos_idx, 
                                           beam_width = beam_width,
-                                          beam_size = beam_size,
+                                          beam_pruning_margin = beam_pruning_margin,
                                           need_attention = need_attention, force_finish = force_finish,
                                           prob_space_combination = prob_space_combination,
-                                          use_unfinished_translation_if_none_found = use_unfinished_translation_if_none_found, consider_beam_size_when_pruning = consider_beam_size_when_pruning)
+                                          use_unfinished_translation_if_none_found = use_unfinished_translation_if_none_found)
 
         
         #TODO: This is a quick patch, but actually ensemble_beam_search probably should not return empty translations except when no translation found
