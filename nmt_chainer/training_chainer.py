@@ -412,7 +412,7 @@ def train_on_data_chainer(encdec, optimizer, training_data, output_files_dict,
                   reshuffle_every_epoch = False,
                   trainer_snapshot = None,
                   save_initial_model_to = None):
-        
+    
     @chainer.training.make_extension()
     def sample_extension(trainer): 
         encdec = trainer.updater.get_optimizer("main").target
@@ -467,7 +467,7 @@ def train_on_data_chainer(encdec, optimizer, training_data, output_files_dict,
 #                    trigger = (1, "iteration"))
     
     
-    if dev_data is not None:
+    if dev_data is not None and not no_report_or_save:
         dev_loss_extension = ComputeLossExtension(dev_data, eos_idx, 
                      mb_size, gpu, reverse_src, reverse_tgt,
                      save_best_model_to = output_files_dict["model_best_loss"], 
@@ -484,7 +484,7 @@ def train_on_data_chainer(encdec, optimizer, training_data, output_files_dict,
         
         trainer.extend(dev_bleu_extension, trigger = (report_every, "iteration"))
     
-    if test_data is not None:
+    if test_data is not None and not no_report_or_save:
         test_loss_extension = ComputeLossExtension(test_data, eos_idx, 
                      mb_size, gpu, reverse_src, reverse_tgt,
                      observation_name = "test_loss")
@@ -499,13 +499,15 @@ def train_on_data_chainer(encdec, optimizer, training_data, output_files_dict,
         
         trainer.extend(test_bleu_extension, trigger = (report_every, "iteration"))
     
-    trainer.extend(sample_extension, trigger = (sample_every, "iteration"))
+    if not no_report_or_save:
+        trainer.extend(sample_extension, trigger = (sample_every, "iteration"))
     
-    trainer.extend(chainer.training.extensions.snapshot(), trigger = (save_ckpt_every, "iteration"))
+        trainer.extend(chainer.training.extensions.snapshot(), trigger = (save_ckpt_every, "iteration"))
+
+        trainer.extend(SqliteLogExtension(db_path = output_files_dict["sqlite_db"]))
     
     trainer.extend(TrainingLossSummaryExtension(trigger = (report_every, "iteration")))
     
-    trainer.extend(SqliteLogExtension(db_path = output_files_dict["sqlite_db"]))
     
     if trainer_snapshot is not None:
         serializers.load_npz(trainer_snapshot, trainer)
@@ -518,9 +520,11 @@ def train_on_data_chainer(encdec, optimizer, training_data, output_files_dict,
             
         trainer.run()
     except:
-        final_snapshot_fn = "final_snapshot"
-        log.info("Exception met. Trying to save current trainer state to file %s" % final_snapshot_fn)
-        chainer.training.extensions.snapshot(filename = final_snapshot_fn)(trainer)
-        log.info("Saved trainer snapshot to file %s" % final_snapshot_fn)
+        if not no_report_or_save:
+            final_snapshot_fn = "final_snapshot"
+            log.info("Exception met. Trying to save current trainer state to file %s" % final_snapshot_fn)
+            chainer.training.extensions.snapshot(filename = final_snapshot_fn)(trainer)
+            log.info("Saved trainer snapshot to file %s" % final_snapshot_fn)
+
         raise
         
