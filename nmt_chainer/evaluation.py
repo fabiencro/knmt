@@ -137,7 +137,7 @@ def reverse_rescore(encdec, src_batch, src_mask, eos_idx, translations, gpu = No
     return de_sorted_scores
      
 def beam_search_translate(encdec, eos_idx, src_data, beam_width = 20, beam_pruning_margin = None, nb_steps = 50, gpu = None, beam_opt = False,
-                          need_attention = False, nb_steps_ratio = None, score_is_divided_by_length = True, 
+                          need_attention = False, nb_steps_ratio = None, use_post_score_length_normalization = True, 
                           groundhog = False, force_finish = False,
                           prob_space_combination = False,
                           reverse_encdec = None, use_unfinished_translation_if_none_found = False):
@@ -185,7 +185,7 @@ def beam_search_translate(encdec, eos_idx, src_data, beam_width = 20, beam_pruni
                 rescored_translations.append((tr, sc + reverse_scores[num_t], attn))
             translations = rescored_translations
                     
-        if score_is_divided_by_length:
+        if use_post_score_length_normalization:
             translations.sort(key = lambda x:x[1]/(len(x[0])+1), reverse = True)
         else:
             translations.sort(key = operator.itemgetter(1), reverse = True)
