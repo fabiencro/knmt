@@ -165,6 +165,7 @@ def define_parser(parser):
                         help = "Experimental option that could strongly reduce memory used.")
         
     parser.add_argument("--max_nb_iters", type = int, default= None, help = "maximum number of iterations")
+    parser.add_argument("--max_nb_epochs", type = int, default= None, help = "maximum number of epochs")
     
     parser.add_argument("--max_src_tgt_length", type = int, help = "Limit length of training sentences")
     
@@ -426,6 +427,10 @@ def do_train(args):
     with cuda.get_device(args.gpu):
         if args.max_nb_iters is not None:
             stop_trigger = (args.max_nb_iters, "iteration")
+            if args.max_nb_epochs is not None:
+                log.warn("max_nb_iters and max_nb_epochs both specified. Only max_nb_iters will be considered.")
+        elif args.max_nb_epochs is not None:
+            stop_trigger = (args.max_nb_epochs, "epoch")
         else:
             stop_trigger = None
         training_chainer.train_on_data_chainer(encdec, optimizer, training_data, output_files_dict,
