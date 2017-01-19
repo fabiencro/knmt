@@ -137,7 +137,7 @@ def reverse_rescore(encdec, src_batch, src_mask, eos_idx, translations, gpu = No
     return de_sorted_scores
      
 def beam_search_translate(encdec, eos_idx, src_data, beam_width = 20, beam_pruning_margin = None, nb_steps = 50, gpu = None, beam_opt = False,
-                          need_attention = False, nb_steps_ratio = None, use_post_score_length_normalization = True, 
+                          need_attention = False, nb_steps_ratio = None, post_score_length_normalization = 'simple', length_normalization_strength = 0.2,  
                           groundhog = False, force_finish = False,
                           prob_space_combination = False,
                           reverse_encdec = None, use_unfinished_translation_if_none_found = False):
@@ -185,8 +185,10 @@ def beam_search_translate(encdec, eos_idx, src_data, beam_width = 20, beam_pruni
                 rescored_translations.append((tr, sc + reverse_scores[num_t], attn))
             translations = rescored_translations
                     
-        if use_post_score_length_normalization:
+        if post_score_length_normalization == 'simple':
             translations.sort(key = lambda x:x[1]/(len(x[0])+1), reverse = True)
+        elif post_score_length_normalization == 'google':
+            translations.sort(key = lambda x:x[1]/( pow((len(x[0])+6), length_normalization_strength) / pow(6, length_normalization_strength) ), reverse = True)
         else:
             translations.sort(key = operator.itemgetter(1), reverse = True)
 #         bests.append(translations[0])
