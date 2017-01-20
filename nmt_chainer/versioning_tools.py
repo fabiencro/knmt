@@ -27,7 +27,7 @@ def is_current_git_dirty():
         returncode =  subprocess.call(['git', 'diff-index', '--quiet', 'HEAD', '--'], 
                                       cwd = get_installed_path(), 
                                       stdout = DEVNULL,
-                                      stderr = subprocess.STDOUT)
+                                      stderr = DEVNULL)
         if returncode == 0:
             return "clean"
         elif returncode == 1:
