@@ -38,6 +38,34 @@ def is_current_git_dirty():
         return "unknown"
 
 
+def get_chainer_infos():
+    try:
+        import chainer
+        result = {
+            "version": chainer.__version__,
+            "cuda" : chainer.cuda.available,
+            "cudnn" : chainer.cuda.cudnn_enabled,
+        }
+        if chainer.cuda.available:
+            try:
+                import cupy
+                cuda_version = cupy.cuda.runtime.driverGetVersion()
+            except:
+                cuda_version = "unavailable"
+            result["cuda_version"] = cuda_version
+        else:
+            result["cuda_version"] = "unavailable"
+    except ImportError:
+        result = {
+            "version": "unavailable",
+            "cuda" : "unavailable",
+            "cudnn" : "unavailable",
+            "cuda_version" : "unavailable"
+        }
+        
+        
+    return result
+
 def get_package_git_hash():
     try:
         import _build
@@ -64,6 +92,11 @@ def main(options = None):
     import _version
     print "package version:", _version.__version__
     print "installed in:", get_installed_path()
+    
+    print "\n*********** chainer version ***********"
+    chainer_infos = get_chainer_infos()
+    for keyword in "version cuda cudnn cuda_version".split():
+        print keyword, chainer_infos[keyword]
     
     print "\n\n********** package build info ***********"
     print "package build (git hash):", get_package_git_hash()
