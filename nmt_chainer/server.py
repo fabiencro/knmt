@@ -109,7 +109,7 @@ class Evaluator:
         else:
             self.reverse_encdec = None    
             
-    def eval(self, request, request_number, beam_width, nb_steps, nb_steps_ratio, 
+    def eval(self, request, request_number, beam_width, beam_pruning_margin, nb_steps, nb_steps_ratio, 
             remove_unk, normalize_unicode_unk, attempt_to_relocate_unk_source, use_raw_score, groundhog, force_finish, prob_space_combination, attn_graph_width, attn_graph_height):
         log.info("processing source string %s" % request)
         src_data, dic_src, make_data_infos = build_dataset_one_side_from_string(request, 
@@ -127,12 +127,14 @@ class Evaluator:
         unk_mapping = []
         with cuda.get_device(self.gpu):
             translations_gen = beam_search_translate(
-                        self.encdec, self.eos_idx, src_data, beam_width = beam_width, nb_steps = nb_steps, 
+                        self.encdec, self.eos_idx, src_data, beam_width = beam_width, beam_pruning_margin = beam_pruning_margin, 
+                                        nb_steps = nb_steps, 
                                         gpu = self.gpu, beam_opt = self.beam_opt, nb_steps_ratio = nb_steps_ratio,
                                         need_attention = True, score_is_divided_by_length = not use_raw_score,
                                         groundhog = groundhog, force_finish = force_finish,
                                         prob_space_combination = prob_space_combination,
                                         reverse_encdec = self.reverse_encdec)
+                                        
 
             for num_t, (t, score, attn) in enumerate(translations_gen):
                 if num_t %200 == 0:
@@ -215,6 +217,11 @@ class RequestHandler(SocketServer.BaseRequestHandler):
                     attn_graph_height = 0
                 beam_width = int(root.get('beam_width', 30))
                 nb_steps = int(root.get('nb_steps', 50))
+                beam_pruning_margin = None
+                try:
+                    beam_pruning_margin = float(root.get('beam_pruning_margin'))
+                except:
+                    pass
                 nb_steps_ratio = None
                 try:
                     nb_steps_ratio = float(root.get('nb_steps_ratio', 1.2))
@@ -275,7 +282,7 @@ class RequestHandler(SocketServer.BaseRequestHandler):
                     log.info(timestamped_msg("Translating sentence %d" % idx))
                     decoded_sentence = splitted_sentence.decode('utf-8')
                     translation, script, div, unk_mapping = self.server.evaluator.eval(decoded_sentence, sentence_number, 
-                        beam_width, nb_steps, nb_steps_ratio, remove_unk, normalize_unicode_unk, attempt_to_relocate_unk_source,
+                        beam_width, beam_pruning_margin, nb_steps, nb_steps_ratio, remove_unk, normalize_unicode_unk, attempt_to_relocate_unk_source,
                         use_raw_score, groundhog, force_finish, prob_space_combination, attn_graph_width, attn_graph_height)
                     out += translation
                     segmented_input.append(splitted_sentence)
