@@ -6,7 +6,7 @@ import nmt_chainer.eval as eval_module
 import nmt_chainer.make_data as make_data
 import nmt_chainer.server as server
 
-
+import versioning_tools
 
 def run_in_pdb(func, args):
     import pdb as pdb_module
@@ -66,9 +66,17 @@ def main():
     server.define_parser(parser_server)
     parser_server.set_defaults(func_str = "server")
 
+    # create the parser for the "version" command
+    parser_version = subparsers.add_parser('version', description= "Get version infos.", formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+    parser_version.set_defaults(func_str = "version")
+    
     args = parser.parse_args()
     
-    func = {"make_data": make_data.do_make_data, "train": train.do_train, "eval":eval_module.do_eval, "server": server.do_start_server }[args.func_str]
+    func = {"make_data": make_data.do_make_data, 
+            "train": train.do_train, 
+            "eval":eval_module.do_eval, 
+            "server": server.do_start_server,
+            "version": versioning_tools.main }[args.func_str]
     
     if args.run_in_pdb:
         run_in_pdb(func, args)
