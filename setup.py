@@ -29,12 +29,30 @@ def write_build_info():
         return
     
     try:
-        git_hash =  subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd = module_dir).strip()
+        git_hash =  subprocess.check_output(['git', 'rev-parse', 'HEAD'], 
+                                       cwd = module_dir,
+                                       stderr = subprocess.STDOUT).strip()
     except:
         git_hash = "**Could not retrieve git-hash"
         
+        
     try:
-        git_diff = subprocess.check_output(['git', 'diff'], cwd = module_dir)
+        returncode =  subprocess.call(['git', 'diff-index', '--quiet', 'HEAD', '--'], 
+                                      cwd = module_dir, 
+                                      stderr = subprocess.STDOUT)
+        if returncode == 0:
+            git_dirty_status = "clean"
+        elif returncode == 1:
+            git_dirty_status = "dirty"
+        else:
+            git_dirty_status = "unknown"
+    except:
+        git_dirty_status = "unknown"
+        
+    try:
+        git_diff = subprocess.check_output(['git', 'diff'], 
+                                           cwd = module_dir,
+                                            stderr = subprocess.STDOUT)
     except:
         git_diff =  '**Could not retrieve git-diff**'
         
@@ -44,10 +62,11 @@ def write_build_info():
     content="""# file created by setup.py
 __build__ = "%s"
 
+__dirty_status__ = "%s"
 __git_diff__ = \"\"\"
 %s
 \"\"\"
-"""%(git_hash, git_diff)
+"""%(git_hash, git_dirty_status, git_diff)
         
     f.write(content)
     
