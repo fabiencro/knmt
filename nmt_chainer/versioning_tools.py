@@ -36,11 +36,11 @@ def main(options = None):
     print "package version:", _version.__version__
     print "installed in:", get_installed_path()
     
-    print "********** package build info ***********"
+    print "\n\n********** package build info ***********"
     print "package build (git hash):", get_package_git_hash()
     print "package build diff (git diff):", get_package_git_diff()
     
-    print "********** current version info ***********"
+    print "\n\n********** current version info ***********"
     print "git hash:", get_current_git_hash()
     print "git diff:"
     print get_current_git_diff()
