@@ -37,8 +37,10 @@ def write_build_info():
         
         
     try:
+        DEVNULL = open(os.devnull, 'wb')
         returncode =  subprocess.call(['git', 'diff-index', '--quiet', 'HEAD', '--'], 
                                       cwd = module_dir, 
+                                      stdout = DEVNULL,
                                       stderr = subprocess.STDOUT)
         if returncode == 0:
             git_dirty_status = "clean"
