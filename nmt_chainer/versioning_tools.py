@@ -55,12 +55,24 @@ def get_chainer_infos():
             result["cuda_version"] = cuda_version
         else:
             result["cuda_version"] = "unavailable"
+            
+        if chainer.cuda.cudnn_enabled:
+            try:
+                cudnn_version = chainer.cuda.cudnn.cudnn.getVersion()
+            except:
+                cudnn_version = "unavailable"
+            result["cudnn_version"] = cudnn_version
+        else:
+            result["cudnn_version"] = "unavailable"
+        
+            
     except ImportError:
         result = {
             "version": "unavailable",
             "cuda" : "unavailable",
             "cudnn" : "unavailable",
-            "cuda_version" : "unavailable"
+            "cuda_version" : "unavailable",
+            "cudnn_version" : "unavailable"
         }
         
         
@@ -95,7 +107,7 @@ def main(options = None):
     
     print "\n*********** chainer version ***********"
     chainer_infos = get_chainer_infos()
-    for keyword in "version cuda cudnn cuda_version".split():
+    for keyword in "version cuda cudnn cuda_version cudnn_version".split():
         print keyword, chainer_infos[keyword]
     
     print "\n\n********** package build info ***********"
