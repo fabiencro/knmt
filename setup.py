@@ -15,6 +15,43 @@ if mo:
 else:
     raise RuntimeError("Unable to find version string in %s." % (VERSIONFILE,))
 
+
+import subprocess
+import os
+import sys
+
+def write_build_info():
+    module_dir = os.path.dirname(os.path.realpath(__file__))
+    try:
+        f = open(os.path.join(module_dir, "nmt_chainer/_build.py"), "w")
+    except OSError:
+        print >>sys.stderr, "Warning: Could not create _build.py file"
+        return
+    
+    try:
+        git_hash =  subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd = module_dir).strip()
+    except:
+        git_hash = "**Could not retrieve git-hash"
+        
+    try:
+        git_diff = subprocess.check_output(['git', 'diff'], cwd = module_dir)
+    except:
+        git_diff =  '**Could not retrieve git-diff**'
+        
+    import json
+    git_diff = json.dumps(git_diff)
+        
+    content="""# file created by setup.py
+__build__ = "%s"
+
+__git_diff__ = \"\"\"
+%s
+\"\"\"
+"""%(git_hash, git_diff)
+        
+    f.write(content)
+    
+
 # classifiers
 CLASSIFIERS = [
     "Development Status :: 4 - Beta",
@@ -26,6 +63,9 @@ CLASSIFIERS = [
     "Programming Language :: Python :: Implementation :: CPython",
     "Topic :: Software Development :: Libraries :: Python Modules",
 ]
+
+# create _build.py file
+write_build_info()
 
 # actual setup
 setup(name='knmt',
@@ -46,7 +86,7 @@ setup(name='knmt',
 #           ]
 #                      },
       
-      install_requires=['chainer>=1.18.0', 'numpy>=1.10.0', 'bokeh', 'plotly']
+      install_requires=['numpy>=1.10.0', 'chainer>=1.18.0', 'bokeh', 'plotly']
      )
 
 
