@@ -3,6 +3,19 @@
 # from distutils.core import setup
 from setuptools import setup, find_packages
 
+# getting the version string
+# as suggested in http://stackoverflow.com/questions/458550/standard-way-to-embed-version-into-python-package
+import re
+VERSIONFILE="nmt_chainer/_version.py"
+verstrline = open(VERSIONFILE, "rt").read()
+VSRE = r"^__version__ = ['\"]([^'\"]*)['\"]"
+mo = re.search(VSRE, verstrline, re.M)
+if mo:
+    verstr = mo.group(1)
+else:
+    raise RuntimeError("Unable to find version string in %s." % (VERSIONFILE,))
+
+# classifiers
 CLASSIFIERS = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
@@ -14,8 +27,9 @@ CLASSIFIERS = [
     "Topic :: Software Development :: Libraries :: Python Modules",
 ]
 
+# actual setup
 setup(name='knmt',
-      version='0.9.8',
+      version = verstr,
       description='Implementation of RNNSearch and other Neural MT models in Chainer',
       author='Fabien Cromieres',
       author_email='fabien.cromieres@gmail.com',
