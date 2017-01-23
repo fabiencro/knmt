@@ -110,7 +110,7 @@ class Evaluator:
             self.reverse_encdec = None    
             
     def eval(self, request, request_number, beam_width, beam_pruning_margin, nb_steps, nb_steps_ratio, 
-            remove_unk, normalize_unicode_unk, attempt_to_relocate_unk_source, post_score_length_normalization, post_score_length_normalization_strength, groundhog, force_finish, prob_space_combination, attn_graph_width, attn_graph_height):
+            remove_unk, normalize_unicode_unk, attempt_to_relocate_unk_source, beam_score_length_normalization, beam_score_length_normalization_strength, post_score_length_normalization, post_score_length_normalization_strength, groundhog, force_finish, prob_space_combination, attn_graph_width, attn_graph_height):
         log.info("processing source string %s" % request)
         src_data, dic_src, make_data_infos = build_dataset_one_side_from_string(request, 
                     src_voc_limit = None, max_nb_ex = self.max_nb_ex, dic_src = self.src_indexer)
@@ -130,7 +130,9 @@ class Evaluator:
                         self.encdec, self.eos_idx, src_data, beam_width = beam_width, beam_pruning_margin = beam_pruning_margin, 
                                         nb_steps = nb_steps, 
                                         gpu = self.gpu, beam_opt = self.beam_opt, nb_steps_ratio = nb_steps_ratio,
-                                        need_attention = True, post_score_length_normalization = post_score_length_normalization, 
+                                        need_attention = True, beam_score_length_normalization = beam_score_length_normalization, 
+                                        beam_score_length_normalization_strength = beam_score_length_normalization_strength, 
+                                        post_score_length_normalization = post_score_length_normalization, 
                                         post_score_length_normalization_strength = post_score_length_normalization_strength,
                                         groundhog = groundhog, force_finish = force_finish,
                                         prob_space_combination = prob_space_combination,
@@ -230,6 +232,12 @@ class RequestHandler(SocketServer.BaseRequestHandler):
                     pass
                 groundhog = ('true' == root.get('groundhog', 'false'))
                 force_finish = ('true' == root.get('force_finish', 'false'))
+                beam_score_length_normalization = root.get('beam_score_length_normalization', 'simple')
+                beam_score_length_normalization_strength = None
+                try:
+                    beam_score_length_normalization_strength = float(root.get('beam_score_length_normalization_strength', 0.2))
+                except:
+                    pass
                 post_score_length_normalization = root.get('post_score_length_normalization', 'simple')
                 post_score_length_normalization_strength = None
                 try:
@@ -289,6 +297,7 @@ class RequestHandler(SocketServer.BaseRequestHandler):
                     decoded_sentence = splitted_sentence.decode('utf-8')
                     translation, script, div, unk_mapping = self.server.evaluator.eval(decoded_sentence, sentence_number, 
                         beam_width, beam_pruning_margin, nb_steps, nb_steps_ratio, remove_unk, normalize_unicode_unk, attempt_to_relocate_unk_source,
+                        beam_score_length_normalization, beam_score_length_normalization_strength,
                         post_score_length_normalization, post_score_length_normalization_strength, groundhog, force_finish, prob_space_combination, attn_graph_width, attn_graph_height)
                     out += translation
                     segmented_input.append(splitted_sentence)
