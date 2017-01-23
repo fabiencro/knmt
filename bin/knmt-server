@@ -1,0 +1,55 @@
+#!/usr/bin/env bash
+
+display_usage() {
+    echo "This script must be run in a proper python environment."
+    echo ""
+    echo "Usage:"
+    echo "knmt-server config [gpu]"
+    echo ""
+    echo "Example:"
+    echo "knmt-server server-je.conf 0 2>&1 | tee server.log"
+}
+
+if [ $# -lt 1 ]
+then
+    display_usage
+    exit 1
+fi
+
+CONFIG="$1"
+RNN_SEARCH_GPU="$2"
+
+source "$CONFIG"
+
+OPT_GPU=""
+if [[ ! -z "$RNN_SEARCH_GPU" ]]; then
+    OPT_GPU="--gpu $RNN_SEARCH_GPU"
+fi
+
+OPT_DIC=""
+if [[ ! -z "$RNN_SEARCH_DICTIONARY" ]]; then
+    OPT_DIC="--dic $RNN_SEARCH_DICTIONARY"
+fi
+
+OPT_ADDITIONAL_CONFIGS=""
+if [[ ! -z "$RNN_SEARCH_ADDITIONAL_CONFIG" ]]; then
+	OPT_ADDITIONAL_CONFIGS="--additional_training_config"
+	for ((i = 1;i <= ${#RNN_SEARCH_ADDITIONAL_CONFIG[@]}; i++)); do
+		OPT_ADDITIONAL_CONFIGS="$OPT_ADDITIONAL_CONFIGS ${RNN_SEARCH_ADDITIONAL_CONFIG[$i]} "
+	done
+fi
+
+OPT_ADDITIONAL_MODELS=""
+if [[ ! -z "$RNN_SEARCH_ADDITIONAL_MODEL" ]]; then
+	OPT_ADDITIONAL_MODELS="--additional_trained_model"
+	for ((i = 1;i <= ${#RNN_SEARCH_ADDITIONAL_MODEL[@]}; i++)); do
+		OPT_ADDITIONAL_MODELS="$OPT_ADDITIONAL_MODELS ${RNN_SEARCH_ADDITIONAL_MODEL[$i]} "
+	done
+fi
+
+server_cmd="knmt server --netiface $NETWORK_INTERFACE --port $PORT \
+	--segmenter_command=\"$SEGMENTER_COMMAND\" --segmenter_format $SEGMENTER_FORMAT $OPT_DIC \
+    $RNN_SEARCH_CONFIG $RNN_SEARCH_MODEL $OPT_GPU \
+	$OPT_ADDITIONAL_CONFIGS $OPT_ADDITIONAL_MODELS"
+echo "$server_cmd"
+eval "$server_cmd"

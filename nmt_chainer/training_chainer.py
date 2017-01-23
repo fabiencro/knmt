@@ -86,10 +86,11 @@ class LengthBasedSerialIterator(chainer.dataset.iterator.Iterator):
         self.sort_key = sort_key
         self.batch_size = batch_size
         self.nb_of_batch_to_sort = nb_of_batch_to_sort
+        self.repeat = repeat
                 
     def update_sub_batch(self):
         self.sub_batch = list(self.sub_iterator.next()) # copy the result so that we can sort without side effects
-        if len(self.sub_batch) != self.batch_size * self.nb_of_batch_to_sort:
+        if self.repeat and len(self.sub_batch) != self.batch_size * self.nb_of_batch_to_sort:
             raise AssertionError
         self.sub_batch.sort(key = self.sort_key)
         self.index_in_sub_batch = 0
@@ -147,8 +148,9 @@ class LengthBasedSerialIterator(chainer.dataset.iterator.Iterator):
 
 
     # We do not serialize index_in_sub_batch. A deserialized iterator will start from the next sub_batch.
-    def serialize(self, serializer):
-        self.sub_iterator = serializer("sub_iterator", self.sub_iterator)
+#     def serialize(self, serializer):
+#         self.sub_iterator = serializer("sub_iterator", self.sub_iterator)
+#         self.sub_iterator.serialize(serializer["sub_iterator"])
 
 import six
 def make_collection_of_variables(in_arrays, volatile = "off"):
@@ -237,6 +239,17 @@ class ComputeLossExtension(chainer.training.Extension):
         
     def serialize(self, serializer):
         self.best_loss = serializer("best_loss", self.best_loss)
+        # Make sure that best_loss is at the right location.
+        # After deserialization, the best_loss is
+        # instanciated on the CPU instead of the GPU. 
+        if self.gpu is None:
+            pass # best_loss should be on the cpu memory anyway 
+#             if isinstance(self.best_loss, cupy.core.ndarray):
+#                 self.best_loss = cupy.asnumpy(self.best_loss)
+        else:
+            import cupy
+            if isinstance(self.best_loss, numpy.ndarray) or self.best_loss.device.id != self.gpu:
+                with cupy.cuda.Device(self.gpu): self.best_loss = cupy.array(self.best_loss)
                
 class ComputeBleuExtension(chainer.training.Extension):
     priority = chainer.training.PRIORITY_WRITER
@@ -396,8 +409,10 @@ def train_on_data_chainer(encdec, optimizer, training_data, output_files_dict,
                   use_memory_optimization = False, sample_every = 500,
                   use_reinf = False,
                   save_ckpt_every = 5000,
-                  reshuffle_every_epoch = False):
-        
+                  reshuffle_every_epoch = False,
+                  trainer_snapshot = None,
+                  save_initial_model_to = None):
+    
     @chainer.training.make_extension()
     def sample_extension(trainer): 
         encdec = trainer.updater.get_optimizer("main").target
@@ -452,7 +467,7 @@ def train_on_data_chainer(encdec, optimizer, training_data, output_files_dict,
 #                    trigger = (1, "iteration"))
     
     
-    if dev_data is not None:
+    if dev_data is not None and not no_report_or_save:
         dev_loss_extension = ComputeLossExtension(dev_data, eos_idx, 
                      mb_size, gpu, reverse_src, reverse_tgt,
                      save_best_model_to = output_files_dict["model_best_loss"], 
@@ -469,7 +484,7 @@ def train_on_data_chainer(encdec, optimizer, training_data, output_files_dict,
         
         trainer.extend(dev_bleu_extension, trigger = (report_every, "iteration"))
     
-    if test_data is not None:
+    if test_data is not None and not no_report_or_save:
         test_loss_extension = ComputeLossExtension(test_data, eos_idx, 
                      mb_size, gpu, reverse_src, reverse_tgt,
                      observation_name = "test_loss")
@@ -484,20 +499,32 @@ def train_on_data_chainer(encdec, optimizer, training_data, output_files_dict,
         
         trainer.extend(test_bleu_extension, trigger = (report_every, "iteration"))
     
-    trainer.extend(sample_extension, trigger = (sample_every, "iteration"))
+    if not no_report_or_save:
+        trainer.extend(sample_extension, trigger = (sample_every, "iteration"))
     
-    trainer.extend(chainer.training.extensions.snapshot(), trigger = (save_ckpt_every, "iteration"))
+        trainer.extend(chainer.training.extensions.snapshot(), trigger = (save_ckpt_every, "iteration"))
+
+        trainer.extend(SqliteLogExtension(db_path = output_files_dict["sqlite_db"]))
     
     trainer.extend(TrainingLossSummaryExtension(trigger = (report_every, "iteration")))
     
-    trainer.extend(SqliteLogExtension(db_path = output_files_dict["sqlite_db"]))
+    
+    if trainer_snapshot is not None:
+        serializers.load_npz(trainer_snapshot, trainer)
     
     try:
+        if save_initial_model_to is not None:
+            log.info("Saving initial parameters to %s"%save_initial_model_to)
+            encdec = trainer.updater.get_optimizer("main").target
+            serializers.save_npz(save_initial_model_to, encdec)
+            
         trainer.run()
     except:
-        final_snapshot_fn = "final.npz"
-        log.info("Exception met. Trying to save current trainer state to file %s" % final_snapshot_fn)
-        chainer.training.extensions.snapshot(filename = final_snapshot_fn)(trainer)
-        log.info("Saved trainer snapshot to file %s" % final_snapshot_fn)
+        if not no_report_or_save:
+            final_snapshot_fn = "final_snapshot"
+            log.info("Exception met. Trying to save current trainer state to file %s" % final_snapshot_fn)
+            chainer.training.extensions.snapshot(filename = final_snapshot_fn)(trainer)
+            log.info("Saved trainer snapshot to file %s" % final_snapshot_fn)
+
         raise
         

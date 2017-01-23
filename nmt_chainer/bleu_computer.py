@@ -35,7 +35,7 @@ class BleuComputer(object):
                 assert self.ngrams_corrects[n] == 0
                 ratio_n = 1
             else:
-                ratio_n = self.ngrams_corrects[n] / self.ngrams_total[n]
+                ratio_n = float(self.ngrams_corrects[n]) / self.ngrams_total[n]
             res.append("%i/%i[%f%%]"%(self.ngrams_corrects[n], self.ngrams_total[n], 100.0 *ratio_n))
         res.append("size of cand/ref: %i/%i[%f]"%(self.total_length, self.ref_length, float(self.total_length) / self.ref_length))
         return " ".join(res)

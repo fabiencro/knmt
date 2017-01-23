@@ -1,25 +1,46 @@
 # KyotoNMT
 ## An implementation of Neural Machine Translation in Chainer.
-This code mainly implements the Neural Machine Translation system described in (Bahdanau et al., 2015). Also known as "RNNSearch", or "Sequence-to-Sequence Modeling with Attention Mechanism", this is, as of 2016, the most commonly used approach in the recent field of Neural Machine Translation.
+
+[![Build Status](https://travis-ci.org/fabiencro/knmt.svg?branch=master)](https://travis-ci.org/fabiencro/knmt)
+
+This code mainly implements the Neural Machine Translation system described in (Bahdanau et al., 2015). Also known as "RNNSearch", or "Sequence-to-Sequence Modeling with Attention Mechanism", this is, as of 2016, the most commonly used approach in the recent field of Neural Machine Translation. This code is being developped at Kyoto University in Kurohashi-Kawahara lab (http://nlp.ist.i.kyoto-u.ac.jp/).
 
 This implementation uses the Chainer Deep Learning Library (http://chainer.org/).
 
-NB: The Code here has been used for practical purposes for some months and work well. The codebase and doc still need to be cleaned and improved a lot at this point (Mid-Sept. 2016). This should be done in the coming month. 
+NB: The Code here has been used for practical purposes for some months and work well. Documentation is a bit incomplete, but is slowly improving.
 
-#Requirements:
+
+#Requirements and Installation:
+
+The following is currently required for running Kyoto-NMT:
 * Python 2.7.x
-* A recent version of Chainer (> 1.9). Install with:
+* A recent version of `chainer` (> 1.17). 
+* The plotting libraries `plotly` and `bokeh` are used in some visualisation scripts
+
+There is now a PyPI repository, so you can install with:
+
+        pip install knmt
+        
+Dependencies will be automatically installed. However, if `chainer` is not already installed, check the prerequisites for installing `chainer` with `cuda` and `cudnn` support:  http://docs.chainer.org/en/stable/install.html#install-chainer-with-cuda
+
+Alternatively, especially if you plan to experiment modifying the code, you can install the dependencies separately:
  
         pip install chainer
-
-* Optionally, the plotting libraries plotly and bokeh are used in some visualisation scripts:
-
         pip install plotly
         pip install bokeh
+        
+, then download the code and install it locally by running in the root directory:
+        
+        pip install -e .
 
 #Usage:
 
 There are essentially three steps in the use of KyotoNMT: data preparation (`make_data.py`), training (`train.py`), evaluation (`eval.py`). Each of these scripts has many options that can be displayed by running them with the `--help` option.
+
+If you have properly installed Kyoto-NMT, an executable script called `knmt` should have been put somewhere your system can find it. The three other scripts are not installed to avoid polluting your command space. The `knmt` executable script will call one of the three other by specifying the option `make_data`, `eval` or `train`. For example, the two following command would be equivalents, with the difference that the `knmt` one can be run from anywhere after installation:
+
+        python make_data.py train.src train.tgt
+        knmt make_data train.src train.tgt
 
 ## Data Preparation
 The training data should be first preprocessed before training can begin. This is done by the script `make_data.py`. The important things that this processing will do is:
@@ -33,6 +54,10 @@ Step 2 is often necessary due to performance and memory issues when using a larg
 The required training data is a sentence-aligned parallel corpus that is expected to be in two utf-8 text files: one for source language sentences and the other target language sentences. One sentence per line, words separated by whitespaces. Additionally, some validation data should be provided in a similar form (a source and a target file). This validation data will be used for early-stopping, as well as to visualize the progress of the training. One should also specify the maximum size of vocabulary for source and target sentences. For example:
 
     python make_data.py train.src train.tgt data_prefix --dev_src valid.src --dev_tgt valid.tgt  --src_voc_size 100000 --tgt_voc_size 30000
+    
+or
+
+    knmt make_data train.src train.tgt data_prefix --dev_src valid.src --dev_tgt valid.tgt  --src_voc_size 100000 --tgt_voc_size 30000
 
 As a result of this call, two dictionaries indexing the 100000 and 30000 most common source and target words are created (with a special index for out-of-vocabulary words). The training and validation data are then converted to integer sequences according to these dictionaries and saved in a gzipped JSON file prefixed with `data_prefix`.
 
@@ -40,6 +65,10 @@ As a result of this call, two dictionaries indexing the 100000 and 30000 most co
 Training is done by invoking the `train.py` script, passing as argument the data prefix used in the data preparation part.
 
     python train.py data_prefix train_prefix
+    
+or
+
+    knmt train data_prefix train_prefix
 
 This simple call will train a network with size and features similar to those used in the original (Bahdanau et al., 2015) paper (except that LSTMs are used in place of GRUs). But there are many options to specify different aspects of the network: embedding layer size, hidden states size, number of lstm stacks, etc. The training settings can also be specified at this point: weight decay, learning rate, training algorithm, dropout values, minibatch size, etc. 
 

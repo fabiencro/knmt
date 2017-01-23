@@ -1,0 +1,30 @@
+#
+# General
+#
+
+LANG_PAIR=je
+LANG_SRC=ja
+LANG_DST=en
+NETWORK_INTERFACE=eth0
+PORT=44666
+
+
+#
+# RNN-Search
+#
+
+RNN_SEARCH_CONFIG=~/experiments/rnnsearch/train/je_lstm.train.config
+RNN_SEARCH_MODEL=~/experiments/rnnsearch/train/je_lstm.model.best.converted.npz
+
+RNN_SEARCH_DICTIONARY=~/experiments/rnnsearch/dictionaries/dic_j_e.json
+
+
+#
+# Segmenter
+#
+
+SEGMENTER_HOME=~/parse-tools
+SEGMENTER_HOST=basil302
+SEGMENTER_PORT=12351
+SEGMENTER_COMMAND="echo '%s' | $SEGMENTER_HOME/src/parse_client.pl --host $SEGMENTER_HOST --port $SEGMENTER_PORT --lang $LANG_SRC"
+SEGMENTER_FORMAT=parse_server
