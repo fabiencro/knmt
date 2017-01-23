@@ -1,0 +1,2 @@
+#!/usr/bin/env bash
+python -m nmt_chainer --run_in_pdb "$@"

@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+# -*- coding: utf-8 -*-
 """make_data.py: prepare data for training"""
 __author__ = "Fabien Cromieres"
 __license__ = "undecided"
@@ -265,6 +266,24 @@ def segment(line, type="word"):
         raise NotImplemented
 
 
+def build_index_from_string(str, voc_limit=None, max_nb_ex=None, segmentation_type="word"):
+    counts = collections.defaultdict(int)
+    line = segment(str.strip(), type=segmentation_type)  # .split(" ")
+
+    for w in line:
+        counts[w] += 1
+
+    sorted_counts = sorted(
+        counts.items(), key=operator.itemgetter(1), reverse=True)
+
+    res = Indexer()
+
+    for w, _ in sorted_counts[:voc_limit]:
+        res.add_word(w, should_be_new=True)
+    res.finalize()
+
+    return res
+
 def build_index(fn, voc_limit=None, max_nb_ex=None, segmentation_type="word"):
     f = codecs.open(fn, encoding="utf8")
     counts = collections.defaultdict(int)
@@ -286,6 +305,41 @@ def build_index(fn, voc_limit=None, max_nb_ex=None, segmentation_type="word"):
 
     return res
 
+
+def build_dataset_one_side_from_string(src_str, src_voc_limit=None, max_nb_ex=None, dic_src=None,
+                           segmentation_type = "word"):
+    if dic_src is None:
+        log.info("building src_dic")
+        dic_src = build_index_from_string(src_str, src_voc_limit, max_nb_ex,
+                              segmentation_type = segmentation_type)
+
+    log.info("start indexing")
+
+    res = []
+
+    num_ex = 0
+    total_token_src = 0
+    total_count_unk_src = 0
+
+    line_src = src_str
+
+    if len(line_src) > 0:
+        line_src = line_src.strip().split(" ")
+
+        seq_src = dic_src.convert(line_src)
+        unk_cnt_src = sum(dic_src.is_unk_idx(w) for w in seq_src)
+
+        total_count_unk_src += unk_cnt_src
+
+        total_token_src += len(seq_src)
+
+        res.append(seq_src)
+        num_ex += 1
+
+    return res, dic_src, MakeDataInfosOneSide(total_count_unk_src,
+                                              total_token_src,
+                                              num_ex
+                                              )
 
 def build_dataset_one_side(src_fn, src_voc_limit=None, max_nb_ex=None, dic_src=None,
                            segmentation_type = "word"):
@@ -612,11 +666,7 @@ def build_dataset_with_align_info(src_fn, tgt_fn, align_fn,
                                                        )
 
 
-def cmdline(arguments=None):
-    import sys
-    import argparse
-    parser = argparse.ArgumentParser(description="Prepare training data.",
-                                     formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+def define_parser(parser):
     parser.add_argument(
         "src_fn", help="source language text file for training data")
     parser.add_argument(
@@ -645,7 +695,23 @@ def cmdline(arguments=None):
     parser.add_argument("--tgt_segmentation_type", choices = ["word", "word2char", "char"], default = "word")
     parser.add_argument("--src_segmentation_type", choices = ["word", "word2char", "char"], default = "word")
     
+    
+    
+def cmdline(arguments=None):
+    import sys
+    import argparse
+    parser = argparse.ArgumentParser(description="Prepare training data.",
+                                     formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+    
+    define_parser(parser)
+    
     args = parser.parse_args(args = arguments)
+    
+    do_make_data(args)
+    
+    
+def do_make_data(args):
+    
     
     if not ((args.test_src is None) == (args.test_tgt is None)):
         print >>sys.stderr, "Command Line Error: either specify both --test_src and --test_tgt or neither"

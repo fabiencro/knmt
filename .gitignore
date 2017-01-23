@@ -1,6 +1,8 @@
 *.pyc
+*.pyo
 .project
 .pydevproject
 .cache
 nmt_chainer.egg-info
+*.conf
 tags

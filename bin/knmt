@@ -1,0 +1,2 @@
+#!/usr/bin/env bash
+CHAINER_TYPE_CHECK=0 python -O -m nmt_chainer "$@"

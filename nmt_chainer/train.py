@@ -14,6 +14,8 @@ import operator
 import models
 from training import train_on_data
 from make_data import Indexer
+import versioning_tools
+from collections import OrderedDict
 
 import logging
 import json
@@ -144,10 +146,7 @@ logging.basicConfig()
 log = logging.getLogger("rnns:train")
 log.setLevel(logging.INFO)
 
-def command_line(arguments = None):
-    import argparse
-    parser = argparse.ArgumentParser(description= "Train a RNNSearch model", 
-                                     formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+def define_parser(parser):
     parser.add_argument("data_prefix", help = "prefix of the training data created by make_data.py")
     parser.add_argument("save_prefix", help = "prefix to be added to all files created during the training")
     parser.add_argument("--gpu", type = int, help = "specify gpu number to use, if any")
@@ -164,10 +163,13 @@ def command_line(arguments = None):
     parser.add_argument("--noise_on_prev_word", default = False, action = "store_true")
     
     
+    parser.add_argument("--load_trainer_snapshot", help = "load previously saved trainer states")
+    
     parser.add_argument("--use_memory_optimization", default = False, action = "store_true",
                         help = "Experimental option that could strongly reduce memory used.")
         
     parser.add_argument("--max_nb_iters", type = int, default= None, help = "maximum number of iterations")
+    parser.add_argument("--max_nb_epochs", type = int, default= None, help = "maximum number of epochs")
     
     parser.add_argument("--max_src_tgt_length", type = int, help = "Limit length of training sentences")
     
@@ -216,7 +218,20 @@ def command_line(arguments = None):
     
     parser.add_argument("--use_reinf", default = False, action = "store_true")
     
+    parser.add_argument("--save_initial_model_to", help = "save the initial model parameters to given file in npz format")
+    
+    
+def command_line(arguments = None):
+    import argparse
+    parser = argparse.ArgumentParser(description= "Train a RNNSearch model", 
+                                     formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+    
+    define_parser(parser)
     args = parser.parse_args(args = arguments)
+    
+    do_train(args)
+    
+def do_train(args):
     
     output_files_dict = {}
     output_files_dict["train_config"] = args.save_prefix + ".train.config"
@@ -341,7 +356,16 @@ def command_line(arguments = None):
 #     Vi = len(src_voc) + 1 # + UNK
 #     Vo = len(tgt_voc) + 1 # + UNK
     
-    config_training = {"command_line" : args.__dict__, "Vi": Vi, "Vo" : Vo, "voc" : voc_fn, "data" : data_fn}
+#     config_training = {"command_line" : args.__dict__, "Vi": Vi, "Vo" : Vo, "voc" : voc_fn, "data" : data_fn}
+    
+    config_training = OrderedDict() # using ordered for improved readability of json
+    config_training["command_line"] = args.__dict__
+    config_training["Vi"] = Vi
+    config_training["Vo"] = Vo
+    config_training["voc"] = voc_fn
+    config_training["data"] = data_fn
+    config_training["knmt_version"] = versioning_tools.get_version_dict()
+    
     save_train_config_fn = output_files_dict["train_config"]
     log.info("Saving training config to %s" % save_train_config_fn)
     json.dump(config_training, open(save_train_config_fn, "w"), indent=2, separators=(',', ': '))
@@ -418,6 +442,10 @@ def command_line(arguments = None):
     with cuda.get_device(args.gpu):
         if args.max_nb_iters is not None:
             stop_trigger = (args.max_nb_iters, "iteration")
+            if args.max_nb_epochs is not None:
+                log.warn("max_nb_iters and max_nb_epochs both specified. Only max_nb_iters will be considered.")
+        elif args.max_nb_epochs is not None:
+            stop_trigger = (args.max_nb_epochs, "epoch")
         else:
             stop_trigger = None
         training_chainer.train_on_data_chainer(encdec, optimizer, training_data, output_files_dict,
@@ -434,10 +462,12 @@ def command_line(arguments = None):
                       use_memory_optimization = args.use_memory_optimization,
                       sample_every = args.sample_every,
                       use_reinf = args.use_reinf,
-                      save_ckpt_every = args.save_ckpt_every
+                      save_ckpt_every = args.save_ckpt_every,
+                      trainer_snapshot = args.load_trainer_snapshot,
 #                     lexical_probability_dictionary = lexical_probability_dictionary,
 #                     V_tgt = Vo + 1,
 #                     lexicon_prob_epsilon = args.lexicon_prob_epsilon
+                      save_initial_model_to = args.save_initial_model_to
                       )
 
 # 

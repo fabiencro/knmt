@@ -136,11 +136,11 @@ def reverse_rescore(encdec, src_batch, src_mask, eos_idx, translations, gpu = No
         de_sorted_scores[original_pos] = scores[xpos]
     return de_sorted_scores
      
-def beam_search_translate(encdec, eos_idx, src_data, beam_width = 20, nb_steps = 50, gpu = None, beam_opt = False,
+def beam_search_translate(encdec, eos_idx, src_data, beam_width = 20, beam_pruning_margin = None, nb_steps = 50, gpu = None, beam_opt = False,
                           need_attention = False, nb_steps_ratio = None, score_is_divided_by_length = True, 
                           groundhog = False, force_finish = False,
                           prob_space_combination = False,
-                          reverse_encdec = None):
+                          reverse_encdec = None, use_unfinished_translation_if_none_found = False):
     nb_ex = len(src_data)
 #     res = []
     for i in range(nb_ex):
@@ -162,8 +162,10 @@ def beam_search_translate(encdec, eos_idx, src_data, beam_width = 20, nb_steps =
             encdec = [encdec]
         translations = beam_search.ensemble_beam_search(encdec, src_batch, src_mask, nb_steps = nb_steps, eos_idx = eos_idx, 
                                           beam_width = beam_width,
+                                          beam_pruning_margin = beam_pruning_margin,
                                           need_attention = need_attention, force_finish = force_finish,
-                                          prob_space_combination = prob_space_combination)
+                                          prob_space_combination = prob_space_combination,
+                                          use_unfinished_translation_if_none_found = use_unfinished_translation_if_none_found)
 
         
         #TODO: This is a quick patch, but actually ensemble_beam_search probably should not return empty translations except when no translation found
@@ -272,12 +274,12 @@ def sample_once(encdec, src_batch, tgt_batch, src_mask, src_indexer, tgt_indexer
         
         print "sent num", sent_num
         print "src idx:", src_idx_seq
-        print "src:", " ".join(src_indexer.deconvert(src_idx_seq, unk_tag = s_unk_tag)) #convert_idx_to_string(src_idx_seq, src_voc)
+        print "src:", " ".join(src_indexer.deconvert(src_idx_seq, unk_tag = s_unk_tag)).encode('utf-8') #convert_idx_to_string(src_idx_seq, src_voc)
         print "tgt idx:", tgt_idx_seq
-        print "tgt:", " ".join(tgt_indexer.deconvert(tgt_idx_seq, unk_tag = t_unk_tag, eos_idx = eos_idx)) # convert_idx_to_string(tgt_idx_seq, tgt_voc, eos_idx = eos_idx)
+        print "tgt:", " ".join(tgt_indexer.deconvert(tgt_idx_seq, unk_tag = t_unk_tag, eos_idx = eos_idx)).encode('utf-8') # convert_idx_to_string(tgt_idx_seq, tgt_voc, eos_idx = eos_idx)
         print "sample idx:", sample_idx_seq
-        print "sample:", " ".join(tgt_indexer.deconvert(sample_idx_seq, unk_tag = t_unk_tag, eos_idx = eos_idx)) #convert_idx_to_string(sample_idx_seq, tgt_voc, eos_idx = eos_idx)
+        print "sample:", " ".join(tgt_indexer.deconvert(sample_idx_seq, unk_tag = t_unk_tag, eos_idx = eos_idx)).encode('utf-8') #convert_idx_to_string(sample_idx_seq, tgt_voc, eos_idx = eos_idx)
         print "sample random idx:", sample_random_idx_seq
-        print "sample random:", " ".join(tgt_indexer.deconvert(sample_random_idx_seq, unk_tag = t_unk_tag, eos_idx = eos_idx)) #convert_idx_to_string(sample_idx_seq, tgt_voc, eos_idx = eos_idx)
+        print "sample random:", " ".join(tgt_indexer.deconvert(sample_random_idx_seq, unk_tag = t_unk_tag, eos_idx = eos_idx)).encode('utf-8') #convert_idx_to_string(sample_idx_seq, tgt_voc, eos_idx = eos_idx)
         
         

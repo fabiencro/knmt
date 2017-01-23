@@ -82,7 +82,7 @@ def update_next_lists(num_case, idx_in_case, new_cost, eos_idx, new_state_ensemb
             attn_summed /= len(attn_ensemble)
             next_attentions_list.append(current_attentions[num_case] + [attn_summed])
             
-def compute_next_lists(new_state_ensemble, new_scores, beam_width, eos_idx, current_translations, finished_translations, 
+def compute_next_lists(new_state_ensemble, new_scores, beam_width, beam_pruning_margin, eos_idx, current_translations, finished_translations, 
       current_attentions, attn_ensemble, force_finish = False, need_attention = False):
 
     next_states_list = []
@@ -104,6 +104,19 @@ def compute_next_lists(new_state_ensemble, new_scores, beam_width, eos_idx, curr
         assert len(next_states_list) <= beam_width
 #             if len(next_states_list) >= beam_width:
 #                 break
+
+    # Prune items that have a score worse than beam_pruning_margin below the best score.
+    if (beam_pruning_margin is not None and next_score_list):
+        best_next_score = max(next_score_list)
+        bad_score_indices = [idx for idx, elem in enumerate(next_score_list) if (best_next_score - elem > beam_pruning_margin)]
+        wc = len(next_words_list)
+
+        for i in bad_score_indices[::-1]:
+            del next_states_list[i]
+            del next_words_list[i]
+            del next_score_list[i]
+            del next_translations_list[i]
+            del next_attentions_list[i]
 
     return next_states_list, next_words_list, next_score_list, next_translations_list, next_attentions_list
 
@@ -138,7 +151,7 @@ def compute_next_states_and_scores(dec_cell_ensemble, current_states_ensemble, c
         
     return combined_scores, new_state_ensemble, attn_ensemble
     
-def advance_one_step(dec_cell_ensemble, eos_idx, current_translations_states, beam_width, finished_translations,
+def advance_one_step(dec_cell_ensemble, eos_idx, current_translations_states, beam_width, beam_pruning_margin, finished_translations,
                      force_finish = False, need_attention = False,
                      prob_space_combination = False):
 #     xp = cuda.get_array_module(dec_ensemble[0].initial_state.data)
@@ -158,7 +171,7 @@ def advance_one_step(dec_cell_ensemble, eos_idx, current_translations_states, be
     
     # Compute the list of new translation states after pruning
     next_states_list, next_words_list, next_score_list, next_translations_list, next_attentions_list = compute_next_lists(
-                new_state_ensemble, new_scores, beam_width, eos_idx, 
+                new_state_ensemble, new_scores, beam_width, beam_pruning_margin, eos_idx, 
                 current_translations, finished_translations, 
                 current_attentions, attn_ensemble, force_finish = force_finish, need_attention = need_attention)
 
@@ -195,9 +208,9 @@ def advance_one_step(dec_cell_ensemble, eos_idx, current_translations_states, be
     
     return current_translations_states
 
-def ensemble_beam_search(model_ensemble, src_batch, src_mask, nb_steps, eos_idx, beam_width = 20, need_attention = False,
+def ensemble_beam_search(model_ensemble, src_batch, src_mask, nb_steps, eos_idx, beam_width = 20, beam_pruning_margin = None, need_attention = False,
                          force_finish = False,
-                         prob_space_combination = False):
+                         prob_space_combination = False, use_unfinished_translation_if_none_found = False):
     
     mb_size = src_batch[0].data.shape[0]
     assert len(model_ensemble) >= 1
@@ -230,10 +243,12 @@ def ensemble_beam_search(model_ensemble, src_batch, src_mask, nb_steps, eos_idx,
                             eos_idx, 
                             current_translations_states, 
                             beam_width, 
+                            beam_pruning_margin,
                             finished_translations,
                             force_finish = force_finish and num_step == (nb_steps -1),
                             need_attention = need_attention,
                             prob_space_combination = prob_space_combination)
+                            
         if current_translations_states is None:
             break
         
@@ -241,10 +256,18 @@ def ensemble_beam_search(model_ensemble, src_batch, src_mask, nb_steps, eos_idx,
         
     # Return finished translations
     if len (finished_translations) == 0:
-        if need_attention:
-            finished_translations.append(([], 0, []))
+        if use_unfinished_translation_if_none_found:
+            assert current_translations_states is not None
+            if need_attention:
+                translations, scores, _, _, attentions = current_translations_states
+                finished_translations.append((translations[0], scores[0], attentions[0]))
+            else:
+                finished_translations.append((translations[0], scores[0]))
         else:
-            finished_translations.append(([], 0))
+            if need_attention:
+                finished_translations.append(([], 0, []))
+            else:
+                finished_translations.append(([], 0))
     return finished_translations
 
 

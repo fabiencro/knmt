@@ -9,12 +9,12 @@ __status__ = "Development"
 import numpy as np
 
 from bokeh.plotting import figure, output_file, show
-from bokeh.io import vplot
+from bokeh.models.layouts import Column
 from bokeh.models import HoverTool, ColumnDataSource
 
 # adapted from http://bokeh.pydata.org/en/0.7.1/tutorial/solutions/gallery/les_mis.html
 
-def make_alignment_figure(src, tgt, alignment):
+def make_alignment_figure(src, tgt, alignment, title="Attention Model", toolbar_location='right', plot_width=800, plot_height=800):
     
     alignment = alignment[:,::-1]
 #     tgt = list(reversed(tgt))
@@ -50,10 +50,10 @@ def make_alignment_figure(src, tgt, alignment):
     )
     
     # create a new figure
-    p = figure(title="Attention Model",
-               x_axis_location="above", tools="resize,hover",
+    p = figure(title=title,
+               x_axis_location="above", tools="resize,hover", toolbar_location=toolbar_location,
                x_range=src, y_range=tgt,
-               plot_width=800, plot_height=800)
+               plot_width=plot_width, plot_height=plot_height)
     
     p.rect('xname', 'yname', 0.9, 0.9, source=source,
            color='colors', alpha='alphas', line_color=None)
@@ -84,5 +84,5 @@ if __name__ == '__main__':
     print alignment
     p1 = make_alignment_figure(src, tgt, alignment)
     p2 = make_alignment_figure(src, tgt, alignment)
-    p_all = vplot(p1, p2)
+    p_all = Column(p1, p2)
     show(p)
