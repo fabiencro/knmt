@@ -41,7 +41,8 @@ def run_in_pdb(func, args):
 def main():
     # create the top-level parser
     parser = argparse.ArgumentParser(description = "Kyoto-NMT: an Implementation of the RNNSearch model", 
-                                         formatter_class = argparse.ArgumentDefaultsHelpFormatter)
+                                         formatter_class = argparse.ArgumentDefaultsHelpFormatter,
+                                         prog = "knmt")
     
     parser.add_argument("--run_in_pdb", default = False, action = "store_true", help = "run knmt in pdb (python debugger)")
     
