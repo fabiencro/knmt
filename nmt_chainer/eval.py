@@ -87,7 +87,7 @@ class RichOutputWriter(object):
 
 
 def beam_search_all(gpu, encdec, eos_idx, src_data, beam_width, beam_pruning_margin, nb_steps, beam_opt, 
-       nb_steps_ratio, use_raw_score, 
+       nb_steps_ratio, post_score_length_normalization, length_normalization_strength, 
        groundhog,
        tgt_unk_id, tgt_indexer, force_finish = False,
        prob_space_combination = False, reverse_encdec = None,
@@ -101,7 +101,8 @@ def beam_search_all(gpu, encdec, eos_idx, src_data, beam_width, beam_pruning_mar
         translations_gen = beam_search_translate(
                     encdec, eos_idx, src_data, beam_width = beam_width, nb_steps = nb_steps, 
                                     gpu = gpu, beam_opt = beam_opt, beam_pruning_margin = beam_pruning_margin, nb_steps_ratio = nb_steps_ratio,
-                                    need_attention = True, score_is_divided_by_length = not use_raw_score,
+                                    need_attention = True, post_score_length_normalization = post_score_length_normalization,
+                                    length_normalization_strength = length_normalization_strength,
                                     groundhog = groundhog, force_finish = force_finish,
                                     prob_space_combination = prob_space_combination,
                                     reverse_encdec = reverse_encdec,
@@ -135,7 +136,7 @@ def beam_search_all(gpu, encdec, eos_idx, src_data, beam_width, beam_pruning_mar
         print >>sys.stderr
 
 def translate_to_file_with_beam_search(dest_fn, gpu, encdec, eos_idx, src_data, beam_width, beam_pruning_margin, nb_steps, beam_opt, 
-       nb_steps_ratio, use_raw_score, 
+       nb_steps_ratio, post_score_length_normalization, length_normalization_strength, 
        groundhog,
        tgt_unk_id, tgt_indexer, force_finish = False,
        prob_space_combination = False, reverse_encdec = None, 
@@ -146,7 +147,7 @@ def translate_to_file_with_beam_search(dest_fn, gpu, encdec, eos_idx, src_data, 
     out = codecs.open(dest_fn, "w", encoding = "utf8")
     
     translation_iterator = beam_search_all(gpu, encdec, eos_idx, src_data, beam_width, beam_pruning_margin, nb_steps, beam_opt, 
-       nb_steps_ratio, use_raw_score, 
+       nb_steps_ratio, post_score_length_normalization, length_normalization_strength, 
        groundhog,
        tgt_unk_id, tgt_indexer, force_finish = force_finish,
        prob_space_combination = prob_space_combination, reverse_encdec = reverse_encdec,
@@ -294,7 +295,8 @@ def define_parser(parser):
     parser.add_argument("--normalize_unicode_unk", default = False, action = "store_true")
     parser.add_argument("--attempt_to_relocate_unk_source", default = False, action = "store_true")
     
-    parser.add_argument("--use_raw_score", default = False, action = "store_true")
+    parser.add_argument("--post_score_length_normalization", choices = ['none', 'simple', 'google'], default = 'simple')
+    parser.add_argument("--length_normalization_strength", type = float, default = 0.2)
     
     parser.add_argument("--prob_space_combination", default = False, action = "store_true")
     
@@ -408,7 +410,7 @@ def do_eval(args):
     elif args.mode == "beam_search":
         translate_to_file_with_beam_search(args.dest_fn, args.gpu, encdec_list, eos_idx, src_data, args.beam_width, args.beam_pruning_margin,
                                            args.nb_steps, args.beam_opt, 
-                                           args.nb_steps_ratio, args.use_raw_score, 
+                                           args.nb_steps_ratio, args.post_score_length_normalization, args.length_normalization_strength,
                                            args.groundhog,
                                            args.tgt_unk_id, tgt_indexer, force_finish = args.force_finish,
                                            prob_space_combination = args.prob_space_combination,
@@ -422,7 +424,7 @@ def do_eval(args):
 #         assert args.ref is not None
         translate_to_file_with_beam_search(args.dest_fn, args.gpu, encdec_list, eos_idx, src_data, args.beam_width, args.beam_pruning_margin,
                                            args.nb_steps, args.beam_opt, 
-                                           args.nb_steps_ratio, args.use_raw_score, 
+                                           args.nb_steps_ratio, args.post_score_length_normalization, args.length_normalization_strength,
                                            args.groundhog,
                                            args.tgt_unk_id, tgt_indexer, force_finish = args.force_finish,
                                            prob_space_combination = args.prob_space_combination,
