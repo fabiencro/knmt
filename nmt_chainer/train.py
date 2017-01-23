@@ -14,6 +14,8 @@ import operator
 import models
 from training import train_on_data
 from make_data import Indexer
+import versioning_tools
+from collections import OrderedDict
 
 import logging
 import json
@@ -352,7 +354,16 @@ def do_train(args):
 #     Vi = len(src_voc) + 1 # + UNK
 #     Vo = len(tgt_voc) + 1 # + UNK
     
-    config_training = {"command_line" : args.__dict__, "Vi": Vi, "Vo" : Vo, "voc" : voc_fn, "data" : data_fn}
+#     config_training = {"command_line" : args.__dict__, "Vi": Vi, "Vo" : Vo, "voc" : voc_fn, "data" : data_fn}
+    
+    config_training = OrderedDict() # using ordered for improved readability of json
+    config_training["command_line"] = args.__dict__
+    config_training["Vi"] = Vi
+    config_training["Vo"] = Vo
+    config_training["voc"] = voc_fn
+    config_training["data"] = data_fn
+    config_training["knmt_version"] = versioning_tools.get_version_dict()
+    
     save_train_config_fn = output_files_dict["train_config"]
     log.info("Saving training config to %s" % save_train_config_fn)
     json.dump(config_training, open(save_train_config_fn, "w"), indent=2, separators=(',', ': '))
