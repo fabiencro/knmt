@@ -143,11 +143,11 @@ def beam_search_translate(encdec, eos_idx, src_data, beam_width = 20, beam_pruni
                           reverse_encdec = None, use_unfinished_translation_if_none_found = False):
     nb_ex = len(src_data)
 #     res = []
-    for i in range(nb_ex):
-        src_batch, src_mask = make_batch_src([src_data[i]], gpu = gpu, volatile = "on")
+    for num_ex in range(nb_ex):
+        src_batch, src_mask = make_batch_src([src_data[num_ex]], gpu = gpu, volatile = "on")
         assert len(src_mask) == 0
         if nb_steps_ratio is not None:
-            nb_steps = int(len(src_data[i]) * nb_steps_ratio) + 1
+            nb_steps = int(len(src_data[num_ex]) * nb_steps_ratio) + 1
             
 #         if isinstance(encdec, (tuple, list)):
 #             assert len(encdec) == 1
