@@ -186,11 +186,17 @@ def beam_search_translate(encdec, eos_idx, src_data, beam_width = 20, beam_pruni
             translations = rescored_translations
                     
         if post_score_length_normalization == 'simple':
-            translations.sort(key = lambda x:x[1]/(len(x[0])+1), reverse = True)
+            def ranking_criterion(x):
+                return x[1]/(len(x[0])+1)
         elif post_score_length_normalization == 'google':
-            translations.sort(key = lambda x:x[1]/( pow((len(x[0])+5), length_normalization_strength) / pow(6, length_normalization_strength) ), reverse = True)
+            def ranking_criterion(x):
+                return x[1]/( pow((len(x[0])+5), length_normalization_strength) / pow(6, length_normalization_strength) )
         else:
-            translations.sort(key = operator.itemgetter(1), reverse = True)
+            ranking_criterion = operator.itemgetter(1)
+
+        translations.sort(key = ranking_criterion, reverse = True)
+
+
 #         bests.append(translations[0])
 #         yield bests
         yield translations[0]
