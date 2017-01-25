@@ -38,7 +38,7 @@ def run_in_pdb(func, args):
             print "Post mortem debugger finished. The program will be restarted"
 
 
-def main():
+def main(arguments = None):
     # create the top-level parser
     parser = argparse.ArgumentParser(description = "Kyoto-NMT: an Implementation of the RNNSearch model", 
                                          formatter_class = argparse.ArgumentDefaultsHelpFormatter,
@@ -73,7 +73,7 @@ def main():
     parser_version = subparsers.add_parser('version', description= "Get version infos.", help = "Get version infos", formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser_version.set_defaults(func_str = "version")
     
-    args = parser.parse_args()
+    args = parser.parse_args(args = arguments)
     
     func = {"make_data": make_data.do_make_data, 
             "train": train.do_train, 
