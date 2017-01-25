@@ -88,9 +88,9 @@ We usually find that it is better to use the parameters that gave the best valid
 ### UNK replacement
 In general, the translation process may generate some tags `T_UNK_X`, where `X` is an integer. The model learned to generate these tags if it was given some training data containing `UNK` tags (see data preparation section). If the model generate a `T_UNK_X` tag, it indicates it thinks that the correct word that should have been generated is outside of its vocabulary, but corresponds to the translation of the source word at position `X`. One can then try to replace these tags with the correct translation using bilingual dictionnnaries (such an idea was originally proposed in (Luang et al., 2015) ).
 
-A simple small script `replace_tgt_unk.py` is provided that can do this automatically. It expects a dictionnary in JSON format associating source language words to their translation. After having generated the translation `translation.txt` of input file `input.txt` using the `knmt eval` command, one can generate a file `translation.no_unk.txt` in which `UNK` tags have been replaced with the following command:
+`knmt utils` is a subcommand of `knmt` that contains sub-subcommands (yes, sub-subcommands are a bit unusual) giving access to some utility scripts. The command `knmt utils replace_tgt_unk` is provided to do this `UNK` tag replacement automatically. It expects a dictionnary in JSON format associating source language words to their translation. After having generated the translation `translation.txt` of input file `input.txt` using the `knmt eval` command, one can generate a file `translation.no_unk.txt` in which `UNK` tags have been replaced with the following command:
 
-      ./replace_tgt_unk.py translation.txt input.txt translation.no_unk.txt --dic dictionary.json
+      knmt utils replace_tgt_unk translation.txt input.txt translation.no_unk.txt --dic dictionary.json
 
 ## Using GPUs
 
@@ -101,9 +101,9 @@ Neural Network training and evaluation can often be much faster on a GPU than on
 ### Visualisation of training
 The evolution of the training (training loss, validation loss, validation BLEU, ...) is curently stored in a sqlite file `training_prefix.result.sqlite` created during the training process.
 
-At any time during and after the training, one can generate a graph showing the evolution of these values. The script `graph_training.py` will take such a `*.result.sqlite` file and generate an html file containing the graph. This uses the `plotly` graphing library.
+At any time during and after the training, one can generate a graph showing the evolution of these values. The utils subcommand `knmt utils graph` will take such a `*.result.sqlite` file and generate an html file containing the graph. This uses the `plotly` graphing library.
 
-        python graph_training.py --lib plotly training_prefix.result.sqlite graph.html
+        knmt utils graph --lib plotly training_prefix.result.sqlite graph.html
  
 This will result in a graph similar to this one, where training loss appears as a green line, validation loss as a blue line, and validation BLEU appears as a scatter plot of small blue circles:
 
