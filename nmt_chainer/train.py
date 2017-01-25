@@ -16,7 +16,7 @@ from training import train_on_data
 from make_data import Indexer
 import versioning_tools
 from collections import OrderedDict
-
+import argument_parsing_tools
 import logging
 import json
 import os.path
@@ -192,7 +192,7 @@ def define_parser(parser):
     training_paramenters_group.add_argument("--reverse_tgt", default = False, action = "store_true")
     
     training_monitoring_group = parser.add_argument_group(_CONFIG_SECTION_TO_DESCRIPTION["training_management"])
-#     training_monitoring_group.add_argument("--config", help = "load a training config file")
+    training_monitoring_group.add_argument("--config", help = "load a training config file")
     training_monitoring_group.add_argument("--gpu", type = int, help = "specify gpu number to use, if any")
     training_monitoring_group.add_argument("--load_model", help = "load the parameters of a previously trained model")
     training_monitoring_group.add_argument("--load_optimizer_state", help = "load previously saved optimizer states")
@@ -215,7 +215,10 @@ def define_parser(parser):
     
     
 def load_voc_and_make_training_config(args):
-    import argument_parsing_tools
+    if "config" in args:
+        log.info("loading training config file %s", args.config)
+        config_base = load_config_train(args.config, readonly = True)
+    
     description_to_config_section = dict( (v, k) for (k,v) in _CONFIG_SECTION_TO_DESCRIPTION.iteritems())
     por = argument_parsing_tools.ParseOptionRecorder(group_title_to_section = description_to_config_section)
     define_parser(por)
@@ -258,10 +261,8 @@ def load_voc_and_make_training_config(args):
     return config_training, src_indexer, tgt_indexer
     
 def load_config_train(filename, readonly = True):
-    import json
     config_as_ordered_dict = json.load(open(filename), object_pairs_hook=OrderedDict)
     if "metadata" not in config_as_ordered_dict: # older config file
-        import argument_parsing_tools
         description_to_config_section = dict( (v, k) for (k,v) in _CONFIG_SECTION_TO_DESCRIPTION.iteritems())
         por = argument_parsing_tools.ParseOptionRecorder(group_title_to_section = description_to_config_section)
         define_parser(por)
