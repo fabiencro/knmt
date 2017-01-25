@@ -28,6 +28,16 @@ class OrderedNamespace(OrderedDict):
         else:
             return getattr(super(OrderedNamespace, self), key)
 
+    @classmethod
+    def convert_to_ordered_namespace(cls, ordered_dict):
+        for v in ordered_dict.itervalue():
+            if isinstance(v, OrderedDict):
+                cls.convert_to_ordered_namespace(v)
+        if not isinstance(ordered_dict, OrderedDict):
+            raise ValueError
+        ordered_dict.__class__ = cls
+        ordered_dict.readonly = False
+
 class ParseOptionRecorder(object):
     def __init__(self, name = None, group_title_to_section = None):
         self.name = name
@@ -53,19 +63,24 @@ class ParseOptionRecorder(object):
         self.argument_list.append(group)
         return group
         
-    def convert_args_to_ordered_dict(self, args):
+    def convert_args_to_ordered_dict(self, args, args_is_namespace = True):
         result = OrderedNamespace()
         for arg in self.argument_list:
             if isinstance(arg, ParseOptionRecorder):
                 if arg.name in result:
                     raise AssertionError
-                result[arg.name] = arg.convert_args_to_ordered_dict(args)
+                result[arg.name] = arg.convert_args_to_ordered_dict(args, args_is_namespace = args_is_namespace)
             else:
                 if arg in result:
                     raise AssertionError
                 if arg in args:
-                    result[arg] = getattr(args, arg)
+                    if args_is_namespace:
+                        result[arg] = getattr(args, arg)
+                    else:
+                        result[arg] = args[arg]
         return result
+    
+
     
 # class ParserWithNoneDefaultAndNoGroup(object):
 #     def __init__(self):
