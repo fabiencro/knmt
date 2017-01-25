@@ -11,6 +11,7 @@ from chainer import cuda
 
 from utils import make_batch_src, make_batch_src_tgt, minibatch_provider, compute_bleu_with_unk_as_wrong, de_batch
 import logging
+import math
 import codecs
 import operator
 import beam_search
@@ -138,6 +139,7 @@ def reverse_rescore(encdec, src_batch, src_mask, eos_idx, translations, gpu = No
      
 def beam_search_translate(encdec, eos_idx, src_data, beam_width = 20, beam_pruning_margin = None, nb_steps = 50, gpu = None, beam_opt = False,
                           need_attention = False, nb_steps_ratio = None, post_score_length_normalization = 'simple', length_normalization_strength = 0.2,  
+                          post_score_coverage_penalty = 'none', post_score_coverage_penalty_strength = 0.2,
                           groundhog = False, force_finish = False,
                           prob_space_combination = False,
                           reverse_encdec = None, use_unfinished_translation_if_none_found = False):
@@ -184,18 +186,29 @@ def beam_search_translate(encdec, eos_idx, src_data, beam_width = 20, beam_pruni
                 tr, sc, attn = translations[num_t]
                 rescored_translations.append((tr, sc + reverse_scores[num_t], attn))
             translations = rescored_translations
-                    
-        if post_score_length_normalization == 'simple':
-            def ranking_criterion(x):
-                return x[1]/(len(x[0])+1)
-        elif post_score_length_normalization == 'google':
-            def ranking_criterion(x):
-                return x[1]/( pow((len(x[0])+5), length_normalization_strength) / pow(6, length_normalization_strength) )
-        else:
-            ranking_criterion = operator.itemgetter(1)
+
+        def ranking_criterion(x):
+            if post_score_length_normalization == 'none' and post_score_coverage_penalty == 'none':
+                return operator.itemgetter(1)
+
+            length_normalization = 1
+            if post_score_length_normalization == 'simple':
+                length_normalization = len(x[0])+1
+            elif post_score_length_normalization == 'google':
+                length_normalization = pow((len(x[0])+5), length_normalization_strength) / pow(6, length_normalization_strength)
+
+            coverage_penalty = 0
+            if post_score_coverage_penalty == 'google':
+                for i in xrange(len(src_data[num_ex])):
+                    attn_sum = 0
+                    for j in xrange(len(x[0])):
+                        attn_sum += x[2][j][i]
+                    coverage_penalty += math.log(min(attn_sum, 1.0))
+                coverage_penalty *= post_score_coverage_penalty_strength
+
+            return x[1]/length_normalization + coverage_penalty
 
         translations.sort(key = ranking_criterion, reverse = True)
-
 
 #         bests.append(translations[0])
 #         yield bests
