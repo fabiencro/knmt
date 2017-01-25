@@ -279,7 +279,7 @@ def load_config_train(filename, readonly = True):
         config_training["metadata"]["config_version_num"] = 0.9
         config_training["metadata"]["command_line"] = None
         config_training["metadata"]["knmt_version"] = None     
-    elif config_training["metadata"]["config_version_num"] == 1.0:
+    elif config_as_ordered_dict["metadata"]["config_version_num"] == 1.0:
         argument_parsing_tools.OrderedNamespace.convert_to_ordered_namespace(config_as_ordered_dict)
         config_training = config_as_ordered_dict
     else:
