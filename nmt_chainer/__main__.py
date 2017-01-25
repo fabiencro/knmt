@@ -6,6 +6,8 @@ import nmt_chainer.eval as eval_module
 import nmt_chainer.make_data as make_data
 import nmt_chainer.server as server
 
+import nmt_chainer.utils_command as utils_command
+
 import versioning_tools
 import sys
 
@@ -46,32 +48,35 @@ def main(arguments = None):
     
     parser.add_argument("--run_in_pdb", default = False, action = "store_true", help = "run knmt in pdb (python debugger)")
     
-    subparsers = parser.add_subparsers()
+    subparsers = parser.add_subparsers(dest = "__subcommand_name")
     
     # create the parser for the "make_data" command
     parser_make_data = subparsers.add_parser('make_data', description= "Prepare data for training.", help = "Prepare data for training", formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     make_data.define_parser(parser_make_data)
-    parser_make_data.set_defaults(func_str = "make_data")
+#     parser_make_data.set_defaults(func_str = "make_data")
     
     # create the parser for the "train" command
     parser_train = subparsers.add_parser('train', description= "Train a model.", help = "Train a model", formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     train.define_parser(parser_train)
-    parser_train.set_defaults(func_str = "train")
+#     parser_train.set_defaults(func_str = "train")
     
     # create the parser for the "eval" command
     parser_eval = subparsers.add_parser('eval', description= "Use a model.", help = "Use a model", formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     eval_module.define_parser(parser_eval)
-    parser_eval.set_defaults(func_str = "eval")
+#     parser_eval.set_defaults(func_str = "eval")
     
     # create the parser for the "server" command
     parser_server = subparsers.add_parser('server', description= "Launch a server.", help = "Launch a server",
                                           formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     server.define_parser(parser_server)
-    parser_server.set_defaults(func_str = "server")
+#     parser_server.set_defaults(func_str = "server")
 
     # create the parser for the "version" command
     parser_version = subparsers.add_parser('version', description= "Get version infos.", help = "Get version infos", formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-    parser_version.set_defaults(func_str = "version")
+#     parser_version.set_defaults(func_str = "version")
+    
+    parser_utils = subparsers.add_parser('utils', description= "Call a utility script.", help = "Call a utility script", formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+    utils_command.define_parser(parser_utils)
     
     args = parser.parse_args(args = arguments)
     
@@ -79,7 +84,8 @@ def main(arguments = None):
             "train": train.do_train, 
             "eval":eval_module.do_eval, 
             "server": server.do_start_server,
-            "version": versioning_tools.main }[args.func_str]
+            "version": versioning_tools.main,
+            "utils": utils_command.do_utils}[args.__subcommand_name]
     
     if args.run_in_pdb:
         run_in_pdb(func, args)
