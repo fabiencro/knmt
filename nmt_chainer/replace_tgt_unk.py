@@ -97,9 +97,7 @@ def replace_unk(translations, src_file, dest, dic_fn, remove_unk, normalize_unic
                 new_t.append(w)
         fd.write(" ".join(new_t) + "\n")
         
-def commandline():
-    import argparse
-    parser = argparse.ArgumentParser()
+def define_parser(parser):
     parser.add_argument("translations")
     parser.add_argument("src_file")
     parser.add_argument("dest")
@@ -107,11 +105,18 @@ def commandline():
     parser.add_argument("--remove_unk", default = False, action = "store_true")
     parser.add_argument("--normalize_unicode_unk", default = False, action = "store_true")
     parser.add_argument("--attempt_to_relocate_unk_source", default = False, action = "store_true")
-    args = parser.parse_args()
     
+def do_replace(args):
     replace_unk(args.translations, args.src_file, args.dest, args.dic, args.remove_unk, 
-                args.normalize_unicode_unk,
-                args.attempt_to_relocate_unk_source)
+            args.normalize_unicode_unk,
+            args.attempt_to_relocate_unk_source)
+    
+def commandline():
+    import argparse
+    parser = argparse.ArgumentParser()
+    define_parser(parser)
+    args = parser.parse_args()
+    do_replace(args)
         
 if __name__ == '__main__':
     commandline()
