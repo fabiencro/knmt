@@ -21,17 +21,48 @@ There is now a PyPI repository, so you can install with:
 
         pip install knmt
         
-Dependencies will be automatically installed. However, if `chainer` is not already installed, check the prerequisites for installing `chainer` with `cuda` and `cudnn` support:  http://docs.chainer.org/en/stable/install.html#install-chainer-with-cuda
+Dependencies will be automatically installed. However, if `chainer` is not already installed, check the prerequisites for installing `chainer` with `cuda` and `cudnn` support:  http://docs.chainer.org/en/stable/install.html#install-chainer-with-cuda (provided you have a CUDA capable GPU you want to use, of course).
 
-Alternatively, especially if you plan to experiment modifying the code, you can install the dependencies separately:
+You can confirm that cuda (and optionnally cudnn) are enabled and recognized by chainer by running the `version` subcommand of `knmt`:
+
+        knmt version
+
+In the displayed text, you can look for a section that looks like this:
+
+<pre>
+*********** chainer version ***********
+version 1.20.0.1
+cuda True
+cudnn True
+cuda_version 7050
+cudnn_version 5005
+</pre>
+
+Such output shows that CUDA 7.5 was installed and recognized by chainer. The library CUDNN 5 is also installed.
+
+You can of course also install the dependencies separately:
  
         pip install chainer
         pip install plotly
         pip install bokeh
+     
+To use the latest version of the code in github, you can either first clone the repository, then install it:
         
-, then download the code and install it locally by running in the root directory:
+        git clone https://github.com/fabiencro/knmt.git
+        cd knmt
+        pip install . -U
+
+or directly install from github:
+
+        pip install git+https://github.com/fabiencro/knmt.git -U
+
+If you plan on modifying the code, it is better to do a "editable" installation:
+       
+        git clone https://github.com/fabiencro/knmt.git
+        cd knmt
+        pip install -e . -U
         
-        pip install -e .
+This way, modifications to the code in the knmt directory is automatically available without the need to re-install. (see https://pip.pypa.io/en/stable/reference/pip_install/#editable-installs)
 
 #Usage:
 ## Overview
