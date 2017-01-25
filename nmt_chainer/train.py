@@ -249,13 +249,45 @@ def load_voc_and_make_training_config(args):
     
     assert "metadata" not in config_training
     config_training["metadata"] = argument_parsing_tools.OrderedNamespace()
-    config_training["metadata"]["config_version_num"] = 0.9
+    config_training["metadata"]["config_version_num"] = 1.0
     config_training["metadata"]["command_line"] = " ".join(sys.argv)
     config_training["metadata"]["knmt_version"] = versioning_tools.get_version_dict()
     
     config_training.set_readonly()
     
     return config_training, src_indexer, tgt_indexer
+    
+def load_config_train(filename, readonly = True):
+    import json
+    config_as_ordered_dict = json.load(open(filename), object_pairs_hook=OrderedDict)
+    if "metadata" not in config_as_ordered_dict: # older config file
+        import argument_parsing_tools
+        description_to_config_section = dict( (v, k) for (k,v) in _CONFIG_SECTION_TO_DESCRIPTION.iteritems())
+        por = argument_parsing_tools.ParseOptionRecorder(group_title_to_section = description_to_config_section)
+        define_parser(por)
+        config_training = por.convert_args_to_ordered_dict(config_as_ordered_dict["command_line"], args_is_namespace = False)
+        
+        assert "data" not in config_training
+        config_training["data"] = argument_parsing_tools.OrderedNamespace()
+        config_training["data"]["data_fn"] = config_as_ordered_dict["data"]
+        config_training["data"]["Vi"] = config_as_ordered_dict["Vi"]
+        config_training["data"]["Vo"] = config_as_ordered_dict["Vo"]
+        config_training["data"]["voc"] = config_as_ordered_dict["voc"]
+
+        assert "metadata" not in config_training
+        config_training["metadata"] = argument_parsing_tools.OrderedNamespace()
+        config_training["metadata"]["config_version_num"] = 0.9
+        config_training["metadata"]["command_line"] = None
+        config_training["metadata"]["knmt_version"] = None     
+    elif config_training["metadata"]["config_version_num"] == 1.0:
+        argument_parsing_tools.OrderedNamespace.convert_to_ordered_namespace(config_as_ordered_dict)
+        config_training = config_as_ordered_dict
+    else:
+        raise ValueError("The config version of %s is not supported by this version of the program" % filename)
+    
+    if readonly:
+        config_training.set_readonly()
+    return config_training
     
 def command_line(arguments = None):
     import argparse
@@ -333,7 +365,7 @@ def create_encdec_from_config_dict(config_dict, src_indexer, tgt_indexer):
 
 def create_encdec_and_indexers_from_config_dict(config_dict):
 
-    voc_fn = config_dict["voc"]
+    voc_fn = config_dict.data["voc"]
     log.info("loading voc from %s"% voc_fn)
     src_voc, tgt_voc = json.load(open(voc_fn))
     
@@ -342,7 +374,7 @@ def create_encdec_and_indexers_from_config_dict(config_dict):
     tgt_voc = None
     src_voc = None
 
-    encdec = create_encdec_from_config_dict(config_dict["encdec"], src_indexer, tgt_indexer)
+    encdec = create_encdec_from_config_dict(config_dict["model"], src_indexer, tgt_indexer)
     
     eos_idx = len(tgt_indexer)
     
