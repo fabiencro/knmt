@@ -88,6 +88,7 @@ class RichOutputWriter(object):
 
 def beam_search_all(gpu, encdec, eos_idx, src_data, beam_width, beam_pruning_margin, nb_steps, beam_opt, 
        nb_steps_ratio, post_score_length_normalization, length_normalization_strength, 
+       post_score_coverage_penalty, post_score_coverage_penalty_strength,
        groundhog,
        tgt_unk_id, tgt_indexer, force_finish = False,
        prob_space_combination = False, reverse_encdec = None,
@@ -103,6 +104,8 @@ def beam_search_all(gpu, encdec, eos_idx, src_data, beam_width, beam_pruning_mar
                                     gpu = gpu, beam_opt = beam_opt, beam_pruning_margin = beam_pruning_margin, nb_steps_ratio = nb_steps_ratio,
                                     need_attention = True, post_score_length_normalization = post_score_length_normalization,
                                     length_normalization_strength = length_normalization_strength,
+                                    post_score_coverage_penalty = post_score_coverage_penalty,
+                                    post_score_coverage_penalty_strength = post_score_coverage_penalty_strength,
                                     groundhog = groundhog, force_finish = force_finish,
                                     prob_space_combination = prob_space_combination,
                                     reverse_encdec = reverse_encdec,
@@ -137,6 +140,7 @@ def beam_search_all(gpu, encdec, eos_idx, src_data, beam_width, beam_pruning_mar
 
 def translate_to_file_with_beam_search(dest_fn, gpu, encdec, eos_idx, src_data, beam_width, beam_pruning_margin, nb_steps, beam_opt, 
        nb_steps_ratio, post_score_length_normalization, length_normalization_strength, 
+       post_score_coverage_penalty, post_score_coverage_penalty_strength,
        groundhog,
        tgt_unk_id, tgt_indexer, force_finish = False,
        prob_space_combination = False, reverse_encdec = None, 
@@ -148,6 +152,7 @@ def translate_to_file_with_beam_search(dest_fn, gpu, encdec, eos_idx, src_data, 
     
     translation_iterator = beam_search_all(gpu, encdec, eos_idx, src_data, beam_width, beam_pruning_margin, nb_steps, beam_opt, 
        nb_steps_ratio, post_score_length_normalization, length_normalization_strength, 
+       post_score_coverage_penalty, post_score_coverage_penalty_strength,
        groundhog,
        tgt_unk_id, tgt_indexer, force_finish = force_finish,
        prob_space_combination = prob_space_combination, reverse_encdec = reverse_encdec,
@@ -297,6 +302,8 @@ def define_parser(parser):
     
     parser.add_argument("--post_score_length_normalization", choices = ['none', 'simple', 'google'], default = 'simple')
     parser.add_argument("--length_normalization_strength", type = float, default = 0.2)
+    parser.add_argument("--post_score_coverage_penalty", choices = ['none', 'google'], default = 'none')
+    parser.add_argument("--coverage_penalty_strength", type = float, default = 0.2)
     
     parser.add_argument("--prob_space_combination", default = False, action = "store_true")
     
@@ -411,6 +418,7 @@ def do_eval(args):
         translate_to_file_with_beam_search(args.dest_fn, args.gpu, encdec_list, eos_idx, src_data, args.beam_width, args.beam_pruning_margin,
                                            args.nb_steps, args.beam_opt, 
                                            args.nb_steps_ratio, args.post_score_length_normalization, args.length_normalization_strength,
+                                           args.post_score_coverage_penalty, args.post_score_coverage_penalty_strength,
                                            args.groundhog,
                                            args.tgt_unk_id, tgt_indexer, force_finish = args.force_finish,
                                            prob_space_combination = args.prob_space_combination,
@@ -425,6 +433,7 @@ def do_eval(args):
         translate_to_file_with_beam_search(args.dest_fn, args.gpu, encdec_list, eos_idx, src_data, args.beam_width, args.beam_pruning_margin,
                                            args.nb_steps, args.beam_opt, 
                                            args.nb_steps_ratio, args.post_score_length_normalization, args.length_normalization_strength,
+                                           args.post_score_coverage_penalty, args.post_score_coverage_penalty_strength,
                                            args.groundhog,
                                            args.tgt_unk_id, tgt_indexer, force_finish = args.force_finish,
                                            prob_space_combination = args.prob_space_combination,
