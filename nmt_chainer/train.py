@@ -267,6 +267,87 @@ def command_line(arguments = None):
     
     do_train(args)
     
+def generate_lexical_probability_dictionary_indexed(lexical_probability_dictionary_all, src_indexer, tgt_indexer):
+    log.info("computing lexical_probability_dictionary_indexed")
+    lexical_probability_dictionary_indexed = {}
+    for ws in lexical_probability_dictionary_all:
+        ws_idx = src_indexer.convert([ws])[0]
+        if ws_idx in lexical_probability_dictionary_indexed:
+            assert src_indexer.is_unk_idx(ws_idx)
+        else:
+            lexical_probability_dictionary_indexed[ws_idx] = {}
+        for wt in lexical_probability_dictionary_all[ws]:
+            wt_idx = tgt_indexer.convert([wt])[0]
+            if wt_idx in lexical_probability_dictionary_indexed[ws_idx]:
+                assert src_indexer.is_unk_idx(ws_idx) or tgt_indexer.is_unk_idx(wt_idx)
+                lexical_probability_dictionary_indexed[ws_idx][wt_idx] += lexical_probability_dictionary_all[ws][wt]
+            else:
+                lexical_probability_dictionary_indexed[ws_idx][wt_idx] = lexical_probability_dictionary_all[ws][wt]
+    return lexical_probability_dictionary_indexed 
+
+def create_encdec_from_config_dict(config_dict, src_indexer, tgt_indexer):
+    Ei = config_dict["Ei"]
+    Hi = config_dict["Hi"]
+    Eo = config_dict["Eo"]
+    Ho = config_dict["Ho"]
+    Ha = config_dict["Ha"]
+    Hl = config_dict["Hl"]
+    
+    Vi = len(src_indexer) # + UNK
+    Vo = len(tgt_indexer) # + UNK
+    
+    encoder_cell_type = config_dict.get("encoder_cell_type", "gru")
+    decoder_cell_type = config_dict.get("decoder_cell_type", "gru")
+    
+    use_bn_length = config_dict.get("use_bn_length", None)
+    
+    # Selecting Attention type
+    attn_cls = models.AttentionModule
+    if config_dict.get("use_accumulated_attn", False):
+        raise NotImplemented
+    if config_dict.get("use_deep_attn", False):
+        attn_cls = models.DeepAttentionModule
+    
+    init_orth = config_dict.get("init_orth", False)
+    
+    if "lexical_probability_dictionary" in config_dict and config_dict["lexical_probability_dictionary"] is not None:
+        log.info("opening lexical_probability_dictionary %s" % config_dict["lexical_probability_dictionary"])
+        lexical_probability_dictionary_all = json.load(gzip.open(config_dict["lexical_probability_dictionary"], "rb"))
+        
+        lexical_probability_dictionary = generate_lexical_probability_dictionary_indexed(
+            lexical_probability_dictionary_all, src_indexer, tgt_indexer)
+    else:
+        lexical_probability_dictionary = None
+    lex_epsilon = config_dict.get("lexicon_prob_epsilon", 0.001)
+    
+    # Creating encoder/decoder
+    encdec = models.EncoderDecoder(Vi, Ei, Hi, Vo + 1, Eo, Ho, Ha, Hl, use_bn_length = use_bn_length,
+                                   attn_cls = attn_cls,
+                                   init_orth = init_orth,
+                                   encoder_cell_type = rnn_cells.create_cell_model_from_string(encoder_cell_type),
+                                    decoder_cell_type = rnn_cells.create_cell_model_from_string(decoder_cell_type),
+                                    lexical_probability_dictionary = lexical_probability_dictionary,
+                                    lex_epsilon = lex_epsilon)
+    
+    return encdec
+
+def create_encdec_and_indexers_from_config_dict(config_dict):
+
+    voc_fn = config_dict["voc"]
+    log.info("loading voc from %s"% voc_fn)
+    src_voc, tgt_voc = json.load(open(voc_fn))
+    
+    src_indexer = Indexer.make_from_serializable(src_voc)
+    tgt_indexer = Indexer.make_from_serializable(tgt_voc)
+    tgt_voc = None
+    src_voc = None
+
+    encdec = create_encdec_from_config_dict(config_dict["encdec"], src_indexer, tgt_indexer)
+    
+    eos_idx = len(tgt_indexer)
+    
+    return encdec, eos_idx, src_indexer, tgt_indexer
+    
 def do_train(args):
     
     config_training, src_indexer, tgt_indexer = load_voc_and_make_training_config(args)
@@ -304,8 +385,14 @@ def do_train(args):
         raw_input("Press Enter to Continue")
     
     
+    save_train_config_fn = output_files_dict["train_config"]
+    log.info("Saving training config to %s" % save_train_config_fn)
+    json.dump(config_training, open(save_train_config_fn, "w"), indent=2, separators=(',', ': '))
+    
     Vi = len(src_indexer) # + UNK
     Vo = len(tgt_indexer) # + UNK
+    
+    eos_idx = Vo
     
     data_fn = config_training.data.data_fn
     
@@ -339,29 +426,6 @@ def do_train(args):
         
 
     
-    if config_training.model.lexical_probability_dictionary is not None:
-        log.info("opening lexical_probability_dictionary %s" % config_training.model.lexical_probability_dictionary)
-        lexical_probability_dictionary_all = json.load(gzip.open(config_training.model.lexical_probability_dictionary, "rb"))
-        log.info("computing lexical_probability_dictionary_indexed")
-        lexical_probability_dictionary_indexed = {}
-        for ws in lexical_probability_dictionary_all:
-            ws_idx = src_indexer.convert([ws])[0]
-            if ws_idx in lexical_probability_dictionary_indexed:
-                assert src_indexer.is_unk_idx(ws_idx)
-            else:
-                lexical_probability_dictionary_indexed[ws_idx] = {}
-            for wt in lexical_probability_dictionary_all[ws]:
-                wt_idx = tgt_indexer.convert([wt])[0]
-                if wt_idx in lexical_probability_dictionary_indexed[ws_idx]:
-                    assert src_indexer.is_unk_idx(ws_idx) or tgt_indexer.is_unk_idx(wt_idx)
-                    lexical_probability_dictionary_indexed[ws_idx][wt_idx] += lexical_probability_dictionary_all[ws][wt]
-                else:
-                    lexical_probability_dictionary_indexed[ws_idx][wt_idx] = lexical_probability_dictionary_all[ws][wt]
-        lexical_probability_dictionary = lexical_probability_dictionary_indexed
-    else:
-        lexical_probability_dictionary = None
-    
-    
     max_src_tgt_length = config_training.training_management.max_src_tgt_length
     if max_src_tgt_length is not None:
         log.info("filtering sentences of length larger than %i"%(max_src_tgt_length))
@@ -381,50 +445,8 @@ def do_train(args):
         random.shuffle(training_data)
         log.info("done")
     
-#     
-#     Vi = len(src_voc) + 1 # + UNK
-#     Vo = len(tgt_voc) + 1 # + UNK
     
-#     config_training = {"command_line" : args.__dict__, "Vi": Vi, "Vo" : Vo, "voc" : voc_fn, "data" : data_fn}
-    
-#     config_training = OrderedDict() # using ordered for improved readability of json
-#     config_training["command_line"] = args.__dict__
-#     config_training["Vi"] = Vi
-#     config_training["Vo"] = Vo
-#     config_training["voc"] = voc_fn
-#     config_training["data"] = data_fn
-#     
-#     config_training["metadata"] = OrderedDict()
-#     config_training["metadata"]["config_version_num"] = 0.9
-#     config_training["metadata"]["command_line"] = " ".join(sys.argv)
-#     config_training["metadata"]["knmt_version"] = versioning_tools.get_version_dict()
-    
-    save_train_config_fn = output_files_dict["train_config"]
-    log.info("Saving training config to %s" % save_train_config_fn)
-    json.dump(config_training, open(save_train_config_fn, "w"), indent=2, separators=(',', ': '))
-    
-    eos_idx = Vo
-    
-    # Selecting Attention type
-    attn_cls = models.AttentionModule
-    if config_training.model.use_accumulated_attn:
-        raise NotImplemented
-#         encdec = models.EncoderDecoder(Vi, args.Ei, args.Hi, Vo + 1, args.Eo, args.Ho, args.Ha, args.Hl,
-#                                        attn_cls= models.AttentionModuleAcumulated,
-#                                        init_orth = args.init_orth)
-    if config_training.model.use_deep_attn:
-        attn_cls = models.DeepAttentionModule
-    
-    
-    # Creating encoder/decoder
-    encdec = models.EncoderDecoder(Vi, config_training.model.Ei, config_training.model.Hi, Vo + 1, config_training.model.Eo, 
-                                       config_training.model.Ho, config_training.model.Ha, config_training.model.Hl,
-                                       init_orth = config_training.model.init_orth, use_bn_length = config_training.model.use_bn_length,
-                                       attn_cls = attn_cls,
-                                       encoder_cell_type = rnn_cells.create_cell_model_from_string(config_training.model.encoder_cell_type),
-                                       decoder_cell_type = rnn_cells.create_cell_model_from_string(config_training.model.decoder_cell_type),
-                                       lexical_probability_dictionary = lexical_probability_dictionary, 
-                                       lex_epsilon = config_training.model.lexicon_prob_epsilon)
+    encdec = create_encdec_from_config_dict(config_training.model, src_indexer, tgt_indexer)
     
     if config_training.training_management.load_model is not None:
         serializers.load_npz(config_training.training_management.load_model, encdec)
