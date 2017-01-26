@@ -199,6 +199,7 @@ def beam_search_translate(encdec, eos_idx, src_data, beam_width = 20, beam_pruni
 
             coverage_penalty = 0
             if post_score_coverage_penalty == 'google':
+                assert len(src_data[num_ex]) == x[2][0].shape[0]
                 for i in xrange(len(src_data[num_ex])):
                     attn_sum = 0
                     for j in xrange(len(x[0])):
