@@ -303,7 +303,7 @@ def define_parser(parser):
     parser.add_argument("--post_score_length_normalization", choices = ['none', 'simple', 'google'], default = 'simple')
     parser.add_argument("--length_normalization_strength", type = float, default = 0.2)
     parser.add_argument("--post_score_coverage_penalty", choices = ['none', 'google'], default = 'none')
-    parser.add_argument("--coverage_penalty_strength", type = float, default = 0.2)
+    parser.add_argument("--post_score_coverage_penalty_strength", type = float, default = 0.2)
     
     parser.add_argument("--prob_space_combination", default = False, action = "store_true")
     
