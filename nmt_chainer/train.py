@@ -149,76 +149,60 @@ log.setLevel(logging.INFO)
 def define_parser(parser):
     parser.add_argument("data_prefix", help = "prefix of the training data created by make_data.py")
     parser.add_argument("save_prefix", help = "prefix to be added to all files created during the training")
-    parser.add_argument("--gpu", type = int, help = "specify gpu number to use, if any")
-    parser.add_argument("--load_model", help = "load the parameters of a previously trained model")
-    parser.add_argument("--load_optimizer_state", help = "load previously saved optimizer states")
-    parser.add_argument("--Ei", type = int, default= 640, help = "Source words embedding size.")
-    parser.add_argument("--Eo", type = int, default= 640, help = "Target words embedding size.")
-    parser.add_argument("--Hi", type = int, default= 1024, help = "Source encoding layer size.")
-    parser.add_argument("--Ho", type = int, default= 1024, help = "Target hidden layer size.")
-    parser.add_argument("--Ha", type = int, default= 1024, help = "Attention Module Hidden layer size.")
-    parser.add_argument("--Hl", type = int, default= 512, help = "Maxout output size.")
-    parser.add_argument("--mb_size", type = int, default= 64, help = "Minibatch size")
-    parser.add_argument("--nb_batch_to_sort", type = int, default= 20, help = "Sort this many batches by size.")
-    parser.add_argument("--noise_on_prev_word", default = False, action = "store_true")
     
     
-    parser.add_argument("--load_trainer_snapshot", help = "load previously saved trainer states")
-    
-    parser.add_argument("--use_memory_optimization", default = False, action = "store_true",
-                        help = "Experimental option that could strongly reduce memory used.")
-        
-    parser.add_argument("--max_nb_iters", type = int, default= None, help = "maximum number of iterations")
-    parser.add_argument("--max_nb_epochs", type = int, default= None, help = "maximum number of epochs")
-    
-    parser.add_argument("--max_src_tgt_length", type = int, help = "Limit length of training sentences")
-    
-    parser.add_argument("--l2_gradient_clipping", type = float, default = 1, help = "L2 gradient clipping. 0 for None")
-    
-    parser.add_argument("--hard_gradient_clipping", type = float, nargs = 2, help = "hard gradient clipping.")
-    
-    
-    parser.add_argument("--weight_decay", type = float, help = "Weight decay value. ")
-    
-    parser.add_argument("--optimizer", choices=["sgd", "rmsprop", "rmspropgraves", 
+    model_description_group = parser.add_argument_group("Model Description")
+    model_description_group.add_argument("--Ei", type = int, default= 640, help = "Source words embedding size.")
+    model_description_group.add_argument("--Eo", type = int, default= 640, help = "Target words embedding size.")
+    model_description_group.add_argument("--Hi", type = int, default= 1024, help = "Source encoding layer size.")
+    model_description_group.add_argument("--Ho", type = int, default= 1024, help = "Target hidden layer size.")
+    model_description_group.add_argument("--Ha", type = int, default= 1024, help = "Attention Module Hidden layer size.")
+    model_description_group.add_argument("--Hl", type = int, default= 512, help = "Maxout output size.")
+    model_description_group.add_argument("--lexical_probability_dictionary", help = "lexical translation probabilities in zipped JSON format. Used to implement https://arxiv.org/abs/1606.02006")
+    model_description_group.add_argument("--lexicon_prob_epsilon", default = 1e-3, type = float, help = "epsilon value for combining the lexical probabilities")
+    model_description_group.add_argument("--encoder_cell_type", default = "lstm", help = "cell type of encoder. format: type,param1:val1,param2:val2,... where type is in [%s]"%(" ".join(rnn_cells.cell_dict.keys())))
+    model_description_group.add_argument("--decoder_cell_type", default = "lstm", help = "cell type of decoder. format same as for encoder")
+    model_description_group.add_argument("--use_deep_attn", default = False, action = "store_true")
+    model_description_group.add_argument("--use_accumulated_attn", default = False, action = "store_true")
+
+    training_paramenters_group = parser.add_argument_group("Training Parameters")
+    training_paramenters_group.add_argument("--mb_size", type = int, default= 64, help = "Minibatch size")
+    training_paramenters_group.add_argument("--nb_batch_to_sort", type = int, default= 20, help = "Sort this many batches by size.")
+    training_paramenters_group.add_argument("--noise_on_prev_word", default = False, action = "store_true") 
+    training_paramenters_group.add_argument("--l2_gradient_clipping", type = float, default = 1, help = "L2 gradient clipping. 0 for None")
+    training_paramenters_group.add_argument("--hard_gradient_clipping", type = float, nargs = 2, help = "hard gradient clipping.")
+    training_paramenters_group.add_argument("--weight_decay", type = float, help = "Weight decay value. ")
+    training_paramenters_group.add_argument("--optimizer", choices=["sgd", "rmsprop", "rmspropgraves", 
                             "momentum", "nesterov", "adam", "adagrad", "adadelta"], 
                         default = "adam", help = "Optimizer type.")
-    parser.add_argument("--learning_rate", type = float, default= 0.01, help = "Learning Rate")
-    parser.add_argument("--momentum", type = float, default= 0.9, help = "Momentum term")
-    parser.add_argument("--report_every", type = int, default = 200, help = "report every x iterations")
-    parser.add_argument("--randomized_data", default = False, action = "store_true")
-    parser.add_argument("--use_accumulated_attn", default = False, action = "store_true")
+    training_paramenters_group.add_argument("--learning_rate", type = float, default= 0.01, help = "Learning Rate")
+    training_paramenters_group.add_argument("--momentum", type = float, default= 0.9, help = "Momentum term")
+    training_paramenters_group.add_argument("--randomized_data", default = False, action = "store_true")
+    training_paramenters_group.add_argument("--no_shuffle_of_training_data", default = False, action = "store_true")
+    training_paramenters_group.add_argument("--use_reinf", default = False, action = "store_true")
+    training_paramenters_group.add_argument("--use_bn_length", default = 0, type = int)
+    training_paramenters_group.add_argument("--use_previous_prediction", default = 0, type = float)
+    training_paramenters_group.add_argument("--curiculum_training", default = False, action = "store_true")
+    training_paramenters_group.add_argument("--reverse_src", default = False, action = "store_true")
+    training_paramenters_group.add_argument("--reverse_tgt", default = False, action = "store_true")
     
-    parser.add_argument("--use_deep_attn", default = False, action = "store_true")
-    
-    parser.add_argument("--no_shuffle_of_training_data", default = False, action = "store_true")
-    parser.add_argument("--no_resume", default = False, action = "store_true")
-    
-    parser.add_argument("--init_orth", default = False, action = "store_true")
-    
-    parser.add_argument("--reverse_src", default = False, action = "store_true")
-    parser.add_argument("--reverse_tgt", default = False, action = "store_true")
-    
-    parser.add_argument("--curiculum_training", default = False, action = "store_true")
-    
-    parser.add_argument("--use_bn_length", default = 0, type = int)
-    parser.add_argument("--use_previous_prediction", default = 0, type = float)
-    
-    parser.add_argument("--no_report_or_save", default = False, action = "store_true")
-    
-    parser.add_argument("--lexical_probability_dictionary", help = "lexical translation probabilities in zipped JSON format. Used to implement https://arxiv.org/abs/1606.02006")
-    parser.add_argument("--lexicon_prob_epsilon", default = 1e-3, type = float, help = "epsilon value for combining the lexical probabilities")
-    
-    parser.add_argument("--encoder_cell_type", default = "lstm", help = "cell type of encoder. format: type,param1:val1,param2:val2,... where type is in [%s]"%(" ".join(rnn_cells.cell_dict.keys())))
-    parser.add_argument("--decoder_cell_type", default = "lstm", help = "cell type of decoder. format same as for encoder")
-    
-    parser.add_argument("--sample_every", default = 200, type = int)
-    
-    parser.add_argument("--save_ckpt_every", default = 4000, type = int)
-    
-    parser.add_argument("--use_reinf", default = False, action = "store_true")
-    
-    parser.add_argument("--save_initial_model_to", help = "save the initial model parameters to given file in npz format")
+    training_monitoring_group = parser.add_argument_group("Training Management and Monitoring")
+    training_monitoring_group.add_argument("--gpu", type = int, help = "specify gpu number to use, if any")
+    training_monitoring_group.add_argument("--load_model", help = "load the parameters of a previously trained model")
+    training_monitoring_group.add_argument("--load_optimizer_state", help = "load previously saved optimizer states")
+    training_monitoring_group.add_argument("--load_trainer_snapshot", help = "load previously saved trainer states")
+    training_monitoring_group.add_argument("--use_memory_optimization", default = False, action = "store_true",
+                        help = "Experimental option that could strongly reduce memory used.")
+    training_monitoring_group.add_argument("--max_nb_iters", type = int, default= None, help = "maximum number of iterations")
+    training_monitoring_group.add_argument("--max_nb_epochs", type = int, default= None, help = "maximum number of epochs")
+    training_monitoring_group.add_argument("--max_src_tgt_length", type = int, help = "Limit length of training sentences")
+    training_monitoring_group.add_argument("--report_every", type = int, default = 200, help = "report every x iterations")
+    training_monitoring_group.add_argument("--no_resume", default = False, action = "store_true")
+    training_monitoring_group.add_argument("--init_orth", default = False, action = "store_true")
+    training_monitoring_group.add_argument("--no_report_or_save", default = False, action = "store_true")
+    training_monitoring_group.add_argument("--sample_every", default = 200, type = int)
+    training_monitoring_group.add_argument("--save_ckpt_every", default = 4000, type = int)
+    training_monitoring_group.add_argument("--save_initial_model_to", help = "save the initial model parameters to given file in npz format")
     
     
 def command_line(arguments = None):
