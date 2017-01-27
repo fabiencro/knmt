@@ -30,14 +30,34 @@ class OrderedNamespace(OrderedDict):
 
     @classmethod
     def convert_to_ordered_namespace(cls, ordered_dict):
-        for v in ordered_dict.itervalue():
+        for v in ordered_dict.itervalues():
             if isinstance(v, OrderedDict):
                 cls.convert_to_ordered_namespace(v)
         if not isinstance(ordered_dict, OrderedDict):
-            raise ValueError
+            raise ValueError()
         ordered_dict.__class__ = cls
         ordered_dict.readonly = False
-
+        
+    def update_recursive(self, other, valid_keys):
+        if not isinstance(other, OrderedNamespace):
+            raise ValueError()
+        if self.readonly:
+            raise ValueError()
+        for key, val in other.iteritems():
+            if isinstance(val, OrderedNamespace):
+                if key in self:
+                    if not (isinstance(self[key], OrderedNamespace)):
+                        raise ValueError()
+                else:
+                    self[key] = OrderedNamespace()
+                self[key].update_recursive(val, valid_keys)
+            else:
+                if key in self:
+                    if (isinstance(self[key], OrderedNamespace)):
+                        raise ValueError()
+                if key in valid_keys:
+                    self[key] = val
+                                 
 class ParseOptionRecorder(object):
     def __init__(self, name = None, group_title_to_section = None):
         self.name = name
@@ -81,19 +101,33 @@ class ParseOptionRecorder(object):
         return result
     
 
+class ParserWithNoneDefaultAndNoGroup(object):
+    def __init__(self):
+        self.parser = argparse.ArgumentParser()
+         
+    def add_argument(self, *args, **kwargs):
+#         print " add_arg ", args, kwargs
+        if len(args) >=5:
+#             print "changing default args", args, kwargs
+            assert "default" not in kwargs
+            args[4] = None
+#             print " -> ", args, kwargs
+        elif "default" in kwargs:
+#             print "changing default", args, kwargs
+            kwargs["default"] = None
+#             print " -> ", args, kwargs
+        self.parser.add_argument(*args, **kwargs)
+         
+    def add_argument_group(self, *args, **kwargs):
+        return self
     
-# class ParserWithNoneDefaultAndNoGroup(object):
-#     def __init__(self):
-#         import argparse
-#         self.parser = argparse.ArgumentParser()
-#         
-#     def add_argument(self, *args, **kwargs):
-#         if len(args) >=5:
-#             assert "default" not in kwargs
-#             args[4] = None
-#         elif "default" in kwargs:
-#             kwargs["default"] = None
-#         self.parser.add_argument(*args, **kwargs)
-#         
-#     def add_argument_group(self, *args, **kwargs):
-#         return self.parser
+    def get_args_given(self, arglist):
+        args_given_set = set()
+        args, remaining_args = self.parser.parse_known_args(arglist)
+        for argname in args.__dict__:
+            assert argname not in args_given_set
+            if getattr(args, argname) is not None:
+                args_given_set.add(argname)
+        return args_given_set
+
+        

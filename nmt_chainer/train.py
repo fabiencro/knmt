@@ -215,15 +215,27 @@ def define_parser(parser):
     
     
 def load_voc_and_make_training_config(args):
-    if "config" in args:
+    config_base = None
+    if args.config is not None:
         log.info("loading training config file %s", args.config)
-        config_base = load_config_train(args.config, readonly = True)
+        config_base = load_config_train(args.config, readonly = False)
     
     description_to_config_section = dict( (v, k) for (k,v) in _CONFIG_SECTION_TO_DESCRIPTION.iteritems())
     por = argument_parsing_tools.ParseOptionRecorder(group_title_to_section = description_to_config_section)
     define_parser(por)
     config_training = por.convert_args_to_ordered_dict(args)
     
+    if config_base is not None:
+        pwndan = argument_parsing_tools.ParserWithNoneDefaultAndNoGroup()
+        define_parser(pwndan)
+        args_given_set = pwndan.get_args_given(sys.argv)
+#         print "args_given_set", args_given_set
+        config_base.update_recursive(config_training, valid_keys = args_given_set) 
+        config_training = config_base
+    else:
+        assert "data" not in config_training
+        assert "metadata" not in config_training
+        
 #     config_data_fn = config_training["data_prefix"] + ".data.config"
     voc_fn = config_training["data_prefix"] + ".voc"
     data_fn = config_training["data_prefix"] + ".data.json.gz"
@@ -242,15 +254,12 @@ def load_voc_and_make_training_config(args):
     Vi = len(src_indexer) # + UNK
     Vo = len(tgt_indexer) # + UNK
     
-    
-    assert "data" not in config_training
     config_training["data"] = argument_parsing_tools.OrderedNamespace()
     config_training["data"]["data_fn"] = data_fn
     config_training["data"]["Vi"] = Vi
     config_training["data"]["Vo"] = Vo
     config_training["data"]["voc"] = voc_fn
     
-    assert "metadata" not in config_training
     config_training["metadata"] = argument_parsing_tools.OrderedNamespace()
     config_training["metadata"]["config_version_num"] = 1.0
     config_training["metadata"]["command_line"] = " ".join(sys.argv)
