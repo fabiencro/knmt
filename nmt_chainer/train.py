@@ -22,6 +22,7 @@ import json
 import os.path
 import gzip
 import sys
+import pprint
 # import h5py
 
 from utils import ensure_path
@@ -150,9 +151,20 @@ _CONFIG_SECTION_TO_DESCRIPTION = {"model": "Model Description",
   "training": "Training Parameters",
   "training_management": "Training Management and Monitoring"}
 
+import argparse
+class ArgumentActionNotOverwriteWithNone(argparse.Action):
+    def __call__(self, parser, namespace, values, option_string=None):
+        if self.dest in namespace and getattr(namespace, self.dest) is not None and values is None:
+            return
+        setattr(namespace, self.dest, values)
+
 def define_parser(parser):
-    parser.add_argument("data_prefix", help = "prefix of the training data created by make_data.py")
-    parser.add_argument("save_prefix", help = "prefix to be added to all files created during the training")
+    parser.add_argument("data_prefix", nargs = "?", 
+                        action = ArgumentActionNotOverwriteWithNone,
+                        help = "prefix of the training data created by make_data.py")
+    parser.add_argument("save_prefix", nargs = "?", 
+                        action = ArgumentActionNotOverwriteWithNone,
+                        help = "prefix to be added to all files created during the training")
     
     
     model_description_group = parser.add_argument_group(_CONFIG_SECTION_TO_DESCRIPTION["model"])
@@ -193,6 +205,12 @@ def define_parser(parser):
     
     training_monitoring_group = parser.add_argument_group(_CONFIG_SECTION_TO_DESCRIPTION["training_management"])
     training_monitoring_group.add_argument("--config", help = "load a training config file")
+    training_monitoring_group.add_argument("--data_prefix", dest = "data_prefix", 
+                                           action = ArgumentActionNotOverwriteWithNone,
+                                           help = "same as positional argument --data_prefix")
+    training_monitoring_group.add_argument("--save_prefix", dest = "save_prefix",
+                                           action = ArgumentActionNotOverwriteWithNone,
+                                           help = "same as positional argument --save_prefix")
     training_monitoring_group.add_argument("--gpu", type = int, help = "specify gpu number to use, if any")
     training_monitoring_group.add_argument("--load_model", help = "load the parameters of a previously trained model")
     training_monitoring_group.add_argument("--load_optimizer_state", help = "load previously saved optimizer states")
@@ -213,6 +231,12 @@ def define_parser(parser):
 # def load_training_config_file(filename):
 #     file_content = json.load(open(filename))
     
+def get_parse_option_orderer():
+    description_to_config_section = dict( (v, k) for (k,v) in _CONFIG_SECTION_TO_DESCRIPTION.iteritems())
+    por = argument_parsing_tools.ParseOptionRecorder(group_title_to_section = description_to_config_section,
+                                                     ignore_positional_arguments = set(["save_prefix", "data_prefix"]))
+    define_parser(por)
+    return por
     
 def load_voc_and_make_training_config(args):
     config_base = None
@@ -220,16 +244,18 @@ def load_voc_and_make_training_config(args):
         log.info("loading training config file %s", args.config)
         config_base = load_config_train(args.config, readonly = False)
     
-    description_to_config_section = dict( (v, k) for (k,v) in _CONFIG_SECTION_TO_DESCRIPTION.iteritems())
-    por = argument_parsing_tools.ParseOptionRecorder(group_title_to_section = description_to_config_section)
-    define_parser(por)
-    config_training = por.convert_args_to_ordered_dict(args)
+    parse_option_orderer = get_parse_option_orderer()
+    config_training = parse_option_orderer.convert_args_to_ordered_dict(args)
     
     if config_base is not None:
         pwndan = argument_parsing_tools.ParserWithNoneDefaultAndNoGroup()
         define_parser(pwndan)
         args_given_set = pwndan.get_args_given(sys.argv)
-#         print "args_given_set", args_given_set
+        for argname in set(args_given_set):
+            if getattr(args, argname) is None:
+                args_given_set.remove(argname)
+                
+        print "args_given_set", args_given_set
         config_base.update_recursive(config_training, valid_keys = args_given_set) 
         config_training = config_base
     else:
@@ -237,8 +263,16 @@ def load_voc_and_make_training_config(args):
         assert "metadata" not in config_training
         
 #     config_data_fn = config_training["data_prefix"] + ".data.config"
-    voc_fn = config_training["data_prefix"] + ".voc"
-    data_fn = config_training["data_prefix"] + ".data.json.gz"
+
+#     print "yyyy"
+#     config_training.pretty_print()
+#     print "xxxxx"
+    if config_training["training_management"]["data_prefix"] is None or config_training["training_management"]["save_prefix"] is None:
+        raise CommandLineValuesException("save_prefix and data_prefix need to be set either on the command line or in a config file")
+    
+    data_prefix = config_training["training_management"]["data_prefix"]
+    voc_fn = data_prefix + ".voc"
+    data_fn = data_prefix + ".data.json.gz"
     
     log.info("loading voc from %s"% voc_fn)
     src_voc, tgt_voc = json.load(open(voc_fn))
@@ -272,10 +306,8 @@ def load_voc_and_make_training_config(args):
 def load_config_train(filename, readonly = True):
     config_as_ordered_dict = json.load(open(filename), object_pairs_hook=OrderedDict)
     if "metadata" not in config_as_ordered_dict: # older config file
-        description_to_config_section = dict( (v, k) for (k,v) in _CONFIG_SECTION_TO_DESCRIPTION.iteritems())
-        por = argument_parsing_tools.ParseOptionRecorder(group_title_to_section = description_to_config_section)
-        define_parser(por)
-        config_training = por.convert_args_to_ordered_dict(config_as_ordered_dict["command_line"], args_is_namespace = False)
+        parse_option_orderer = get_parse_option_orderer()
+        config_training = parse_option_orderer.convert_args_to_ordered_dict(config_as_ordered_dict["command_line"], args_is_namespace = False)
         
         assert "data" not in config_training
         config_training["data"] = argument_parsing_tools.OrderedNamespace()
@@ -390,12 +422,16 @@ def create_encdec_and_indexers_from_config_dict(config_dict):
     
     return encdec, eos_idx, src_indexer, tgt_indexer
     
+    
+class CommandLineValuesException(Exception):
+    pass
+
 def do_train(args):
     
     config_training, src_indexer, tgt_indexer = load_voc_and_make_training_config(args)
     
-    save_prefix = config_training.save_prefix
-    
+    save_prefix = config_training.training_management.save_prefix
+
     output_files_dict = {}
     output_files_dict["train_config"] = save_prefix + ".train.config"
     output_files_dict["model_ckpt"] = save_prefix + ".model." + "ckpt" + ".npz"
@@ -549,7 +585,7 @@ def do_train(args):
             stop_trigger = None
         training_chainer.train_on_data_chainer(encdec, optimizer, training_data, output_files_dict,
                       src_indexer, tgt_indexer, eos_idx = eos_idx, 
-                      output_dir = config_training.save_prefix,
+                      output_dir = config_training.training_management.save_prefix,
                       stop_trigger = stop_trigger,
                       mb_size = config_training.training.mb_size,
                       nb_of_batch_to_sort = config_training.training.nb_batch_to_sort,

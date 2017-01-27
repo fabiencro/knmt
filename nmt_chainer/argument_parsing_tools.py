@@ -57,14 +57,25 @@ class OrderedNamespace(OrderedDict):
                         raise ValueError()
                 if key in valid_keys:
                     self[key] = val
+                    
+    def pretty_print(self, indent = 4, discard_section = ("metadata",)):
+        for k, v in self.iteritems():
+            if isinstance(v, OrderedNamespace) and k not in discard_section:
+                print " " * indent, k, ":"
+                v.pretty_print(indent = indent + 4, discard_section = ())
+            else:
+                print " " * indent, k, v
+        
                                  
 class ParseOptionRecorder(object):
-    def __init__(self, name = None, group_title_to_section = None):
+    def __init__(self, name = None, group_title_to_section = None, ignore_positional_arguments = set()):
         self.name = name
         self.argument_list = []
         self.group_title_to_section = group_title_to_section
+        self.ignore_positional_arguments = ignore_positional_arguments
     
     def add_argument(self, argument_name, *args, **kwargs):
+        positional = False
         if "dest" in kwargs:
             dest = kwargs["dest"]
             assert len(args) < 10
@@ -73,8 +84,10 @@ class ParseOptionRecorder(object):
         elif argument_name.startswith("--"):
             dest = argument_name[2:]
         else:
+            positional = True
             dest = argument_name
-        self.argument_list.append(dest)
+        if not (positional and dest in self.ignore_positional_arguments):
+            self.argument_list.append(dest)
         
     def add_argument_group(self, title, desc = None):
         if self.group_title_to_section is not None:
