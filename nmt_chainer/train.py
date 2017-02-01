@@ -31,8 +31,6 @@ from utils import ensure_path
 #                   greedy_batch_translate, convert_idx_to_string, 
 #                   compute_loss_all, translate_to_file, sample_once)
 
-
-
 import time
 
 import numpy
@@ -226,6 +224,8 @@ def define_parser(parser):
     training_monitoring_group.add_argument("--sample_every", default = 200, type = int)
     training_monitoring_group.add_argument("--save_ckpt_every", default = 4000, type = int)
     training_monitoring_group.add_argument("--save_initial_model_to", help = "save the initial model parameters to given file in npz format")
+    training_monitoring_group.add_argument("--reshuffle_every_epoch", default = False, action = "store_true", help = "reshuffle training data at the end of each epoch")
+    
     
 #     
 # def load_training_config_file(filename):
@@ -585,28 +585,9 @@ def do_train(args):
             stop_trigger = None
         training_chainer.train_on_data_chainer(encdec, optimizer, training_data, output_files_dict,
                       src_indexer, tgt_indexer, eos_idx = eos_idx, 
-                      output_dir = config_training.training_management.save_prefix,
+                      config_training = config_training,
                       stop_trigger = stop_trigger,
-                      mb_size = config_training.training.mb_size,
-                      nb_of_batch_to_sort = config_training.training.nb_batch_to_sort,
-                      test_data = test_data, dev_data = dev_data, valid_data = valid_data, gpu = gpu, 
-                      report_every = config_training.training_management.report_every,
-                      randomized = config_training.training.randomized_data, 
-                      reverse_src = config_training.training.reverse_src, reverse_tgt = config_training.training.reverse_tgt,
-                      do_not_save_data_for_resuming = config_training.training_management.no_resume,
-                      noise_on_prev_word = config_training.training.noise_on_prev_word, 
-                      curiculum_training = config_training.training.curiculum_training,
-                      use_previous_prediction = config_training.training.use_previous_prediction, 
-                      no_report_or_save = config_training.training_management.no_report_or_save,
-                      use_memory_optimization = config_training.training_management.use_memory_optimization,
-                      sample_every = config_training.training_management.sample_every,
-                      use_reinf = config_training.training.use_reinf,
-                      save_ckpt_every = config_training.training_management.save_ckpt_every,
-                      trainer_snapshot = config_training.training_management.load_trainer_snapshot,
-#                     lexical_probability_dictionary = lexical_probability_dictionary,
-#                     V_tgt = Vo + 1,
-#                     lexicon_prob_epsilon = args.lexicon_prob_epsilon
-                      save_initial_model_to = config_training.training_management.save_initial_model_to
+                      test_data = test_data, dev_data = dev_data, valid_data = valid_data
                       )
 
 # 
