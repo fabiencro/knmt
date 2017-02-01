@@ -65,7 +65,28 @@ class OrderedNamespace(OrderedDict):
                 v.pretty_print(indent = indent + 4, discard_section = ())
             else:
                 print " " * indent, k, v
-        
+                
+    def copy(self, readonly = None):
+        res = OrderedNamespace()
+        for k, v in self.iteritems():
+            if isinstance(v, OrderedNamespace):
+                res[k] = v.copy(readonly)
+            else:
+                res[k] = v
+        if readonly is None:
+            res.readonly = self.readonly
+        else:
+            res.readonly = readonly
+        return res
+    
+    def add_section(self, name, keep_at_bottom = None):
+        if self.readonly:
+            raise ValueError()
+        self[name] = OrderedNamespace()
+        if keep_at_bottom is not None:
+            metadata = self[keep_at_bottom]
+            del self[keep_at_bottom]
+            self[keep_at_bottom] = metadata
                                  
 class ParseOptionRecorder(object):
     def __init__(self, name = None, group_title_to_section = None, ignore_positional_arguments = set()):
