@@ -225,6 +225,8 @@ def define_parser(parser):
     training_monitoring_group.add_argument("--save_ckpt_every", default = 4000, type = int)
     training_monitoring_group.add_argument("--save_initial_model_to", help = "save the initial model parameters to given file in npz format")
     training_monitoring_group.add_argument("--reshuffle_every_epoch", default = False, action = "store_true", help = "reshuffle training data at the end of each epoch")
+    training_monitoring_group.add_argument("--resume", default = False, action = "store_true", help = "resume training from checkpoint config")
+#     training_monitoring_group.add_argument("--resume", help = "resume training from checkpoint config")
     
     
 #     
@@ -526,7 +528,16 @@ def do_train(args):
     
     encdec = create_encdec_from_config_dict(config_training.model, src_indexer, tgt_indexer)
     
+    if config_training.training_management.resume:
+        if "model_parameters" not in config_training:
+            log.error("cannot find model parameters in config file")
+        if config_training.model_parameters.type == "best_bleu" or config_training.model_parameters.type == "best_loss":
+            model_filename = config_training.model_parameters.filename
+            log.info("resuming from model parameters %s" % model_filename)
+            serializers.load_npz(model_filename, encdec)
+    
     if config_training.training_management.load_model is not None:
+        log.info("loading model parameters from %s", config_training.training_management.load_model)
         serializers.load_npz(config_training.training_management.load_model, encdec)
     
     
@@ -570,6 +581,7 @@ def do_train(args):
 
     if config_training.training_management.load_optimizer_state is not None:
         with cuda.get_device(gpu):
+            log.info("loading optimizer parameters from %s", config_training.training_management.load_optimizer_state)
             serializers.load_npz(config_training.training_management.load_optimizer_state, optimizer)    
     
 
