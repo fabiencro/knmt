@@ -420,7 +420,7 @@ class CheckpontSavingExtension(chainer.training.Extension):
         
     def __call__(self, trainer):
         log.info("Saving current trainer state to file %s" % self.save_to)
-        chainer.training.extensions.snapshot(filename = self.save_to)(trainer)
+        serializers.save_npz(self.save_to, trainer)
         config_session = self.config_training.copy(readonly = False)
         config_session.add_section("model_parameters", keep_at_bottom = "metadata")
         config_session["model_parameters"]["filename"] = self.save_to
@@ -548,7 +548,7 @@ def train_on_data_chainer(encdec, optimizer, training_data, output_files_dict,
     
         #trainer.extend(chainer.training.extensions.snapshot(), trigger = (save_ckpt_every, "iteration"))
 
-        trainer.extend(CheckpontSavingExtension(output_files_dict["model_ckpt"], config_training), trigger = (save_ckpt_every, "iteration"))
+        trainer.extend(CheckpontSavingExtension(output_files_dict["model_ckpt"] , config_training), trigger = (save_ckpt_every, "iteration"))
         
         
         trainer.extend(SqliteLogExtension(db_path = output_files_dict["sqlite_db"]))
@@ -557,8 +557,16 @@ def train_on_data_chainer(encdec, optimizer, training_data, output_files_dict,
     
     trainer.extend(TrainingLossSummaryExtension(trigger = (report_every, "iteration")))
     
+    if config_training.training_management.resume:
+        if "model_parameters" not in config_training:
+            log.error("cannot find model parameters in config file")
+        if config_training.model_parameters.type == "final" or config_training.model_parameters.type == "checkpoint":
+            model_filename = config_training.model_parameters.filename
+            log.info("resuming from trainer parameters %s" % model_filename)
+            serializers.load_npz(model_filename, trainer)
     
     if trainer_snapshot is not None:
+        log.info("loading trainer parameters from %s" % trainer_snapshot)
         serializers.load_npz(trainer_snapshot, trainer)
     
     try:
@@ -570,9 +578,10 @@ def train_on_data_chainer(encdec, optimizer, training_data, output_files_dict,
         trainer.run()
     except:
         if not no_report_or_save:
-            final_snapshot_fn = "final_snapshot"
+            final_snapshot_fn = output_files_dict["model_final"]
             log.info("Exception met. Trying to save current trainer state to file %s" % final_snapshot_fn)
-            chainer.training.extensions.snapshot(filename = final_snapshot_fn)(trainer)
+            serializers.save_npz(final_snapshot_fn, trainer)
+#             chainer.training.extensions.snapshot(filename = final_snapshot_fn)(trainer)
             config_session = config_training.copy(readonly = False)
             config_session.add_section("model_parameters", keep_at_bottom = "metadata")
             config_session["model_parameters"]["filename"] = final_snapshot_fn
