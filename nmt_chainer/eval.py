@@ -283,6 +283,7 @@ def check_if_vocabulary_info_compatible(this_eos_idx, this_src_indexer, this_tgt
 def make_config_eval(args):
     parse_option_orderer = get_parse_option_orderer()
     config_eval = parse_option_orderer.convert_args_to_ordered_dict(args)
+    config_eval.add_metadata_infos(version_num = 1)
     config_eval.set_readonly()
     
     if config_eval.process.src_fn is None or config_eval.process.dest_fn is None:
@@ -295,7 +296,8 @@ def do_eval(args):
     
     save_eval_config_fn = config_eval.process.dest_fn + ".eval.config.json"
     log.info("Saving eval config to %s" % save_eval_config_fn)
-    json.dump(config_eval, open(save_eval_config_fn, "w"), indent=2, separators=(',', ': '))
+    config_eval.save_to(save_eval_config_fn)
+#     json.dump(config_eval, open(save_eval_config_fn, "w"), indent=2, separators=(',', ': '))
     
     encdec_list = []
     eos_idx, src_indexer, tgt_indexer = None, None, None

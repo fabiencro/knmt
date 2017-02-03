@@ -290,10 +290,7 @@ def load_voc_and_make_training_config(args):
     config_training["data"]["Vo"] = Vo
     config_training["data"]["voc"] = voc_fn
     
-    config_training["metadata"] = argument_parsing_tools.OrderedNamespace()
-    config_training["metadata"]["config_version_num"] = 1.0
-    config_training["metadata"]["command_line"] = " ".join(sys.argv)
-    config_training["metadata"]["knmt_version"] = versioning_tools.get_version_dict()
+    config_training.add_metadata_infos(version_num = 1)
     
     config_training.set_readonly()
     
@@ -355,8 +352,7 @@ def generate_lexical_probability_dictionary_indexed(lexical_probability_dictiona
                 lexical_probability_dictionary_indexed[ws_idx][wt_idx] = lexical_probability_dictionary_all[ws][wt]
     return lexical_probability_dictionary_indexed 
 
-def create_encdec_from_config_dict(config_dict, src_indexer, tgt_indexer, load_config_model = "no"):
-    assert load_config_model in "yes no if_exists".split()
+def create_encdec_from_config_dict(config_dict, src_indexer, tgt_indexer):
     Ei = config_dict["Ei"]
     Hi = config_dict["Hi"]
     Eo = config_dict["Eo"]
@@ -399,10 +395,38 @@ def create_encdec_from_config_dict(config_dict, src_indexer, tgt_indexer, load_c
                                     decoder_cell_type = rnn_cells.create_cell_model_from_string(decoder_cell_type),
                                     lexical_probability_dictionary = lexical_probability_dictionary,
                                     lex_epsilon = lex_epsilon)
+
+    return encdec
+
+
+
+def create_encdec_and_indexers_from_config_dict(config_dict, src_indexer = None, tgt_indexer = None, load_config_model = "no"):
+    assert load_config_model in "yes no if_exists".split()
+    
+    if src_indexer is None or tgt_indexer is None:
+        voc_fn = config_dict.data["voc"]
+        log.info("loading voc from %s"% voc_fn)
+        src_voc, tgt_voc = json.load(open(voc_fn))
+    
+    if src_indexer is None:
+        src_indexer = Indexer.make_from_serializable(src_voc)
+        
+    if tgt_indexer is None:
+        tgt_indexer = Indexer.make_from_serializable(tgt_voc)
+        
+    tgt_voc = None
+    src_voc = None
+
+    encdec = create_encdec_from_config_dict(config_dict["model"], src_indexer, tgt_indexer)
+    
+    eos_idx = len(tgt_indexer)
+    
+    
     if load_config_model != "no":
         if "model_parameters" not in config_dict:
             if load_config_model == "yes":
                 log.error("cannot find model parameters in config file")
+                raise ValueError("Config file do not contain model_parameters section")
         else:
             if config_dict.model_parameters.type == "model":
                 model_filename = config_dict.model_parameters.filename
@@ -411,23 +435,7 @@ def create_encdec_from_config_dict(config_dict, src_indexer, tgt_indexer, load_c
             else:
                 if load_config_model == "yes":
                     log.error("model parameters in config file is of type snapshot, not model")
-            
-    return encdec
-
-def create_encdec_and_indexers_from_config_dict(config_dict, load_config_model = "no"):
-
-    voc_fn = config_dict.data["voc"]
-    log.info("loading voc from %s"% voc_fn)
-    src_voc, tgt_voc = json.load(open(voc_fn))
-    
-    src_indexer = Indexer.make_from_serializable(src_voc)
-    tgt_indexer = Indexer.make_from_serializable(tgt_voc)
-    tgt_voc = None
-    src_voc = None
-
-    encdec = create_encdec_from_config_dict(config_dict["model"], src_indexer, tgt_indexer, load_config_model = load_config_model)
-    
-    eos_idx = len(tgt_indexer)
+                    raise ValueError("Config file model is not of type model")
     
     return encdec, eos_idx, src_indexer, tgt_indexer
     
@@ -474,7 +482,8 @@ def do_train(args):
     
     save_train_config_fn = output_files_dict["train_config"]
     log.info("Saving training config to %s" % save_train_config_fn)
-    json.dump(config_training, open(save_train_config_fn, "w"), indent=2, separators=(',', ': '))
+    config_training.save_to(save_train_config_fn)
+#     json.dump(config_training, open(save_train_config_fn, "w"), indent=2, separators=(',', ': '))
     
     Vi = len(src_indexer) # + UNK
     Vo = len(tgt_indexer) # + UNK
@@ -533,8 +542,11 @@ def do_train(args):
         log.info("done")
     
     
-    encdec = create_encdec_from_config_dict(config_training.model, src_indexer, tgt_indexer, 
+    encdec = create_encdec_and_indexers_from_config_dict(config_training, 
+                            src_indexer = src_indexer, tgt_indexer = tgt_indexer,
                             load_config_model = "if_exists" if config_training.training_management.resume else "no")
+#     create_encdec_from_config_dict(config_training.model, src_indexer, tgt_indexer, 
+#                             load_config_model = "if_exists" if config_training.training_management.resume else "no")
     
 #     if config_training.training_management.resume:
 #         if "model_parameters" not in config_training:
