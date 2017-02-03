@@ -91,7 +91,7 @@ class RichOutputWriter(object):
           
 
 
-def beam_search_all(gpu, encdec, eos_idx, src_data, beam_width, beam_pruning_margin, nb_steps, beam_opt, 
+def beam_search_all(gpu, encdec, eos_idx, src_data, beam_width, beam_pruning_margin, nb_steps,
        nb_steps_ratio, post_score_length_normalization, length_normalization_strength, 
        groundhog,
        tgt_unk_id, tgt_indexer, force_finish = False,
@@ -105,7 +105,7 @@ def beam_search_all(gpu, encdec, eos_idx, src_data, beam_width, beam_pruning_mar
     with cuda.get_device(gpu):
         translations_gen = beam_search_translate(
                     encdec, eos_idx, src_data, beam_width = beam_width, nb_steps = nb_steps, 
-                                    gpu = gpu, beam_opt = beam_opt, beam_pruning_margin = beam_pruning_margin, nb_steps_ratio = nb_steps_ratio,
+                                    gpu = gpu, beam_pruning_margin = beam_pruning_margin, nb_steps_ratio = nb_steps_ratio,
                                     need_attention = True, post_score_length_normalization = post_score_length_normalization,
                                     length_normalization_strength = length_normalization_strength,
                                     groundhog = groundhog, force_finish = force_finish,
@@ -140,7 +140,7 @@ def beam_search_all(gpu, encdec, eos_idx, src_data, beam_width, beam_pruning_mar
             yield src_data[num_t], translated, t, score, attn 
         print >>sys.stderr
 
-def translate_to_file_with_beam_search(dest_fn, gpu, encdec, eos_idx, src_data, beam_width, beam_pruning_margin, nb_steps, beam_opt, 
+def translate_to_file_with_beam_search(dest_fn, gpu, encdec, eos_idx, src_data, beam_width, beam_pruning_margin, nb_steps, 
        nb_steps_ratio, post_score_length_normalization, length_normalization_strength, 
        groundhog,
        tgt_unk_id, tgt_indexer, force_finish = False,
@@ -151,7 +151,7 @@ def translate_to_file_with_beam_search(dest_fn, gpu, encdec, eos_idx, src_data, 
     log.info("writing translation to %s "% dest_fn)
     out = codecs.open(dest_fn, "w", encoding = "utf8")
     
-    translation_iterator = beam_search_all(gpu, encdec, eos_idx, src_data, beam_width, beam_pruning_margin, nb_steps, beam_opt, 
+    translation_iterator = beam_search_all(gpu, encdec, eos_idx, src_data, beam_width, beam_pruning_margin, nb_steps, 
        nb_steps_ratio, post_score_length_normalization, length_normalization_strength, 
        groundhog,
        tgt_unk_id, tgt_indexer, force_finish = force_finish,
@@ -214,7 +214,7 @@ def define_parser(parser):
     translation_method_group.add_argument("--beam_pruning_margin", type = float, default= None, help = "beam pruning margin")
     translation_method_group.add_argument("--nb_steps", type = int, default= 50, help = "nb_steps used in generation")
     translation_method_group.add_argument("--nb_steps_ratio", type = float, help = "nb_steps used in generation as a ratio of input length")
-    translation_method_group.add_argument("--beam_opt", default = False, action = "store_true")
+#     translation_method_group.add_argument("--beam_opt", default = False, action = "store_true")
     translation_method_group.add_argument("--groundhog", default = False, action = "store_true")
     translation_method_group.add_argument("--force_finish", default = False, action = "store_true")
     translation_method_group.add_argument("--post_score_length_normalization", choices = ['none', 'simple', 'google'], default = 'simple')
@@ -410,7 +410,7 @@ def do_eval(args):
 
     elif args.mode == "beam_search":
         translate_to_file_with_beam_search(args.dest_fn, args.gpu, encdec_list, eos_idx, src_data, args.beam_width, args.beam_pruning_margin,
-                                           args.nb_steps, args.beam_opt, 
+                                           args.nb_steps,
                                            args.nb_steps_ratio, args.post_score_length_normalization, args.length_normalization_strength,
                                            args.groundhog,
                                            args.tgt_unk_id, tgt_indexer, force_finish = args.force_finish,
@@ -424,7 +424,7 @@ def do_eval(args):
     elif args.mode == "eval_bleu":
 #         assert args.ref is not None
         translate_to_file_with_beam_search(args.dest_fn, args.gpu, encdec_list, eos_idx, src_data, args.beam_width, args.beam_pruning_margin,
-                                           args.nb_steps, args.beam_opt, 
+                                           args.nb_steps,
                                            args.nb_steps_ratio, args.post_score_length_normalization, args.length_normalization_strength,
                                            args.groundhog,
                                            args.tgt_unk_id, tgt_indexer, force_finish = args.force_finish,
