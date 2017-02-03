@@ -114,6 +114,13 @@ class OrderedNamespace(OrderedDict):
         self["metadata"]["command_line"] = " ".join(sys.argv)
         self["metadata"]["knmt_version"] = versioning_tools.get_version_dict()
         self["metadata"]["creation_time"] = datetime.datetime.now().strftime("%I:%M%p %B %d, %Y")
+               
+    def set_metadata_modified_time(self):
+        if self.readonly:
+            raise ValueError()
+        if "metadata" not in self:
+            self["metadata"] = OrderedNamespace()
+        self["metadata"]["modified_time"] = datetime.datetime.now().strftime("%I:%M%p %B %d, %Y")
                                  
 class ParseOptionRecorder(object):
     def __init__(self, name = None, group_title_to_section = None, ignore_positional_arguments = set()):
