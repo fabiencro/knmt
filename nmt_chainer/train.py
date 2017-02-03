@@ -290,7 +290,7 @@ def load_voc_and_make_training_config(args):
     config_training["data"]["Vo"] = Vo
     config_training["data"]["voc"] = voc_fn
     
-    config_training.add_metadata_infos(version_num = 1)
+    config_training.add_metadata_infos(version_num = 1, overwrite = args.config is not None)
     
     config_training.set_readonly()
     
@@ -542,7 +542,7 @@ def do_train(args):
         log.info("done")
     
     
-    encdec = create_encdec_and_indexers_from_config_dict(config_training, 
+    encdec, _, _, _ = create_encdec_and_indexers_from_config_dict(config_training, 
                             src_indexer = src_indexer, tgt_indexer = tgt_indexer,
                             load_config_model = "if_exists" if config_training.training_management.resume else "no")
 #     create_encdec_from_config_dict(config_training.model, src_indexer, tgt_indexer, 
