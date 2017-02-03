@@ -243,7 +243,8 @@ class ComputeLossExtension(chainer.training.Extension):
                     config_session = self.config_training.copy(readonly = False)
                     config_session.add_section("model_parameters", keep_at_bottom = "metadata")
                     config_session["model_parameters"]["filename"] = self.save_best_model_to
-                    config_session["model_parameters"]["type"] = "best_loss"
+                    config_session["model_parameters"]["type"] = "model"
+                    config_session["model_parameters"]["description"] = "best_loss"
                     json.dump(config_session, open(self.save_best_model_to + ".config", "w"), indent=2, separators=(',', ': ')) 
         
     def serialize(self, serializer):
@@ -321,7 +322,8 @@ class ComputeBleuExtension(chainer.training.Extension):
                     config_session = self.config_training.copy(readonly = False)
                     config_session.add_section("model_parameters", keep_at_bottom = "metadata")
                     config_session["model_parameters"]["filename"] = self.save_best_model_to
-                    config_session["model_parameters"]["type"] = "best_bleu"
+                    config_session["model_parameters"]["type"] = "model"
+                    config_session["model_parameters"]["description"] = "best_bleu"
                     json.dump(config_session, open(self.save_best_model_to + ".config", "w"), indent=2, separators=(',', ': '))
         else:
             log.info("no bleu (%s) improvement: %f >= %f" %(self.observation_name, self.best_bleu, bleu))
@@ -424,7 +426,8 @@ class CheckpontSavingExtension(chainer.training.Extension):
         config_session = self.config_training.copy(readonly = False)
         config_session.add_section("model_parameters", keep_at_bottom = "metadata")
         config_session["model_parameters"]["filename"] = self.save_to
-        config_session["model_parameters"]["type"] = "checkpoint"
+        config_session["model_parameters"]["type"] = "snapshot"
+        config_session["model_parameters"]["description"] = "checkpoint"
         json.dump(config_session, open(self.save_to + ".config", "w"), indent=2, separators=(',', ': '))
         log.info("Saved trainer snapshot to file %s" % self.save_to)
                    
@@ -560,7 +563,7 @@ def train_on_data_chainer(encdec, optimizer, training_data, output_files_dict,
     if config_training.training_management.resume:
         if "model_parameters" not in config_training:
             log.error("cannot find model parameters in config file")
-        if config_training.model_parameters.type == "final" or config_training.model_parameters.type == "checkpoint":
+        if config_training.model_parameters.type == "snapshot":
             model_filename = config_training.model_parameters.filename
             log.info("resuming from trainer parameters %s" % model_filename)
             serializers.load_npz(model_filename, trainer)
@@ -585,7 +588,8 @@ def train_on_data_chainer(encdec, optimizer, training_data, output_files_dict,
             config_session = config_training.copy(readonly = False)
             config_session.add_section("model_parameters", keep_at_bottom = "metadata")
             config_session["model_parameters"]["filename"] = final_snapshot_fn
-            config_session["model_parameters"]["type"] = "final"
+            config_session["model_parameters"]["type"] = "snapshot"
+            config_session["model_parameters"]["description"] = "final"
             json.dump(config_session, open(final_snapshot_fn + ".config", "w"), indent=2, separators=(',', ': '))
             log.info("Saved trainer snapshot to file %s" % final_snapshot_fn)
             
