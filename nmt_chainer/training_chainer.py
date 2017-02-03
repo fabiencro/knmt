@@ -563,6 +563,7 @@ def train_on_data_chainer(encdec, optimizer, training_data, output_files_dict,
     if config_training.training_management.resume:
         if "model_parameters" not in config_training:
             log.error("cannot find model parameters in config file")
+            raise ValueError("Config file do not contain model_parameters section")
         if config_training.model_parameters.type == "snapshot":
             model_filename = config_training.model_parameters.filename
             log.info("resuming from trainer parameters %s" % model_filename)

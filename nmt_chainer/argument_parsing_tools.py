@@ -1,6 +1,10 @@
 
 from collections import OrderedDict
 import argparse
+import json
+import datetime
+import sys
+import versioning_tools
 
 class OrderedNamespace(OrderedDict):
     def __init__(self, *args, **kwargs):
@@ -28,6 +32,14 @@ class OrderedNamespace(OrderedDict):
         else:
             return getattr(super(OrderedNamespace, self), key)
 
+    def save_to(self, filename):
+        json.dump(self, open(filename, "w"), indent=2, separators=(',', ': '))
+
+    @classmethod
+    def load_from(cls, filename):
+        d = json.load(open(filename), object_pairs_hook=OrderedDict)
+        return cls.convert_to_ordered_namespace(d)
+    
     @classmethod
     def convert_to_ordered_namespace(cls, ordered_dict):
         for v in ordered_dict.itervalues():
@@ -87,6 +99,21 @@ class OrderedNamespace(OrderedDict):
             metadata = self[keep_at_bottom]
             del self[keep_at_bottom]
             self[keep_at_bottom] = metadata
+                                 
+                          
+    def add_metadata_infos(self, version_num, overwrite = False):
+        if self.readonly:
+            raise ValueError()
+        if "metadata" in self:
+            if not overwrite:
+                raise AssertionError()
+        else:  
+            self["metadata"] = OrderedNamespace()
+            
+        self["metadata"]["config_version_num"] = version_num
+        self["metadata"]["command_line"] = " ".join(sys.argv)
+        self["metadata"]["knmt_version"] = versioning_tools.get_version_dict()
+        self["metadata"]["creation_time"] = datetime.datetime.now().strftime("%I:%M%p %B %d, %Y")
                                  
 class ParseOptionRecorder(object):
     def __init__(self, name = None, group_title_to_section = None, ignore_positional_arguments = set()):
