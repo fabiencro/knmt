@@ -163,5 +163,11 @@ class ParserWithNoneDefaultAndNoGroup(object):
             if getattr(args, argname) is not None:
                 args_given_set.add(argname)
         return args_given_set
+    
+class ArgumentActionNotOverwriteWithNone(argparse.Action):
+    def __call__(self, parser, namespace, values, option_string=None):
+        if self.dest in namespace and getattr(namespace, self.dest) is not None and values is None:
+            return
+        setattr(namespace, self.dest, values)
 
         

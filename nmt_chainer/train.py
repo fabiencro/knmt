@@ -149,19 +149,13 @@ _CONFIG_SECTION_TO_DESCRIPTION = {"model": "Model Description",
   "training": "Training Parameters",
   "training_management": "Training Management and Monitoring"}
 
-import argparse
-class ArgumentActionNotOverwriteWithNone(argparse.Action):
-    def __call__(self, parser, namespace, values, option_string=None):
-        if self.dest in namespace and getattr(namespace, self.dest) is not None and values is None:
-            return
-        setattr(namespace, self.dest, values)
 
 def define_parser(parser):
     parser.add_argument("data_prefix", nargs = "?", 
-                        action = ArgumentActionNotOverwriteWithNone,
+                        action = argument_parsing_tools.ArgumentActionNotOverwriteWithNone,
                         help = "prefix of the training data created by make_data.py")
     parser.add_argument("save_prefix", nargs = "?", 
-                        action = ArgumentActionNotOverwriteWithNone,
+                        action = argument_parsing_tools.ArgumentActionNotOverwriteWithNone,
                         help = "prefix to be added to all files created during the training")
     
     
@@ -204,10 +198,10 @@ def define_parser(parser):
     training_monitoring_group = parser.add_argument_group(_CONFIG_SECTION_TO_DESCRIPTION["training_management"])
     training_monitoring_group.add_argument("--config", help = "load a training config file")
     training_monitoring_group.add_argument("--data_prefix", dest = "data_prefix", 
-                                           action = ArgumentActionNotOverwriteWithNone,
+                                           action = argument_parsing_tools.ArgumentActionNotOverwriteWithNone,
                                            help = "same as positional argument --data_prefix")
     training_monitoring_group.add_argument("--save_prefix", dest = "save_prefix",
-                                           action = ArgumentActionNotOverwriteWithNone,
+                                           action = argument_parsing_tools.ArgumentActionNotOverwriteWithNone,
                                            help = "same as positional argument --save_prefix")
     training_monitoring_group.add_argument("--gpu", type = int, help = "specify gpu number to use, if any")
     training_monitoring_group.add_argument("--load_model", help = "load the parameters of a previously trained model")
@@ -361,7 +355,8 @@ def generate_lexical_probability_dictionary_indexed(lexical_probability_dictiona
                 lexical_probability_dictionary_indexed[ws_idx][wt_idx] = lexical_probability_dictionary_all[ws][wt]
     return lexical_probability_dictionary_indexed 
 
-def create_encdec_from_config_dict(config_dict, src_indexer, tgt_indexer):
+def create_encdec_from_config_dict(config_dict, src_indexer, tgt_indexer, load_config_model = "no"):
+    assert load_config_model in "yes no if_exists".split()
     Ei = config_dict["Ei"]
     Hi = config_dict["Hi"]
     Eo = config_dict["Eo"]
@@ -404,10 +399,22 @@ def create_encdec_from_config_dict(config_dict, src_indexer, tgt_indexer):
                                     decoder_cell_type = rnn_cells.create_cell_model_from_string(decoder_cell_type),
                                     lexical_probability_dictionary = lexical_probability_dictionary,
                                     lex_epsilon = lex_epsilon)
-    
+    if load_config_model != "no":
+        if "model_parameters" not in config_dict:
+            if load_config_model == "yes":
+                log.error("cannot find model parameters in config file")
+        else:
+            if config_dict.model_parameters.type == "model":
+                model_filename = config_dict.model_parameters.filename
+                log.info("loading model parameters from file specified by config file:%s" % model_filename)
+                serializers.load_npz(model_filename, encdec)
+            else:
+                if load_config_model == "yes":
+                    log.error("model parameters in config file is of type snapshot, not model")
+            
     return encdec
 
-def create_encdec_and_indexers_from_config_dict(config_dict):
+def create_encdec_and_indexers_from_config_dict(config_dict, load_config_model = "no"):
 
     voc_fn = config_dict.data["voc"]
     log.info("loading voc from %s"% voc_fn)
@@ -418,7 +425,7 @@ def create_encdec_and_indexers_from_config_dict(config_dict):
     tgt_voc = None
     src_voc = None
 
-    encdec = create_encdec_from_config_dict(config_dict["model"], src_indexer, tgt_indexer)
+    encdec = create_encdec_from_config_dict(config_dict["model"], src_indexer, tgt_indexer, load_config_model = load_config_model)
     
     eos_idx = len(tgt_indexer)
     
@@ -526,15 +533,16 @@ def do_train(args):
         log.info("done")
     
     
-    encdec = create_encdec_from_config_dict(config_training.model, src_indexer, tgt_indexer)
+    encdec = create_encdec_from_config_dict(config_training.model, src_indexer, tgt_indexer, 
+                            load_config_model = "if_exists" if config_training.training_management.resume else "no")
     
-    if config_training.training_management.resume:
-        if "model_parameters" not in config_training:
-            log.error("cannot find model parameters in config file")
-        if config_training.model_parameters.type == "best_bleu" or config_training.model_parameters.type == "best_loss":
-            model_filename = config_training.model_parameters.filename
-            log.info("resuming from model parameters %s" % model_filename)
-            serializers.load_npz(model_filename, encdec)
+#     if config_training.training_management.resume:
+#         if "model_parameters" not in config_training:
+#             log.error("cannot find model parameters in config file")
+#         if config_training.model_parameters.type == "model":
+#             model_filename = config_training.model_parameters.filename
+#             log.info("resuming from model parameters %s" % model_filename)
+#             serializers.load_npz(model_filename, encdec)
     
     if config_training.training_management.load_model is not None:
         log.info("loading model parameters from %s", config_training.training_management.load_model)
