@@ -246,10 +246,11 @@ class ComputeLossExtension(chainer.training.Extension):
                     config_session["model_parameters"]["type"] = "model"
                     config_session["model_parameters"]["description"] = "best_loss"
                     config_session["model_parameters"]["infos"] = argument_parsing_tools.OrderedNamespace()
-                    config_session["model_parameters"]["infos"]["loss"] = dev_loss
+                    config_session["model_parameters"]["infos"]["loss"] = float(dev_loss)
                     config_session["model_parameters"]["infos"]["iteration"] = trainer.updater.iteration
                     config_session.set_metadata_modified_time()
-                    json.dump(config_session, open(self.save_best_model_to + ".config", "w"), indent=2, separators=(',', ': ')) 
+                    config_session.save_to(self.save_best_model_to + ".config")
+#                     json.dump(config_session, open(self.save_best_model_to + ".config", "w"), indent=2, separators=(',', ': ')) 
         
     def serialize(self, serializer):
         self.best_loss = serializer("best_loss", self.best_loss)
@@ -332,7 +333,8 @@ class ComputeBleuExtension(chainer.training.Extension):
                     config_session["model_parameters"]["infos"]["bleu_stats"] = str(bleu_stats)
                     config_session["model_parameters"]["infos"]["iteration"] = trainer.updater.iteration
                     config_session.set_metadata_modified_time()
-                    json.dump(config_session, open(self.save_best_model_to + ".config", "w"), indent=2, separators=(',', ': '))
+                    config_session.save_to(self.save_best_model_to + ".config")
+#                     json.dump(config_session, open(self.save_best_model_to + ".config", "w"), indent=2, separators=(',', ': '))
         else:
             log.info("no bleu (%s) improvement: %f >= %f" %(self.observation_name, self.best_bleu, bleu))
         
@@ -439,7 +441,8 @@ class CheckpontSavingExtension(chainer.training.Extension):
         config_session["model_parameters"]["infos"] = argument_parsing_tools.OrderedNamespace()
         config_session["model_parameters"]["infos"]["iteration"] = trainer.updater.iteration
         config_session.set_metadata_modified_time()
-        json.dump(config_session, open(self.save_to + ".config", "w"), indent=2, separators=(',', ': '))
+        config_session.save_to(self.save_to + ".config")
+#         json.dump(config_session, open(self.save_to + ".config", "w"), indent=2, separators=(',', ': '))
         log.info("Saved trainer snapshot to file %s" % self.save_to)
                    
 def train_on_data_chainer(encdec, optimizer, training_data, output_files_dict,
@@ -605,7 +608,8 @@ def train_on_data_chainer(encdec, optimizer, training_data, output_files_dict,
             config_session["model_parameters"]["infos"] = argument_parsing_tools.OrderedNamespace()
             config_session["model_parameters"]["infos"]["iteration"] = trainer.updater.iteration
             config_session.set_metadata_modified_time()
-            json.dump(config_session, open(final_snapshot_fn + ".config", "w"), indent=2, separators=(',', ': '))
+            config_session.save_to(final_snapshot_fn + ".config")
+#             json.dump(config_session, open(final_snapshot_fn + ".config", "w"), indent=2, separators=(',', ': '))
             log.info("Saved trainer snapshot to file %s" % final_snapshot_fn)
             
         raise
