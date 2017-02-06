@@ -349,9 +349,15 @@ class TestBeamSearch:
         encdec = nmt_chainer.models.encoder_decoder.EncoderDecoder(Vi, Ei, Hi, Vo, Eo, Ho, Ha, Hl)
         eos_idx = Vo - 1
         src_data = [[2,3,3,4, 4, 5], [1,3, 8, 9,2]]
-        best1_gen = evaluation.beam_search_translate(encdec, eos_idx, src_data, beam_width = 10, nb_steps = 15, gpu = None, beam_opt = False,
+#         best1_gen = evaluation.beam_search_translate(encdec, eos_idx, src_data, beam_width = 10, nb_steps = 15, gpu = None, beam_opt = False,
+#                           need_attention = False)
+#         best2_gen = evaluation.beam_search_translate(encdec, eos_idx, src_data, beam_width = 10, nb_steps = 15, gpu = None, beam_opt = True,
+#                           need_attention = False)
+
+        #TODO: not much point to this test now that beam_opt distinction is removed
+        best1_gen = evaluation.beam_search_translate(encdec, eos_idx, src_data, beam_width = 10, nb_steps = 15, gpu = None, 
                           need_attention = False)
-        best2_gen = evaluation.beam_search_translate(encdec, eos_idx, src_data, beam_width = 10, nb_steps = 15, gpu = None, beam_opt = True,
+        best2_gen = evaluation.beam_search_translate(encdec, eos_idx, src_data, beam_width = 10, nb_steps = 15, gpu = None, 
                           need_attention = False)
         res1a, res1b = next(best1_gen), next(best2_gen)
         res2a, res2b = next(best1_gen), next(best2_gen)
