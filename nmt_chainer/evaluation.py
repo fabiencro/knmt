@@ -138,7 +138,8 @@ def reverse_rescore(encdec, src_batch, src_mask, eos_idx, translations, gpu = No
         de_sorted_scores[original_pos] = scores[xpos]
     return de_sorted_scores
      
-def beam_search_translate(encdec, eos_idx, src_data, beam_width = 20, beam_pruning_margin = None, nb_steps = 50, gpu = None, beam_opt = False,
+def beam_search_translate(encdec, eos_idx, src_data, beam_width = 20, beam_pruning_margin = None, 
+                          beam_score_coverage_penalty = None, beam_score_coverage_penalty_strength = 0.2, nb_steps = 50, gpu = None, beam_opt = False,
                           need_attention = False, nb_steps_ratio = None, post_score_length_normalization = 'simple', length_normalization_strength = 0.2,  
                           post_score_coverage_penalty = 'none', post_score_coverage_penalty_strength = 0.2,
                           groundhog = False, force_finish = False,
@@ -166,6 +167,8 @@ def beam_search_translate(encdec, eos_idx, src_data, beam_width = 20, beam_pruni
         translations = beam_search.ensemble_beam_search(encdec, src_batch, src_mask, nb_steps = nb_steps, eos_idx = eos_idx, 
                                           beam_width = beam_width,
                                           beam_pruning_margin = beam_pruning_margin,
+                                          beam_score_coverage_penalty = beam_score_coverage_penalty,
+                                          beam_score_coverage_penalty_strength = beam_score_coverage_penalty_strength,
                                           need_attention = need_attention, force_finish = force_finish,
                                           prob_space_combination = prob_space_combination,
                                           use_unfinished_translation_if_none_found = use_unfinished_translation_if_none_found)
