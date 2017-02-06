@@ -22,7 +22,7 @@ from evaluation import (greedy_batch_translate,
 #                         convert_idx_to_string_with_attn
                         )
 
-from eval import (create_encdec_from_config, create_and_load_encdec_from_files) 
+from eval import create_and_load_encdec_from_files
 
 
 import bleu_computer
