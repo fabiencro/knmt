@@ -9,6 +9,7 @@ __status__ = "Development"
 import nmt_chainer.make_data as make_data
 import nmt_chainer.train as train
 import nmt_chainer.eval as eval
+import nmt_chainer.utils as utils
 import os.path
 import pytest
 

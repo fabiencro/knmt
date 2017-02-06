@@ -27,7 +27,7 @@ import logging
 import codecs
 # import h5py
 
-import rnn_cells
+import nmt_chainer.models.rnn_cells as rnn_cells
 
 logging.basicConfig()
 log = logging.getLogger("rnns:eval")
