@@ -21,7 +21,7 @@ def define_parser(parser):
 #     parser.add_argument("--lib", default = "plotly", choices = ["bokeh", "plotly"])
         
 def do_graph(args):
-    generate_graph(args.sqldb, args.dest, args.lib)
+    generate_graph(args.sqldb, args.dest)
     
 def commandline():
     import argparse
@@ -30,7 +30,7 @@ def commandline():
     args = parser.parse_args()
     do_graph(args)
     
-def generate_graph(sqldb, dest, lib, title = "Training Evolution"):
+def generate_graph(sqldb, dest, title = "Training Evolution"):
     db = sqlite3.connect(sqldb)
     c = db.cursor()
     
