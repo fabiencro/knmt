@@ -10,9 +10,10 @@ import json
 import numpy as np
 from chainer import cuda, serializers
 import sys
-import models.encoder_decoder
+import nmt_chainer.models.encoder_decoder
 from make_data import Indexer, build_dataset_one_side
 import make_data
+import train
 # from utils import make_batch_src, make_batch_src_tgt, minibatch_provider, compute_bleu_with_unk_as_wrong, de_batch
 from evaluation import (greedy_batch_translate, 
 #                         convert_idx_to_string, 
@@ -26,12 +27,16 @@ import bleu_computer
 import logging
 import codecs
 # import h5py
+import argument_parsing_tools
 
 import nmt_chainer.models.rnn_cells as rnn_cells
 
 logging.basicConfig()
 log = logging.getLogger("rnns:eval")
 log.setLevel(logging.INFO)
+
+class CommandLineValuesException(Exception):
+    pass
 
 class AttentionVisualizer(object):
     def __init__(self):
@@ -86,7 +91,7 @@ class RichOutputWriter(object):
           
 
 
-def beam_search_all(gpu, encdec, eos_idx, src_data, beam_width, beam_pruning_margin, nb_steps, beam_opt, 
+def beam_search_all(gpu, encdec, eos_idx, src_data, beam_width, beam_pruning_margin, nb_steps,
        nb_steps_ratio, post_score_length_normalization, length_normalization_strength, 
        groundhog,
        tgt_unk_id, tgt_indexer, force_finish = False,
@@ -100,7 +105,7 @@ def beam_search_all(gpu, encdec, eos_idx, src_data, beam_width, beam_pruning_mar
     with cuda.get_device(gpu):
         translations_gen = beam_search_translate(
                     encdec, eos_idx, src_data, beam_width = beam_width, nb_steps = nb_steps, 
-                                    gpu = gpu, beam_opt = beam_opt, beam_pruning_margin = beam_pruning_margin, nb_steps_ratio = nb_steps_ratio,
+                                    gpu = gpu, beam_pruning_margin = beam_pruning_margin, nb_steps_ratio = nb_steps_ratio,
                                     need_attention = True, post_score_length_normalization = post_score_length_normalization,
                                     length_normalization_strength = length_normalization_strength,
                                     groundhog = groundhog, force_finish = force_finish,
@@ -135,7 +140,7 @@ def beam_search_all(gpu, encdec, eos_idx, src_data, beam_width, beam_pruning_mar
             yield src_data[num_t], translated, t, score, attn 
         print >>sys.stderr
 
-def translate_to_file_with_beam_search(dest_fn, gpu, encdec, eos_idx, src_data, beam_width, beam_pruning_margin, nb_steps, beam_opt, 
+def translate_to_file_with_beam_search(dest_fn, gpu, encdec, eos_idx, src_data, beam_width, beam_pruning_margin, nb_steps, 
        nb_steps_ratio, post_score_length_normalization, length_normalization_strength, 
        groundhog,
        tgt_unk_id, tgt_indexer, force_finish = False,
@@ -146,7 +151,7 @@ def translate_to_file_with_beam_search(dest_fn, gpu, encdec, eos_idx, src_data, 
     log.info("writing translation to %s "% dest_fn)
     out = codecs.open(dest_fn, "w", encoding = "utf8")
     
-    translation_iterator = beam_search_all(gpu, encdec, eos_idx, src_data, beam_width, beam_pruning_margin, nb_steps, beam_opt, 
+    translation_iterator = beam_search_all(gpu, encdec, eos_idx, src_data, beam_width, beam_pruning_margin, nb_steps, 
        nb_steps_ratio, post_score_length_normalization, length_normalization_strength, 
        groundhog,
        tgt_unk_id, tgt_indexer, force_finish = force_finish,
@@ -175,133 +180,84 @@ def translate_to_file_with_beam_search(dest_fn, gpu, encdec, eos_idx, src_data, 
     
     if attn_vis is not None:
         attn_vis.make_plot(generate_attention_html)
-
-def create_encdec_from_config(config_training):
-
-    voc_fn = config_training["voc"]
-    log.info("loading voc from %s"% voc_fn)
-    src_voc, tgt_voc = json.load(open(voc_fn))
-    
-    src_indexer = Indexer.make_from_serializable(src_voc)
-    tgt_indexer = Indexer.make_from_serializable(tgt_voc)
-    tgt_voc = None
-    src_voc = None
-    
-    
-#     Vi = len(src_voc) + 1 # + UNK
-#     Vo = len(tgt_voc) + 1 # + UNK
-    
-    Vi = len(src_indexer) # + UNK
-    Vo = len(tgt_indexer) # + UNK
-    
-    print config_training
-    
-    Ei = config_training["command_line"]["Ei"]
-    Hi = config_training["command_line"]["Hi"]
-    Eo = config_training["command_line"]["Eo"]
-    Ho = config_training["command_line"]["Ho"]
-    Ha = config_training["command_line"]["Ha"]
-    Hl = config_training["command_line"]["Hl"]
-    
-    encoder_cell_type = config_training["command_line"].get("encoder_cell_type", "gru")
-    decoder_cell_type = config_training["command_line"].get("decoder_cell_type", "gru")
-    
-    use_bn_length = config_training["command_line"].get("use_bn_length", None)
-    
-    import gzip
-    
-    if "lexical_probability_dictionary" in config_training["command_line"] and config_training["command_line"]["lexical_probability_dictionary"] is not None:
-        log.info("opening lexical_probability_dictionary %s" % config_training["command_line"]["lexical_probability_dictionary"])
-        lexical_probability_dictionary_all = json.load(gzip.open(config_training["command_line"]["lexical_probability_dictionary"], "rb"))
-        log.info("computing lexical_probability_dictionary_indexed")
-        lexical_probability_dictionary_indexed = {}
-        for ws in lexical_probability_dictionary_all:
-            ws_idx = src_indexer.convert([ws])[0]
-            if ws_idx in lexical_probability_dictionary_indexed:
-                assert src_indexer.is_unk_idx(ws_idx)
-            else:
-                lexical_probability_dictionary_indexed[ws_idx] = {}
-            for wt in lexical_probability_dictionary_all[ws]:
-                wt_idx = tgt_indexer.convert([wt])[0]
-                if wt_idx in lexical_probability_dictionary_indexed[ws_idx]:
-                    assert src_indexer.is_unk_idx(ws_idx) or tgt_indexer.is_unk_idx(wt_idx)
-                    lexical_probability_dictionary_indexed[ws_idx][wt_idx] += lexical_probability_dictionary_all[ws][wt]
-                else:
-                    lexical_probability_dictionary_indexed[ws_idx][wt_idx] = lexical_probability_dictionary_all[ws][wt]
-        lexical_probability_dictionary = lexical_probability_dictionary_indexed
-    else:
-        lexical_probability_dictionary = None
-    
-    eos_idx = Vo
-    encdec = models.encoder_decoder.EncoderDecoder(Vi, Ei, Hi, Vo + 1, Eo, Ho, Ha, Hl, use_bn_length = use_bn_length,
-                                   encoder_cell_type = rnn_cells.create_cell_model_from_string(encoder_cell_type),
-                                       decoder_cell_type = rnn_cells.create_cell_model_from_string(decoder_cell_type),
-                                       lexical_probability_dictionary = lexical_probability_dictionary,
-                                       lex_epsilon = config_training["command_line"].get("lexicon_prob_epsilon", 0.001))
-    
-    return encdec, eos_idx, src_indexer, tgt_indexer
     
 def create_and_load_encdec_from_files(config_training_fn, trained_model):
     log.info("loading model config from %s" % config_training_fn)
-    config_training = json.load(open(config_training_fn))
-
-    encdec, eos_idx, src_indexer, tgt_indexer = create_encdec_from_config(config_training)
     
+    config_training = train.load_config_train(config_training_fn)
+    encdec, eos_idx, src_indexer, tgt_indexer = train.create_encdec_and_indexers_from_config_dict(config_training)
+        
     log.info("loading model from %s" % trained_model)
     serializers.load_npz(trained_model, encdec)
     
     return encdec, eos_idx, src_indexer, tgt_indexer
     
+_CONFIG_SECTION_TO_DESCRIPTION = {"method": "Translation Method",
+                                  "output": "Output Options",
+                                  "process": "Translation Process Options"}
+    
 def define_parser(parser):
-    parser.add_argument("training_config", help = "prefix of the trained model")
-    parser.add_argument("trained_model", help = "prefix of the trained model")
-    parser.add_argument("src_fn", help = "source text")
-    parser.add_argument("dest_fn", help = "destination file")
+    parser.add_argument("training_config", nargs = "?", help = "prefix of the trained model",
+                        action = argument_parsing_tools.ArgumentActionNotOverwriteWithNone)
+    parser.add_argument("trained_model", nargs = "?", help = "prefix of the trained model",
+                        action = argument_parsing_tools.ArgumentActionNotOverwriteWithNone)
+    parser.add_argument("src_fn", nargs = "?", help = "source text",
+                        action = argument_parsing_tools.ArgumentActionNotOverwriteWithNone)
+    parser.add_argument("dest_fn", nargs = "?", help = "destination file",
+                        action = argument_parsing_tools.ArgumentActionNotOverwriteWithNone)
     
-    parser.add_argument("--additional_training_config", nargs = "*", help = "prefix of the trained model")
-    parser.add_argument("--additional_trained_model", nargs = "*", help = "prefix of the trained model")
-    
-    parser.add_argument("--tgt_fn", help = "target text")
-    
-    parser.add_argument("--nbest_to_rescore", help = "nbest list in moses format")
-    
-    parser.add_argument("--mode", default = "translate", 
+    translation_method_group = parser.add_argument_group(_CONFIG_SECTION_TO_DESCRIPTION["method"])
+    translation_method_group.add_argument("--mode", default = "translate", 
                         choices = ["translate", "align", "translate_attn", "beam_search", "eval_bleu",
                                    "score_nbest"], help = "target text")
+    translation_method_group.add_argument("--beam_width", type = int, default= 20, help = "beam width")
+    translation_method_group.add_argument("--beam_pruning_margin", type = float, default= None, help = "beam pruning margin")
+    translation_method_group.add_argument("--nb_steps", type = int, default= 50, help = "nb_steps used in generation")
+    translation_method_group.add_argument("--nb_steps_ratio", type = float, help = "nb_steps used in generation as a ratio of input length")
+#     translation_method_group.add_argument("--beam_opt", default = False, action = "store_true")
+    translation_method_group.add_argument("--groundhog", default = False, action = "store_true")
+    translation_method_group.add_argument("--force_finish", default = False, action = "store_true")
+    translation_method_group.add_argument("--post_score_length_normalization", choices = ['none', 'simple', 'google'], default = 'simple')
+    translation_method_group.add_argument("--length_normalization_strength", type = float, default = 0.2)
+    translation_method_group.add_argument("--prob_space_combination", default = False, action = "store_true")
+    translation_method_group.add_argument("--additional_training_config", nargs = "*", help = "prefix of the trained model")
+    translation_method_group.add_argument("--additional_trained_model", nargs = "*", help = "prefix of the trained model")
+    translation_method_group.add_argument("--reverse_training_config", help = "prefix of the trained model")
+    translation_method_group.add_argument("--reverse_trained_model", help = "prefix of the trained model")
     
-    parser.add_argument("--ref", help = "target text")
     
-    parser.add_argument("--gpu", type = int, help = "specify gpu number to use, if any")
-    
-    parser.add_argument("--max_nb_ex", type = int, help = "only use the first MAX_NB_EX examples")
-    parser.add_argument("--mb_size", type = int, default= 80, help = "Minibatch size")
-    parser.add_argument("--beam_width", type = int, default= 20, help = "beam width")
-    parser.add_argument("--beam_pruning_margin", type = float, default= None, help = "beam pruning margin")
-    parser.add_argument("--nb_steps", type = int, default= 50, help = "nb_steps used in generation")
-    parser.add_argument("--nb_steps_ratio", type = float, help = "nb_steps used in generation as a ratio of input length")
-    parser.add_argument("--nb_batch_to_sort", type = int, default= 20, help = "Sort this many batches by size.")
-    parser.add_argument("--beam_opt", default = False, action = "store_true")
-    parser.add_argument("--tgt_unk_id", choices = ["align", "id"], default = "align")
-    parser.add_argument("--groundhog", default = False, action = "store_true")
-    
-    parser.add_argument("--force_finish", default = False, action = "store_true")
-    
-    parser.add_argument("--generate_attention_html", help = "generate a html file with attention information")
-    parser.add_argument("--rich_output_filename", help = "generate a JSON file with attention information")
-    
+    output_group = parser.add_argument_group(_CONFIG_SECTION_TO_DESCRIPTION["output"])
+    output_group.add_argument("--tgt_fn", help = "target text")
+    output_group.add_argument("--nbest_to_rescore", help = "nbest list in moses format")
+    output_group.add_argument("--ref", help = "target text")
+    output_group.add_argument("--tgt_unk_id", choices = ["align", "id"], default = "align")
+    output_group.add_argument("--generate_attention_html", help = "generate a html file with attention information")
+    output_group.add_argument("--rich_output_filename", help = "generate a JSON file with attention information")
     # arguments for unk replace
-    parser.add_argument("--dic")
-    parser.add_argument("--remove_unk", default = False, action = "store_true")
-    parser.add_argument("--normalize_unicode_unk", default = False, action = "store_true")
-    parser.add_argument("--attempt_to_relocate_unk_source", default = False, action = "store_true")
+    output_group.add_argument("--dic")
+    output_group.add_argument("--remove_unk", default = False, action = "store_true")
+    output_group.add_argument("--normalize_unicode_unk", default = False, action = "store_true")
+    output_group.add_argument("--attempt_to_relocate_unk_source", default = False, action = "store_true")
     
-    parser.add_argument("--post_score_length_normalization", choices = ['none', 'simple', 'google'], default = 'simple')
-    parser.add_argument("--length_normalization_strength", type = float, default = 0.2)
+    management_group = parser.add_argument_group(_CONFIG_SECTION_TO_DESCRIPTION["process"])
+    management_group.add_argument("--gpu", type = int, help = "specify gpu number to use, if any")
+    management_group.add_argument("--max_nb_ex", type = int, help = "only use the first MAX_NB_EX examples")
+    management_group.add_argument("--mb_size", type = int, default= 80, help = "Minibatch size")
+    management_group.add_argument("--nb_batch_to_sort", type = int, default= 20, help = "Sort this many batches by size.")
+    management_group.add_argument("--load_model_config", nargs = "+", help = "gives a list of models to be used for translation")
+    management_group.add_argument("--src_fn", nargs = "?", help = "source text",
+                                  action = argument_parsing_tools.ArgumentActionNotOverwriteWithNone)
+    management_group.add_argument("--dest_fn", nargs = "?", help = "destination file",
+                                  action = argument_parsing_tools.ArgumentActionNotOverwriteWithNone)
     
-    parser.add_argument("--prob_space_combination", default = False, action = "store_true")
+#     management_group.add_argument("--config", help = "load eval config file")
     
-    parser.add_argument("--reverse_training_config", help = "prefix of the trained model")
-    parser.add_argument("--reverse_trained_model", help = "prefix of the trained model")
+def get_parse_option_orderer():
+    description_to_config_section = dict( (v, k) for (k,v) in _CONFIG_SECTION_TO_DESCRIPTION.iteritems())
+    por = argument_parsing_tools.ParseOptionRecorder(group_title_to_section = description_to_config_section,
+                                                     ignore_positional_arguments = set(["src_fn", "dest_fn"]))
+    define_parser(por)
+    return por
     
 def command_line(arguments = None):
     
@@ -315,15 +271,66 @@ def command_line(arguments = None):
     
     do_eval(args)
     
+    
+def check_if_vocabulary_info_compatible(this_eos_idx, this_src_indexer, this_tgt_indexer, eos_idx, src_indexer, tgt_indexer):
+    if eos_idx != this_eos_idx:
+        raise Exception("incompatible models")
+    if len(src_indexer) != len(this_src_indexer):
+        raise Exception("incompatible models")
+    if len(tgt_indexer) != len(this_tgt_indexer):
+        raise Exception("incompatible models")
+    
+def make_config_eval(args):
+    parse_option_orderer = get_parse_option_orderer()
+    config_eval = parse_option_orderer.convert_args_to_ordered_dict(args)
+    config_eval.add_metadata_infos(version_num = 1)
+    config_eval.set_readonly()
+    
+    if config_eval.process.src_fn is None or config_eval.process.dest_fn is None:
+        raise CommandLineValuesException("src_fn and dest_fn need to be set either on the command line or in a config file")
+    
+    return config_eval
+
 def do_eval(args):
-    encdec, eos_idx, src_indexer, tgt_indexer = create_and_load_encdec_from_files(
-                            args.training_config, args.trained_model)
+    config_eval = make_config_eval(args)
     
-    if args.gpu is not None:
-        encdec = encdec.to_gpu(args.gpu)
+    save_eval_config_fn = config_eval.process.dest_fn + ".eval.config.json"
+    log.info("Saving eval config to %s" % save_eval_config_fn)
+    config_eval.save_to(save_eval_config_fn)
+#     json.dump(config_eval, open(save_eval_config_fn, "w"), indent=2, separators=(',', ': '))
+    
+    encdec_list = []
+    eos_idx, src_indexer, tgt_indexer = None, None, None
+    
+    if args.training_config is not None:
+        if args.trained_model is None:
+            raise CommandLineValuesException("If specifying a model via the training_config argument, you also need to specify the trained_model argument")
         
-    encdec_list = [encdec]
+        encdec, eos_idx, src_indexer, tgt_indexer = create_and_load_encdec_from_files(
+                                args.training_config, args.trained_model)
+        
+        encdec_list.append(encdec)
     
+    if args.load_model_config is not None:
+        for config_filename in args.load_model_config:
+            log.info("loading model and parameters from config %s" % config_filename)
+            config_training = train.load_config_train(config_filename)
+            encdec, this_eos_idx, this_src_indexer, this_tgt_indexer = train.create_encdec_and_indexers_from_config_dict(config_training, load_config_model= "yes")
+            
+            if eos_idx is None:
+                assert len(encdec_list) == 0
+                assert src_indexer is None
+                assert tgt_indexer is None
+                eos_idx, src_indexer, tgt_indexer = this_eos_idx, this_src_indexer, this_tgt_indexer
+            else:
+                check_if_vocabulary_info_compatible(this_eos_idx, this_src_indexer, this_tgt_indexer, eos_idx, src_indexer, tgt_indexer)
+            
+            encdec_list.append(encdec)
+            
+    if len(encdec_list) == 0:
+        raise CommandLineValuesException("You need to specify either the training_config positional argument, or the load_model_config option, or both")
+    
+            
     if args.additional_training_config is not None:
         assert len(args.additional_training_config) == len(args.additional_trained_model)
     
@@ -333,19 +340,17 @@ def do_eval(args):
             this_encdec, this_eos_idx, this_src_indexer, this_tgt_indexer = create_and_load_encdec_from_files(
                             config_training_fn, trained_model_fn)
         
-            if eos_idx != this_eos_idx:
-                raise Exception("incompatible models")
-                
-            if len(src_indexer) != len(this_src_indexer):
-                raise Exception("incompatible models")
-              
-            if len(tgt_indexer) != len(this_tgt_indexer):
-                raise Exception("incompatible models")
+            check_if_vocabulary_info_compatible(this_eos_idx, this_src_indexer, this_tgt_indexer, eos_idx, src_indexer, tgt_indexer)
                               
-            if args.gpu is not None:
-                this_encdec = this_encdec.to_gpu(args.gpu)
+#             if args.gpu is not None:
+#                 this_encdec = this_encdec.to_gpu(args.gpu)
             
             encdec_list.append(this_encdec)
+            
+            
+    if args.gpu is not None:
+        encdec_list = [encdec.to_gpu(args.gpu) for encdec in encdec_list]
+            
             
     if args.reverse_training_config is not None:
         reverse_encdec, reverse_eos_idx, reverse_src_indexer, reverse_tgt_indexer = create_and_load_encdec_from_files(
@@ -388,10 +393,6 @@ def do_eval(args):
         assert dic_tgt == tgt_indexer
 
     
-    save_eval_config_fn = args.dest_fn + ".eval.config.json"
-    log.info("Saving eval config to %s" % save_eval_config_fn)
-    json.dump(args.__dict__, open(save_eval_config_fn, "w"), indent=2, separators=(',', ': '))
-    
 #     translations = greedy_batch_translate(encdec, eos_idx, src_data, batch_size = args.mb_size, gpu = args.gpu)
     
     if args.mode == "translate":
@@ -409,7 +410,7 @@ def do_eval(args):
 
     elif args.mode == "beam_search":
         translate_to_file_with_beam_search(args.dest_fn, args.gpu, encdec_list, eos_idx, src_data, args.beam_width, args.beam_pruning_margin,
-                                           args.nb_steps, args.beam_opt, 
+                                           args.nb_steps,
                                            args.nb_steps_ratio, args.post_score_length_normalization, args.length_normalization_strength,
                                            args.groundhog,
                                            args.tgt_unk_id, tgt_indexer, force_finish = args.force_finish,
@@ -423,7 +424,7 @@ def do_eval(args):
     elif args.mode == "eval_bleu":
 #         assert args.ref is not None
         translate_to_file_with_beam_search(args.dest_fn, args.gpu, encdec_list, eos_idx, src_data, args.beam_width, args.beam_pruning_margin,
-                                           args.nb_steps, args.beam_opt, 
+                                           args.nb_steps,
                                            args.nb_steps_ratio, args.post_score_length_normalization, args.length_normalization_strength,
                                            args.groundhog,
                                            args.tgt_unk_id, tgt_indexer, force_finish = args.force_finish,

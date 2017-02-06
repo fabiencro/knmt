@@ -201,6 +201,7 @@ def compute_next_states_and_scores(dec_cell_ensemble, current_states_ensemble, c
             current_words: array of int32 representing the next words to give as input
                             if None, the decoder cell should use its BOS embedding as input
             prob_space_combination: if true, ensemble scores are combined by geometric average instead of arithmetic average
+            
         Return:
             A tuple (combined_scores, new_state_ensemble, attn_ensemble) where:
                 combined_scores is the log_probability returned by the decoder cell

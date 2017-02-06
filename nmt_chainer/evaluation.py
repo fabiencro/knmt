@@ -136,7 +136,7 @@ def reverse_rescore(encdec, src_batch, src_mask, eos_idx, translations, gpu = No
         de_sorted_scores[original_pos] = scores[xpos]
     return de_sorted_scores
      
-def beam_search_translate(encdec, eos_idx, src_data, beam_width = 20, beam_pruning_margin = None, nb_steps = 50, gpu = None, beam_opt = False,
+def beam_search_translate(encdec, eos_idx, src_data, beam_width = 20, beam_pruning_margin = None, nb_steps = 50, gpu = None,
                           need_attention = False, nb_steps_ratio = None, post_score_length_normalization = 'simple', length_normalization_strength = 0.2,  
                           groundhog = False, force_finish = False,
                           prob_space_combination = False,
