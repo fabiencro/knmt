@@ -16,7 +16,7 @@ import sys
 import math
 
 from nmt_chainer.utilities.utils import minibatch_provider, minibatch_provider_curiculum
-from evaluation import ( 
+from nmt_chainer.evaluation import ( 
                   compute_loss_all, translate_to_file, sample_once)
 
 logging.basicConfig()
