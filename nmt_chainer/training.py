@@ -15,7 +15,7 @@ import sys
 
 import math
 
-from utils import minibatch_provider, minibatch_provider_curiculum
+from nmt_chainer.utilities.utils import minibatch_provider, minibatch_provider_curiculum
 from evaluation import ( 
                   compute_loss_all, translate_to_file, sample_once)
 
@@ -126,7 +126,7 @@ def train_on_data(encdec, optimizer, training_data, output_files_dict,
         encdec.zerograds()
         t1 = time.clock()
         
-        import utils
+        from nmt_chainer.utilities import utils
         test_ref = utils.de_batch(tgt_batch, is_variable = True)
         
         reinf_loss = encdec.get_reinf_loss(src_batch, src_mask, eos_idx, 

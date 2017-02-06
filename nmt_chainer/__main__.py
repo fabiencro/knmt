@@ -6,9 +6,9 @@ import nmt_chainer.eval as eval_module
 import nmt_chainer.make_data as make_data
 import nmt_chainer.server as server
 
-import nmt_chainer.utils_command as utils_command
+import nmt_chainer.utilities.utils as utils_command
 
-import versioning_tools
+from nmt_chainer.utilities import versioning_tools
 import sys
 
 def run_in_pdb(func, args):

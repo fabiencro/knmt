@@ -25,7 +25,7 @@ from evaluation import (greedy_batch_translate,
 from eval import create_and_load_encdec_from_files
 
 
-import bleu_computer
+from nmt_chainer.utilities import bleu_computer
 import codecs
 import traceback
 
@@ -37,7 +37,7 @@ import SocketServer
 import xml.etree.ElementTree as ET
 import re
 import subprocess
-import replace_tgt_unk
+from nmt_chainer.utilities import replace_tgt_unk
 import bokeh.embed
 
 logging.basicConfig()
@@ -109,7 +109,7 @@ class Evaluator:
             
     def eval(self, request, request_number, beam_width, beam_pruning_margin, nb_steps, nb_steps_ratio, 
             remove_unk, normalize_unicode_unk, attempt_to_relocate_unk_source, post_score_length_normalization, length_normalization_strength, groundhog, force_finish, prob_space_combination, attn_graph_width, attn_graph_height):
-        import visualisation
+        from nmt_chainer.utilities import visualisation
         log.info("processing source string %s" % request)
         src_data, dic_src, make_data_infos = build_dataset_one_side_from_string(request, 
                     src_voc_limit = None, max_nb_ex = self.max_nb_ex, dic_src = self.src_indexer)

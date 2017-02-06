@@ -23,11 +23,11 @@ from evaluation import (greedy_batch_translate,
                         )
 
 # import visualisation
-import bleu_computer
+from nmt_chainer.utilities import bleu_computer
 import logging
 import codecs
 # import h5py
-import argument_parsing_tools
+from nmt_chainer.utilities import argument_parsing_tools
 
 import nmt_chainer.models.rnn_cells as rnn_cells
 
@@ -43,7 +43,7 @@ class AttentionVisualizer(object):
         self.plots_list = []
         
     def add_plot(self, src_w, tgt_w, attn):
-        import visualisation
+        from nmt_chainer.utilities import visualisation
         alignment = np.zeros((len(src_w) + 1, len(tgt_w)))
         sum_al =[0] * len(tgt_w)
         for i in xrange(len(src_w)):
@@ -59,7 +59,7 @@ class AttentionVisualizer(object):
         self.plots_list.append(p1)
             
     def make_plot(self, output_file):
-        import visualisation
+        from nmt_chainer.utilities import visualisation
         log.info("writing attention to %s"% output_file)
         p_all = visualisation.Column(*self.plots_list)
         visualisation.output_file(output_file)
@@ -441,7 +441,7 @@ def do_eval(args):
         else:
             print "bleu before unk replace: No Ref Provided"
         
-        import replace_tgt_unk
+        from nmt_chainer.utilities import replace_tgt_unk
         replace_tgt_unk.replace_unk(args.dest_fn, args.src_fn, args.dest_fn + ".unk_replaced", args.dic, args.remove_unk, 
                 args.normalize_unicode_unk,
                 args.attempt_to_relocate_unk_source)
@@ -562,7 +562,7 @@ def do_eval(args):
         
         
         log.info("starting scoring")
-        import utils
+        from nmt_chainer.utilities import utils
         res = []
         for num in xrange(len(nbest_converted)):
             if num%200 == 0:

@@ -9,7 +9,7 @@ __status__ = "Development"
 
 from chainer import cuda
 
-from utils import make_batch_src, make_batch_src_tgt, minibatch_provider, compute_bleu_with_unk_as_wrong, de_batch
+from nmt_chainer.utilities.utils import make_batch_src, make_batch_src_tgt, minibatch_provider, compute_bleu_with_unk_as_wrong, de_batch
 import logging
 import codecs
 import operator
@@ -113,7 +113,7 @@ def greedy_batch_translate(encdec, eos_idx, src_data, batch_size = 80, gpu = Non
         return res
      
 def reverse_rescore(encdec, src_batch, src_mask, eos_idx, translations, gpu = None):
-    import utils
+    from nmt_chainer.utilities import utils
     
     reversed_translations = []
     for t in translations:
