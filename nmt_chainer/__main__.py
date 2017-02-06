@@ -92,7 +92,12 @@ def main(arguments = None):
 #         import pdb
 #         pdb.runcall(func, args)
     else:
-        func(args)
-    
+        try:
+            func(args)
+        except train.CommandLineValuesException as e:
+            parser_train.error(e.args[0])
+        except eval_module.CommandLineValuesException as e:
+            parser_eval.error(e.args[0])
+             
 if __name__ == "__main__":
     main()
