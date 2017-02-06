@@ -96,7 +96,8 @@ setup(name='knmt',
       author_email='fabien.cromieres@gmail.com',
 
         #packages=find_packages()
-      packages=['nmt_chainer'],
+      packages=find_packages(),
+#       packages=['nmt_chainer'],
       url="https://github.com/fabiencro/knmt",
 #       scripts=["nmt_chainer/knmt.py"],
 
