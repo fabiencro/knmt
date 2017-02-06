@@ -15,7 +15,7 @@ import chainer.links as L
 
 import nmt_chainer.models as models
 import nmt_chainer.utils as utils
-import nmt_chainer.decoder_cells as decoder_cells
+import nmt_chainer.models.decoder_cells as decoder_cells
 
 import logging
 logging.basicConfig()
@@ -24,7 +24,7 @@ log.setLevel(logging.INFO)
 
 
 
-class EncoderNaive(models.Encoder):
+class EncoderNaive(models.encoders.Encoder):
     def __init__(self, Vi, Ei, Hi):
         super(EncoderNaive, self).__init__(Vi, Ei, Hi)
          
@@ -129,7 +129,7 @@ class TestEncoder:
             print "maxdiff:", np.max(np.abs(fb.data[i][j] - fb_naive[j].data[0]))
             assert not np.allclose(fb.data[i][j], fb_naive[j].data[0], atol = 1e-6)     
                 
-class AttentionModuleNaive(models.AttentionModule):
+class AttentionModuleNaive(models.attention.AttentionModule):
     def __init__(self, Hi, Ha, Ho):
         super(AttentionModuleNaive, self).__init__(Hi, Ha, Ho)
         
@@ -285,7 +285,7 @@ class DecoderNaive(decoder_cells.Decoder):
         return loss, attn_list
         
         
-class EncoderDecoderNaive(models.EncoderDecoder):
+class EncoderDecoderNaive(models.encoder_decoder.EncoderDecoder):
     def __init__(self, Vi, Ei, Hi, Vo, Eo, Ho, Ha, Hl):
         super(EncoderDecoderNaive, self).__init__(Vi, Ei, Hi, Vo, Eo, Ho, Ha, Hl)
         self.enc = EncoderNaive(Vi, Ei, Hi)
@@ -344,7 +344,7 @@ class TestBeamSearch:
     def test_1(self):
         import nmt_chainer.evaluation as evaluation
         Vi, Ei, Hi, Vo, Eo, Ho, Ha, Hl = 29, 37, 13, 53, 7, 12, 19, 33
-        encdec = models.EncoderDecoder(Vi, Ei, Hi, Vo, Eo, Ho, Ha, Hl)
+        encdec = models.encoder_decoder.EncoderDecoder(Vi, Ei, Hi, Vo, Eo, Ho, Ha, Hl)
         eos_idx = Vo - 1
         src_data = [[2,3,3,4, 4, 5], [1,3, 8, 9,2]]
         best1_gen = evaluation.beam_search_translate(encdec, eos_idx, src_data, beam_width = 10, nb_steps = 15, gpu = None, beam_opt = False,

@@ -16,8 +16,8 @@ import chainer.functions as F
 import chainer.links as L
 from chainer import initializers
 import math, random
-
-from utils import ortho_init
+import nmt_chainer.utils as utils
+from nmt_chainer.utils import ortho_init
 
 import logging
 logging.basicConfig()
@@ -25,7 +25,7 @@ log = logging.getLogger("rnns:cells")
 log.setLevel(logging.INFO)
 
 # L.GRU = L.FastGRU
-import faster_gru
+import nmt_chainer.faster_gru as faster_gru
 
 
 class GRUCell(Chain):

@@ -15,9 +15,9 @@ import chainer.links as L
 import math, random
 
 import rnn_cells
-from utils import ortho_init, minibatch_sampling
+from nmt_chainer.utils import ortho_init, minibatch_sampling
 
-from constant_batch_mul import batch_matmul_constant, matmul_constant
+from nmt_chainer.constant_batch_mul import batch_matmul_constant, matmul_constant
 
 from attention import AttentionModule
 
