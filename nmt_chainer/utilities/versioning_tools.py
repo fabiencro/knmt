@@ -81,29 +81,29 @@ def get_chainer_infos():
 
 def get_package_git_hash():
     try:
-        import _build
-        return _build.__build__
+        import nmt_chainer._build
+        return nmt_chainer._build.__build__
     except:
         return None
 
 def get_package_dirty_status():
     try:
-        import _build
-        return _build.__dirty_status__
+        import nmt_chainer._build
+        return nmt_chainer._build.__dirty_status__
     except:
         return "unknown"
 
 def get_package_git_diff():
     try:
-        import _build
+        import nmt_chainer._build
 #         import json
-        return _build.__git_diff__
+        return nmt_chainer._build.__git_diff__
     except:
         return None
 
 def get_version_dict():
-    import _version
-    result = OrderedDict({"package_version": _version.__version__})
+    import nmt_chainer._version
+    result = OrderedDict({"package_version": nmt_chainer._version.__version__})
     current_git_hash = get_current_git_hash()
     if current_git_hash is not None:
         result["git"] = current_git_hash
@@ -128,8 +128,8 @@ def get_version_dict():
     return result
 
 def main(options = None):
-    import _version
-    print "package version:", _version.__version__
+    import nmt_chainer._version
+    print "package version:", nmt_chainer._version.__version__
     print "installed in:", get_installed_path()
     
     print "\n*********** chainer version ***********"

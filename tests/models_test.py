@@ -16,7 +16,7 @@ import chainer.links as L
 import nmt_chainer.models.encoders
 import nmt_chainer.models.encoder_decoder
 import nmt_chainer.models.attention
-import nmt_chainer.utils as utils
+import nmt_chainer.utilities.utils as utils
 import nmt_chainer.models.decoder_cells as decoder_cells
 
 import logging
