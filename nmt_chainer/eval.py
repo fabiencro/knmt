@@ -10,10 +10,10 @@ import json
 import numpy as np
 from chainer import cuda, serializers
 import sys
-import nmt_chainer.models.encoder_decoder
 from make_data import Indexer, build_dataset_one_side
 import make_data
 import nmt_chainer.training_module.train as train
+import nmt_chainer.training_module.train_config as train_config
 
 # from utils import make_batch_src, make_batch_src_tgt, minibatch_provider, compute_bleu_with_unk_as_wrong, de_batch
 from nmt_chainer.evaluation import (greedy_batch_translate, 
@@ -29,8 +29,6 @@ import logging
 import codecs
 # import h5py
 from nmt_chainer.utilities import argument_parsing_tools
-
-import nmt_chainer.models.rnn_cells as rnn_cells
 
 logging.basicConfig()
 log = logging.getLogger("rnns:eval")
@@ -185,7 +183,7 @@ def translate_to_file_with_beam_search(dest_fn, gpu, encdec, eos_idx, src_data, 
 def create_and_load_encdec_from_files(config_training_fn, trained_model):
     log.info("loading model config from %s" % config_training_fn)
     
-    config_training = train.load_config_train(config_training_fn)
+    config_training = train_config.load_config_train(config_training_fn)
     encdec, eos_idx, src_indexer, tgt_indexer = train.create_encdec_and_indexers_from_config_dict(config_training)
         
     log.info("loading model from %s" % trained_model)
@@ -315,7 +313,7 @@ def do_eval(args):
     if args.load_model_config is not None:
         for config_filename in args.load_model_config:
             log.info("loading model and parameters from config %s" % config_filename)
-            config_training = train.load_config_train(config_filename)
+            config_training = train_config.load_config_train(config_filename)
             encdec, this_eos_idx, this_src_indexer, this_tgt_indexer = train.create_encdec_and_indexers_from_config_dict(config_training, load_config_model= "yes")
             
             if eos_idx is None:
