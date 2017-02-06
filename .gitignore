@@ -6,3 +6,9 @@
 nmt_chainer.egg-info
 *.conf
 tags
+scrap/
+nmt_chainer/_build.py
+build/
+dist/
+.settings/
+knmt.egg-info/
