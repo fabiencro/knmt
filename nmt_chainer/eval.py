@@ -13,9 +13,10 @@ import sys
 import nmt_chainer.models.encoder_decoder
 from make_data import Indexer, build_dataset_one_side
 import make_data
-import train
+import nmt_chainer.training_module.train as train
+
 # from utils import make_batch_src, make_batch_src_tgt, minibatch_provider, compute_bleu_with_unk_as_wrong, de_batch
-from evaluation import (greedy_batch_translate, 
+from nmt_chainer.evaluation import (greedy_batch_translate, 
 #                         convert_idx_to_string, 
                         batch_align, 
                         beam_search_translate, 

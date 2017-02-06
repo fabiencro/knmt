@@ -68,7 +68,7 @@ class TestDeBatch:
 #         assert np.all(seq_list == [[1,1,[7,9],10], [3,5,[5,8]], [4,6], [8,9]])
 
 import nmt_chainer.make_data as make_data
-import nmt_chainer.train as train
+import nmt_chainer.training_module.train as train
 import os.path
 
 # test_data_dir = "tests_data"
