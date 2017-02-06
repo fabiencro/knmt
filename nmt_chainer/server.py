@@ -29,8 +29,6 @@ import bleu_computer
 import codecs
 import traceback
 
-import rnn_cells
-
 import time
 import timeit
 import socket

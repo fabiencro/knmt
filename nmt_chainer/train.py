@@ -11,7 +11,6 @@ from chainer import cuda, optimizers, serializers
 import chainer.function_hooks
 import operator
 
-import models
 from training import train_on_data
 from make_data import Indexer
 import versioning_tools
@@ -358,19 +357,19 @@ def do_train(args):
     
     # Selecting Attention type
 
-    attn_cls = models.attention.AttentionModule
+    attn_cls = nmt_chainer.models.attention.AttentionModule
     if args.use_accumulated_attn:
         raise NotImplemented
 #         encdec = models.EncoderDecoder(Vi, args.Ei, args.Hi, Vo + 1, args.Eo, args.Ho, args.Ha, args.Hl,
 #                                        attn_cls= models.AttentionModuleAcumulated,
 #                                        init_orth = args.init_orth)
     if args.use_deep_attn:
-        attn_cls = models.attention.DeepAttentionModule
+        attn_cls = nmt_chainer.models.attention.DeepAttentionModule
     
     
     
     # Creating encoder/decoder
-    encdec = models.encoder_decoder.EncoderDecoder(Vi, args.Ei, args.Hi, Vo + 1, args.Eo, args.Ho, args.Ha, args.Hl,
+    encdec = nmt_chainer.models.encoder_decoder.EncoderDecoder(Vi, args.Ei, args.Hi, Vo + 1, args.Eo, args.Ho, args.Ha, args.Hl,
                                        init_orth = args.init_orth, use_bn_length = args.use_bn_length,
                                        attn_cls = attn_cls,
                                        encoder_cell_type = rnn_cells.create_cell_model_from_string(args.encoder_cell_type),
