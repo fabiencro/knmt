@@ -16,7 +16,7 @@ import chainer.links as L
 import math, random
 
 import rnn_cells
-from nmt_chainer.utils import ortho_init, compute_lexicon_matrix, minibatch_sampling
+from nmt_chainer.utilities.utils import ortho_init, compute_lexicon_matrix, minibatch_sampling
 import attention
 
 import logging

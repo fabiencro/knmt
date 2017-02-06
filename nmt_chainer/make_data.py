@@ -15,7 +15,7 @@ import operator
 import os.path
 import gzip
 
-from utils import ensure_path
+from nmt_chainer.utilities.utils import ensure_path
 # import h5py
 
 logging.basicConfig()

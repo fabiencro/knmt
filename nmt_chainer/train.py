@@ -13,9 +13,9 @@ import operator
 
 from training import train_on_data
 from make_data import Indexer
-import versioning_tools
+from nmt_chainer.utilities import versioning_tools
 from collections import OrderedDict
-import argument_parsing_tools
+from nmt_chainer.utilities import argument_parsing_tools
 import logging
 import json
 import os.path
@@ -24,7 +24,7 @@ import sys
 import pprint
 # import h5py
 
-from utils import ensure_path
+from nmt_chainer.utilities.utils import ensure_path
 # , make_batch_src_tgt, make_batch_src, minibatch_provider, compute_bleu_with_unk_as_wrong,de_batch
 # from evaluation import (
 #                   greedy_batch_translate, convert_idx_to_string, 
