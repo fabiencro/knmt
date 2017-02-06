@@ -13,9 +13,9 @@ import chainer.functions as F
 import chainer.links as L
 
 import nmt_chainer.models as models
-import nmt_chainer.utils as utils
+import nmt_chainer.utilities.utils as utils
 
-from nmt_chainer.utils import de_batch
+from nmt_chainer.utilities.utils import de_batch
 
 class TestDeBatch:
     def test_multiple_length(self):
