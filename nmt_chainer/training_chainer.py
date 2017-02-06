@@ -248,8 +248,9 @@ class ComputeLossExtension(chainer.training.Extension):
 #                 self.best_loss = cupy.asnumpy(self.best_loss)
         else:
             import cupy
-            if isinstance(self.best_loss, numpy.ndarray) or self.best_loss.device.id != self.gpu:
-                with cupy.cuda.Device(self.gpu): self.best_loss = cupy.array(self.best_loss)
+            if self.best_loss is not None and (isinstance(self.best_loss, numpy.ndarray) or self.best_loss.device.id != self.gpu):
+                with cupy.cuda.Device(self.gpu):
+                    self.best_loss = cupy.array(self.best_loss)
                
 class ComputeBleuExtension(chainer.training.Extension):
     priority = chainer.training.PRIORITY_WRITER
