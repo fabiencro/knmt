@@ -29,8 +29,8 @@ from utils import ensure_path
 #                   greedy_batch_translate, convert_idx_to_string, 
 #                   compute_loss_all, translate_to_file, sample_once)
 
-import models.attention
-import models.encoder_decoder
+import nmt_chainer.models.attention
+import nmt_chainer.models.encoder_decoder
 
 
 import time
@@ -41,7 +41,7 @@ from chainer import cuda
 from chainer import function
 from collections import defaultdict
 
-import models.rnn_cells as rnn_cells
+import nmt_chainer.models.rnn_cells as rnn_cells
 
 def function_namer(function, in_data):
     in_shapes = []
