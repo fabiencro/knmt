@@ -109,7 +109,7 @@ class Evaluator:
         else:
             self.reverse_encdec = None    
             
-    def eval(self, request, request_number, beam_width, beam_pruning_margin, nb_steps, nb_steps_ratio, 
+    def eval(self, request, request_number, beam_width, beam_pruning_margin, beam_score_coverage_penalty, beam_score_coverage_penalty_strength, nb_steps, nb_steps_ratio, 
             remove_unk, normalize_unicode_unk, attempt_to_relocate_unk_source, post_score_length_normalization, length_normalization_strength, post_score_coverage_penalty, post_score_coverage_penalty_strength, groundhog, force_finish, prob_space_combination, attn_graph_width, attn_graph_height):
         import visualisation
         log.info("processing source string %s" % request)
@@ -129,6 +129,8 @@ class Evaluator:
         with cuda.get_device(self.gpu):
             translations_gen = beam_search_translate(
                         self.encdec, self.eos_idx, src_data, beam_width = beam_width, beam_pruning_margin = beam_pruning_margin, 
+                                        beam_score_coverage_penalty = beam_score_coverage_penalty, 
+                                        beam_score_coverage_penalty_strength = beam_score_coverage_penalty_strength,
                                         nb_steps = nb_steps, 
                                         gpu = self.gpu, beam_opt = self.beam_opt, nb_steps_ratio = nb_steps_ratio,
                                         need_attention = True, post_score_length_normalization = post_score_length_normalization, 
@@ -226,6 +228,12 @@ class RequestHandler(SocketServer.BaseRequestHandler):
                     beam_pruning_margin = float(root.get('beam_pruning_margin'))
                 except:
                     pass
+                beam_score_coverage_penalty = root.get('beam_score_coverage_penalty', 'none')
+                beam_score_coverage_penalty_strength = None
+                try:
+                    beam_score_coverage_penalty_strength = float(root.get('beam_score_coverage_penalty_strength', 0.2))
+                except:
+                    pass
                 nb_steps_ratio = None
                 try:
                     nb_steps_ratio = float(root.get('nb_steps_ratio', 1.2))
@@ -297,7 +305,7 @@ class RequestHandler(SocketServer.BaseRequestHandler):
                     log.info(timestamped_msg("Translating sentence %d" % idx))
                     decoded_sentence = splitted_sentence.decode('utf-8')
                     translation, script, div, unk_mapping = self.server.evaluator.eval(decoded_sentence, sentence_number, 
-                        beam_width, beam_pruning_margin, nb_steps, nb_steps_ratio, remove_unk, normalize_unicode_unk, attempt_to_relocate_unk_source,
+                        beam_width, beam_pruning_margin, beam_score_coverage_penalty, beam_score_coverage_penalty_strength, nb_steps, nb_steps_ratio, remove_unk, normalize_unicode_unk, attempt_to_relocate_unk_source,
                         post_score_length_normalization, length_normalization_strength, post_score_coverage_penalty, post_score_coverage_penalty_strength, 
                         groundhog, force_finish, prob_space_combination, attn_graph_width, attn_graph_height)
                     out += translation
