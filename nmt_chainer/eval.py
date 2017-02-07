@@ -10,8 +10,8 @@ import json
 import numpy as np
 from chainer import cuda, serializers
 import sys
-from make_data import Indexer, build_dataset_one_side
-import make_data
+from nmt_chainer.dataprocessing.make_data import Indexer, build_dataset_one_side
+import nmt_chainer.dataprocessing.make_data as make_data
 import nmt_chainer.training_module.train as train
 import nmt_chainer.training_module.train_config as train_config
 

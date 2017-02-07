@@ -14,7 +14,7 @@ import logging
 import sys
 #import h5py
 import models
-from make_data import Indexer, build_dataset_one_side_from_string
+from nmt_chainer.dataprocessing.make_data import Indexer, build_dataset_one_side_from_string
 from evaluation import (greedy_batch_translate, 
 #                         convert_idx_to_string, 
                         batch_align, 

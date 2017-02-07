@@ -12,7 +12,7 @@ import chainer.function_hooks
 import operator
 
 from training import train_on_data
-from nmt_chainer.make_data import Indexer
+from nmt_chainer.dataprocessing.make_data import Indexer
 from nmt_chainer.utilities import versioning_tools
 
 import logging
