@@ -6,18 +6,13 @@ __version__ = "1.0"
 __email__ = "fabien.cromieres@gmail.com"
 __status__ = "Development"
 
-from _collections import defaultdict
 from collections import Counter
-import numpy as np
 import chainer
 from chainer import cuda, Variable
 from chainer import Link, Chain, ChainList
 import chainer.functions as F
 import chainer.links as L
 from chainer import initializers
-import math, random
-import nmt_chainer.utilities.utils as utils
-from nmt_chainer.utilities.utils import ortho_init
 
 import logging
 logging.basicConfig()

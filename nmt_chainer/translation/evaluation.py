@@ -7,8 +7,6 @@ __version__ = "1.0"
 __email__ = "fabien.cromieres@gmail.com"
 __status__ = "Development"
 
-from chainer import cuda
-
 from nmt_chainer.utilities.utils import make_batch_src, make_batch_src_tgt, minibatch_provider, compute_bleu_with_unk_as_wrong, de_batch
 import logging
 import codecs
