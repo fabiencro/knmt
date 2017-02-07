@@ -1,3 +1,10 @@
+from nmt_chainer.utilities import argument_parsing_tools
+import logging
+
+logging.basicConfig()
+log = logging.getLogger("rnns:make_data_config")
+log.setLevel(logging.INFO)
+
 def define_parser(parser):
     parser.add_argument(
         "src_fn", help="source language text file for training data")
@@ -27,8 +34,9 @@ def define_parser(parser):
     parser.add_argument("--tgt_segmentation_type", choices = ["word", "word2char", "char"], default = "word")
     parser.add_argument("--src_segmentation_type", choices = ["word", "word2char", "char"], default = "word")
     
-    
-    
+class CommandLineValuesException(Exception):
+    pass
+
 def cmdline(arguments=None):
     import sys
     import argparse
@@ -41,6 +49,29 @@ def cmdline(arguments=None):
     
     do_make_data(args)
     
+def get_parse_option_orderer():
+    por = argument_parsing_tools.ParseOptionRecorder()
+    define_parser(por)
+    return por
+    
+def make_data_config(args):
+    parse_option_orderer = get_parse_option_orderer()
+    config = parse_option_orderer.convert_args_to_ordered_dict(args)
+    
+    config.set_readonly()
+    
+    if not ((config.test_src is None) == (config.test_tgt is None)):
+        raise CommandLineValuesException("Command Line Error: either specify both --test_src and --test_tgt or neither")
+
+    if not ((config.dev_src is None) == (config.dev_tgt is None)):
+        raise CommandLineValuesException("Command Line Error: either specify both --dev_src and --dev_tgt or neither")
+    return config
+
 def do_make_data(args):
     import nmt_chainer.dataprocessing.make_data
-    nmt_chainer.dataprocessing.make_data.do_make_data(args)
+    config = make_data_config(args)
+    nmt_chainer.dataprocessing.make_data.do_make_data(config)
+    
+if __name__ == '__main__':
+    cmdline()
+

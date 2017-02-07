@@ -93,6 +93,8 @@ def main(arguments = None):
             parser_train.error(e.args[0])
         except eval_module.CommandLineValuesException as e:
             parser_eval.error(e.args[0])
+        except make_data.CommandLineValuesException as e:
+            parser_make_data.error(e.args[0])
              
 if __name__ == "__main__":
     main()
