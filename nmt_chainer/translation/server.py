@@ -13,7 +13,7 @@ from chainer import cuda, serializers
 import logging
 import sys
 #import h5py
-import models
+
 from nmt_chainer.dataprocessing.make_data import Indexer, build_dataset_one_side_from_string
 from nmt_chainer.translation.evaluation import (greedy_batch_translate, 
 #                         convert_idx_to_string, 
