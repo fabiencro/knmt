@@ -1,3 +1,5 @@
+"""train_config.py: Parse training arguments and create config dictionnary."""
+
 import logging
 import sys
 
@@ -207,4 +209,6 @@ def do_train(args):
     config = make_config_from_args(args, readonly = False)
     nmt_chainer.training_module.train.do_train(config)
     
+if __name__ == '__main__':
+    command_line()
     

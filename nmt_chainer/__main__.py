@@ -2,7 +2,7 @@
 
 import argparse
 import nmt_chainer.training_module.train_config as train
-import nmt_chainer.translation.eval as eval_module
+import nmt_chainer.translation.eval_config as eval_module
 import nmt_chainer.dataprocessing.make_data as make_data
 import nmt_chainer.translation.server as server
 
