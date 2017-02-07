@@ -90,10 +90,10 @@ class TestMacro:
 
             greedy_search_eval_dir = tmpdir.mkdir("eval_greedy_search_{0}".format(i))
             greedy_search_file = os.path.join(str(greedy_search_eval_dir), 'translations.txt')
-            args_eval = [train_prefix + '.train.config', train_prefix + '.model.best.npz', data_src_file, greedy_search_file] + '--mode translate'.split(' ') 
+            args_eval = ["eval", train_prefix + '.train.config', train_prefix + '.model.best.npz', data_src_file, greedy_search_file] + '--mode translate'.split(' ') 
             if gpu is not None:
                 args_eval += ['--gpu', gpu]
-            eval.command_line(arguments = args_eval)
+            main(arguments = args_eval)
 
             with open(beam_search_file) as f:
                 beam_search_translations = f.readlines()
