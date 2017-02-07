@@ -15,14 +15,14 @@ import sys
 #import h5py
 import models
 from nmt_chainer.dataprocessing.make_data import Indexer, build_dataset_one_side_from_string
-from evaluation import (greedy_batch_translate, 
+from nmt_chainer.translation.evaluation import (greedy_batch_translate, 
 #                         convert_idx_to_string, 
                         batch_align, 
                         beam_search_translate, 
 #                         convert_idx_to_string_with_attn
                         )
 
-from eval import create_and_load_encdec_from_files
+from nmt_chainer.translation.eval import create_and_load_encdec_from_files
 
 
 from nmt_chainer.utilities import bleu_computer

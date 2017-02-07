@@ -16,7 +16,7 @@ import nmt_chainer.training_module.train as train
 import nmt_chainer.training_module.train_config as train_config
 
 # from utils import make_batch_src, make_batch_src_tgt, minibatch_provider, compute_bleu_with_unk_as_wrong, de_batch
-from nmt_chainer.evaluation import (greedy_batch_translate, 
+from nmt_chainer.translation.evaluation import (greedy_batch_translate, 
 #                         convert_idx_to_string, 
                         batch_align, 
                         beam_search_translate, 
