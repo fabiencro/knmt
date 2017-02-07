@@ -18,7 +18,7 @@ import math
 import json
 
 from nmt_chainer.utilities.utils import minibatch_provider, minibatch_provider_curiculum, make_batch_src_tgt
-from nmt_chainer.evaluation import ( 
+from nmt_chainer.translation.evaluation import ( 
                   compute_loss_all, translate_to_file, sample_once)
 
 import chainer.iterators
