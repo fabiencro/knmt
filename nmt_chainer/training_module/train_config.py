@@ -100,11 +100,24 @@ def get_parse_option_orderer():
     define_parser(por)
     return por
 
+def convert_cell_string(config_training):
+    import nmt_chainer.models.rnn_cells_config
+    
+    if config_training["model"]["encoder_cell_type"] is not None:
+        config_training["model"]["encoder_cell_type"] = nmt_chainer.models.rnn_cells_config.create_cell_config_from_string(
+            config_training["model"]["encoder_cell_type"])
+        
+    if config_training["model"]["decoder_cell_type"] is not None:
+        config_training["model"]["decoder_cell_type"] = nmt_chainer.models.rnn_cells_config.create_cell_config_from_string(
+            config_training["model"]["decoder_cell_type"])
+        
 def load_config_train(filename, readonly = True):
     config = argument_parsing_tools.OrderedNamespace.load_from(filename)
     if "metadata" not in config: # older config file
         parse_option_orderer = get_parse_option_orderer()
         config_training = parse_option_orderer.convert_args_to_ordered_dict(config["command_line"], args_is_namespace = False)
+        
+        convert_cell_string(config_training)
         
         assert "data" not in config_training
         config_training["data"] = argument_parsing_tools.OrderedNamespace()
@@ -126,6 +139,12 @@ def load_config_train(filename, readonly = True):
         config.set_readonly()
     return config
     
+def find_which_command_line_arguments_were_given():
+    pwndan = argument_parsing_tools.ParserWithNoneDefaultAndNoGroup()
+    define_parser(pwndan)
+    args_given_set = pwndan.get_args_given(sys.argv)
+    return args_given_set
+    
 def make_config_from_args(args, readonly = True):
     config_base = None
     if args.config is not None:
@@ -135,10 +154,10 @@ def make_config_from_args(args, readonly = True):
     parse_option_orderer = get_parse_option_orderer()
     config_training = parse_option_orderer.convert_args_to_ordered_dict(args)
     
+    convert_cell_string(config_training)
+        
     if config_base is not None:
-        pwndan = argument_parsing_tools.ParserWithNoneDefaultAndNoGroup()
-        define_parser(pwndan)
-        args_given_set = pwndan.get_args_given(sys.argv)
+        args_given_set = find_which_command_line_arguments_were_given()
         for argname in set(args_given_set):
             if getattr(args, argname) is None:
                 args_given_set.remove(argname)
