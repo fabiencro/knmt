@@ -283,7 +283,7 @@ def do_eval(config_eval):
     
     
     beam_width = config_eval.method.beam_width
-    beam_pruning_margin = config_eval.method.beam_pruning_margin,
+    beam_pruning_margin = config_eval.method.beam_pruning_margin
     post_score_length_normalization = config_eval.method.post_score_length_normalization
     length_normalization_strength = config_eval.method.length_normalization_strength
     groundhog = config_eval.method.groundhog
@@ -352,11 +352,17 @@ def do_eval(config_eval):
             out.write(ct + "\n")
 
     elif mode == "beam_search":
-        translate_to_file_with_beam_search(dest_fn, gpu, encdec_list, eos_idx, src_data, beam_width, beam_pruning_margin,
-                                           nb_steps,
-                                           nb_steps_ratio, post_score_length_normalization, length_normalization_strength,
-                                           groundhog,
-                                           tgt_unk_id, tgt_indexer, force_finish = force_finish,
+        translate_to_file_with_beam_search(dest_fn, gpu, encdec_list, eos_idx, src_data, 
+                                           beam_width = beam_width, 
+                                           beam_pruning_margin = beam_pruning_margin,
+                                           nb_steps = nb_steps,
+                                           nb_steps_ratio = nb_steps_ratio,
+                                           post_score_length_normalization = post_score_length_normalization,
+                                           length_normalization_strength = length_normalization_strength,
+                                           groundhog = groundhog,
+                                           tgt_unk_id = tgt_unk_id, 
+                                           tgt_indexer = tgt_indexer,
+                                           force_finish = force_finish,
                                            prob_space_combination = prob_space_combination,
                                            reverse_encdec = reverse_encdec,
                                            generate_attention_html = generate_attention_html,
@@ -366,11 +372,17 @@ def do_eval(config_eval):
             
     elif mode == "eval_bleu":
 #         assert args.ref is not None
-        translate_to_file_with_beam_search(dest_fn, gpu, encdec_list, eos_idx, src_data, beam_width, beam_pruning_margin,
-                                           nb_steps,
-                                           nb_steps_ratio, post_score_length_normalization, length_normalization_strength,
-                                           groundhog,
-                                           tgt_unk_id, tgt_indexer, force_finish = force_finish,
+        translate_to_file_with_beam_search(dest_fn, gpu, encdec_list, eos_idx, src_data, 
+                                           beam_width = beam_width, 
+                                           beam_pruning_margin = beam_pruning_margin,
+                                           nb_steps = nb_steps,
+                                           nb_steps_ratio = nb_steps_ratio,
+                                           post_score_length_normalization = post_score_length_normalization,
+                                           length_normalization_strength = length_normalization_strength,
+                                           groundhog = groundhog,
+                                           tgt_unk_id = tgt_unk_id, 
+                                           tgt_indexer = tgt_indexer,
+                                           force_finish = force_finish,
                                            prob_space_combination = prob_space_combination,
                                            reverse_encdec = reverse_encdec,
                                            generate_attention_html = generate_attention_html,
