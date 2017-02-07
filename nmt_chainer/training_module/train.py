@@ -392,5 +392,3 @@ def do_train(config_training):
 #                 
 #                 
 
-if __name__ == '__main__':
-    command_line()
