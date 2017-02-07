@@ -12,7 +12,7 @@ from chainer import cuda, Variable
 from chainer import Link, Chain, ChainList
 import chainer.functions as F
 import chainer.links as L
-import math, random
+import random
 
 import rnn_cells
 from nmt_chainer.utilities.utils import ortho_init, minibatch_sampling

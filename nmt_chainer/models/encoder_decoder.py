@@ -6,17 +6,15 @@ __version__ = "1.0"
 __email__ = "fabien.cromieres@gmail.com"
 __status__ = "Development"
 
-from _collections import defaultdict
 import numpy as np
 import chainer
 from chainer import cuda, Variable
 from chainer import Link, Chain, ChainList
 import chainer.functions as F
 import chainer.links as L
-import math, random
 
 import rnn_cells
-from nmt_chainer.utilities.utils import ortho_init, compute_lexicon_matrix, minibatch_sampling
+from nmt_chainer.utilities.utils import compute_lexicon_matrix
 import attention
 
 import logging

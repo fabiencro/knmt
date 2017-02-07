@@ -8,12 +8,9 @@ __status__ = "Development"
 
 import chainer
 from chainer import cuda, optimizers, serializers
-import chainer.function_hooks
-import operator
 
 from training import train_on_data
-from nmt_chainer.dataprocessing.make_data import Indexer
-from nmt_chainer.utilities import versioning_tools
+from nmt_chainer.dataprocessing.indexer import Indexer
 
 import logging
 import json
@@ -31,14 +28,6 @@ from nmt_chainer.utilities.utils import ensure_path
 
 import nmt_chainer.models.attention
 import nmt_chainer.models.encoder_decoder
-
-import time
-
-import numpy
-
-from chainer import cuda
-from chainer import function
-from collections import defaultdict
 
 import nmt_chainer.models.rnn_cells as rnn_cells
 
