@@ -667,24 +667,14 @@ def build_dataset_with_align_info(src_fn, tgt_fn, align_fn,
                                                        )
 
 
-def do_make_data(args):
-    
-    
-    if not ((args.test_src is None) == (args.test_tgt is None)):
-        print >>sys.stderr, "Command Line Error: either specify both --test_src and --test_tgt or neither"
-        sys.exit(1)
-
-    if not ((args.dev_src is None) == (args.dev_tgt is None)):
-        print >>sys.stderr, "Command Line Error: either specify both --dev_src and --dev_tgt or neither"
-        sys.exit(1)
-
-    save_prefix_dir, save_prefix_fn = os.path.split(args.save_prefix)
+def do_make_data(config):
+    save_prefix_dir, save_prefix_fn = os.path.split(config.save_prefix)
     ensure_path(save_prefix_dir)
 
-    config_fn = args.save_prefix + ".data.config"
-    voc_fn = args.save_prefix + ".voc"
-    data_fn = args.save_prefix + ".data.json.gz"
-#     valid_data_fn = args.save_prefix + "." + args.model + ".valid.data.npz"
+    config_fn = config.save_prefix + ".data.config"
+    voc_fn = config.save_prefix + ".voc"
+    data_fn = config.save_prefix + ".data.json.gz"
+#     valid_data_fn = config.save_prefix + "." + config.model + ".valid.data.npz"
 
     already_existing_files = []
     for filename in [config_fn, voc_fn, data_fn]:  # , valid_data_fn]:
@@ -699,16 +689,16 @@ def do_make_data(args):
         if align_fn is not None:
             log.info("making training data with alignment")
             training_data, valid_data, dic_src, dic_tgt, make_data_infos = build_dataset_with_align_info(
-                                            src_fn, tgt_fn, align_fn, src_voc_limit = args.src_voc_size, 
-                                            tgt_voc_limit = args.tgt_voc_size, max_nb_ex = max_nb_ex, 
-                                            dic_src = dic_src, dic_tgt = dic_tgt, mode = args.mode_align)
+                                            src_fn, tgt_fn, align_fn, src_voc_limit = config.src_voc_size, 
+                                            tgt_voc_limit = config.tgt_voc_size, max_nb_ex = max_nb_ex, 
+                                            dic_src = dic_src, dic_tgt = dic_tgt, mode = config.mode_align)
         else:
             training_data, dic_src, dic_tgt, make_data_infos = build_dataset(
-                src_fn, tgt_fn, src_voc_limit=args.src_voc_size,
-                tgt_voc_limit=args.tgt_voc_size, max_nb_ex=max_nb_ex,
+                src_fn, tgt_fn, src_voc_limit=config.src_voc_size,
+                tgt_voc_limit=config.tgt_voc_size, max_nb_ex=max_nb_ex,
                 dic_src=dic_src, dic_tgt=dic_tgt,
-                tgt_segmentation_type=args.tgt_segmentation_type,
-                src_segmentation_type=args.src_segmentation_type)
+                tgt_segmentation_type=config.tgt_segmentation_type,
+                src_segmentation_type=config.src_segmentation_type)
             valid_data = None
 
         log.info("%i sentences loaded" % make_data_infos.nb_ex)
@@ -731,46 +721,47 @@ def do_make_data(args):
 
     dic_src = None
     dic_tgt = None
-    if args.use_voc is not None:
-        log.info("loading voc from %s" % args.use_voc)
-        src_voc, tgt_voc = json.load(open(args.use_voc))
+    if config.use_voc is not None:
+        log.info("loading voc from %s" % config.use_voc)
+        src_voc, tgt_voc = json.load(open(config.use_voc))
         dic_src = Indexer.make_from_serializable(src_voc)
         dic_tgt = Indexer.make_from_serializable(tgt_voc)
 
     log.info("loading training data from %s and %s" %
-             (args.src_fn, args.tgt_fn))
-    training_data, valid_data, dic_src, dic_tgt = load_data(args.src_fn, args.tgt_fn, max_nb_ex=args.max_nb_ex,
-                                                            dic_src=dic_src, dic_tgt=dic_tgt, align_fn=args.align_fn)
+             (config.src_fn, config.tgt_fn))
+    training_data, valid_data, dic_src, dic_tgt = load_data(config.src_fn, config.tgt_fn, max_nb_ex=config.max_nb_ex,
+                                                            dic_src=dic_src, dic_tgt=dic_tgt, align_fn=config.align_fn)
 
     test_data = None
-    if args.test_src is not None:
+    if config.test_src is not None:
         log.info("loading test data from %s and %s" %
-                 (args.test_src, args.test_tgt))
+                 (config.test_src, config.test_tgt))
         test_data, _, test_dic_src, test_dic_tgt = load_data(
-            args.test_src, args.test_tgt, dic_src=dic_src, dic_tgt=dic_tgt)
+            config.test_src, config.test_tgt, dic_src=dic_src, dic_tgt=dic_tgt)
 
         assert test_dic_src is dic_src
         assert test_dic_tgt is dic_tgt
 
     dev_data = None
-    if args.dev_src is not None:
+    if config.dev_src is not None:
         log.info("loading dev data from %s and %s" %
-                 (args.dev_src, args.dev_tgt))
+                 (config.dev_src, config.dev_tgt))
         dev_data, _, dev_dic_src, dev_dic_tgt = load_data(
-            args.dev_src, args.dev_tgt, dic_src=dic_src, dic_tgt=dic_tgt)
+            config.dev_src, config.dev_tgt, dic_src=dic_src, dic_tgt=dic_tgt)
 
         assert dev_dic_src is dic_src
         assert dev_dic_tgt is dic_tgt
 
-#     if args.shuffle:
+#     if config.shuffle:
 #         log.info("shuffling data")
-#         if args.enable_fast_shuffle:
+#         if config.enable_fast_shuffle:
 #             shuffle_in_unison_faster(data_input, data_target)
 #         else:
 #             data_input, data_target = shuffle_in_unison(data_input, data_target)
     log.info("saving config to %s" % config_fn)
-    json.dump(args.__dict__, open(config_fn, "w"),
-              indent=2, separators=(',', ': '))
+    config.save_to(config_fn)
+#     json.dump(config.__dict__, open(config_fn, "w"),
+#               indent=2, separators=(',', ': '))
 
     log.info("saving voc to %s" % voc_fn)
     json.dump([dic_src.to_serializable(), dic_tgt.to_serializable()],
@@ -798,5 +789,4 @@ def do_make_data(args):
 #         log.info("saving valid_data to %s"%valid_data_fn)
 #         np.savez_compressed(open(valid_data_fn, "wb"), data_input = data_input_valid, data_target = data_target_valid)
 
-if __name__ == '__main__':
-    cmdline()
+
