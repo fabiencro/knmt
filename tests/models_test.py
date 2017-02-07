@@ -344,7 +344,7 @@ class TestEncoderDecoder:
         
 class TestBeamSearch:
     def test_1(self):
-        import nmt_chainer.evaluation as evaluation
+        import nmt_chainer.translation.evaluation as evaluation
         Vi, Ei, Hi, Vo, Eo, Ho, Ha, Hl = 29, 37, 13, 53, 7, 12, 19, 33
         encdec = nmt_chainer.models.encoder_decoder.EncoderDecoder(Vi, Ei, Hi, Vo, Eo, Ho, Ha, Hl)
         eos_idx = Vo - 1
