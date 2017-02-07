@@ -641,6 +641,7 @@ def cmdline(arguments=None):
     parser.add_argument("--dev_tgt", help = "specify a target dev set")
     parser.add_argument("--mode_align", choices = ["unk_align", "all_align"])
     parser.add_argument("--use_voc", help = "specify an exisiting vocabulary file")
+    parser.add_argument("--use_tgt_voc_only", action="store_true", help = "If true then only the target side vocabulary will be used from the vocabulary specified from the use_voc flag.")
     
     parser.add_argument("--tgt_segmentation_type", choices = ["word", "word2char", "char"], default = "word")
     parser.add_argument("--src_segmentation_type", choices = ["word", "word2char", "char"], default = "word")
@@ -669,7 +670,7 @@ def cmdline(arguments=None):
             already_existing_files.append(filename)
     if len(already_existing_files) > 0:
         print "Warning: existing files are going to be replaced: ",  already_existing_files
-        raw_input("Press Enter to Continue")
+        #raw_input("Press Enter to Continue")
 
     def load_data(src_fn, tgt_fn, max_nb_ex=None, dic_src=None, dic_tgt=None, align_fn=None):
 
@@ -711,7 +712,10 @@ def cmdline(arguments=None):
     if args.use_voc is not None:
         log.info("loading voc from %s" % args.use_voc)
         src_voc, tgt_voc = json.load(open(args.use_voc))
-        dic_src = Indexer.make_from_list(src_voc)
+        if not args.use_tgt_voc_only:
+            dic_src = Indexer.make_from_list(src_voc)
+        else:
+            log.info("Using the target side vocabulary only.")
         dic_tgt = Indexer.make_from_list(tgt_voc)
 
     log.info("loading training data from %s and %s" %
