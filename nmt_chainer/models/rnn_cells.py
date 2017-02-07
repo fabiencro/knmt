@@ -243,6 +243,8 @@ cell_dict = {
 # has_dropout = set(["dlno_dropout_on_input = Falsestm"])
 
 
+
+
 cell_description_keywords = {
     "dropout": float,
     "nb_stacks": int,
@@ -285,6 +287,11 @@ def create_cell_model_from_string(model_str):
             raise ValueError("bad cell parameter: %s (possible parameters: %s)"%
                              (comp, " ".join(cell_description_keywords.keys())))
 
+    return create_cell_model(type_str, **keywords)
+
+def create_cell_model_from_config(config):
+    type_str = config["cell_type"]
+    keywords = dict( (k,config[k]) for k in config if k != "cell_type")
     return create_cell_model(type_str, **keywords)
 
 def create_initializer(init_type, scale = None, fillvalue = None):

@@ -105,8 +105,8 @@ def create_encdec_from_config_dict(config_dict, src_indexer, tgt_indexer):
     encdec = nmt_chainer.models.encoder_decoder.EncoderDecoder(Vi, Ei, Hi, Vo + 1, Eo, Ho, Ha, Hl, use_bn_length = use_bn_length,
                                    attn_cls = attn_cls,
                                    init_orth = init_orth,
-                                   encoder_cell_type = rnn_cells.create_cell_model_from_string(encoder_cell_type),
-                                    decoder_cell_type = rnn_cells.create_cell_model_from_string(decoder_cell_type),
+                                   encoder_cell_type = rnn_cells.create_cell_model_from_config(encoder_cell_type),
+                                    decoder_cell_type = rnn_cells.create_cell_model_from_config(decoder_cell_type),
                                     lexical_probability_dictionary = lexical_probability_dictionary,
                                     lex_epsilon = lex_epsilon)
 
