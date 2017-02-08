@@ -185,6 +185,11 @@ def do_train(config_training):
     output_files_dict["model_best"] = save_prefix + ".model." + "best" + ".npz"
     output_files_dict["model_best_loss"] = save_prefix + ".model." + "best_loss" + ".npz"
     
+#     output_files_dict["model_ckpt_config"] = save_prefix + ".model." + "ckpt" + ".config"
+#     output_files_dict["model_final_config"] = save_prefix + ".model." + "final" + ".config"
+#     output_files_dict["model_best_config"] = save_prefix + ".model." + "best" + ".config"
+#     output_files_dict["model_best_loss_config"] = save_prefix + ".model." + "best_loss" + ".config"
+    
     output_files_dict["test_translation_output"] = save_prefix + ".test.out"
     output_files_dict["test_src_output"] = save_prefix + ".test.src.out"
     output_files_dict["dev_translation_output"] = save_prefix + ".dev.out"
@@ -194,7 +199,6 @@ def do_train(config_training):
     output_files_dict["sqlite_db"] = save_prefix + ".result.sqlite"
     output_files_dict["optimizer_ckpt"] = save_prefix + ".optimizer." + "ckpt" + ".npz"
     output_files_dict["optimizer_final"] = save_prefix + ".optimizer." + "final" + ".npz"
-    
     
     
     save_prefix_dir, save_prefix_fn = os.path.split(save_prefix)
