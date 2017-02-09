@@ -6,7 +6,7 @@ __version__ = "1.0"
 __email__ = "bergeron@pa.jst.jp"
 __status__ = "Development"
 
-import nmt_chainer.eval as eval
+from nmt_chainer.__main__ import main
 import os.path
 import pytest
 
@@ -30,7 +30,7 @@ class TestResultInvariability:
             '--mode beam_search --beam_width 30'.split(' ') 
         if gpu is not None:
             args_eval_beam_search += ['--gpu', gpu]
-        eval.command_line(arguments = args_eval_beam_search)
+        main(arguments = ["eval"] + args_eval_beam_search)
         
         with open(os.path.join(str(test_data_dir), "models/result_invariability.translations.txt")) as f:
             expected_translations = f.readlines()
