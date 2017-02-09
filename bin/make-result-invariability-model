@@ -1,0 +1,14 @@
+#!/bin/sh
+
+# This is the script that has been used to generate the result_invariability model
+# found in tests/tests_data/models directory.  This model is used by a test that 
+# checks after each new commit if the translation results are still the same as expected.
+
+knmt make_data tests/tests_data/src2.txt tests/tests_data/tgt2.txt tests/tests_data/models/result_invariability.data --dev_src tests/tests_data/src2.txt --dev_tgt tests/tests_data/tgt2.txt
+
+knmt train tests/tests_data/models/result_invariability.data tests/tests_data/models/result_invariability.train --max_nb_iters 2000 --mb_size 2 --Ei 5 --Eo 12 --Hi 6 --Ha 70 --Ho 15 --Hl 12
+
+# Remove unneeded large files.
+rm -rf tests/tests_data/models/result_invariability.train
+rm -rf tests/tests_data/models/result_invariability.train.model.best_loss.npz
+rm -rf tests/tests_data/models/result_invariability.train.result.sqlite
