@@ -6,8 +6,6 @@ __version__ = "1.0"
 __email__ = "bergeron@pa.jst.jp"
 __status__ = "Development"
 
-import nmt_chainer.make_data as make_data
-import nmt_chainer.train as train
 import nmt_chainer.eval as eval
 import os.path
 import pytest
