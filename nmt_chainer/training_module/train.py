@@ -150,14 +150,14 @@ def load_voc_and_update_training_config(config_training):
     data_fn = data_prefix + ".data.json.gz"
     
     log.info("loading voc from %s"% voc_fn)
-    src_voc, tgt_voc = json.load(open(voc_fn))
+#     src_voc, tgt_voc = json.load(open(voc_fn))
     
     
-    
-    src_indexer = processors.PreProcessor.make_from_serializable(src_voc)
-    tgt_indexer = processors.PreProcessor.make_from_serializable(tgt_voc)
-    tgt_voc = None
-    src_voc = None
+    src_indexer, tgt_indexer = processors.load_pp_pair_from_file(voc_fn)
+#     src_indexer = processors.PreProcessor.make_from_serializable(src_voc)
+#     tgt_indexer = processors.PreProcessor.make_from_serializable(tgt_voc)
+#     tgt_voc = None
+#     src_voc = None
     
 #     Vi = len(src_voc) + 1 # + UNK
 #     Vo = len(tgt_voc) + 1 # + UNK

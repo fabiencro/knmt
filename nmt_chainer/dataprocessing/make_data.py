@@ -215,7 +215,7 @@ def do_make_data(config):
     else:
         if config.bpe_src is not None:
             src_pp = (processors.SimpleSegmenter(config.src_segmentation_type) +
-                      processors.BPEProcessing(bpe_data_file = bpe_data_file_src, symbols = config.bpe_src) +
+                      processors.BPEProcessing(bpe_data_file = bpe_data_file_src, symbols = config.bpe_src, separator = "._@@@") +
                     processors.IndexingPrePostProcessor(voc_limit = config.src_voc_size)
                     )
         else:
@@ -225,7 +225,7 @@ def do_make_data(config):
         
         if config.bpe_tgt is not None:
             tgt_pp = (processors.SimpleSegmenter(config.tgt_segmentation_type) +
-                      processors.BPEProcessing(bpe_data_file = bpe_data_file_tgt, symbols = config.bpe_tgt) +
+                      processors.BPEProcessing(bpe_data_file = bpe_data_file_tgt, symbols = config.bpe_tgt, separator = "._@@@") +
                                  processors.IndexingPrePostProcessor(voc_limit = config.tgt_voc_size))
         else:
             tgt_pp = (processors.SimpleSegmenter(config.tgt_segmentation_type) +

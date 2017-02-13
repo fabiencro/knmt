@@ -80,7 +80,7 @@ def get_vocabulary_and_totals(fobj):
             total_words += 1
     return vocab, total_words, total_lines
 
-def update_pair_statistics(pair, changed, stats, indices, symbol_list):
+def update_pair_statistics(pair, changed, stats, indices):
     """Minimally update the indices and frequency of symbol pairs
 
     if we merge a pair of symbols, only pairs that overlap with occurrences
@@ -91,30 +91,7 @@ def update_pair_statistics(pair, changed, stats, indices, symbol_list):
     first, second = pair
     new_pair = first+second
     for j, word, old_word, freq in changed:
-        #print old_word, word, freq
-        old_word_mod = old_word
-        word_mod = word
-        if word_mod[-1] == '</w>':
-            word_mod = word_mod[:-1]
-        elif word_mod[-1].endswith('</w>'):
-            word_mod = word_mod[:-1] + (word_mod[-1].replace('</w>',''),)
-        if old_word_mod[-1] == '</w>':
-            old_word_mod = old_word_mod[:-1]
-        elif old_word_mod[-1].endswith('</w>'):
-            old_word_mod = old_word_mod[:-1] + (old_word_mod[-1].replace('</w>',''),)
-        
-        for sym in old_word_mod[:-1]:
-            symbol_list[sym + "__"] -= freq
-            if symbol_list[sym + "__"] <= 0:
-                del symbol_list[sym + "__"]
-        symbol_list[old_word_mod[-1]] -= freq
-        if symbol_list[old_word_mod[-1]] <= 0:
-            del symbol_list[old_word_mod[-1]]
 
-        for sym in word_mod[:-1]:
-            symbol_list[sym + "__"] += freq
-        symbol_list[word_mod[-1]] += freq
-        
         # find all instances of pair, and update frequency/indices around it
         i = 0
         while True:
@@ -161,8 +138,6 @@ def get_pair_statistics(vocab):
     # data structure of pair frequencies
     stats = defaultdict(int)
 
-    # Symbol stats
-    symbol_list = defaultdict(int)
     #index from pairs to words
     indices = defaultdict(lambda: defaultdict(int))
 
@@ -172,10 +147,9 @@ def get_pair_statistics(vocab):
             stats[prev_char, char] += freq
             indices[prev_char, char][i] += 1
             prev_char = char
-        for char in word[:-2]:
-            symbol_list[char + "__"] += freq
-        symbol_list[word[-2]] += freq
-    return stats, indices, symbol_list
+
+    return stats, indices
+
 
 
 def replace_pair(pair, vocab, indices):
