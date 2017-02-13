@@ -25,14 +25,14 @@ class TestResultInvariability:
         train_dir = os.path.join(test_data_dir, "models")
         train_prefix = os.path.join(train_dir, "result_invariability.train")
         beam_search_eval_dir = tmpdir.mkdir("eval_beam_search")
-        beam_search_file = os.path.join(str(beam_search_eval_dir), 'translations.txt')
+        beam_search_file = os.path.join(str(beam_search_eval_dir), 'translations_using_beam_search.txt')
         args_eval_beam_search = [train_prefix + '.train.config', train_prefix + '.model.best.npz', data_src_file, beam_search_file] + \
             '--mode beam_search --beam_width 30'.split(' ') 
         if gpu is not None:
             args_eval_beam_search += ['--gpu', gpu]
         eval.command_line(arguments = args_eval_beam_search)
         
-        with open(os.path.join(str(test_data_dir), "models/result_invariability.translations.txt")) as f:
+        with open(os.path.join(str(test_data_dir), "models/result_invariability.translations_using_beam_search.txt")) as f:
             expected_translations = f.readlines()
         with open(beam_search_file) as f:
             actual_translations = f.readlines()
