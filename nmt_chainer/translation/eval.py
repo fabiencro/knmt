@@ -132,7 +132,7 @@ def beam_search_all(gpu, encdec, eos_idx, src_data, beam_width, beam_pruning_mar
             else:
                 assert False
             
-            translated = tgt_indexer.deconvert(t, unk_tag = unk_replacer)
+            translated = tgt_indexer.deconvert_swallow(t, unk_tag = unk_replacer)
             
             yield src_data[num_t], translated, t, score, attn 
         print >>sys.stderr
@@ -168,8 +168,8 @@ def translate_to_file_with_beam_search(dest_fn, gpu, encdec, eos_idx, src_data, 
         if rich_output is not None:
             rich_output.add_info(src, translated, t, score, attn)
         if attn_vis is not None:
-            attn_vis.add_plot(src_indexer.deconvert(src), translated, attn)
-        ct = " ".join(translated)
+            attn_vis.add_plot(src_indexer.deconvert_swallow(src), translated, attn)
+        ct = tgt_indexer.deconvert_post(translated)
         out.write(ct + "\n")
         
     if rich_output is not None:
@@ -348,7 +348,7 @@ def do_eval(config_eval):
         for t in translations:
             if t[-1] == eos_idx:
                 t = t[:-1]
-            ct = " ".join(tgt_indexer.deconvert(t, unk_tag = "#T_UNK#"))
+            ct = tgt_indexer.deconvert(t, unk_tag = "#T_UNK#")
 #             ct = convert_idx_to_string(t, tgt_voc + ["#T_UNK#"])
             out.write(ct + "\n")
 
@@ -426,8 +426,8 @@ def do_eval(config_eval):
             attn = attn_all[num_t]
 #             assert len(attn) == len(tgt_idx_list)
                 
-            src_w = src_indexer.deconvert(src_idx_list, unk_tag = "#S_UNK#") + ["SUM_ATTN"]
-            tgt_w = tgt_indexer.deconvert(tgt_idx_list, unk_tag = "#T_UNK#")
+            src_w = src_indexer.deconvert_swallow(src_idx_list, unk_tag = "#S_UNK#") + ["SUM_ATTN"]
+            tgt_w = tgt_indexer.deconvert_swallow(tgt_idx_list, unk_tag = "#T_UNK#")
 #             src_w = [src_voc_with_unk[idx] for idx in src_idx_list] + ["SUM_ATTN"]
 #             tgt_w = [tgt_voc_with_unk[idx] for idx in tgt_idx_list]
 #             for j in xrange(len(tgt_idx_list)):
@@ -468,8 +468,8 @@ def do_eval(config_eval):
             for j in xrange(len(tgt_idx_list)):        
                 alignment[len(src_idx_list), j] =  sum_al[j]
                 
-            src_w = src_indexer.deconvert(src_idx_list, unk_tag = "#S_UNK#") + ["SUM_ATTN"]
-            tgt_w = tgt_indexer.deconvert(tgt_idx_list, unk_tag = "#T_UNK#")
+            src_w = src_indexer.deconvert_swallow(src_idx_list, unk_tag = "#S_UNK#") + ["SUM_ATTN"]
+            tgt_w = tgt_indexer.deconvert_swallow(tgt_idx_list, unk_tag = "#T_UNK#")
 #             src_w = [src_voc_with_unk[idx] for idx in src_idx_list] + ["SUM_ATTN"]
 #             tgt_w = [tgt_voc_with_unk[idx] for idx in tgt_idx_list]
 #             for j in xrange(len(tgt_idx_list)):

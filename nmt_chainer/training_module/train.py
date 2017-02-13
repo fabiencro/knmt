@@ -110,12 +110,14 @@ def create_encdec_and_indexers_from_config_dict(config_dict, src_indexer = None,
         voc_fn = config_dict.data["voc"]
         log.info("loading voc from %s"% voc_fn)
         src_voc, tgt_voc = json.load(open(voc_fn))
+        
+        src_pp, tgt_pp = processors.load_pp_pair_from_file(voc_fn)
     
     if src_indexer is None:
-        src_indexer = processors.PreProcessor.make_from_serializable(src_voc)
+        src_indexer = src_pp
         
     if tgt_indexer is None:
-        tgt_indexer = processors.PreProcessor.make_from_serializable(tgt_voc)
+        tgt_indexer = tgt_pp
         
     tgt_voc = None
     src_voc = None
