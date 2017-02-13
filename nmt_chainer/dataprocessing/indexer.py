@@ -23,10 +23,10 @@ class Indexer(object):
         else:
             assert not should_be_new
 
-    def assign_index_to_voc(self, voc_iter, all_should_be_new=False):
-        assert not self.finalized
-        for w in voc_iter:
-            self.add_word(w, should_be_new=all_should_be_new)
+#     def assign_index_to_voc(self, voc_iter, all_should_be_new=False):
+#         assert not self.finalized
+#         for w in voc_iter:
+#             self.add_word(w, should_be_new=all_should_be_new)
 
     def finalize(self):
         assert not self.finalized
@@ -47,9 +47,9 @@ class Indexer(object):
         assert idx < len(self.lst)
         return isinstance(self.lst[idx], int)
 
-    def add_unk_label_dictionary(self, unk_dic):
-        assert not self.finalized
-        self.unk_label_dictionary = unk_dic
+#     def add_unk_label_dictionary(self, unk_dic):
+#         assert not self.finalized
+#         self.unk_label_dictionary = unk_dic
 
     def convert(self, seq):
         assert self.finalized
@@ -64,22 +64,22 @@ class Indexer(object):
             res[pos] = idx
         return res
 
-    def convert_and_update_unk_tags(self, seq, give_unk_label):
-        assert not self.finalized
-        assert len(self.dic) == len(self.lst)
-        res = [None] * len(seq)
-        for pos, w in enumerate(seq):
-            assert not isinstance(w, int)
-            if w in self.dic:
-                idx = self.dic[w]
-            else:
-                aligned_pos = give_unk_label(pos, w)
-                if aligned_pos not in self.dic:
-                    self.add_word(aligned_pos, should_be_new=True,
-                                  should_not_be_int=False)
-                idx = self.dic[aligned_pos]
-            res[pos] = idx
-        return res
+#     def convert_and_update_unk_tags(self, seq, give_unk_label):
+#         assert not self.finalized
+#         assert len(self.dic) == len(self.lst)
+#         res = [None] * len(seq)
+#         for pos, w in enumerate(seq):
+#             assert not isinstance(w, int)
+#             if w in self.dic:
+#                 idx = self.dic[w]
+#             else:
+#                 aligned_pos = give_unk_label(pos, w)
+#                 if aligned_pos not in self.dic:
+#                     self.add_word(aligned_pos, should_be_new=True,
+#                                   should_not_be_int=False)
+#                 idx = self.dic[aligned_pos]
+#             res[pos] = idx
+#         return res
 
     def deconvert(self, seq, unk_tag="#UNK#", no_oov=True, eos_idx=None):
         assert self.finalized
@@ -141,6 +141,13 @@ class Indexer(object):
                 res.dic[w] = idx
             res.finalized = True
             return res
+        
+    @staticmethod
+    def check_if_data_indexer(datas):
+        if isinstance(datas, list):
+            return True
+        elif isinstance(datas, dict) and "type" in datas and datas["type"] == "simple_indexer":
+            return True
         
 # class Indexer(object):
 #     def __init__(self, unk_tag = "#UNK#"):
