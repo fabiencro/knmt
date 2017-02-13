@@ -11,12 +11,18 @@ import os.path
 import pytest
 
 class TestResultInvariability:
-    
-    def test_result_invariability_using_beam_search(self, tmpdir, gpu):
+   
+    @pytest.mark.parametrize("model_name, search_type", [
+        ("result_invariability", "beam_search"),
+        ("result_invariability", "greedy_search"),
+        ("result_invariability_untrained", "beam_search"),
+        ("result_invariability_untrained", "greedy_search")
+    ])
+    def test_result_invariability(self, tmpdir, gpu, model_name, search_type):
         """
-        Performs some translations with a preexisting model and compare the results
-        using beam search translation with previous results of the same experiment.  
-        The result should be identical.
+        Performs some translations with a preexisting models and compare the results
+        using various search types translation with previous results of the same experiment.  
+        The results should be identical.
         If not, it means that a recent commit have changed the behavior of the system.
         """
         
@@ -24,18 +30,23 @@ class TestResultInvariability:
         data_src_file = os.path.join(test_data_dir, "src2.txt")
         data_tgt_file = os.path.join(test_data_dir, "tgt2.txt")
         train_dir = os.path.join(test_data_dir, "models")
-        train_prefix = os.path.join(train_dir, "result_invariability.train")
-        beam_search_eval_dir = tmpdir.mkdir("eval_beam_search")
-        beam_search_file = os.path.join(str(beam_search_eval_dir), 'translations_using_beam_search.txt')
-        args_eval_beam_search = [train_prefix + '.train.config', train_prefix + '.model.best.npz', data_src_file, beam_search_file] + \
-            '--mode beam_search --beam_width 30'.split(' ') 
+        train_prefix = os.path.join(train_dir, "{0}.train".format(model_name))
+        search_eval_dir = tmpdir.mkdir("eval_{0}".format(search_type))
+        search_file = os.path.join(str(search_eval_dir), 'translations_using_{0}.txt'.format(search_type))
+        search_mode = 'beam_search'
+        other_params = ' --beam_width 30'
+        if search_type == 'greedy_search':
+            search_mode = 'translate'
+            other_params = ''
+        args_eval_search = [train_prefix + '.train.config', train_prefix + '.model.best.npz', data_src_file, search_file] + \
+            '--mode {0}{1}'.format(search_mode, other_params).split(' ') 
         if gpu is not None:
-            args_eval_beam_search += ['--gpu', gpu]
-        eval.command_line(arguments = args_eval_beam_search)
+            args_eval_search += ['--gpu', gpu]
+        eval.command_line(arguments = args_eval_search)
         
-        with open(os.path.join(str(test_data_dir), "models/result_invariability.translations_using_beam_search.txt")) as f:
+        with open(os.path.join(str(test_data_dir), "models/{0}.translations_using_{1}.txt".format(model_name, search_type))) as f:
             expected_translations = f.readlines()
-        with open(beam_search_file) as f:
+        with open(search_file) as f:
             actual_translations = f.readlines()
         print "expected_translations"
         for p in expected_translations:
@@ -45,38 +56,3 @@ class TestResultInvariability:
             print p
 
         assert(actual_translations == expected_translations)
-
-    def test_result_invariability_using_greedy_search(self, tmpdir, gpu):
-        """
-        Performs some translations with a preexisting model and compare the results
-        using greedy search translation with previous results of the same experiment.  
-        The result should be identical.
-        If not, it means that a recent commit have changed the behavior of the system.
-        """
-        
-        test_data_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "tests_data")
-        data_src_file = os.path.join(test_data_dir, "src2.txt")
-        data_tgt_file = os.path.join(test_data_dir, "tgt2.txt")
-        train_dir = os.path.join(test_data_dir, "models")
-        train_prefix = os.path.join(train_dir, "result_invariability.train")
-        greedy_search_eval_dir = tmpdir.mkdir("eval_greedy_search")
-        greedy_search_file = os.path.join(str(greedy_search_eval_dir), 'translations_using_greedy_search.txt')
-        args_eval_greedy_search = [train_prefix + '.train.config', train_prefix + '.model.best.npz', data_src_file, greedy_search_file] + \
-            '--mode translate'.split(' ') 
-        if gpu is not None:
-            args_eval_greedy_search += ['--gpu', gpu]
-        eval.command_line(arguments = args_eval_greedy_search)
-        
-        with open(os.path.join(str(test_data_dir), "models/result_invariability.translations_using_greedy_search.txt")) as f:
-            expected_translations = f.readlines()
-        with open(greedy_search_file) as f:
-            actual_translations = f.readlines()
-        print "expected_translations"
-        for p in expected_translations:
-            print p
-        print "actual_translations"
-        for p in actual_translations:
-            print p
-
-        assert(actual_translations == expected_translations)
-
