@@ -71,8 +71,9 @@ class PreProcessor(object):
         raise NotImplemented()
     
     def apply_to_iterable(self, iterable, stats = None):
-        for sentence in iterable:
-            yield self.convert(sentence, stats = stats)
+        return ApplyToMultiIterator(iterable, lambda elem:self.convert(elem, stats = stats))
+#         for sentence in iterable:
+#             yield self.convert(sentence, stats = stats)
         
     def make_new_stat(self):
         return self.Stats()
@@ -136,9 +137,10 @@ class ProcessorChain(PreProcessor):
         return self.Stats([p.make_new_stat() for p in self.processor_list])     
    
     def initialize(self, iterable):
-        for processor in self.processor_list:
+        for num_processor, processor in enumerate(self.processor_list):
             processor.initialize(iterable)
-            iterable = processor.apply_to_iterable(iterable)
+            if num_processor < len(self.processor_list) - 1:
+                iterable = processor.apply_to_iterable(iterable)
        
     def deconvert(self, seq, unk_tag="#UNK#", no_oov=True, eos_idx=None):
         for num_processor, processor in enumerate(self.processor_list[::-1]):
@@ -216,12 +218,12 @@ class BPEProcessing(PreProcessor):
             learn_bpe.learn_bpe_from_sentence_iterable(iterable, output = output, 
                                                    symbols = self.symbols, 
                                                    min_frequency = self.min_frequency,
-                                                   verbose = True)
+                                                   verbose = False)
         self.load_bpe()
 
     def __str__(self):
         if self.is_initialized():
-            return "bpe<%i-%s>"%(self.voc_limit, self.bpe_data_file)
+            return "bpe<%i-%s>"%(self.symbols, self.bpe_data_file)
         else:
             return "bpe<%i>"%(self.symbols)
 
@@ -230,7 +232,10 @@ class BPEProcessing(PreProcessor):
     
     def convert(self, sentence, stats = None):
         assert self.is_initialized()
+#         print sentence
+#         print "->"
         converted = self.bpe.segment_splitted(sentence)
+#         print converted
         return converted
         
     def deconvert(self, seq):
@@ -257,8 +262,8 @@ class BPEProcessing(PreProcessor):
         
     @classmethod
     def make_from_serializable(cls, obj):
-        assert len(obj) == 1
-        res = BPEProcessing(*obj)
+        res = BPEProcessing(obj["bpe_data_file"], symbols = obj["symbols"], 
+                            min_frequency = obj["min_frequency"], separator= obj["separator"])
         res.load_bpe()
         return res
     
@@ -328,6 +333,9 @@ class IndexingPrePostProcessor(PreProcessor):
             unk_cnt = sum(self.indexer.is_unk_idx(w) for w in converted)
             stats.update(unk_cnt = unk_cnt, token = len(converted), nb_ex = 1)
         return converted
+        
+    def apply_to_iterable(self, iterable, stats = None):
+        raise AssertionError()
         
     def deconvert(self, seq, unk_tag="#UNK#", no_oov=True, eos_idx=None):
         return self.indexer.deconvert(seq, unk_tag=unk_tag, no_oov=no_oov, eos_idx=eos_idx)
@@ -418,19 +426,58 @@ class SimpleSegmenter(PreProcessor):
         obj["segmentation_type"] = self.type
         return obj
    
-
-class FileMultiIterator(object):
-    def __init__(self, filename, max_nb_ex = None):
-        self.filename = filename
-        self.max_nb_ex = max_nb_ex   
+   
+class ApplyToMultiIterator(object):
+    def __init__(self, iterable, function, can_iter = False):
+        self.iterable = iterable
+        self.function = function
+        if can_iter:
+            self.iterator = iter(self.iterable)
         
     def __iter__(self):
-        with codecs.open(self.filename, encoding="utf8") as f:
-            for num_line, line in enumerate(f):
-#                 print self.filename, num_line, self.max_nb_ex
-                if self.max_nb_ex is not None and num_line >= self.max_nb_ex:
-                    return
-                yield line.strip()
+        return ApplyToMultiIterator(self.iterable, self.function, can_iter = True)
+    
+    def next(self):
+        elem = self.iterator.next()
+        return self.function(elem)
+    
+
+class FileMultiIterator(object):
+    def __init__(self, filename, max_nb_ex = None, can_iter = False):
+        self.filename = filename
+        self.max_nb_ex = max_nb_ex
+        
+        if can_iter:
+            self.f = codecs.open(self.filename, encoding="utf8")
+            self.nb_line_read = 0
+        
+    def next(self):
+        if self.max_nb_ex is not None and self.nb_line_read >= self.max_nb_ex:
+            raise StopIteration()
+        line = self.f.readline()
+        if len(line) == 0:
+            raise StopIteration()
+        else:
+#             print self.nb_line_read, line.strip()
+            self.nb_line_read += 1
+            return line.strip()
+        
+    def __iter__(self):
+        return FileMultiIterator(self.filename, max_nb_ex = self.max_nb_ex, can_iter = True)
+        
+#     class IterableIterator(object):
+#         def __init__(self, filename):
+#             self.filename = filename
+#         def make_iter(self):
+#             
+#             
+#     def __iter__(self):
+#         with codecs.open(self.filename, encoding="utf8") as f:
+#             for num_line, line in enumerate(f):
+# #                 print self.filename, num_line, self.max_nb_ex
+#                 if self.max_nb_ex is not None and num_line >= self.max_nb_ex:
+#                     return
+#                 yield line.strip()
       
 
 def izip_must_equal(it1, it2):
