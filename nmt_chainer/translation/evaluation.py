@@ -34,7 +34,7 @@ def translate_to_file(encdec, eos_idx, test_src_data, mb_size, tgt_indexer,
         if t[-1] == eos_idx:
             t = t[:-1]
 #         out.write(convert_idx_to_string(t, tgt_voc) + "\n")
-        out.write(" ".join(tgt_indexer.deconvert(t, unk_tag = t_unk_tag)) + "\n")
+        out.write(tgt_indexer.deconvert(t, unk_tag = t_unk_tag) + "\n")
         
     
     if control_src_fn is not None:
@@ -43,7 +43,7 @@ def translate_to_file(encdec, eos_idx, test_src_data, mb_size, tgt_indexer,
         log.info("writing src of test set to %s"% control_src_fn)
         for s in test_src_data:
 #             control_out.write(convert_idx_to_string(s, src_voc) + "\n")
-            control_out.write(" ".join(src_indexer.deconvert(s, unk_tag = s_unk_tag)) + "\n")
+            control_out.write(src_indexer.deconvert(s, unk_tag = s_unk_tag) + "\n")
         
     if test_references is not None:
 #         unk_id = tgt_indexer.get_unk_idx()  #len(tgt_voc) - 1
@@ -274,12 +274,12 @@ def sample_once(encdec, src_batch, tgt_batch, src_mask, src_indexer, tgt_indexer
         
         print "sent num", sent_num
         print "src idx:", src_idx_seq
-        print "src:", " ".join(src_indexer.deconvert(src_idx_seq, unk_tag = s_unk_tag)).encode('utf-8') #convert_idx_to_string(src_idx_seq, src_voc)
+        print "src:", src_indexer.deconvert(src_idx_seq, unk_tag = s_unk_tag).encode('utf-8') #convert_idx_to_string(src_idx_seq, src_voc)
         print "tgt idx:", tgt_idx_seq
-        print "tgt:", " ".join(tgt_indexer.deconvert(tgt_idx_seq, unk_tag = t_unk_tag, eos_idx = eos_idx)).encode('utf-8') # convert_idx_to_string(tgt_idx_seq, tgt_voc, eos_idx = eos_idx)
+        print "tgt:", tgt_indexer.deconvert(tgt_idx_seq, unk_tag = t_unk_tag, eos_idx = eos_idx).encode('utf-8') # convert_idx_to_string(tgt_idx_seq, tgt_voc, eos_idx = eos_idx)
         print "sample idx:", sample_idx_seq
-        print "sample:", " ".join(tgt_indexer.deconvert(sample_idx_seq, unk_tag = t_unk_tag, eos_idx = eos_idx)).encode('utf-8') #convert_idx_to_string(sample_idx_seq, tgt_voc, eos_idx = eos_idx)
+        print "sample:", tgt_indexer.deconvert(sample_idx_seq, unk_tag = t_unk_tag, eos_idx = eos_idx).encode('utf-8') #convert_idx_to_string(sample_idx_seq, tgt_voc, eos_idx = eos_idx)
         print "sample random idx:", sample_random_idx_seq
-        print "sample random:", " ".join(tgt_indexer.deconvert(sample_random_idx_seq, unk_tag = t_unk_tag, eos_idx = eos_idx)).encode('utf-8') #convert_idx_to_string(sample_idx_seq, tgt_voc, eos_idx = eos_idx)
+        print "sample random:", tgt_indexer.deconvert(sample_random_idx_seq, unk_tag = t_unk_tag, eos_idx = eos_idx).encode('utf-8') #convert_idx_to_string(sample_idx_seq, tgt_voc, eos_idx = eos_idx)
         
         

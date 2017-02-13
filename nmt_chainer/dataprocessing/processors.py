@@ -147,6 +147,17 @@ class ProcessorChain(PreProcessor):
             else:
                 seq = processor.deconvert(seq)
         return seq
+    
+    def deconvert_swallow(self, seq, unk_tag="#UNK#", no_oov=True, eos_idx=None):
+        return self.processor_list[-1].deconvert(seq, unk_tag=unk_tag, no_oov=no_oov, eos_idx=eos_idx)
+            
+    def deconvert_post(self, seq, unk_tag="#UNK#", no_oov=True, eos_idx=None):
+        for num_processor, processor in enumerate(self.processor_list[::-1]):
+            if num_processor == 0:
+                pass
+            else:
+                seq = processor.deconvert(seq)
+        return seq     
             
     def is_unk_idx(self, idx):
         return self.processor_list[-1].is_unk_idx(idx)
@@ -489,7 +500,9 @@ def load_pp_from_data(data):
     if Indexer.check_if_data_indexer(data):
         indexer = Indexer.make_from_serializable(data)
         ipp = IndexingPrePostProcessor.make_from_indexer(indexer)
-        pp = ProcessorChain([SimpleSegmenter("word"), 
+        ss_pp = SimpleSegmenter("word")
+        ss_pp.initialize(None)
+        pp = ProcessorChain([ss_pp, 
                                  ipp])
     else:
         pp = PreProcessor.make_from_serializable(data)

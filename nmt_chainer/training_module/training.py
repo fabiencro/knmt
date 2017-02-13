@@ -54,8 +54,8 @@ def train_on_data(encdec, optimizer, training_data, output_files_dict,
         
         for s,t in training_data_sorted_by_complexity[:400]:
             print example_complexity((s,t))
-            print " ".join(src_indexer.deconvert(s))
-            print " ".join(tgt_indexer.deconvert(t))
+            print src_indexer.deconvert(s)
+            print tgt_indexer.deconvert(t)
             print
             
         mb_provider = minibatch_provider_curiculum(training_data_sorted_by_complexity, eos_idx, mb_size, nb_of_batch_to_sort, gpu = gpu,
