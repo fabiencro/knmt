@@ -311,26 +311,27 @@ def do_eval(config_eval):
         
         
     log.info("opening source file %s" % src_fn)
-    src_data, stats_src_pp = build_dataset_one_side_pp(src_fn, src_pp = src_indexer
+    src_data, stats_src_pp = build_dataset_one_side_pp(src_fn, src_pp = src_indexer,
                                     max_nb_ex = max_nb_ex)
-    log.info("%i sentences loaded" % make_data_infos.nb_ex)
-    log.info("#tokens src: %i   of which %i (%f%%) are unknown"%(make_data_infos.total_token, 
-                                                                 make_data_infos.total_count_unk, 
-                                                                 float(make_data_infos.total_count_unk * 100) / 
-                                                                    make_data_infos.total_token))
-    assert dic_src == src_indexer
+    log.info("src data stats:\n%s", stats_src_pp.make_report())
+    
+#     log.info("%i sentences loaded" % make_data_infos.nb_ex)
+#     log.info("#tokens src: %i   of which %i (%f%%) are unknown"%(make_data_infos.total_token, 
+#                                                                  make_data_infos.total_count_unk, 
+#                                                                  float(make_data_infos.total_count_unk * 100) / 
+#                                                                     make_data_infos.total_token))
     
     tgt_data = None
     if tgt_fn is not None:
         log.info("opening target file %s" % tgt_fn)
-        tgt_data, stats_tgt_pp = build_dataset_one_side_pp(tgt_fn, src_pp = tgt_indexer
+        tgt_data, stats_tgt_pp = build_dataset_one_side_pp(tgt_fn, src_pp = tgt_indexer,
                                     max_nb_ex = max_nb_ex)
-        log.info("%i sentences loaded"%make_data_infos.nb_ex)
-        log.info("#tokens src: %i   of which %i (%f%%) are unknown"%(make_data_infos.total_token, 
-                                                                 make_data_infos.total_count_unk, 
-                                                                 float(make_data_infos.total_count_unk * 100) / 
-                                                                    make_data_infos.total_token))
-        assert dic_tgt == tgt_indexer
+        log.info("tgt data stats:\n%s", stats_tgt_pp.make_report())
+#         log.info("%i sentences loaded"%make_data_infos.nb_ex)
+#         log.info("#tokens src: %i   of which %i (%f%%) are unknown"%(make_data_infos.total_token, 
+#                                                                  make_data_infos.total_count_unk, 
+#                                                                  float(make_data_infos.total_count_unk * 100) / 
+#                                                                     make_data_infos.total_token))
 
     
 #     translations = greedy_batch_translate(encdec, eos_idx, src_data, batch_size = mb_size, gpu = args.gpu)
