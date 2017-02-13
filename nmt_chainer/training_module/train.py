@@ -30,7 +30,7 @@ import nmt_chainer.models.attention
 import nmt_chainer.models.encoder_decoder
 
 import nmt_chainer.models.rnn_cells as rnn_cells
-
+import nmt_chainer.dataprocessing.processors as processors
             
 logging.basicConfig()
 log = logging.getLogger("rnns:train")
@@ -112,10 +112,10 @@ def create_encdec_and_indexers_from_config_dict(config_dict, src_indexer = None,
         src_voc, tgt_voc = json.load(open(voc_fn))
     
     if src_indexer is None:
-        src_indexer = Indexer.make_from_serializable(src_voc)
+        src_indexer = processors.PreProcessor.make_from_serializable(src_voc)
         
     if tgt_indexer is None:
-        tgt_indexer = Indexer.make_from_serializable(tgt_voc)
+        tgt_indexer = processors.PreProcessor.make_from_serializable(tgt_voc)
         
     tgt_voc = None
     src_voc = None
@@ -150,8 +150,10 @@ def load_voc_and_update_training_config(config_training):
     log.info("loading voc from %s"% voc_fn)
     src_voc, tgt_voc = json.load(open(voc_fn))
     
-    src_indexer = Indexer.make_from_serializable(src_voc)
-    tgt_indexer = Indexer.make_from_serializable(tgt_voc)
+    
+    
+    src_indexer = processors.PreProcessor.make_from_serializable(src_voc)
+    tgt_indexer = processors.PreProcessor.make_from_serializable(tgt_voc)
     tgt_voc = None
     src_voc = None
     
