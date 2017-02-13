@@ -34,6 +34,9 @@ def define_parser(parser):
     parser.add_argument("--tgt_segmentation_type", choices = ["word", "word2char", "char"], default = "word")
     parser.add_argument("--src_segmentation_type", choices = ["word", "word2char", "char"], default = "word")
     
+    parser.add_argument("--bpe_src", type = int, help = "Apply BPE to source side, with this many merges")
+    parser.add_argument("--bpe_tgt", type = int, help = "Apply BPE to target side, with this many merges")
+    
 class CommandLineValuesException(Exception):
     pass
 

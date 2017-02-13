@@ -188,8 +188,18 @@ def do_make_data(config):
     voc_fn_src = config.save_prefix + ".src.voc"
     voc_fn_tgt = config.save_prefix + ".tgt.voc"
     
+    files_that_will_be_created = [config_fn, voc_fn, data_fn]
+    
+    if config.bpe_src is not None:
+        bpe_data_file_src = config.save_prefix + ".src.bpe"
+        files_that_will_be_created.append(bpe_data_file_src)
+    
+    if config.bpe_tgt is not None:
+        bpe_data_file_tgt = config.save_prefix + ".tgt.bpe"
+        files_that_will_be_created.append(bpe_data_file_tgt)
+    
     already_existing_files = []
-    for filename in [config_fn, voc_fn, data_fn]:  # , valid_data_fn]:
+    for filename in files_that_will_be_created:  # , valid_data_fn]:
         if os.path.exists(filename):
             already_existing_files.append(filename)
     if len(already_existing_files) > 0:
@@ -203,11 +213,23 @@ def do_make_data(config):
 #         tgt_pp = IndexingPrePostProcessor.make_from_serializable(tgt_voc)
         src_pp, tgt_pp = processors.load_pp_pair_from_file(config.use_voc)
     else:
-        src_pp = processors.ProcessorChain([processors.SimpleSegmenter(config.src_segmentation_type), 
-                                 processors.IndexingPrePostProcessor(voc_limit = config.src_voc_size)])
+        if config.bpe_src is not None:
+            src_pp = (processors.SimpleSegmenter(config.src_segmentation_type) +
+                      processors.BPEProcessing(bpe_data_file = bpe_data_file_src, symbols = config.bpe_src) +
+                    processors.IndexingPrePostProcessor(voc_limit = config.src_voc_size)
+                    )
+        else:
+            src_pp = (processors.SimpleSegmenter(config.src_segmentation_type) +
+                    processors.IndexingPrePostProcessor(voc_limit = config.src_voc_size)
+                    )
         
-        tgt_pp = processors.ProcessorChain([processors.SimpleSegmenter(config.tgt_segmentation_type), 
-                                 processors.IndexingPrePostProcessor(voc_limit = config.src_voc_size)])
+        if config.bpe_tgt is not None:
+            tgt_pp = (processors.SimpleSegmenter(config.tgt_segmentation_type) +
+                      processors.BPEProcessing(bpe_data_file = bpe_data_file_tgt, symbols = config.bpe_tgt) +
+                                 processors.IndexingPrePostProcessor(voc_limit = config.tgt_voc_size))
+        else:
+            tgt_pp = (processors.SimpleSegmenter(config.tgt_segmentation_type) +
+                                 processors.IndexingPrePostProcessor(voc_limit = config.tgt_voc_size))
     
     def load_data(src_fn, tgt_fn, max_nb_ex=None):
 
