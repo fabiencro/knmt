@@ -12,3 +12,7 @@ knmt train tests/tests_data/models/result_invariability.data tests/tests_data/mo
 rm -rf tests/tests_data/models/result_invariability.train
 rm -rf tests/tests_data/models/result_invariability.train.model.best_loss.npz
 rm -rf tests/tests_data/models/result_invariability.train.result.sqlite
+
+# Create translations with the model using beam search.
+knmt eval tests/tests_data/models/result_invariability.train.train.config tests/tests_data/models/result_invariability.train.model.best.npz tests/tests_data/src2.txt tests/tests_data/models/result_invariability.translations_using_beam_search.txt --mode beam_search --beam_width 30
+
