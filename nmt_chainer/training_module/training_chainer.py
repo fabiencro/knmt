@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 """training.py: training procedures."""
-from nmt_chainer import argument_parsing_tools
+from nmt_chainer.utilities import argument_parsing_tools
 __author__ = "Fabien Cromieres"
 __license__ = "undecided"
 __version__ = "1.0"
@@ -17,8 +17,8 @@ import sys
 import math
 import json
 
-from utils import minibatch_provider, minibatch_provider_curiculum, make_batch_src_tgt
-from evaluation import ( 
+from nmt_chainer.utilities.utils import minibatch_provider, minibatch_provider_curiculum, make_batch_src_tgt
+from nmt_chainer.translation.evaluation import ( 
                   compute_loss_all, translate_to_file, sample_once)
 
 import chainer.iterators
