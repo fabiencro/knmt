@@ -4,7 +4,7 @@ import argparse
 import json
 import datetime
 import sys
-import versioning_tools
+from nmt_chainer.utilities import versioning_tools
 
 class OrderedNamespace(OrderedDict):
     def __init__(self, *args, **kwargs):
@@ -38,7 +38,8 @@ class OrderedNamespace(OrderedDict):
     @classmethod
     def load_from(cls, filename):
         d = json.load(open(filename), object_pairs_hook=OrderedDict)
-        return cls.convert_to_ordered_namespace(d)
+        cls.convert_to_ordered_namespace(d)
+        return d
     
     @classmethod
     def convert_to_ordered_namespace(cls, ordered_dict):
@@ -91,9 +92,11 @@ class OrderedNamespace(OrderedDict):
             res.readonly = readonly
         return res
     
-    def add_section(self, name, keep_at_bottom = None):
+    def add_section(self, name, keep_at_bottom = None, overwrite = False):
         if self.readonly:
             raise ValueError()
+        if name in self and not overwrite:
+            return
         self[name] = OrderedNamespace()
         if keep_at_bottom is not None:
             metadata = self[keep_at_bottom]
@@ -203,5 +206,7 @@ class ArgumentActionNotOverwriteWithNone(argparse.Action):
         if self.dest in namespace and getattr(namespace, self.dest) is not None and values is None:
             return
         setattr(namespace, self.dest, values)
+
+
 
         

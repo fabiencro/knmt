@@ -1,6 +1,6 @@
 import argparse
-import graph_training
-import replace_tgt_unk
+from nmt_chainer.utilities import graph_training
+from nmt_chainer.utilities import replace_tgt_unk
 
 def define_parser(parser):
     subparsers = parser.add_subparsers(dest = "__sub_subcommand_name")

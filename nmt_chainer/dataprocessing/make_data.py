@@ -15,238 +15,15 @@ import operator
 import os.path
 import gzip
 
-from utils import ensure_path
+from nmt_chainer.utilities.utils import ensure_path
+from indexer import Indexer
+
 # import h5py
 
 logging.basicConfig()
 log = logging.getLogger("rnns:make_data")
 log.setLevel(logging.INFO)
 
-# class Indexer(object):
-#     def __init__(self, unk_tag = "#UNK#"):
-#         self.dic = {}
-#         self.lst = []
-#         self.finalized = False
-#
-#     def add_word(self, w, should_be_new = False):
-#         assert not self.finalized
-#         assert w is not None
-#         if w not in self.dic:
-#             new_idx = len(self.lst)
-#             self.dic[w] = new_idx
-#             self.lst.append(w)
-#             assert len(self.lst) == len(self.dic)
-#         else:
-#             assert not should_be_new
-#
-#     def assign_index_to_voc(self, voc_iter, all_should_be_new = False):
-#         assert not self.finalized
-#         for w in voc_iter:
-#             self.add_word(w, should_be_new = all_should_be_new)
-#
-#     def finalize(self):
-#         assert not self.finalized
-#         self.dic[None] = len(self.lst)
-#         self.lst.append(None)
-#         self.finalized = True
-#
-#     def get_unk_idx(self):
-#         assert self.finalized
-#         return self.dic[None]
-#
-#     def convert(self, seq):
-#         assert self.finalized
-#         assert len(self.dic) == len(self.lst)
-#         unk_idx = self.get_unk_idx()
-# #         res = np.empty( (len(seq),), dtype = np.int32)
-#         res = [None] * len(seq)
-#         for pos, w in enumerate(seq):
-#             assert w is not None
-#             idx = self.dic.get(w, unk_idx)
-#             res[pos] = idx
-#         return res
-#
-#     def deconvert(self, seq, unk_tag = "#UNK#", no_oov = True, eos_idx = None):
-#         assert self.finalized
-#         assert eos_idx is None or eos_idx >= len(self.lst)
-#         res = []
-#         for num, idx in enumerate(seq):
-#             if idx >= len(self.lst):
-#                 if eos_idx is not None and eos_idx == idx:
-#                     w = "#EOS#"
-#                 elif no_oov:
-#                     raise KeyError()
-#                 else:
-#                     log.warn("unknown idx: %i / %i"%(idx, len(self.lst)))
-#                     continue
-#             else:
-#                 w = self.lst[idx]
-#             if w is None:
-#                 if callable(unk_tag):
-#                     w = unk_tag(num)
-#                 else:
-#                     w = unk_tag
-#             res.append(w)
-#         return res
-#
-#     def __len__(self):
-#         assert self.finalized
-#         assert len(self.dic) == len(self.lst)
-#         return len(self.lst)
-#
-#     def to_serializable(self):
-#         return {"type": "simple_indexer", "rev": 1,  "voc_lst" : self.lst}
-#
-#     @staticmethod
-#     def make_from_serializable(datas):
-#         assert datas["type"] == "simple_indexer"
-#         assert datas["rev"] == 1
-#         voc_lst = datas["voc_lst"]
-#         res = Indexer()
-#         res.lst = list(voc_lst)
-#         for idx, w in enumerate(voc_lst):
-#             res.dic[w] = idx
-#         res.finalized = True
-#         return res
-
-
-class Indexer(object):
-
-    def __init__(self, unk_tag="#UNK#"):
-        self.dic = {}
-        self.lst = []
-        self.unk_label_dictionary = None
-        self.finalized = False
-
-    def add_word(self, w, should_be_new=False, should_not_be_int=True):
-        assert not self.finalized
-        assert not (should_not_be_int and isinstance(w, int))
-        if w not in self.dic:
-            new_idx = len(self.lst)
-            self.dic[w] = new_idx
-            self.lst.append(w)
-            assert len(self.lst) == len(self.dic)
-        else:
-            assert not should_be_new
-
-    def assign_index_to_voc(self, voc_iter, all_should_be_new=False):
-        assert not self.finalized
-        for w in voc_iter:
-            self.add_word(w, should_be_new=all_should_be_new)
-
-    def finalize(self):
-        assert not self.finalized
-        assert len(self.dic) == len(self.lst)
-        self.add_word(0, should_be_new=False, should_not_be_int=False)
-        self.finalized = True
-
-    def get_one_unk_idx(self, w):
-        assert self.finalized
-        assert w not in self.dic
-        if self.unk_label_dictionary is not None:
-            return self.dic[self.unk_label_dictionary.get(w, 1)]
-        else:
-            return self.dic[0]
-
-    def is_unk_idx(self, idx):
-        assert self.finalized
-        assert idx < len(self.lst)
-        return isinstance(self.lst[idx], int)
-
-    def add_unk_label_dictionary(self, unk_dic):
-        assert not self.finalized
-        self.unk_label_dictionary = unk_dic
-
-    def convert(self, seq):
-        assert self.finalized
-        assert len(self.dic) == len(self.lst)
-        res = [None] * len(seq)
-        for pos, w in enumerate(seq):
-            assert not isinstance(w, int)
-            if w in self.dic:
-                idx = self.dic[w]
-            else:
-                idx = self.get_one_unk_idx(w)
-            res[pos] = idx
-        return res
-
-    def convert_and_update_unk_tags(self, seq, give_unk_label):
-        assert not self.finalized
-        assert len(self.dic) == len(self.lst)
-        res = [None] * len(seq)
-        for pos, w in enumerate(seq):
-            assert not isinstance(w, int)
-            if w in self.dic:
-                idx = self.dic[w]
-            else:
-                aligned_pos = give_unk_label(pos, w)
-                if aligned_pos not in self.dic:
-                    self.add_word(aligned_pos, should_be_new=True,
-                                  should_not_be_int=False)
-                idx = self.dic[aligned_pos]
-            res[pos] = idx
-        return res
-
-    def deconvert(self, seq, unk_tag="#UNK#", no_oov=True, eos_idx=None):
-        assert self.finalized
-        assert eos_idx is None or eos_idx >= len(self.lst)
-        res = []
-        for num, idx in enumerate(seq):
-            if idx >= len(self.lst):
-                if eos_idx is not None and eos_idx == idx:
-                    w = "#EOS#"
-                elif no_oov:
-                    raise KeyError()
-                else:
-                    log.warn("unknown idx: %i / %i" % (idx, len(self.lst)))
-                    continue
-            else:
-                w = self.lst[idx]
-
-            if isinstance(w, int):
-                if callable(unk_tag):
-                    w = unk_tag(num, w)
-                else:
-                    w = unk_tag
-
-            res.append(w)
-        return res
-
-    def __len__(self):
-        assert self.finalized
-        assert len(self.dic) == len(self.lst)
-        return len(self.lst)
-
-    def to_serializable(self):
-        return {"type": "simple_indexer", "rev": 1,  "voc_lst": self.lst, "unk_label_dic": self.unk_label_dictionary}
-
-    @staticmethod
-    def make_from_serializable(datas):
-        if isinstance(datas, list):
-            # legacy mode
-            log.info("loading legacy voc")
-            voc_lst = datas
-            assert 0 not in voc_lst
-            res = Indexer()
-            res.lst = list(voc_lst)  # add UNK
-            for idx, w in enumerate(res.lst):
-                assert isinstance(w, basestring)
-                res.dic[w] = idx
-            assert len(res.dic) == len(res.lst)
-            res.finalize()
-            return res
-        else:
-            assert isinstance(datas, dict)
-            assert datas["type"] == "simple_indexer"
-            assert datas["rev"] == 1
-            voc_lst = datas["voc_lst"]
-            res = Indexer()
-            res.lst = list(voc_lst)
-            res.unk_label_dictionary = datas["unk_label_dic"]
-            for idx, w in enumerate(voc_lst):
-                res.dic[w] = idx
-            res.finalized = True
-            return res
 
 MakeDataInfosOneSide = collections.namedtuple(
     "MakeDataInfosOneSide", ["total_count_unk", "total_token", "nb_ex"])
@@ -666,68 +443,14 @@ def build_dataset_with_align_info(src_fn, tgt_fn, align_fn,
                                                        )
 
 
-def define_parser(parser):
-    parser.add_argument(
-        "src_fn", help="source language text file for training data")
-    parser.add_argument(
-        "tgt_fn", help="target language text file for training data")
-    parser.add_argument(
-        "save_prefix", help="created files will be saved with this prefix")
-    parser.add_argument("--align_fn", help="align file for training data")
-    parser.add_argument("--src_voc_size", type=int, default=32000,
-                        help="limit source vocabulary size to the n most frequent words")
-    parser.add_argument("--tgt_voc_size", type=int, default=32000,
-                        help="limit target vocabulary size to the n most frequent words")
-#     parser.add_argument("--add_to_valid_set_every", type = int)
-#     parser.add_argument("--shuffle", default = False, action = "store_true")
-#     parser.add_argument("--enable_fast_shuffle", default = False, action = "store_true")
-
-    parser.add_argument("--max_nb_ex", type = int, help = "only use the first MAX_NB_EX examples")
-    
-    parser.add_argument("--test_src", help = "specify a source test set")
-    parser.add_argument("--test_tgt", help = "specify a target test set")
-    
-    parser.add_argument("--dev_src", help = "specify a source dev set")
-    parser.add_argument("--dev_tgt", help = "specify a target dev set")
-    parser.add_argument("--mode_align", choices = ["unk_align", "all_align"])
-    parser.add_argument("--use_voc", help = "specify an exisiting vocabulary file")
-    
-    parser.add_argument("--tgt_segmentation_type", choices = ["word", "word2char", "char"], default = "word")
-    parser.add_argument("--src_segmentation_type", choices = ["word", "word2char", "char"], default = "word")
-    
-    
-    
-def cmdline(arguments=None):
-    import sys
-    import argparse
-    parser = argparse.ArgumentParser(description="Prepare training data.",
-                                     formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-    
-    define_parser(parser)
-    
-    args = parser.parse_args(args = arguments)
-    
-    do_make_data(args)
-    
-    
-def do_make_data(args):
-    
-    
-    if not ((args.test_src is None) == (args.test_tgt is None)):
-        print >>sys.stderr, "Command Line Error: either specify both --test_src and --test_tgt or neither"
-        sys.exit(1)
-
-    if not ((args.dev_src is None) == (args.dev_tgt is None)):
-        print >>sys.stderr, "Command Line Error: either specify both --test_src and --test_tgt or neither"
-        sys.exit(1)
-
-    save_prefix_dir, save_prefix_fn = os.path.split(args.save_prefix)
+def do_make_data(config):
+    save_prefix_dir, save_prefix_fn = os.path.split(config.save_prefix)
     ensure_path(save_prefix_dir)
 
-    config_fn = args.save_prefix + ".data.config"
-    voc_fn = args.save_prefix + ".voc"
-    data_fn = args.save_prefix + ".data.json.gz"
-#     valid_data_fn = args.save_prefix + "." + args.model + ".valid.data.npz"
+    config_fn = config.save_prefix + ".data.config"
+    voc_fn = config.save_prefix + ".voc"
+    data_fn = config.save_prefix + ".data.json.gz"
+#     valid_data_fn = config.save_prefix + "." + config.model + ".valid.data.npz"
 
     already_existing_files = []
     for filename in [config_fn, voc_fn, data_fn]:  # , valid_data_fn]:
@@ -742,16 +465,16 @@ def do_make_data(args):
         if align_fn is not None:
             log.info("making training data with alignment")
             training_data, valid_data, dic_src, dic_tgt, make_data_infos = build_dataset_with_align_info(
-                                            src_fn, tgt_fn, align_fn, src_voc_limit = args.src_voc_size, 
-                                            tgt_voc_limit = args.tgt_voc_size, max_nb_ex = max_nb_ex, 
-                                            dic_src = dic_src, dic_tgt = dic_tgt, mode = args.mode_align)
+                                            src_fn, tgt_fn, align_fn, src_voc_limit = config.src_voc_size, 
+                                            tgt_voc_limit = config.tgt_voc_size, max_nb_ex = max_nb_ex, 
+                                            dic_src = dic_src, dic_tgt = dic_tgt, mode = config.mode_align)
         else:
             training_data, dic_src, dic_tgt, make_data_infos = build_dataset(
-                src_fn, tgt_fn, src_voc_limit=args.src_voc_size,
-                tgt_voc_limit=args.tgt_voc_size, max_nb_ex=max_nb_ex,
+                src_fn, tgt_fn, src_voc_limit=config.src_voc_size,
+                tgt_voc_limit=config.tgt_voc_size, max_nb_ex=max_nb_ex,
                 dic_src=dic_src, dic_tgt=dic_tgt,
-                tgt_segmentation_type=args.tgt_segmentation_type,
-                src_segmentation_type=args.src_segmentation_type)
+                tgt_segmentation_type=config.tgt_segmentation_type,
+                src_segmentation_type=config.src_segmentation_type)
             valid_data = None
 
         log.info("%i sentences loaded" % make_data_infos.nb_ex)
@@ -774,46 +497,47 @@ def do_make_data(args):
 
     dic_src = None
     dic_tgt = None
-    if args.use_voc is not None:
-        log.info("loading voc from %s" % args.use_voc)
-        src_voc, tgt_voc = json.load(open(args.use_voc))
+    if config.use_voc is not None:
+        log.info("loading voc from %s" % config.use_voc)
+        src_voc, tgt_voc = json.load(open(config.use_voc))
         dic_src = Indexer.make_from_serializable(src_voc)
         dic_tgt = Indexer.make_from_serializable(tgt_voc)
 
     log.info("loading training data from %s and %s" %
-             (args.src_fn, args.tgt_fn))
-    training_data, valid_data, dic_src, dic_tgt = load_data(args.src_fn, args.tgt_fn, max_nb_ex=args.max_nb_ex,
-                                                            dic_src=dic_src, dic_tgt=dic_tgt, align_fn=args.align_fn)
+             (config.src_fn, config.tgt_fn))
+    training_data, valid_data, dic_src, dic_tgt = load_data(config.src_fn, config.tgt_fn, max_nb_ex=config.max_nb_ex,
+                                                            dic_src=dic_src, dic_tgt=dic_tgt, align_fn=config.align_fn)
 
     test_data = None
-    if args.test_src is not None:
+    if config.test_src is not None:
         log.info("loading test data from %s and %s" %
-                 (args.test_src, args.test_tgt))
+                 (config.test_src, config.test_tgt))
         test_data, _, test_dic_src, test_dic_tgt = load_data(
-            args.test_src, args.test_tgt, dic_src=dic_src, dic_tgt=dic_tgt)
+            config.test_src, config.test_tgt, dic_src=dic_src, dic_tgt=dic_tgt)
 
         assert test_dic_src is dic_src
         assert test_dic_tgt is dic_tgt
 
     dev_data = None
-    if args.dev_src is not None:
+    if config.dev_src is not None:
         log.info("loading dev data from %s and %s" %
-                 (args.dev_src, args.dev_tgt))
+                 (config.dev_src, config.dev_tgt))
         dev_data, _, dev_dic_src, dev_dic_tgt = load_data(
-            args.dev_src, args.dev_tgt, dic_src=dic_src, dic_tgt=dic_tgt)
+            config.dev_src, config.dev_tgt, dic_src=dic_src, dic_tgt=dic_tgt)
 
         assert dev_dic_src is dic_src
         assert dev_dic_tgt is dic_tgt
 
-#     if args.shuffle:
+#     if config.shuffle:
 #         log.info("shuffling data")
-#         if args.enable_fast_shuffle:
+#         if config.enable_fast_shuffle:
 #             shuffle_in_unison_faster(data_input, data_target)
 #         else:
 #             data_input, data_target = shuffle_in_unison(data_input, data_target)
     log.info("saving config to %s" % config_fn)
-    json.dump(args.__dict__, open(config_fn, "w"),
-              indent=2, separators=(',', ': '))
+    config.save_to(config_fn)
+#     json.dump(config.__dict__, open(config_fn, "w"),
+#               indent=2, separators=(',', ': '))
 
     log.info("saving voc to %s" % voc_fn)
     json.dump([dic_src.to_serializable(), dic_tgt.to_serializable()],
@@ -841,5 +565,4 @@ def do_make_data(args):
 #         log.info("saving valid_data to %s"%valid_data_fn)
 #         np.savez_compressed(open(valid_data_fn, "wb"), data_input = data_input_valid, data_target = data_target_valid)
 
-if __name__ == '__main__':
-    cmdline()
+
