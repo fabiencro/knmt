@@ -61,7 +61,7 @@ class TestCommandLine:
               '--mode beam_search --beam_width 30'.split(' ') +\
               ["--additional_training_config", train_prefix + '.train.config', "--additional_trained_model", train_prefix + '.model.best_loss.npz'] +\
               ["--tgt_fn", data_tgt_file, "--ref", data_tgt_file] + "--max_nb_ex 3 --mb_size 1 --beam_pruning_margin 10".split(" ") +\
-              "--nb_steps 23 --nb_steps_ratio 2.8 --nb_batch_to_sort 2 --beam_opt --prob_space_combination".split(" ")
+              "--nb_steps 23 --nb_steps_ratio 2.8 --nb_batch_to_sort 2 --prob_space_combination".split(" ")
         if gpu is not None:
             args_eval += ['--gpu', gpu]
         main(arguments = args_eval)

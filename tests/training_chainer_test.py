@@ -14,10 +14,10 @@ import chainer.functions as F
 import chainer.links as L
 import math
 import nmt_chainer.models as models
-import nmt_chainer.utils as utils
+import nmt_chainer.utilities.utils as utils
 
-from nmt_chainer.utils import de_batch
-import nmt_chainer.training_chainer as iterators
+from nmt_chainer.utilities.utils import de_batch
+import nmt_chainer.training_module.training_chainer as iterators
 from numpy.random import RandomState
 
 def generate_random_dataset(dataset_size, sequence_avg_size):
