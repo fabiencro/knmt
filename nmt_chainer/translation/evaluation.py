@@ -273,13 +273,14 @@ def sample_once(encdec, src_batch, tgt_batch, src_mask, src_indexer, tgt_indexer
         sample_random_idx_seq = debatched_sample_random[sent_num]
         
         print "sent num", sent_num
-        print "src idx:", src_idx_seq
-        print "src:", src_indexer.deconvert(src_idx_seq, unk_tag = s_unk_tag).encode('utf-8') #convert_idx_to_string(src_idx_seq, src_voc)
-        print "tgt idx:", tgt_idx_seq
-        print "tgt:", tgt_indexer.deconvert(tgt_idx_seq, unk_tag = t_unk_tag, eos_idx = eos_idx).encode('utf-8') # convert_idx_to_string(tgt_idx_seq, tgt_voc, eos_idx = eos_idx)
-        print "sample idx:", sample_idx_seq
-        print "sample:", tgt_indexer.deconvert(sample_idx_seq, unk_tag = t_unk_tag, eos_idx = eos_idx).encode('utf-8') #convert_idx_to_string(sample_idx_seq, tgt_voc, eos_idx = eos_idx)
-        print "sample random idx:", sample_random_idx_seq
-        print "sample random:", tgt_indexer.deconvert(sample_random_idx_seq, unk_tag = t_unk_tag, eos_idx = eos_idx).encode('utf-8') #convert_idx_to_string(sample_idx_seq, tgt_voc, eos_idx = eos_idx)
         
+        for name, seq, unk_tag, indexer, this_eos_idx in zip("src tgt sample sample_random".split(" "),
+                             [src_idx_seq, tgt_idx_seq, sample_idx_seq, sample_random_idx_seq],
+                             [s_unk_tag, t_unk_tag, t_unk_tag, t_unk_tag],
+                             [src_indexer, tgt_indexer, tgt_indexer, tgt_indexer],
+                             [None, eos_idx, eos_idx, eos_idx]):
+            print name, "idx:", seq
+            print name, "raw:", " ".join(indexer.deconvert_swallow(seq, unk_tag = unk_tag, eos_idx = this_eos_idx)).encode('utf-8')
+            print name, "postp:", indexer.deconvert(seq, unk_tag = unk_tag, eos_idx = this_eos_idx).encode('utf-8')
+
         
