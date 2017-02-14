@@ -242,7 +242,7 @@ class BPEProcessing(PreProcessor):
         res = []
         merge_to_previous = False
         for position, w in enumerate(seq):
-            if len(w) >= len(self.separator) and w[:-len(self.separator)] == self.separator and position != (len(seq) -1):
+            if len(w) >= len(self.separator) and w[-len(self.separator):] == self.separator and position != (len(seq) -1):
                 has_separator = True
                 w = w[:-len(self.separator)]
             else:
