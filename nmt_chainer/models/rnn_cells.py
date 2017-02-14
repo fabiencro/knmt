@@ -6,18 +6,13 @@ __version__ = "1.0"
 __email__ = "fabien.cromieres@gmail.com"
 __status__ = "Development"
 
-from _collections import defaultdict
 from collections import Counter
-import numpy as np
 import chainer
 from chainer import cuda, Variable
 from chainer import Link, Chain, ChainList
 import chainer.functions as F
 import chainer.links as L
 from chainer import initializers
-import math, random
-
-from utils import ortho_init
 
 import logging
 logging.basicConfig()
@@ -25,7 +20,7 @@ log = logging.getLogger("rnns:cells")
 log.setLevel(logging.INFO)
 
 # L.GRU = L.FastGRU
-import faster_gru
+import nmt_chainer.utilities.faster_gru as faster_gru
 
 
 class GRUCell(Chain):
@@ -243,6 +238,8 @@ cell_dict = {
 # has_dropout = set(["dlno_dropout_on_input = Falsestm"])
 
 
+
+
 cell_description_keywords = {
     "dropout": float,
     "nb_stacks": int,
@@ -285,6 +282,11 @@ def create_cell_model_from_string(model_str):
             raise ValueError("bad cell parameter: %s (possible parameters: %s)"%
                              (comp, " ".join(cell_description_keywords.keys())))
 
+    return create_cell_model(type_str, **keywords)
+
+def create_cell_model_from_config(config):
+    type_str = config["cell_type"]
+    keywords = dict( (k,config[k]) for k in config if k != "cell_type")
     return create_cell_model(type_str, **keywords)
 
 def create_initializer(init_type, scale = None, fillvalue = None):

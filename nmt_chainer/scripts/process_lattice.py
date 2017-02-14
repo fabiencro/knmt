@@ -20,7 +20,7 @@ from evaluation import (greedy_batch_translate,
 #                         convert_idx_to_string_with_attn
                         )
 
-import visualisation
+from nmt_chainer.utilities import visualisation
 
 import logging
 import codecs
