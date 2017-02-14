@@ -31,6 +31,7 @@ import nmt_chainer.models.encoder_decoder
 
 import nmt_chainer.models.rnn_cells as rnn_cells
 
+import nmt_chainer.utilities.profiling_tools as profiling_tools
             
 logging.basicConfig()
 log = logging.getLogger("rnns:train")
@@ -332,23 +333,33 @@ def do_train(config_training):
             log.info("loading optimizer parameters from %s", config_training.training_management.load_optimizer_state)
             serializers.load_npz(config_training.training_management.load_optimizer_state, optimizer)    
     
+    if config_training.training_management.timer_hook:
+        timer_hook = profiling_tools.MyTimerHook
+    else:
+        import contextlib
+        @contextlib.contextmanager
+        def timer_hook():
+            yield
 
     import training_chainer
     with cuda.get_device(gpu):
-        if config_training.training_management.max_nb_iters is not None:
-            stop_trigger = (config_training.training_management.max_nb_iters, "iteration")
-            if config_training.training_management.max_nb_epochs is not None:
-                log.warn("max_nb_iters and max_nb_epochs both specified. Only max_nb_iters will be considered.")
-        elif config_training.training_management.max_nb_epochs is not None:
-            stop_trigger = (config_training.training_management.max_nb_epochs, "epoch")
-        else:
-            stop_trigger = None
-        training_chainer.train_on_data_chainer(encdec, optimizer, training_data, output_files_dict,
-                      src_indexer, tgt_indexer, eos_idx = eos_idx, 
-                      config_training = config_training,
-                      stop_trigger = stop_trigger,
-                      test_data = test_data, dev_data = dev_data, valid_data = valid_data
-                      )
+        with timer_hook() as timer_infos:
+
+            if config_training.training_management.max_nb_iters is not None:
+                stop_trigger = (config_training.training_management.max_nb_iters, "iteration")
+                if config_training.training_management.max_nb_epochs is not None:
+                    log.warn("max_nb_iters and max_nb_epochs both specified. Only max_nb_iters will be considered.")
+            elif config_training.training_management.max_nb_epochs is not None:
+                stop_trigger = (config_training.training_management.max_nb_epochs, "epoch")
+            else:
+                stop_trigger = None
+            training_chainer.train_on_data_chainer(encdec, optimizer, training_data, output_files_dict,
+                          src_indexer, tgt_indexer, eos_idx = eos_idx, 
+                          config_training = config_training,
+                          stop_trigger = stop_trigger,
+                          test_data = test_data, dev_data = dev_data, valid_data = valid_data
+                          )
+                    
 
 # 
 #     import sys

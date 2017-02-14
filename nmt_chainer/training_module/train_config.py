@@ -84,7 +84,7 @@ def define_parser(parser):
     training_monitoring_group.add_argument("--save_initial_model_to", help = "save the initial model parameters to given file in npz format")
     training_monitoring_group.add_argument("--reshuffle_every_epoch", default = False, action = "store_true", help = "reshuffle training data at the end of each epoch")
     training_monitoring_group.add_argument("--resume", default = False, action = "store_true", help = "resume training from checkpoint config")
-#     training_monitoring_group.add_argument("--resume", help = "resume training from checkpoint config")
+    training_monitoring_group.add_argument("--timer_hook", default = False, action = "store_true", help = "activate timer hook for profiling")
     
 class CommandLineValuesException(Exception):
     pass
