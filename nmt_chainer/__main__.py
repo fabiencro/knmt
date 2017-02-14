@@ -1,4 +1,5 @@
 #!/usr/bin/env python -O
+# PYTHON_ARGCOMPLETE_OK
 
 import argparse
 import nmt_chainer.training_module.train_config as train
@@ -10,6 +11,11 @@ import nmt_chainer.utilities.utils_command as utils_command
 
 from nmt_chainer.utilities import versioning_tools
 import sys
+
+try:
+    import argcomplete
+except ImportError:
+    argcomplete = None
 
 def run_in_pdb(func, args):
     import pdb as pdb_module
@@ -72,6 +78,10 @@ def main(arguments = None):
     
     parser_utils = subparsers.add_parser('utils', description= "Call a utility script.", help = "Call a utility script", formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     utils_command.define_parser(parser_utils)
+    
+#     import argcomplete
+    if argcomplete is not None:
+        argcomplete.autocomplete(parser)
     
     args = parser.parse_args(args = arguments)
     

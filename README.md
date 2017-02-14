@@ -5,9 +5,11 @@
 
 This code mainly implements the Neural Machine Translation system described in (Bahdanau et al., 2015). Also known as "RNNSearch", or "Sequence-to-Sequence Modeling with Attention Mechanism", this is, as of 2016, the most commonly used approach in the recent field of Neural Machine Translation. This code is being developped at Kyoto University in Kurohashi-Kawahara lab (http://nlp.ist.i.kyoto-u.ac.jp/).
 
-This implementation uses the Chainer Deep Learning Library (http://chainer.org/).
+This implementation uses the [Chainer](http://chainer.org/) Deep Learning Library.
 
 NB: The Code here has been used for practical purposes for some months and work well. Documentation is a bit incomplete, but is slowly improving.
+
+This code was used for participation in the translation shared task of the 3rd [Workshop on Asian Translation](http://lotus.kuee.kyoto-u.ac.jp/WAT/). See this [paper](http://www.aclweb.org/anthology/W/W16/W16-4616.pdf) for details.
 
 
 #Requirements and Installation:
@@ -151,3 +153,10 @@ This will result in a graph similar to this one, where training loss appears as 
         --max_src_tgt_length 90
         // use smaller value if frequently running out of memory
 
+## Papers
+
+Kyoto University Participation to WAT 2016. Fabien Cromieres, Chenhui Chu, Toshiaki Nakazawa and Sadao Kurohashi. 2016. Proceedings of the 3rd
+Workshop on Asian Translation.[URL](http://www.aclweb.org/anthology/W/W16/W16-4616.pdf)
+
+Kyoto-NMT: a Neural Machine Translation implementation in Chainer. Fabien Cromieres. 2016. Proceedings of COLING 2016: System Demonstrations.
+[URL](https://www.aclweb.org/anthology/C/C16/C16-2064.pdf)
