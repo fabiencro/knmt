@@ -128,8 +128,8 @@ class Evaluator:
             translations_gen = beam_search_translate(
                         self.encdec, self.eos_idx, src_data, beam_width = beam_width, beam_pruning_margin = beam_pruning_margin, 
                                         nb_steps = nb_steps, 
-                                        gpu = self.gpu, beam_opt = self.beam_opt, nb_steps_ratio = nb_steps_ratio,
-                                        need_attention = True, post_score_length_normalization = post_score_length_normalization, 
+                                        gpu = self.gpu, need_attention = True, nb_steps_ratio = nb_steps_ratio,
+                                        post_score_length_normalization = post_score_length_normalization, 
                                         length_normalization_strength = length_normalization_strength,
                                         groundhog = groundhog, force_finish = force_finish,
                                         prob_space_combination = prob_space_combination,
