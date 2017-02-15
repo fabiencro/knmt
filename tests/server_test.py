@@ -12,7 +12,6 @@ from nmt_chainer.client import Client
 import os.path
 import psutil
 import pytest
-import re
 import signal
 import subprocess
 import time
