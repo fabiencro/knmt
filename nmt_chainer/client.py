@@ -38,8 +38,6 @@ class Client:
 	query = re.sub(r"\bSENTENCE\b", escape(sentence), query)
 
 	s = socket.socket()
-	#host = socket.gethostname()     # Get local machine name
-
 	s.connect((self.ip, self.port))
 	s.send(query)
 
