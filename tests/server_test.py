@@ -9,7 +9,6 @@ __status__ = "Development"
 import json
 from nmt_chainer.translation.client import Client
 import os.path
-import psutil
 import pytest
 import signal
 import subprocess
@@ -31,7 +30,7 @@ class TestServer:
         if gpu is not None:
             args_server += '--gpu {0}'.format(gpu)
 
-        server_process = subprocess.Popen(["python -m nmt_chainer server {0}".format(args_server)], shell=True, stdout=subprocess.PIPE)
+        server_process = subprocess.Popen(["python -m nmt_chainer server {0}".format(args_server)], shell=True)
         try:
             print "Server PID={0}".format(server_process.pid)
 
@@ -43,10 +42,6 @@ class TestServer:
             print "resp={0}".format(resp)
             resp_json = json.loads(resp)
         finally:
-            parent = psutil.Process(server_process.pid)
-            children = parent.children(recursive=True)
-            for process in children:
-               process.send_signal(signal.SIGTERM)
-            server_process.terminate()
+            os.killpg(os.getpgid(server_process.pid), signal.SIGTERM)
         
         assert(resp_json['out'] == "die Brille sind rot\n\n")
