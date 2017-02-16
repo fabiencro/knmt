@@ -11,6 +11,8 @@ from chainer import cuda
 
 from utils import make_batch_src, make_batch_src_tgt, minibatch_provider, compute_bleu_with_unk_as_wrong, de_batch
 import logging
+import numpy as np
+import math
 import codecs
 import operator
 import beam_search
@@ -138,16 +140,17 @@ def reverse_rescore(encdec, src_batch, src_mask, eos_idx, translations, gpu = No
      
 def beam_search_translate(encdec, eos_idx, src_data, beam_width = 20, beam_pruning_margin = None, nb_steps = 50, gpu = None, beam_opt = False,
                           need_attention = False, nb_steps_ratio = None, post_score_length_normalization = 'simple', length_normalization_strength = 0.2,  
+                          post_score_coverage_penalty = 'none', post_score_coverage_penalty_strength = 0.2,
                           groundhog = False, force_finish = False,
                           prob_space_combination = False,
                           reverse_encdec = None, use_unfinished_translation_if_none_found = False):
     nb_ex = len(src_data)
 #     res = []
-    for i in range(nb_ex):
-        src_batch, src_mask = make_batch_src([src_data[i]], gpu = gpu, volatile = "on")
+    for num_ex in range(nb_ex):
+        src_batch, src_mask = make_batch_src([src_data[num_ex]], gpu = gpu, volatile = "on")
         assert len(src_mask) == 0
         if nb_steps_ratio is not None:
-            nb_steps = int(len(src_data[i]) * nb_steps_ratio) + 1
+            nb_steps = int(len(src_data[num_ex]) * nb_steps_ratio) + 1
             
 #         if isinstance(encdec, (tuple, list)):
 #             assert len(encdec) == 1
@@ -184,13 +187,55 @@ def beam_search_translate(encdec, eos_idx, src_data, beam_width = 20, beam_pruni
                 tr, sc, attn = translations[num_t]
                 rescored_translations.append((tr, sc + reverse_scores[num_t], attn))
             translations = rescored_translations
-                    
-        if post_score_length_normalization == 'simple':
-            translations.sort(key = lambda x:x[1]/(len(x[0])+1), reverse = True)
-        elif post_score_length_normalization == 'google':
-            translations.sort(key = lambda x:x[1]/( pow((len(x[0])+5), length_normalization_strength) / pow(6, length_normalization_strength) ), reverse = True)
+
+
+        xp = encdec[0].xp
+
+        if post_score_length_normalization == 'none' and post_score_coverage_penalty == 'none':
+            ranking_criterion = operator.itemgetter(1)
         else:
-            translations.sort(key = operator.itemgetter(1), reverse = True)
+            def ranking_criterion(x):
+                length_normalization = 1
+                if post_score_length_normalization == 'simple':
+                    length_normalization = len(x[0])+1
+                elif post_score_length_normalization == 'google':
+                    length_normalization = pow((len(x[0])+5), length_normalization_strength) / pow(6, length_normalization_strength)
+
+                coverage_penalty = 0
+                if post_score_coverage_penalty == 'google':
+                    assert len(src_data[num_ex]) == x[2][0].shape[0]
+                   
+                    #log.info("sum={0}".format(sum(x[2])))
+                    #log.info("min={0}".format(xp.minimum(sum(x[2]), xp.array(1.0))))
+                    #log.info("log={0}".format(xp.log(xp.minimum(sum(x[2]), xp.array(1.0)))))
+                    log_of_min_of_sum_over_j = xp.log(xp.minimum(sum(x[2]), xp.array(1.0)))
+                    coverage_penalty = post_score_coverage_penalty_strength * xp.sum(log_of_min_of_sum_over_j)
+                    #log.info("cp={0}".format(coverage_penalty))
+                    #cp = 0
+                    #for i in xrange(len(src_data[num_ex])):
+                    #    attn_sum = 0
+                    #    for j in xrange(len(x[0])):
+                    #        attn_sum += x[2][j][i]
+                    #    #log.info("attn_sum={0}".format(attn_sum))
+                    #    #log.info("min={0}".format(min(attn_sum, 1.0)))
+                    #    #log.info("log={0}".format(math.log(min(attn_sum, 1.0))))
+                    #    cp += math.log(min(attn_sum, 1.0))
+                    #log.info("cp={0}".format(cp))
+                    #cp *= post_score_coverage_penalty_strength
+
+                    #slow = x[1]/length_normalization + cp
+                    #opti = x[1]/length_normalization + coverage_penalty
+                    #log.info("type={0}....{1}".format(type(slow), type(opti)))
+                    #log.info("shape={0} size={1} dim={2} data={3} elem={4}".format(opti.shape, opti.size, opti.ndim, opti.data, opti.item(0)))
+                    #test = '!!!'
+                    #if "{0}".format(slow) == "{0}".format(opti):
+                    #    test = ''
+                    #log.info("score slow <=> optimized: {0} <=> {1} {2}".format(slow, opti, test))
+
+                return x[1]/length_normalization + coverage_penalty
+
+        translations.sort(key = ranking_criterion, reverse = True)
+
 #         bests.append(translations[0])
 #         yield bests
         yield translations[0]
