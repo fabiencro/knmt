@@ -2,6 +2,9 @@ import chainer
 import chainer.function_hooks
 from chainer import function
 from chainer import cuda
+from collections import defaultdict
+import time
+import numpy
 
 def function_namer(function, in_data):
     in_shapes = []
@@ -51,6 +54,13 @@ class MyTimerHook(function.FunctionHook):
 
     def __init__(self):
         self.call_times_per_classes = defaultdict(TimerElem)
+
+    def __exit__(self, *_):
+        print self
+        self.print_sorted()
+        print "total time:"
+        print(self.total_time())
+        super(MyTimerHook, self).__exit__(*_)
 
     def _preprocess(self):
         if self.xp == numpy:

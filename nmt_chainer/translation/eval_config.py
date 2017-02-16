@@ -29,6 +29,8 @@ def define_parser(parser):
     translation_method_group.add_argument("--force_finish", default = False, action = "store_true")
     translation_method_group.add_argument("--post_score_length_normalization", choices = ['none', 'simple', 'google'], default = 'simple')
     translation_method_group.add_argument("--length_normalization_strength", type = float, default = 0.2)
+    translation_method_group.add_argument("--post_score_coverage_penalty", choices = ['none', 'google'], default = 'none')
+    translation_method_group.add_argument("--post_score_coverage_penalty_strength", type = float, default = 0.2)
     translation_method_group.add_argument("--prob_space_combination", default = False, action = "store_true")
     
     output_group = parser.add_argument_group(_CONFIG_SECTION_TO_DESCRIPTION["output"])
@@ -59,6 +61,7 @@ def define_parser(parser):
     management_group.add_argument("--reverse_training_config", help = "prefix of the trained model")
     management_group.add_argument("--reverse_trained_model", help = "prefix of the trained model")
 #     management_group.add_argument("--config", help = "load eval config file")
+    
     
 class CommandLineValuesException(Exception):
     pass
