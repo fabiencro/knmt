@@ -43,7 +43,6 @@ class TestServer:
             print "resp={0}".format(resp)
             resp_json = json.loads(resp)
         finally:
-            pass
             os.killpg(os.getpgid(server_process.pid), signal.SIGTERM) 
         
         assert(resp_json['out'] == "die Brille sind rot\n\n")
