@@ -10,6 +10,7 @@ import json
 import nmt_chainer.server as server
 from nmt_chainer.client import Client
 import os.path
+import psutil
 import pytest
 import signal
 import subprocess
@@ -43,6 +44,10 @@ class TestServer:
             print "resp={0}".format(resp)
             resp_json = json.loads(resp)
         finally:
-            os.killpg(os.getpgid(server_process.pid), signal.SIGTERM) 
+            parent = psutil.Process(server_process.pid)
+            children = parent.children(recursive=True)
+            for process in children:
+                process.send_signal(signal.SIGTERM)
+            server_process.terminate()
         
         assert(resp_json['out'] == "die Brille sind rot\n\n")
