@@ -9,24 +9,15 @@ __status__ = "Development"
 import datetime
 import json
 import numpy as np
-from chainer import cuda, serializers
+from chainer import cuda
 import logging
 import sys
-#import h5py
+import tempfile
 
-from nmt_chainer.dataprocessing.make_data import Indexer, build_dataset_one_side_from_string
-from nmt_chainer.translation.evaluation import (greedy_batch_translate, 
-#                         convert_idx_to_string, 
-                        batch_align, 
-                        beam_search_translate, 
-#                         convert_idx_to_string_with_attn
-                        )
-
+from nmt_chainer.dataprocessing.processors import build_dataset_one_side_pp
+from nmt_chainer.translation.evaluation import beam_search_translate
 from nmt_chainer.translation.eval import create_and_load_encdec_from_files
 
-
-from nmt_chainer.utilities import bleu_computer
-import codecs
 import traceback
 
 import time
@@ -37,7 +28,7 @@ import SocketServer
 import xml.etree.ElementTree as ET
 import re
 import subprocess
-from nmt_chainer.utilities import replace_tgt_unk
+from nmt_chainer.utilities.replace_tgt_unk import replace_unk
 import bokeh.embed
 
 logging.basicConfig()
@@ -111,84 +102,86 @@ class Evaluator:
             remove_unk, normalize_unicode_unk, attempt_to_relocate_unk_source, post_score_length_normalization, length_normalization_strength, groundhog, force_finish, prob_space_combination, attn_graph_width, attn_graph_height):
         from nmt_chainer.utilities import visualisation
         log.info("processing source string %s" % request)
-        src_data, dic_src, make_data_infos = build_dataset_one_side_from_string(request, 
-                    src_voc_limit = None, max_nb_ex = self.max_nb_ex, dic_src = self.src_indexer)
-        log.info("%i sentences loaded" % make_data_infos.nb_ex)
-        log.info("#tokens src: %i   of which %i (%f%%) are unknown"%(make_data_infos.total_token, 
-                                                                     make_data_infos.total_count_unk, 
-                                                                     float(make_data_infos.total_count_unk * 100) / 
-                                                                        make_data_infos.total_token))
-        assert dic_src == self.src_indexer
 
-        tgt_data = None
+        request_file = tempfile.NamedTemporaryFile()
+        request_file.write(request.encode('utf-8'))
+        request_file.seek(0)
+        try:
+            src_data, stats_src_pp = build_dataset_one_side_pp(request_file.name, self.src_indexer, max_nb_ex = self.max_nb_ex)
+            log.info(stats_src_pp.make_report())
 
-        out = ''
-        unk_mapping = []
-        with cuda.get_device(self.gpu):
-            translations_gen = beam_search_translate(
-                        self.encdec, self.eos_idx, src_data, beam_width = beam_width, beam_pruning_margin = beam_pruning_margin, 
-                                        nb_steps = nb_steps, 
-                                        gpu = self.gpu, beam_opt = self.beam_opt, nb_steps_ratio = nb_steps_ratio,
-                                        need_attention = True, post_score_length_normalization = post_score_length_normalization, 
-                                        length_normalization_strength = length_normalization_strength,
-                                        groundhog = groundhog, force_finish = force_finish,
-                                        prob_space_combination = prob_space_combination,
-                                        reverse_encdec = self.reverse_encdec)
-                                        
+            tgt_data = None
 
-            for num_t, (t, score, attn) in enumerate(translations_gen):
-                if num_t %200 == 0:
-                    print >>sys.stderr, num_t,
-                elif num_t %40 == 0:
-                    print >>sys.stderr, "*",
-                if self.tgt_unk_id == "align":
-                    def unk_replacer(num_pos, unk_id):
-                        unk_pattern = "#T_UNK_%i#"
-                        a = attn[num_pos]
-                        xp = cuda.get_array_module(a)
-                        src_pos = int(xp.argmax(a))
-                        return unk_pattern%src_pos
-                elif self.tgt_unk_id == "id":
-                    def unk_replacer(num_pos, unk_id):
-                        unk_pattern = "#T_UNK_%i#"
-                        return unk_pattern%unk_id         
-                else:
-                    assert False
-                
-                script = ''
-                div = '<div/>'
-                ct = " ".join(self.tgt_indexer.deconvert(t, unk_tag = unk_replacer))
-                if (ct != ''):
-                    unk_pattern = re.compile("#T_UNK_(\d+)#")
-                    for idx, word in enumerate(ct.split(' ')):
-                        match = unk_pattern.match(word)
-                        if (match):
-                            unk_mapping.append(match.group(1) + '-' + str(idx))    
+            out = ''
+            script = ''
+            div = '<div/>'
+            unk_mapping = []
+            with cuda.get_device(self.gpu):
+                translations_gen = beam_search_translate(
+                            self.encdec, self.eos_idx, src_data, beam_width = beam_width, nb_steps = nb_steps,
+                                            gpu = self.gpu, beam_pruning_margin = beam_pruning_margin, nb_steps_ratio = nb_steps_ratio,
+                                            need_attention = True, post_score_length_normalization = post_score_length_normalization, 
+                                            length_normalization_strength = length_normalization_strength,
+                                            groundhog = groundhog, force_finish = force_finish,
+                                            prob_space_combination = prob_space_combination,
+                                            reverse_encdec = self.reverse_encdec)
 
-                    ct = replace_tgt_unk.replace_unk_from_string(ct, request, self.dic, remove_unk, normalize_unicode_unk, attempt_to_relocate_unk_source)
+                for num_t, (t, score, attn) in enumerate(translations_gen):
+                    if num_t %200 == 0:
+                        print >>sys.stderr, num_t,
+                    elif num_t %40 == 0:
+                        print >>sys.stderr, "*",
 
-                    out += ct + "\n"
+                    if self.tgt_unk_id == "align":
+                        def unk_replacer(num_pos, unk_id):
+                            unk_pattern = "#T_UNK_%i#"
+                            a = attn[num_pos]
+                            xp = cuda.get_array_module(a)
+                            src_pos = int(xp.argmax(a))
+                            return unk_pattern%src_pos
+                    elif self.tgt_unk_id == "id":
+                        def unk_replacer(num_pos, unk_id):
+                            unk_pattern = "#T_UNK_%i#"
+                            return unk_pattern%unk_id         
+                    else:
+                        assert False
+                    
+                    ct = " ".join(self.tgt_indexer.deconvert_swallow(t, unk_tag = unk_replacer))
+                    if (ct != ''):
+                        unk_pattern = re.compile("#T_UNK_(\d+)#")
+                        for idx, word in enumerate(ct.split(' ')):
+                            match = unk_pattern.match(word)
+                            if (match):
+                                unk_mapping.append(match.group(1) + '-' + str(idx))    
 
-                    plots_list = []
-                    src_idx_list = src_data[num_t]
-                    tgt_idx_list = t[:-1]
-                    alignment = np.zeros((len(src_idx_list), len(tgt_idx_list)))
-                    sum_al =[0] * len(tgt_idx_list)
+                        from nmt_chainer.utilities import replace_tgt_unk
+                        ct = replace_tgt_unk.replace_unk_from_string(ct, request, self.dic, remove_unk, normalize_unicode_unk, attempt_to_relocate_unk_source)
 
-                    for i in xrange(len(src_idx_list)):
-                        for j in xrange(len(tgt_idx_list)):
-                            alignment[i,j] = attn[j][i]
-                        
-                    src_w = self.src_indexer.deconvert(src_idx_list, unk_tag = "#S_UNK#")
-                    tgt_w = self.tgt_indexer.deconvert(tgt_idx_list, unk_tag = "#T_UNK#")
-                    if (attn_graph_width > 0 and attn_graph_height > 0):
-                        p1 = visualisation.make_alignment_figure(src_w, tgt_w, alignment, title = '', toolbar_location = 'below', plot_width = attn_graph_width, plot_height = attn_graph_height)
-                        plots_list.append(p1)
-                        p_all = visualisation.Column(*plots_list)
+                        out += ct + "\n"
 
-                        script, div = bokeh.embed.components(p_all)
+                        plots_list = []
+                        src_idx_list = src_data[num_t]
+                        tgt_idx_list = t[:-1]
+                        alignment = np.zeros((len(src_idx_list), len(tgt_idx_list)))
+                        sum_al =[0] * len(tgt_idx_list)
+
+                        for i in xrange(len(src_idx_list)):
+                            for j in xrange(len(tgt_idx_list)):
+                                alignment[i,j] = attn[j][i]
+                            
+                        src_w = self.src_indexer.deconvert_swallow(src_idx_list, unk_tag = "#S_UNK#")
+                        tgt_w = self.tgt_indexer.deconvert_swallow(tgt_idx_list, unk_tag = "#T_UNK#")
+                        if (attn_graph_width > 0 and attn_graph_height > 0):
+                            p1 = visualisation.make_alignment_figure(src_w, tgt_w, alignment, title = '', toolbar_location = 'below', plot_width = attn_graph_width, plot_height = attn_graph_height)
+                            plots_list.append(p1)
+                            p_all = visualisation.Column(*plots_list)
+
+                            script, div = bokeh.embed.components(p_all)
 
             print >>sys.stderr
+
+        finally:
+            request_file.close()
 
         return out, script, div, unk_mapping
 
@@ -335,47 +328,8 @@ def timestamped_msg(msg):
     timestamp = datetime.datetime.fromtimestamp(time.time()).strftime('%Y-%m-%d %H:%M:%S')
     return "{0}: {1}".format(timestamp, msg) 
 
-def define_parser(parser):
-    parser.add_argument("training_config", help = "prefix of the trained model")
-    parser.add_argument("trained_model", help = "prefix of the trained model")
-    
-    parser.add_argument("--additional_training_config", nargs = "*", help = "prefix of the trained model")
-    parser.add_argument("--additional_trained_model", nargs = "*", help = "prefix of the trained model")
-    
-    parser.add_argument("--tgt_fn", help = "target text")
-    
-    parser.add_argument("--nbest_to_rescore", help = "nbest list in moses format")
-    
-    parser.add_argument("--ref", help = "target text")
-    
-    parser.add_argument("--gpu", type = int, help = "specify gpu number to use, if any")
-    
-    parser.add_argument("--max_nb_ex", type = int, help = "only use the first MAX_NB_EX examples")
-    parser.add_argument("--mb_size", type = int, default= 80, help = "Minibatch size")
-    parser.add_argument("--nb_batch_to_sort", type = int, default= 20, help = "Sort this many batches by size.")
-    parser.add_argument("--beam_opt", default = False, action = "store_true")
-    parser.add_argument("--tgt_unk_id", choices = ["attn", "id"], default = "align")
-    
-    # arguments for unk replace
-    parser.add_argument("--dic")
-    
-    parser.add_argument("--reverse_training_config", help = "prefix of the trained model")
-    parser.add_argument("--reverse_trained_model", help = "prefix of the trained model")
-    
-    parser.add_argument("--netiface", help = "network interface for listening request", default = 'eth0')
-    parser.add_argument("--port", help = "port for listening request", default = 44666)
-    parser.add_argument("--segmenter_command", help = "command to communicate with the segmenter server")
-    parser.add_argument("--segmenter_format", help = "format to expect from the segmenter (parse_server, morph)", default = 'parse_server')
-
-def command_line(arguments = None):
-    import argparse
-    parser = argparse.ArgumentParser(description= "Launch a RNNSearch server", 
-                                     formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-    define_parser(parser)
-    args = parser.parse_args(args = arguments)
-    do_start_server(args)
-   
 def do_start_server(args):
+    print "do_start_server"
     evaluator = Evaluator(args.training_config, args.trained_model, args.additional_training_config, args.additional_trained_model, 
                    args.reverse_training_config, args.reverse_trained_model, args.max_nb_ex, args.mb_size, args.beam_opt, 
                    args.tgt_unk_id, args.gpu, args.dic)
@@ -392,6 +346,7 @@ def do_start_server(args):
         server.shutdown()
         server.server_close()
     
+    print "bye"
     sys.exit(0)
 
 if __name__ == '__main__':
