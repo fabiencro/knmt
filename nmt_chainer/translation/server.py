@@ -28,7 +28,6 @@ import SocketServer
 import xml.etree.ElementTree as ET
 import re
 import subprocess
-from nmt_chainer.utilities.replace_tgt_unk import replace_unk
 import bokeh.embed
 
 logging.basicConfig()
@@ -329,7 +328,6 @@ def timestamped_msg(msg):
     return "{0}: {1}".format(timestamp, msg) 
 
 def do_start_server(args):
-    print "do_start_server"
     evaluator = Evaluator(args.training_config, args.trained_model, args.additional_training_config, args.additional_trained_model, 
                    args.reverse_training_config, args.reverse_trained_model, args.max_nb_ex, args.mb_size, args.beam_opt, 
                    args.tgt_unk_id, args.gpu, args.dic)
@@ -346,7 +344,6 @@ def do_start_server(args):
         server.shutdown()
         server.server_close()
     
-    print "bye"
     sys.exit(0)
 
 if __name__ == '__main__':
