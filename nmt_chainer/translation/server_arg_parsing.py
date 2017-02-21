@@ -57,7 +57,7 @@ def define_parser(parser):
     parser.add_argument("--reverse_training_config", help = "prefix of the trained model")
     parser.add_argument("--reverse_trained_model", help = "prefix of the trained model")
     
-    parser.add_argument("--netiface", help = "network interface for listening request", default = 'eth0')
+    parser.add_argument("--host", help = "host for listening request", default = 'localhost')
     parser.add_argument("--port", help = "port for listening request", default = 44666)
     parser.add_argument("--segmenter_command", help = "command to communicate with the segmenter server")
     parser.add_argument("--segmenter_format", help = "format to expect from the segmenter (parse_server, morph)", default = 'parse_server')
