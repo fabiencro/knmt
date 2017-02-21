@@ -281,11 +281,9 @@ def do_start_server(args):
     #               args.reverse_training_config, args.reverse_trained_model, args.max_nb_ex, args.mb_size, args.beam_opt, 
     #               args.tgt_unk_id, args.gpu, args.dic)
 
-    retrieve_ip_cmd = "/sbin/ifconfig | grep -A1 '{0}' | grep 'inet addr' | cut -f 2 -d ':' | cut -f 1 -d ' '".format(args.netiface)
-    external_ip = subprocess.check_output(retrieve_ip_cmd, shell=True) 
-    server = Server((external_ip, int(args.port)), RequestHandler, args.segmenter_command, args.segmenter_format, evaluator)
+    server = Server((args.host, int(args.port)), RequestHandler, args.segmenter_command, args.segmenter_format, evaluator)
     ip, port = server.server_address
-    log.info(timestamped_msg("Start listening for requests on {0}({1}) port {2}...".format(socket.gethostname(), external_ip, port)))
+    log.info(timestamped_msg("Start listening for requests on {0}:{1}...".format(socket.gethostname(), port)))
 
     try:
         server.serve_forever()
