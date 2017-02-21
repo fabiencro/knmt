@@ -110,6 +110,15 @@ The models that have given the best BLEU and best perplexity so far are saved in
 
 The sqlite database keep track of many information items during the training: validation BLEU and perplexity, training perplexity, time to process each minibatch, etc. An additional script `graph_training.py` can use this database to generate a plotly (https://github.com/plotly) graph showing the evolution of BLEU, perplexity and training loss. This graph can be generated while training is still in progress and is very useful for monitoring ongoing experiments. 
 
+### Resuming training
+
+During training, `knmt` will save snapshots of the model and trainer states regularly (how often is controled by the `--save_ckpt_every` option. These snapshots are located in the `train_prefix/` sub_directory. In addition, when an exception is encountered (such as an out-of-memory error, or a Ctrl+C user interruption), knmt will attempt to save a `final_snapshot` file.
+
+Training can be resumed from any of these snapshot files by adding the `--load_trainer_snapshot` option to the the original command:
+`knmt train data_prefix train_prefix --option1 --option2 xxx --load_trainer_snapshot train_prefix/final_snapshot`
+
+Warning: The way snapshot saving and handling is being modified in the develop branch, so this method for resuming will be slightly changed shortly.
+
 ## Evaluation
 
 Evaluation is done by running the command `knmt eval`. It allows, among other things, to translate sentences by doing a beam search with a trained model. The following command will translate `input.txt` into `translations.txt` using the parameters that gave the best validation BLEU during training:
