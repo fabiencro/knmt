@@ -45,13 +45,13 @@ class Translator:
             
         self.encdec_list = [self.encdec]
         
-    def translate(self, request, request_number, beam_width, beam_pruning_margin, nb_steps, nb_steps_ratio, 
+    def translate(self, sentence, beam_width, beam_pruning_margin, nb_steps, nb_steps_ratio, 
             remove_unk, normalize_unicode_unk, attempt_to_relocate_unk_source, post_score_length_normalization, length_normalization_strength, groundhog, force_finish, prob_space_combination, attn_graph_width, attn_graph_height):
         from nmt_chainer.utilities import visualisation
-        log.info("processing source string %s" % request)
+        log.info("processing source string %s" % sentence)
 
         request_file = tempfile.NamedTemporaryFile()
-        request_file.write(request.encode('utf-8'))
+        request_file.write(sentence.encode('utf-8'))
         request_file.seek(0)
         try:
             src_data, stats_src_pp = build_dataset_one_side_pp(request_file.name, self.src_indexer, max_nb_ex = self.config_server.process.max_nb_ex)
@@ -102,7 +102,7 @@ class Translator:
                                 unk_mapping.append(match.group(1) + '-' + str(idx))    
 
                         from nmt_chainer.utilities import replace_tgt_unk
-                        ct = replace_tgt_unk.replace_unk_from_string(ct, request, self.config_server.output.dic, remove_unk, normalize_unicode_unk, attempt_to_relocate_unk_source)
+                        ct = replace_tgt_unk.replace_unk_from_string(ct, sentence, self.config_server.output.dic, remove_unk, normalize_unicode_unk, attempt_to_relocate_unk_source)
 
                         out += ct + "\n"
                         
@@ -226,7 +226,7 @@ class RequestHandler(SocketServer.BaseRequestHandler):
 
                     log.info(timestamped_msg("Translating sentence %d" % idx))
                     decoded_sentence = splitted_sentence.decode('utf-8')
-                    translation, script, div, unk_mapping = self.server.translator.translate(decoded_sentence, sentence_number, 
+                    translation, script, div, unk_mapping = self.server.translator.translate(decoded_sentence,
                         beam_width, beam_pruning_margin, nb_steps, nb_steps_ratio, remove_unk, normalize_unicode_unk, attempt_to_relocate_unk_source,
                         post_score_length_normalization, length_normalization_strength, groundhog, force_finish, prob_space_combination, attn_graph_width, attn_graph_height)
                     out += translation
