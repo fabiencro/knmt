@@ -209,64 +209,63 @@ def create_encdec(config_eval):
         
         encdec_list.append(encdec)
     
-    #if config_eval.process.load_model_config is not None:
-    #    for config_filename in config_eval.process.load_model_config:
-    #        log.info("loading model and parameters from config %s" % config_filename)
-    #        config_training = train_config.load_config_train(config_filename)
-    #        encdec, this_eos_idx, this_src_indexer, this_tgt_indexer = train.create_encdec_and_indexers_from_config_dict(config_training, load_config_model= "yes")
-    #        
-    #        if eos_idx is None:
-    #            assert len(encdec_list) == 0
-    #            assert src_indexer is None
-    #            assert tgt_indexer is None
-    #            eos_idx, src_indexer, tgt_indexer = this_eos_idx, this_src_indexer, this_tgt_indexer
-    #        else:
-    #            check_if_vocabulary_info_compatible(this_eos_idx, this_src_indexer, this_tgt_indexer, eos_idx, src_indexer, tgt_indexer)
-    #        
-    #        encdec_list.append(encdec)
+    if 'load_model_config' in config_eval and config_eval.process.load_model_config is not None:
+        for config_filename in config_eval.process.load_model_config:
+            log.info("loading model and parameters from config %s" % config_filename)
+            config_training = train_config.load_config_train(config_filename)
+            encdec, this_eos_idx, this_src_indexer, this_tgt_indexer = train.create_encdec_and_indexers_from_config_dict(config_training, load_config_model= "yes")
             
-    #assert len(encdec_list) > 0
+            if eos_idx is None:
+                assert len(encdec_list) == 0
+                assert src_indexer is None
+                assert tgt_indexer is None
+                eos_idx, src_indexer, tgt_indexer = this_eos_idx, this_src_indexer, this_tgt_indexer
+            else:
+                check_if_vocabulary_info_compatible(this_eos_idx, this_src_indexer, this_tgt_indexer, eos_idx, src_indexer, tgt_indexer)
+            
+            encdec_list.append(encdec)
+            
+    assert len(encdec_list) > 0
         
             
-    #if config_eval.process.additional_training_config is not None:
-    #    assert len(config_eval.process.additional_training_config) == len(config_eval.process.additional_trained_model)
-    #
-    #    
-    #    for (config_training_fn, trained_model_fn) in zip(config_eval.process.additional_training_config, 
-    #                                                      config_eval.process.additional_trained_model):
-    #        this_encdec, this_eos_idx, this_src_indexer, this_tgt_indexer = create_and_load_encdec_from_files(
-    #                        config_training_fn, trained_model_fn)
-    #    
-    #        check_if_vocabulary_info_compatible(this_eos_idx, this_src_indexer, this_tgt_indexer, eos_idx, src_indexer, tgt_indexer)
-    #                          
-#   #          if args.gpu is not None:
-#   #              this_encdec = this_encdec.to_gpu(args.gpu)
-    #        
-    #        encdec_list.append(this_encdec)
-    #        
-    #        
-    #if config_eval.process.gpu is not None:
-    #    encdec_list = [encdec.to_gpu(config_eval.process.gpu) for encdec in encdec_list]
-    #        
-    #        
-    #if config_eval.process.reverse_training_config is not None:
-    #    reverse_encdec, reverse_eos_idx, reverse_src_indexer, reverse_tgt_indexer = create_and_load_encdec_from_files(
-    #                        config_eval.process.reverse_training_config, config_eval.process.reverse_trained_model)
-    #    
-    #    if eos_idx != reverse_eos_idx:
-    #        raise Exception("incompatible models")
-    #        
-    #    if len(src_indexer) != len(reverse_src_indexer):
-    #        raise Exception("incompatible models")
-    #      
-    #    if len(tgt_indexer) != len(reverse_tgt_indexer):
-    #        raise Exception("incompatible models")
-    #                      
-    #    if config_eval.process.gpu is not None:
-    #        reverse_encdec = reverse_encdec.to_gpu(config_eval.process.gpu)
-    #else:
-    #    reverse_encdec = None   
-    reverse_encdec = None   
+    if config_eval.process.additional_training_config is not None:
+        assert len(config_eval.process.additional_training_config) == len(config_eval.process.additional_trained_model)
+    
+        
+        for (config_training_fn, trained_model_fn) in zip(config_eval.process.additional_training_config, 
+                                                          config_eval.process.additional_trained_model):
+            this_encdec, this_eos_idx, this_src_indexer, this_tgt_indexer = create_and_load_encdec_from_files(
+                            config_training_fn, trained_model_fn)
+        
+            check_if_vocabulary_info_compatible(this_eos_idx, this_src_indexer, this_tgt_indexer, eos_idx, src_indexer, tgt_indexer)
+                              
+#             if args.gpu is not None:
+#                 this_encdec = this_encdec.to_gpu(args.gpu)
+            
+            encdec_list.append(this_encdec)
+            
+            
+    if config_eval.process.gpu is not None:
+        encdec_list = [encdec.to_gpu(config_eval.process.gpu) for encdec in encdec_list]
+            
+            
+    if config_eval.process.reverse_training_config is not None:
+        reverse_encdec, reverse_eos_idx, reverse_src_indexer, reverse_tgt_indexer = create_and_load_encdec_from_files(
+                            config_eval.process.reverse_training_config, config_eval.process.reverse_trained_model)
+        
+        if eos_idx != reverse_eos_idx:
+            raise Exception("incompatible models")
+            
+        if len(src_indexer) != len(reverse_src_indexer):
+            raise Exception("incompatible models")
+          
+        if len(tgt_indexer) != len(reverse_tgt_indexer):
+            raise Exception("incompatible models")
+                          
+        if config_eval.process.gpu is not None:
+            reverse_encdec = reverse_encdec.to_gpu(config_eval.process.gpu)
+    else:
+        reverse_encdec = None   
         
     return encdec_list, eos_idx, src_indexer, tgt_indexer, reverse_encdec
 

@@ -17,6 +17,7 @@ import tempfile
 from nmt_chainer.dataprocessing.processors import build_dataset_one_side_pp
 from nmt_chainer.translation.evaluation import beam_search_translate
 from nmt_chainer.translation.eval import create_encdec
+from nmt_chainer.translation.server_arg_parsing import make_config_server
 
 import traceback
 
@@ -36,11 +37,11 @@ log.setLevel(logging.INFO)
 
 class Evaluator:
 
-    def __init__(self, args):
-        self.args = args 
-        self.encdec, self.eos_idx, self.src_indexer, self.tgt_indexer, self.reverse_encdec = create_encdec(args)
-        if args.gpu is not None:
-            self.encdec = self.encdec.to_gpu(args.gpu)
+    def __init__(self, config_server):
+        self.config_server = config_server 
+        self.encdec, self.eos_idx, self.src_indexer, self.tgt_indexer, self.reverse_encdec = create_encdec(config_server)
+        if config_server.process.gpu is not None:
+            self.encdec = self.encdec.to_gpu(config_server.process.gpu)
             
         self.encdec_list = [self.encdec]
         
@@ -53,7 +54,7 @@ class Evaluator:
         request_file.write(request.encode('utf-8'))
         request_file.seek(0)
         try:
-            src_data, stats_src_pp = build_dataset_one_side_pp(request_file.name, self.src_indexer, max_nb_ex = self.args.max_nb_ex)
+            src_data, stats_src_pp = build_dataset_one_side_pp(request_file.name, self.src_indexer, max_nb_ex = self.config_server.process.max_nb_ex)
             log.info(stats_src_pp.make_report())
 
             tgt_data = None
@@ -62,10 +63,10 @@ class Evaluator:
             script = ''
             div = '<div/>'
             unk_mapping = []
-            with cuda.get_device(self.args.gpu):
+            with cuda.get_device(self.config_server.process.gpu):
                 translations_gen = beam_search_translate(
                             self.encdec, self.eos_idx, src_data, beam_width = beam_width, nb_steps = nb_steps,
-                                            gpu = self.args.gpu, beam_pruning_margin = beam_pruning_margin, nb_steps_ratio = nb_steps_ratio,
+                                            gpu = self.config_server.process.gpu, beam_pruning_margin = beam_pruning_margin, nb_steps_ratio = nb_steps_ratio,
                                             need_attention = True, post_score_length_normalization = post_score_length_normalization, 
                                             length_normalization_strength = length_normalization_strength,
                                             groundhog = groundhog, force_finish = force_finish,
@@ -78,14 +79,14 @@ class Evaluator:
                     elif num_t %40 == 0:
                         print >>sys.stderr, "*",
 
-                    if self.args.tgt_unk_id == "align":
+                    if self.config_server.output.tgt_unk_id == "align":
                         def unk_replacer(num_pos, unk_id):
                             unk_pattern = "#T_UNK_%i#"
                             a = attn[num_pos]
                             xp = cuda.get_array_module(a)
                             src_pos = int(xp.argmax(a))
                             return unk_pattern%src_pos
-                    elif self.args.tgt_unk_id == "id":
+                    elif self.config_server.output.tgt_unk_id == "id":
                         def unk_replacer(num_pos, unk_id):
                             unk_pattern = "#T_UNK_%i#"
                             return unk_pattern%unk_id         
@@ -101,10 +102,10 @@ class Evaluator:
                                 unk_mapping.append(match.group(1) + '-' + str(idx))    
 
                         from nmt_chainer.utilities import replace_tgt_unk
-                        ct = replace_tgt_unk.replace_unk_from_string(ct, request, self.args.dic, remove_unk, normalize_unicode_unk, attempt_to_relocate_unk_source)
+                        ct = replace_tgt_unk.replace_unk_from_string(ct, request, self.config_server.output.dic, remove_unk, normalize_unicode_unk, attempt_to_relocate_unk_source)
 
                         out += ct + "\n"
-
+                        
                         plots_list = []
                         src_idx_list = src_data[num_t]
                         tgt_idx_list = t[:-1]
@@ -275,13 +276,9 @@ def timestamped_msg(msg):
     return "{0}: {1}".format(timestamp, msg) 
 
 def do_start_server(args):
-    log.info("do_start_server training_config={0}".format(args.training_config))
-    evaluator = Evaluator(args)
-    #evaluator = Evaluator(args.training_config, args.trained_model, args.additional_training_config, args.additional_trained_model, 
-    #               args.reverse_training_config, args.reverse_trained_model, args.max_nb_ex, args.mb_size, args.beam_opt, 
-    #               args.tgt_unk_id, args.gpu, args.dic)
-
-    server = Server((args.host, int(args.port)), RequestHandler, args.segmenter_command, args.segmenter_format, evaluator)
+    config_server = make_config_server(args)
+    evaluator = Evaluator(config_server)
+    server = Server((config_server.host, int(config_server.port)), RequestHandler, config_server.segmenter_command, config_server.segmenter_format, evaluator)
     ip, port = server.server_address
     log.info(timestamped_msg("Start listening for requests on {0}:{1}...".format(socket.gethostname(), port)))
 
