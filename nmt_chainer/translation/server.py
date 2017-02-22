@@ -32,10 +32,10 @@ import subprocess
 import bokeh.embed
 
 logging.basicConfig()
-log = logging.getLogger("rnns:eval")
+log = logging.getLogger("rnns:server")
 log.setLevel(logging.INFO)
 
-class Evaluator:
+class Translator:
 
     def __init__(self, config_server):
         self.config_server = config_server 
@@ -45,7 +45,7 @@ class Evaluator:
             
         self.encdec_list = [self.encdec]
         
-    def eval(self, request, request_number, beam_width, beam_pruning_margin, nb_steps, nb_steps_ratio, 
+    def translate(self, request, request_number, beam_width, beam_pruning_margin, nb_steps, nb_steps_ratio, 
             remove_unk, normalize_unicode_unk, attempt_to_relocate_unk_source, post_score_length_normalization, length_normalization_strength, groundhog, force_finish, prob_space_combination, attn_graph_width, attn_graph_height):
         from nmt_chainer.utilities import visualisation
         log.info("processing source string %s" % request)
@@ -226,7 +226,7 @@ class RequestHandler(SocketServer.BaseRequestHandler):
 
                     log.info(timestamped_msg("Translating sentence %d" % idx))
                     decoded_sentence = splitted_sentence.decode('utf-8')
-                    translation, script, div, unk_mapping = self.server.evaluator.eval(decoded_sentence, sentence_number, 
+                    translation, script, div, unk_mapping = self.server.translator.translate(decoded_sentence, sentence_number, 
                         beam_width, beam_pruning_margin, nb_steps, nb_steps_ratio, remove_unk, normalize_unicode_unk, attempt_to_relocate_unk_source,
                         post_score_length_normalization, length_normalization_strength, groundhog, force_finish, prob_space_combination, attn_graph_width, attn_graph_height)
                     out += translation
@@ -265,11 +265,11 @@ class Server(SocketServer.ThreadingMixIn, SocketServer.TCPServer):
     daemon_threads = True
     allow_reuse_address = True
 
-    def __init__(self, server_address, handler_class, segmenter_command, segmenter_format, evaluator):
+    def __init__(self, server_address, handler_class, segmenter_command, segmenter_format, translator):
         SocketServer.TCPServer.__init__(self, server_address, handler_class)
         self.segmenter_command = segmenter_command
         self.segmenter_format = segmenter_format
-        self.evaluator = evaluator
+        self.translator = translator
 
 def timestamped_msg(msg):
     timestamp = datetime.datetime.fromtimestamp(time.time()).strftime('%Y-%m-%d %H:%M:%S')
@@ -277,8 +277,8 @@ def timestamped_msg(msg):
 
 def do_start_server(args):
     config_server = make_config_server(args)
-    evaluator = Evaluator(config_server)
-    server = Server((config_server.host, int(config_server.port)), RequestHandler, config_server.segmenter_command, config_server.segmenter_format, evaluator)
+    translator = Translator(config_server)
+    server = Server((config_server.host, int(config_server.port)), RequestHandler, config_server.segmenter_command, config_server.segmenter_format, translator)
     ip, port = server.server_address
     log.info(timestamped_msg("Start listening for requests on {0}:{1}...".format(socket.gethostname(), port)))
 
