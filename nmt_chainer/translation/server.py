@@ -16,7 +16,7 @@ import tempfile
 
 from nmt_chainer.dataprocessing.processors import build_dataset_one_side_pp
 from nmt_chainer.translation.evaluation import beam_search_translate
-from nmt_chainer.translation.eval import create_and_load_encdec_from_files
+from nmt_chainer.translation.eval import create_encdec
 
 import traceback
 
@@ -36,67 +36,14 @@ log.setLevel(logging.INFO)
 
 class Evaluator:
 
-    def __init__(self, training_config, trained_model, additional_training_config, additional_trained_model, reverse_training_config, reverse_trained_model, 
-            max_nb_ex, mb_size, beam_opt, tgt_unk_id, gpu, dic):
-        self.training_config = training_config
-        self.trained_model = trained_model
-        self.additional_training_config = additional_training_config
-        self.additional_trained_model = additional_trained_model
-        self.reverse_training_config = reverse_training_config
-        self.reverse_trained_model = reverse_trained_model
-        self.max_nb_ex = max_nb_ex
-        self.mb_size = mb_size
-        self.beam_opt = beam_opt
-        self.tgt_unk_id = tgt_unk_id
-        self.gpu = gpu
-        self.dic = dic
-    
-        self.encdec, self.eos_idx, self.src_indexer, self.tgt_indexer = create_and_load_encdec_from_files(self.training_config, self.trained_model)
-        if self.gpu is not None:
-            self.encdec = self.encdec.to_gpu(self.gpu)
+    def __init__(self, args):
+        self.args = args 
+        self.encdec, self.eos_idx, self.src_indexer, self.tgt_indexer, self.reverse_encdec = create_encdec(args)
+        if args.gpu is not None:
+            self.encdec = self.encdec.to_gpu(args.gpu)
             
         self.encdec_list = [self.encdec]
         
-        if self.additional_training_config is not None:
-            assert len(self.additional_training_config) == len(self.additional_trained_model)
-            
-            for (config_training_fn, trained_model_fn) in zip(self.additional_training_config, 
-                                                              self.additional_trained_model):
-                this_encdec, this_eos_idx, this_src_indexer, this_tgt_indexer = create_and_load_encdec_from_files(
-                                config_training_fn, trained_model_fn)
-            
-                if self.eos_idx != this_eos_idx:
-                    raise Exception("incompatible models")
-                    
-                if len(self.src_indexer) != len(this_src_indexer):
-                    raise Exception("incompatible models")
-                  
-                if len(self.tgt_indexer) != len(this_tgt_indexer):
-                    raise Exception("incompatible models")
-                                  
-                if self.gpu is not None:
-                    this_encdec = this_encdec.to_gpu(self.gpu)
-                
-                self.encdec_list.append(this_encdec)
-                
-        if self.reverse_training_config is not None:
-            self.reverse_encdec, self.reverse_eos_idx, self.reverse_src_indexer, self.reverse_tgt_indexer = create_and_load_encdec_from_files(
-                                self.reverse_training_config, self.reverse_trained_model)
-            
-            if eos_idx != reverse_eos_idx:
-                raise Exception("incompatible models")
-                
-            if len(src_indexer) != len(reverse_src_indexer):
-                raise Exception("incompatible models")
-              
-            if len(tgt_indexer) != len(reverse_tgt_indexer):
-                raise Exception("incompatible models")
-                              
-            if self.gpu is not None:
-                self.reverse_encdec = self.reverse_encdec.to_gpu(self.gpu)
-        else:
-            self.reverse_encdec = None    
-            
     def eval(self, request, request_number, beam_width, beam_pruning_margin, nb_steps, nb_steps_ratio, 
             remove_unk, normalize_unicode_unk, attempt_to_relocate_unk_source, post_score_length_normalization, length_normalization_strength, groundhog, force_finish, prob_space_combination, attn_graph_width, attn_graph_height):
         from nmt_chainer.utilities import visualisation
@@ -106,7 +53,7 @@ class Evaluator:
         request_file.write(request.encode('utf-8'))
         request_file.seek(0)
         try:
-            src_data, stats_src_pp = build_dataset_one_side_pp(request_file.name, self.src_indexer, max_nb_ex = self.max_nb_ex)
+            src_data, stats_src_pp = build_dataset_one_side_pp(request_file.name, self.src_indexer, max_nb_ex = self.args.max_nb_ex)
             log.info(stats_src_pp.make_report())
 
             tgt_data = None
@@ -115,10 +62,10 @@ class Evaluator:
             script = ''
             div = '<div/>'
             unk_mapping = []
-            with cuda.get_device(self.gpu):
+            with cuda.get_device(self.args.gpu):
                 translations_gen = beam_search_translate(
                             self.encdec, self.eos_idx, src_data, beam_width = beam_width, nb_steps = nb_steps,
-                                            gpu = self.gpu, beam_pruning_margin = beam_pruning_margin, nb_steps_ratio = nb_steps_ratio,
+                                            gpu = self.args.gpu, beam_pruning_margin = beam_pruning_margin, nb_steps_ratio = nb_steps_ratio,
                                             need_attention = True, post_score_length_normalization = post_score_length_normalization, 
                                             length_normalization_strength = length_normalization_strength,
                                             groundhog = groundhog, force_finish = force_finish,
@@ -131,14 +78,14 @@ class Evaluator:
                     elif num_t %40 == 0:
                         print >>sys.stderr, "*",
 
-                    if self.tgt_unk_id == "align":
+                    if self.args.tgt_unk_id == "align":
                         def unk_replacer(num_pos, unk_id):
                             unk_pattern = "#T_UNK_%i#"
                             a = attn[num_pos]
                             xp = cuda.get_array_module(a)
                             src_pos = int(xp.argmax(a))
                             return unk_pattern%src_pos
-                    elif self.tgt_unk_id == "id":
+                    elif self.args.tgt_unk_id == "id":
                         def unk_replacer(num_pos, unk_id):
                             unk_pattern = "#T_UNK_%i#"
                             return unk_pattern%unk_id         
@@ -154,7 +101,7 @@ class Evaluator:
                                 unk_mapping.append(match.group(1) + '-' + str(idx))    
 
                         from nmt_chainer.utilities import replace_tgt_unk
-                        ct = replace_tgt_unk.replace_unk_from_string(ct, request, self.dic, remove_unk, normalize_unicode_unk, attempt_to_relocate_unk_source)
+                        ct = replace_tgt_unk.replace_unk_from_string(ct, request, self.args.dic, remove_unk, normalize_unicode_unk, attempt_to_relocate_unk_source)
 
                         out += ct + "\n"
 
@@ -328,9 +275,11 @@ def timestamped_msg(msg):
     return "{0}: {1}".format(timestamp, msg) 
 
 def do_start_server(args):
-    evaluator = Evaluator(args.training_config, args.trained_model, args.additional_training_config, args.additional_trained_model, 
-                   args.reverse_training_config, args.reverse_trained_model, args.max_nb_ex, args.mb_size, args.beam_opt, 
-                   args.tgt_unk_id, args.gpu, args.dic)
+    log.info("do_start_server training_config={0}".format(args.training_config))
+    evaluator = Evaluator(args)
+    #evaluator = Evaluator(args.training_config, args.trained_model, args.additional_training_config, args.additional_trained_model, 
+    #               args.reverse_training_config, args.reverse_trained_model, args.max_nb_ex, args.mb_size, args.beam_opt, 
+    #               args.tgt_unk_id, args.gpu, args.dic)
 
     retrieve_ip_cmd = "/sbin/ifconfig | grep -A1 '{0}' | grep 'inet addr' | cut -f 2 -d ':' | cut -f 1 -d ' '".format(args.netiface)
     external_ip = subprocess.check_output(retrieve_ip_cmd, shell=True) 
