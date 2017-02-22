@@ -16,7 +16,7 @@ import tempfile
 
 from nmt_chainer.dataprocessing.processors import build_dataset_one_side_pp
 from nmt_chainer.translation.evaluation import beam_search_translate
-from nmt_chainer.translation.eval import create_encdec
+from nmt_chainer.translation.eval import create_encdec, translate_to_file_with_beam_search
 from nmt_chainer.translation.server_arg_parsing import make_config_server
 
 import traceback
@@ -50,85 +50,103 @@ class Translator:
         from nmt_chainer.utilities import visualisation
         log.info("processing source string %s" % sentence)
 
-        request_file = tempfile.NamedTemporaryFile()
-        request_file.write(sentence.encode('utf-8'))
-        request_file.seek(0)
+        src_file = tempfile.NamedTemporaryFile()
+        src_file.write(sentence.encode('utf-8'))
+        src_file.seek(0)
+
+        dest_file = tempfile.NamedTemporaryFile()
+
         try:
-            src_data, stats_src_pp = build_dataset_one_side_pp(request_file.name, self.src_indexer, max_nb_ex = self.config_server.process.max_nb_ex)
-            log.info(stats_src_pp.make_report())
-
-            tgt_data = None
-
             out = ''
             script = ''
             div = '<div/>'
             unk_mapping = []
-            with cuda.get_device(self.config_server.process.gpu):
-                translations_gen = beam_search_translate(
-                            self.encdec, self.eos_idx, src_data, beam_width = beam_width, nb_steps = nb_steps,
-                                            gpu = self.config_server.process.gpu, beam_pruning_margin = beam_pruning_margin, nb_steps_ratio = nb_steps_ratio,
-                                            need_attention = True, post_score_length_normalization = post_score_length_normalization, 
-                                            length_normalization_strength = length_normalization_strength,
-                                            groundhog = groundhog, force_finish = force_finish,
-                                            prob_space_combination = prob_space_combination,
-                                            reverse_encdec = self.reverse_encdec)
 
-                for num_t, (t, score, attn) in enumerate(translations_gen):
-                    if num_t %200 == 0:
-                        print >>sys.stderr, num_t,
-                    elif num_t %40 == 0:
-                        print >>sys.stderr, "*",
+            src_data, stats_src_pp = build_dataset_one_side_pp(src_file.name, self.src_indexer, max_nb_ex = self.config_server.process.max_nb_ex)
 
-                    if self.config_server.output.tgt_unk_id == "align":
-                        def unk_replacer(num_pos, unk_id):
-                            unk_pattern = "#T_UNK_%i#"
-                            a = attn[num_pos]
-                            xp = cuda.get_array_module(a)
-                            src_pos = int(xp.argmax(a))
-                            return unk_pattern%src_pos
-                    elif self.config_server.output.tgt_unk_id == "id":
-                        def unk_replacer(num_pos, unk_id):
-                            unk_pattern = "#T_UNK_%i#"
-                            return unk_pattern%unk_id         
-                    else:
-                        assert False
-                    
-                    ct = " ".join(self.tgt_indexer.deconvert_swallow(t, unk_tag = unk_replacer))
-                    if (ct != ''):
-                        unk_pattern = re.compile("#T_UNK_(\d+)#")
-                        for idx, word in enumerate(ct.split(' ')):
-                            match = unk_pattern.match(word)
-                            if (match):
-                                unk_mapping.append(match.group(1) + '-' + str(idx))    
+            translate_to_file_with_beam_search(dest_file.name, self.config_server.process.gpu, self.encdec, self.eos_idx, src_data, beam_width, beam_pruning_margin, nb_steps, 
+                   nb_steps_ratio, post_score_length_normalization, length_normalization_strength, 
+                   groundhog,
+                   self.config_server.output.tgt_unk_id, self.tgt_indexer, force_finish = force_finish,
+                   prob_space_combination = prob_space_combination, reverse_encdec = self.reverse_encdec, 
+                   generate_attention_html = None, src_indexer = self.src_indexer, rich_output_filename = None,
+                   use_unfinished_translation_if_none_found = False)
 
-                        from nmt_chainer.utilities import replace_tgt_unk
-                        ct = replace_tgt_unk.replace_unk_from_string(ct, sentence, self.config_server.output.dic, remove_unk, normalize_unicode_unk, attempt_to_relocate_unk_source)
+            dest_file.seek(0)
+            out = dest_file.read()
 
-                        out += ct + "\n"
-                        
-                        plots_list = []
-                        src_idx_list = src_data[num_t]
-                        tgt_idx_list = t[:-1]
-                        alignment = np.zeros((len(src_idx_list), len(tgt_idx_list)))
-                        sum_al =[0] * len(tgt_idx_list)
+            #src_data, stats_src_pp = build_dataset_one_side_pp(src_file.name, self.src_indexer, max_nb_ex = self.config_server.process.max_nb_ex)
+            #log.info(stats_src_pp.make_report())
 
-                        for i in xrange(len(src_idx_list)):
-                            for j in xrange(len(tgt_idx_list)):
-                                alignment[i,j] = attn[j][i]
-                            
-                        src_w = self.src_indexer.deconvert_swallow(src_idx_list, unk_tag = "#S_UNK#")
-                        tgt_w = self.tgt_indexer.deconvert_swallow(tgt_idx_list, unk_tag = "#T_UNK#")
-                        if (attn_graph_width > 0 and attn_graph_height > 0):
-                            p1 = visualisation.make_alignment_figure(src_w, tgt_w, alignment, title = '', toolbar_location = 'below', plot_width = attn_graph_width, plot_height = attn_graph_height)
-                            plots_list.append(p1)
-                            p_all = visualisation.Column(*plots_list)
+            #tgt_data = None
 
-                            script, div = bokeh.embed.components(p_all)
+            #with cuda.get_device(self.config_server.process.gpu):
+            #    translations_gen = beam_search_translate(
+            #                self.encdec, self.eos_idx, src_data, beam_width = beam_width, nb_steps = nb_steps,
+            #                                gpu = self.config_server.process.gpu, beam_pruning_margin = beam_pruning_margin, nb_steps_ratio = nb_steps_ratio,
+            #                                need_attention = True, post_score_length_normalization = post_score_length_normalization, 
+            #                                length_normalization_strength = length_normalization_strength,
+            #                                groundhog = groundhog, force_finish = force_finish,
+            #                                prob_space_combination = prob_space_combination,
+            #                                reverse_encdec = self.reverse_encdec)
 
-            print >>sys.stderr
+            #    for num_t, (t, score, attn) in enumerate(translations_gen):
+            #        if num_t %200 == 0:
+            #            print >>sys.stderr, num_t,
+            #        elif num_t %40 == 0:
+            #            print >>sys.stderr, "*",
+
+            #        if self.config_server.output.tgt_unk_id == "align":
+            #            def unk_replacer(num_pos, unk_id):
+            #                unk_pattern = "#T_UNK_%i#"
+            #                a = attn[num_pos]
+            #                xp = cuda.get_array_module(a)
+            #                src_pos = int(xp.argmax(a))
+            #                return unk_pattern%src_pos
+            #        elif self.config_server.output.tgt_unk_id == "id":
+            #            def unk_replacer(num_pos, unk_id):
+            #                unk_pattern = "#T_UNK_%i#"
+            #                return unk_pattern%unk_id         
+            #        else:
+            #            assert False
+            #        
+            #        ct = " ".join(self.tgt_indexer.deconvert_swallow(t, unk_tag = unk_replacer))
+            #        if (ct != ''):
+            #            unk_pattern = re.compile("#T_UNK_(\d+)#")
+            #            for idx, word in enumerate(ct.split(' ')):
+            #                match = unk_pattern.match(word)
+            #                if (match):
+            #                    unk_mapping.append(match.group(1) + '-' + str(idx))    
+
+            #            from nmt_chainer.utilities import replace_tgt_unk
+            #            ct = replace_tgt_unk.replace_unk_from_string(ct, sentence, self.config_server.output.dic, remove_unk, normalize_unicode_unk, attempt_to_relocate_unk_source)
+
+            #            out += ct + "\n"
+            #            
+            #            plots_list = []
+            #            src_idx_list = src_data[num_t]
+            #            tgt_idx_list = t[:-1]
+            #            alignment = np.zeros((len(src_idx_list), len(tgt_idx_list)))
+            #            sum_al =[0] * len(tgt_idx_list)
+
+            #            for i in xrange(len(src_idx_list)):
+            #                for j in xrange(len(tgt_idx_list)):
+            #                    alignment[i,j] = attn[j][i]
+            #                
+            #            src_w = self.src_indexer.deconvert_swallow(src_idx_list, unk_tag = "#S_UNK#")
+            #            tgt_w = self.tgt_indexer.deconvert_swallow(tgt_idx_list, unk_tag = "#T_UNK#")
+            #            if (attn_graph_width > 0 and attn_graph_height > 0):
+            #                p1 = visualisation.make_alignment_figure(src_w, tgt_w, alignment, title = '', toolbar_location = 'below', plot_width = attn_graph_width, plot_height = attn_graph_height)
+            #                plots_list.append(p1)
+            #                p_all = visualisation.Column(*plots_list)
+
+            #                script, div = bokeh.embed.components(p_all)
+
+            #print >>sys.stderr
 
         finally:
-            request_file.close()
+            src_file.close()
+            dest_file.close()
 
         return out, script, div, unk_mapping
 
