@@ -28,6 +28,7 @@ from nmt_chainer.utilities import bleu_computer
 import logging
 import codecs
 # import h5py
+import bokeh.embed
 
 
 logging.basicConfig()
@@ -57,10 +58,18 @@ class AttentionVisualizer(object):
             
     def make_plot(self, output_file):
         from nmt_chainer.utilities import visualisation
-        log.info("writing attention to %s"% output_file)
+        log.info("writing attention to {0}".format(output_file))
         p_all = visualisation.Column(*self.plots_list)
-        visualisation.output_file(output_file)
-        visualisation.show(p_all)
+        if isinstance(output_file, tuple):
+            script_output_fn, div_output_fn = output_file
+            script, div = bokeh.embed.components(p_all)
+            with open(script_output_fn, 'w') as f:
+                f.write(script.encode('utf-8'))
+            with open(div_output_fn, 'w') as f:
+                f.write(div)
+        else:
+            visualisation.output_file(output_file)
+            visualisation.show(p_all)
 
 class RichOutputWriter(object):
     def __init__(self, filename):
