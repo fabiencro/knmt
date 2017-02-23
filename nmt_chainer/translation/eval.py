@@ -108,6 +108,7 @@ class RichOutputWriter(object):
 
 def beam_search_all(gpu, encdec, eos_idx, src_data, beam_width, beam_pruning_margin, nb_steps,
        nb_steps_ratio, post_score_length_normalization, length_normalization_strength, 
+       post_score_coverage_penalty, post_score_coverage_penalty_strength,
        groundhog,
        tgt_unk_id, tgt_indexer, force_finish = False,
        prob_space_combination = False, reverse_encdec = None,
@@ -129,6 +130,8 @@ def beam_search_all(gpu, encdec, eos_idx, src_data, beam_width, beam_pruning_mar
                                     gpu = gpu, beam_pruning_margin = beam_pruning_margin, nb_steps_ratio = nb_steps_ratio,
                                     need_attention = True, post_score_length_normalization = post_score_length_normalization,
                                     length_normalization_strength = length_normalization_strength,
+                                    post_score_coverage_penalty = post_score_coverage_penalty,
+                                    post_score_coverage_penalty_strength = post_score_coverage_penalty_strength,
                                     groundhog = groundhog, force_finish = force_finish,
                                     prob_space_combination = prob_space_combination,
                                     reverse_encdec = reverse_encdec,
@@ -176,6 +179,7 @@ def beam_search_all(gpu, encdec, eos_idx, src_data, beam_width, beam_pruning_mar
 
 def translate_to_file_with_beam_search(dest_fn, gpu, encdec, eos_idx, src_data, beam_width, beam_pruning_margin, nb_steps, 
        nb_steps_ratio, post_score_length_normalization, length_normalization_strength, 
+       post_score_coverage_penalty, post_score_coverage_penalty_strength,
        groundhog,
        tgt_unk_id, tgt_indexer, force_finish = False,
        prob_space_combination = False, reverse_encdec = None, 
@@ -193,6 +197,7 @@ def translate_to_file_with_beam_search(dest_fn, gpu, encdec, eos_idx, src_data, 
     
     translation_iterator = beam_search_all(gpu, encdec, eos_idx, src_data, beam_width, beam_pruning_margin, nb_steps, 
        nb_steps_ratio, post_score_length_normalization, length_normalization_strength, 
+       post_score_coverage_penalty, post_score_coverage_penalty_strength,
        groundhog,
        tgt_unk_id, tgt_indexer, force_finish = force_finish,
        prob_space_combination = prob_space_combination, reverse_encdec = reverse_encdec,
@@ -255,6 +260,7 @@ def create_encdec(config_eval):
         assert config_eval.trained_model is not None
         encdec, eos_idx, src_indexer, tgt_indexer = create_and_load_encdec_from_files(
                                 config_eval.training_config, config_eval.trained_model)
+
         
         encdec_list.append(encdec)
     
@@ -348,6 +354,8 @@ def do_eval(config_eval):
     attempt_to_relocate_unk_source = config_eval.output.attempt_to_relocate_unk_source
     remove_unk = config_eval.output.remove_unk
    
+    post_score_coverage_penalty = config_eval.method.post_score_coverage_penalty
+    post_score_coverage_penalty_strength = config_eval.method.post_score_coverage_penalty_strength
     
     if dest_fn is not None:
         save_eval_config_fn = dest_fn + ".eval.config.json"
@@ -414,6 +422,8 @@ def do_eval(config_eval):
                                            nb_steps_ratio = nb_steps_ratio,
                                            post_score_length_normalization = post_score_length_normalization,
                                            length_normalization_strength = length_normalization_strength,
+                                           post_score_coverage_penalty = post_score_coverage_penalty,
+                                           post_score_coverage_penalty_strength= post_score_coverage_penalty_strength,
                                            groundhog = groundhog,
                                            tgt_unk_id = tgt_unk_id, 
                                            tgt_indexer = tgt_indexer,
@@ -434,6 +444,8 @@ def do_eval(config_eval):
                                            nb_steps_ratio = nb_steps_ratio,
                                            post_score_length_normalization = post_score_length_normalization,
                                            length_normalization_strength = length_normalization_strength,
+                                           post_score_coverage_penalty = post_score_coverage_penalty,
+                                           post_score_coverage_penalty_strength= post_score_coverage_penalty_strength,
                                            groundhog = groundhog,
                                            tgt_unk_id = tgt_unk_id, 
                                            tgt_indexer = tgt_indexer,
