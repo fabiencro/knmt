@@ -10,6 +10,7 @@ import logging
 import json
 import codecs
 import itertools
+import re
 
 logging.basicConfig()
 log = logging.getLogger("rnns:processors")
@@ -424,6 +425,116 @@ class SimpleSegmenter(PreProcessor):
         assert self.is_initialized()
         obj = self.make_base_serializable_object()
         obj["segmentation_type"] = self.type
+        return obj
+   
+@registered_processor        
+class LatinScriptProcess(PreProcessor):
+    
+    CAP_CHAR = u"\u203B"
+    ALL_CAPS_CHAR = u"\u203C"
+    SUFFIX_CHAR = u"\u203F"
+    
+    def convert_caps(self, w):
+        if self.CAP_CHAR in w or self.ALL_CAPS_CHAR in w:
+            raise ValueError("Special char in word")
+        assert len(w) > 0
+        if w.istitle():
+            return self.CAP_CHAR + w.lower()
+        elif w.isupper():
+            return self.ALL_CAPS_CHAR + w.lower()
+        else:
+            return w
+
+    def deconvert_caps(self, w):
+        if w.startswith(self.CAP_CHAR):
+            assert not w[1:].istitle()
+            return w[1:].title() #w[1].upper() + w[2:]
+        elif w.startswith(self.ALL_CAPS_CHAR):
+            assert w[1:].islower()
+            return w[1:].upper()
+        else:
+            return w
+        
+    def convert_punct_word(self, w):
+        if self.SUFFIX_CHAR in w:
+            raise ValueError("Special char in word")
+        if len(w) > 3 and w.endswith("..."):
+            w = w[:-3] + " " + self.SUFFIX_CHAR + "..."
+        else:
+            if len(w) > 1:
+                for punct in ".!?:,;\"%$'`)]":
+                    if w.endswith(punct):
+                        w = w[:-1] + " " + self.SUFFIX_CHAR + punct
+                        break
+        return w
+    
+    def convert_punct_inside(self, w):
+        if self.SUFFIX_CHAR in w:
+            raise ValueError("Special char in word")
+        
+        if w == "...":
+            return w
+        ends_with_triple_dots = False
+        if len(w) > 3 and w.endswith("..."):
+            ends_with_triple_dots = True
+            w = w[:-3]
+            
+        if len(w) > 1:
+            for punct in ".!?:,;\"%$'`)]-([&=+*<>_/\\^~#@|":
+                splitted = w.split(punct)
+                if len(splitted[0]) == 0: 
+                    splitted = [punct + splitted[1]] + splitted[2:] #do not split if punc at the beginning
+                w = (" " + self.SUFFIX_CHAR + punct).join(splitted)
+        if ends_with_triple_dots:
+            w = w + " " + self.SUFFIX_CHAR + "..."
+        return w
+    
+    def deconvert_punct_sentence(self, sentence):
+        res = []
+        for w in sentence.split(" "):
+            if len(res) > 0 and w.startswith(self.SUFFIX_CHAR):
+                res[-1] = res[-1] + w[1:]
+            else:
+                res.append(w)
+        return " ".join(res)
+                
+        
+    def __init__(self):
+        self.is_initialized_ = False
+        
+    def initialize(self, iterable):
+        self.is_initialized_ = True
+            
+    def convert(self, sentence, stats = None):
+        sentence = re.sub("\s+", " ", sentence)
+        sentence = " ".join(self.convert_punct_inside(w) for w in sentence.split(" "))
+        sentence = " ".join(self.convert_caps(w) for w in sentence.split(" "))
+        return sentence
+    
+    def deconvert(self, sentence):
+        sentence = " ".join(self.deconvert_caps(w) for w in sentence.split(" "))
+        sentence = self.deconvert_punct_sentence(sentence)
+        return sentence
+            
+    def is_initialized(self):
+        return self.is_initialized_
+    
+    @staticmethod
+    def processor_name():
+        return "latin_script_processor"
+    
+    def __str__(self):
+        return "latin_script_processor"
+    
+    @classmethod
+    def make_from_serializable(cls, obj):
+        res = LatinScriptProcess()
+        res.is_initialized_ = True
+        return res
+    
+    def to_serializable(self):
+        assert self.is_initialized()
+        obj = self.make_base_serializable_object()
         return obj
    
    

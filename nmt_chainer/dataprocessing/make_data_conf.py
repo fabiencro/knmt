@@ -37,6 +37,9 @@ def define_parser(parser):
     parser.add_argument("--bpe_src", type = int, help = "Apply BPE to source side, with this many merges")
     parser.add_argument("--bpe_tgt", type = int, help = "Apply BPE to target side, with this many merges")
     
+    parser.add_argument("--latin_src", default = False, action = "store_true", help = "apply preprocessing for latin scripts to source")
+    parser.add_argument("--latin_tgt", default = False, action = "store_true", help = "apply preprocessing for latin scripts to target")
+    
 class CommandLineValuesException(Exception):
     pass
 

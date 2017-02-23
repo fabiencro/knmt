@@ -223,6 +223,9 @@ def do_make_data(config):
                     processors.IndexingPrePostProcessor(voc_limit = config.src_voc_size)
                     )
         
+        if config.latin_src:
+            src_pp = processors.LatinScriptProcess() + src_pp
+        
         if config.bpe_tgt is not None:
             tgt_pp = (processors.SimpleSegmenter(config.tgt_segmentation_type) +
                       processors.BPEProcessing(bpe_data_file = bpe_data_file_tgt, symbols = config.bpe_tgt, separator = "._@@@") +
@@ -230,6 +233,9 @@ def do_make_data(config):
         else:
             tgt_pp = (processors.SimpleSegmenter(config.tgt_segmentation_type) +
                                  processors.IndexingPrePostProcessor(voc_limit = config.tgt_voc_size))
+    
+        if config.latin_tgt:
+            tgt_pp = processors.LatinScriptProcess() + tgt_pp
     
     def load_data(src_fn, tgt_fn, max_nb_ex=None):
 
