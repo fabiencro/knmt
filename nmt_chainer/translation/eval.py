@@ -277,7 +277,7 @@ def create_encdec(config_eval):
     assert len(encdec_list) > 0
         
             
-    if config_eval.process.additional_training_config is not None:
+    if 'additional_training_config' in config_eval.process and config_eval.process.additional_training_config is not None:
         assert len(config_eval.process.additional_training_config) == len(config_eval.process.additional_trained_model)
     
         
@@ -294,11 +294,11 @@ def create_encdec(config_eval):
             encdec_list.append(this_encdec)
             
             
-    if config_eval.process.gpu is not None:
+    if 'gpu' in config_eval.process and  config_eval.process.gpu is not None:
         encdec_list = [encdec.to_gpu(config_eval.process.gpu) for encdec in encdec_list]
             
             
-    if config_eval.process.reverse_training_config is not None:
+    if 'reverse_training_config' in config_eval.process and config_eval.process.reverse_training_config is not None:
         reverse_encdec, reverse_eos_idx, reverse_src_indexer, reverse_tgt_indexer = create_and_load_encdec_from_files(
                             config_eval.process.reverse_training_config, config_eval.process.reverse_trained_model)
         
@@ -349,9 +349,10 @@ def do_eval(config_eval):
     remove_unk = config_eval.output.remove_unk
    
     
-    save_eval_config_fn = dest_fn + ".eval.config.json"
-    log.info("Saving eval config to %s" % save_eval_config_fn)
-    config_eval.save_to(save_eval_config_fn)
+    if dest_fn is not None:
+        save_eval_config_fn = dest_fn + ".eval.config.json"
+        log.info("Saving eval config to %s" % save_eval_config_fn)
+        config_eval.save_to(save_eval_config_fn)
 #     json.dump(config_eval, open(save_eval_config_fn, "w"), indent=2, separators=(',', ': '))
     
     encdec_list, eos_idx, src_indexer, tgt_indexer, reverse_encdec = create_encdec(config_eval)
@@ -359,11 +360,12 @@ def do_eval(config_eval):
 
         
         
-    log.info("opening source file %s" % src_fn)
-    src_data, stats_src_pp = build_dataset_one_side_pp(src_fn, src_pp = src_indexer,
-                                    max_nb_ex = max_nb_ex)
-    log.info("src data stats:\n%s", stats_src_pp.make_report())
-    
+    if src_fn is not None:
+        log.info("opening source file %s" % src_fn)
+        src_data, stats_src_pp = build_dataset_one_side_pp(src_fn, src_pp = src_indexer,
+                                        max_nb_ex = max_nb_ex)
+        log.info("src data stats:\n%s", stats_src_pp.make_report())
+        
 #     log.info("%i sentences loaded" % make_data_infos.nb_ex)
 #     log.info("#tokens src: %i   of which %i (%f%%) are unknown"%(make_data_infos.total_token, 
 #                                                                  make_data_infos.total_count_unk, 
@@ -401,6 +403,9 @@ def do_eval(config_eval):
 #             ct = convert_idx_to_string(t, tgt_voc + ["#T_UNK#"])
             out.write(ct + "\n")
 
+    elif mode == "server":
+        from nmt_chainer.translation.server import do_start_server
+        do_start_server(config_eval)
     elif mode == "beam_search":
         translate_to_file_with_beam_search(dest_fn, gpu, encdec_list, eos_idx, src_data, 
                                            beam_width = beam_width, 
