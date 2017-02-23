@@ -147,6 +147,12 @@ class RequestHandler(SocketServer.BaseRequestHandler):
                     length_normalization_strength = float(root.get('length_normalization_strength', 0.2))
                 except:
                     pass
+                post_score_coverage_penalty = root.get('post_score_coverage_penalty', 'none')
+                post_score_coverage_penalty_strength = None
+                try:
+                    post_score_coverage_penalty_strength = float(root.get('post_score_coverage_penalty_strength', 0.2))
+                except:
+                    pass
                 prob_space_combination = ('true' == root.get('prob_space_combination', 'false'))
                 remove_unk = ('true' == root.get('remove_unk', 'false'))
                 normalize_unicode_unk = ('true' == root.get('normalize_unicode_unk', 'true'))
@@ -200,7 +206,8 @@ class RequestHandler(SocketServer.BaseRequestHandler):
                     decoded_sentence = splitted_sentence.decode('utf-8')
                     translation, script, div, unk_mapping = self.server.translator.translate(decoded_sentence,
                         beam_width, beam_pruning_margin, nb_steps, nb_steps_ratio, remove_unk, normalize_unicode_unk, attempt_to_relocate_unk_source,
-                        post_score_length_normalization, length_normalization_strength, groundhog, force_finish, prob_space_combination, attn_graph_width, attn_graph_height)
+                        post_score_length_normalization, length_normalization_strength, post_score_coverage_penalty, post_score_coverage_penalty_strength, 
+                        groundhog, force_finish, prob_space_combination, attn_graph_width, attn_graph_height)
                     out += translation
                     segmented_input.append(splitted_sentence)
                     segmented_output.append(translation)
