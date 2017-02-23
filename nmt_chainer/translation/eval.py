@@ -111,7 +111,13 @@ def beam_search_all(gpu, encdec, eos_idx, src_data, beam_width, beam_pruning_mar
        groundhog,
        tgt_unk_id, tgt_indexer, force_finish = False,
        prob_space_combination = False, reverse_encdec = None,
-       use_unfinished_translation_if_none_found = False):
+       use_unfinished_translation_if_none_found = False,
+       replace_unk = False,
+       src = None,
+       dic = None,
+       remove_unk = False,
+       normalize_unicode_unk = False,
+       attempt_to_relocate_unk_source = False):
     
     log.info("starting beam search translation of %i sentences"% len(src_data))
     if isinstance(encdec, (list, tuple)) and len(encdec) > 1:
@@ -160,6 +166,10 @@ def beam_search_all(gpu, encdec, eos_idx, src_data, beam_width, beam_pruning_mar
                     match = unk_pattern.match(word)
                     if (match):
                         unk_mapping.append(match.group(1) + '-' + str(idx))    
+                
+                if replace_unk:
+                    from nmt_chainer.utilities import replace_tgt_unk
+                    translated = replace_tgt_unk.replace_unk_from_string(ct, src, dic, remove_unk, normalize_unicode_unk, attempt_to_relocate_unk_source).strip().split(" ")
             
             yield src_data[num_t], translated, t, score, attn, unk_mapping
         print >>sys.stderr
@@ -170,7 +180,13 @@ def translate_to_file_with_beam_search(dest_fn, gpu, encdec, eos_idx, src_data, 
        tgt_unk_id, tgt_indexer, force_finish = False,
        prob_space_combination = False, reverse_encdec = None, 
        generate_attention_html = None, attn_graph_with_sum = True, attn_graph_attribs = None, src_indexer = None, rich_output_filename = None,
-       use_unfinished_translation_if_none_found = False):
+       use_unfinished_translation_if_none_found = False,
+       replace_unk = False,
+       src = None,
+       dic = None,
+       remove_unk = False,
+       normalize_unicode_unk = False,
+       attempt_to_relocate_unk_source = False):
     
     log.info("writing translation to %s "% dest_fn)
     out = codecs.open(dest_fn, "w", encoding = "utf8")
@@ -180,7 +196,13 @@ def translate_to_file_with_beam_search(dest_fn, gpu, encdec, eos_idx, src_data, 
        groundhog,
        tgt_unk_id, tgt_indexer, force_finish = force_finish,
        prob_space_combination = prob_space_combination, reverse_encdec = reverse_encdec,
-       use_unfinished_translation_if_none_found = use_unfinished_translation_if_none_found)
+       use_unfinished_translation_if_none_found = use_unfinished_translation_if_none_found,
+       replace_unk = replace_unk,
+       src = src,
+       dic = dic,
+       remove_unk = remove_unk,
+       normalize_unicode_unk = normalize_unicode_unk,
+       attempt_to_relocate_unk_source = attempt_to_relocate_unk_source)
     
     attn_vis = None
     if generate_attention_html is not None:
