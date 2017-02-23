@@ -14,6 +14,7 @@ from nmt_chainer.dataprocessing.processors import build_dataset_one_side_pp
 import nmt_chainer.dataprocessing.make_data as make_data
 import nmt_chainer.training_module.train as train
 import nmt_chainer.training_module.train_config as train_config
+import re
 
 # from utils import make_batch_src, make_batch_src_tgt, minibatch_provider, compute_bleu_with_unk_as_wrong, de_batch
 from nmt_chainer.translation.evaluation import (greedy_batch_translate, 
@@ -84,7 +85,7 @@ class RichOutputWriter(object):
         self.no_entry_yet = True
         self.output.write("[\n")
         
-    def add_info(self, src, translated, t, score, attn):
+    def add_info(self, src, translated, t, score, attn, unk_mapping = None):
         if not self.no_entry_yet:
             self.output.write(",\n")
         else:
@@ -93,6 +94,9 @@ class RichOutputWriter(object):
         self.output.write(json.dumps(translated))
         self.output.write(",\n\"attn\": ")
         self.output.write(json.dumps([[float(a) for a in a_list] for a_list in attn]))
+        if unk_mapping is not None:
+            self.output.write(",\n\"unk_mapping\": ")
+            self.output.write(json.dumps(unk_mapping))
         self.output.write("}")
             
     def finish(self):
@@ -147,8 +151,17 @@ def beam_search_all(gpu, encdec, eos_idx, src_data, beam_width, beam_pruning_mar
                 assert False
             
             translated = tgt_indexer.deconvert_swallow(t, unk_tag = unk_replacer)
+
+            unk_mapping = []
+            ct = " ".join(translated)
+            if ct != '':
+                unk_pattern = re.compile("#T_UNK_(\d+)#")
+                for idx, word in enumerate(ct.split(' ')):
+                    match = unk_pattern.match(word)
+                    if (match):
+                        unk_mapping.append(match.group(1) + '-' + str(idx))    
             
-            yield src_data[num_t], translated, t, score, attn 
+            yield src_data[num_t], translated, t, score, attn, unk_mapping
         print >>sys.stderr
 
 def translate_to_file_with_beam_search(dest_fn, gpu, encdec, eos_idx, src_data, beam_width, beam_pruning_margin, nb_steps, 
@@ -178,9 +191,9 @@ def translate_to_file_with_beam_search(dest_fn, gpu, encdec, eos_idx, src_data, 
     if rich_output_filename is not None:
         rich_output = RichOutputWriter(rich_output_filename)
         
-    for src, translated, t, score, attn in translation_iterator:
+    for src, translated, t, score, attn, unk_mapping in translation_iterator:
         if rich_output is not None:
-            rich_output.add_info(src, translated, t, score, attn)
+            rich_output.add_info(src, translated, t, score, attn, unk_mapping = unk_mapping)
         if attn_vis is not None:
             attn_vis.add_plot(src_indexer.deconvert_swallow(src), translated, attn, attn_graph_with_sum, attn_graph_attribs)
         ct = tgt_indexer.deconvert_post(translated)
