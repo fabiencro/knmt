@@ -72,7 +72,9 @@ class Translator:
                    groundhog,
                    self.config_server.output.tgt_unk_id, self.tgt_indexer, force_finish = force_finish,
                    prob_space_combination = prob_space_combination, reverse_encdec = self.reverse_encdec, 
-                   generate_attention_html = (attn_graph_script_file.name, attn_graph_div_file.name), src_indexer = self.src_indexer, rich_output_filename = None,
+                   generate_attention_html = (attn_graph_script_file.name, attn_graph_div_file.name), 
+                   attn_graph_with_sum = False,
+                   attn_graph_attribs = { 'title': '', 'toolbar_location': 'below', 'plot_width': attn_graph_width, 'plot_height': attn_graph_height }, src_indexer = self.src_indexer, rich_output_filename = None,
                    use_unfinished_translation_if_none_found = False)
 
             dest_file.seek(0)
