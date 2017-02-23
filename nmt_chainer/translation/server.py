@@ -16,7 +16,7 @@ import tempfile
 
 from nmt_chainer.dataprocessing.processors import build_dataset_one_side_pp
 from nmt_chainer.translation.evaluation import beam_search_translate
-from nmt_chainer.translation.eval import create_encdec, translate_to_file_with_beam_search
+import nmt_chainer.translation.eval
 from nmt_chainer.translation.server_arg_parsing import make_config_server
 
 import traceback
@@ -39,8 +39,9 @@ class Translator:
 
     def __init__(self, config_server):
         self.config_server = config_server 
+        from nmt_chainer.translation.eval import create_encdec
         self.encdec, self.eos_idx, self.src_indexer, self.tgt_indexer, self.reverse_encdec = create_encdec(config_server)
-        if config_server.process.gpu is not None:
+        if 'gpu' in config_server.process and config_server.process.gpu is not None:
             self.encdec = self.encdec.to_gpu(config_server.process.gpu)
             
         self.encdec_list = [self.encdec]
@@ -67,6 +68,7 @@ class Translator:
 
             src_data, stats_src_pp = build_dataset_one_side_pp(src_file.name, self.src_indexer, max_nb_ex = self.config_server.process.max_nb_ex)
 
+            from nmt_chainer.translation.eval import translate_to_file_with_beam_search
             translate_to_file_with_beam_search(dest_file.name, self.config_server.process.gpu, self.encdec, self.eos_idx, src_data, beam_width, beam_pruning_margin, nb_steps, 
                    nb_steps_ratio, post_score_length_normalization, length_normalization_strength, 
                    groundhog,
@@ -245,10 +247,9 @@ def timestamped_msg(msg):
     timestamp = datetime.datetime.fromtimestamp(time.time()).strftime('%Y-%m-%d %H:%M:%S')
     return "{0}: {1}".format(timestamp, msg) 
 
-def do_start_server(args):
-    config_server = make_config_server(args)
+def do_start_server(config_server):
     translator = Translator(config_server)
-    server = Server((config_server.host, int(config_server.port)), RequestHandler, config_server.segmenter_command, config_server.segmenter_format, translator)
+    server = Server((config_server.process.host, int(config_server.process.port)), RequestHandler, config_server.process.segmenter_command, config_server.process.segmenter_format, translator)
     ip, port = server.server_address
     log.info(timestamped_msg("Start listening for requests on {0}:{1}...".format(socket.gethostname(), port)))
 

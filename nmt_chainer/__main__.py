@@ -5,7 +5,6 @@ import argparse
 import nmt_chainer.training_module.train_config as train
 import nmt_chainer.translation.eval_config as eval_module
 import nmt_chainer.dataprocessing.make_data_conf as make_data
-import nmt_chainer.translation.server_arg_parsing as server
 
 import nmt_chainer.utilities.utils_command as utils_command
 
@@ -68,11 +67,6 @@ def main(arguments = None):
     parser_eval = subparsers.add_parser('eval', description= "Use a model.", help = "Use a model", formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     eval_module.define_parser(parser_eval)
     
-    # create the parser for the "server" command
-    parser_server = subparsers.add_parser('server', description= "Launch a server.", help = "Launch a server",
-                                          formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-    server.define_parser(parser_server)
-
     # create the parser for the "version" command
     parser_version = subparsers.add_parser('version', description= "Get version infos.", help = "Get version infos", formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     
@@ -88,7 +82,6 @@ def main(arguments = None):
     func = {"make_data": make_data.do_make_data, 
             "train": train.do_train, 
             "eval":eval_module.do_eval, 
-            "server": server.do_start_server,
             "version": versioning_tools.main,
             "utils": utils_command.do_utils}[args.__subcommand_name]
     

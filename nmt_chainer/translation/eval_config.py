@@ -19,7 +19,7 @@ def define_parser(parser):
     translation_method_group = parser.add_argument_group(_CONFIG_SECTION_TO_DESCRIPTION["method"])
     translation_method_group.add_argument("--mode", default = "translate", 
                         choices = ["translate", "align", "translate_attn", "beam_search", "eval_bleu",
-                                   "score_nbest"], help = "target text")
+                                   "score_nbest", "server"], help = "target text")
     translation_method_group.add_argument("--beam_width", type = int, default= 20, help = "beam width")
     translation_method_group.add_argument("--beam_pruning_margin", type = float, default= None, help = "beam pruning margin")
     translation_method_group.add_argument("--nb_steps", type = int, default= 50, help = "nb_steps used in generation")
@@ -59,6 +59,10 @@ def define_parser(parser):
     management_group.add_argument("--reverse_training_config", help = "prefix of the trained model")
     management_group.add_argument("--reverse_trained_model", help = "prefix of the trained model")
 #     management_group.add_argument("--config", help = "load eval config file")
+    management_group.add_argument("--host", help = "host for listening request", default = 'localhost')
+    management_group.add_argument("--port", help = "port for listening request", default = 44666)
+    management_group.add_argument("--segmenter_command", help = "command to communicate with the segmenter server")
+    management_group.add_argument("--segmenter_format", help = "format to expect from the segmenter (parse_server, morph)", default = 'plain')
     
 class CommandLineValuesException(Exception):
     pass
@@ -66,7 +70,8 @@ class CommandLineValuesException(Exception):
 def get_parse_option_orderer():
     description_to_config_section = dict( (v, k) for (k,v) in _CONFIG_SECTION_TO_DESCRIPTION.iteritems())
     por = argument_parsing_tools.ParseOptionRecorder(group_title_to_section = description_to_config_section,
-                                                     ignore_positional_arguments = set(["src_fn", "dest_fn"]))
+                                                     #ignore_positional_arguments = set(["src_fn", "dest_fn"])
+                                                     )
     define_parser(por)
     return por
     
@@ -76,8 +81,9 @@ def make_config_eval(args):
     config_eval.add_metadata_infos(version_num = 1)
     config_eval.set_readonly()
     
-    if config_eval.process.src_fn is None or config_eval.process.dest_fn is None:
-        raise CommandLineValuesException("src_fn and dest_fn need to be set either on the command line or in a config file")
+    if config_eval.method.mode != 'server':
+        if config_eval.process.src_fn is None or config_eval.process.dest_fn is None:
+            raise CommandLineValuesException("src_fn and dest_fn need to be set either on the command line or in a config file")
     
     return config_eval
     
