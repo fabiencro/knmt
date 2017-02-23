@@ -40,7 +40,7 @@ class AttentionVisualizer(object):
     def __init__(self):
         self.plots_list = []
         
-    def add_plot(self, src_w, tgt_w, attn):
+    def add_plot(self, src_w, tgt_w, attn, include_sum = True, visual_attribs = None):
         from nmt_chainer.utilities import visualisation
         alignment = np.zeros((len(src_w) + 1, len(tgt_w)))
         sum_al =[0] * len(tgt_w)
@@ -51,8 +51,13 @@ class AttentionVisualizer(object):
         for j in xrange(len(tgt_w)):        
             alignment[len(src_w), j] =  sum_al[j]
             
-        p1 = visualisation.make_alignment_figure(
-                            src_w + ["SUM_ATTN"], tgt_w, alignment)
+        src = src_w
+        if include_sum:
+            src += ["SUM_ATTN"]
+        if visual_attribs is not None:
+            p1 = visualisation.make_alignment_figure(src, tgt_w, alignment, **visual_attribs)
+        else:
+            p1 = visualisation.make_alignment_figure(src, tgt_w, alignment)
         
         self.plots_list.append(p1)
             
@@ -151,7 +156,7 @@ def translate_to_file_with_beam_search(dest_fn, gpu, encdec, eos_idx, src_data, 
        groundhog,
        tgt_unk_id, tgt_indexer, force_finish = False,
        prob_space_combination = False, reverse_encdec = None, 
-       generate_attention_html = None, src_indexer = None, rich_output_filename = None,
+       generate_attention_html = None, attn_graph_with_sum = True, attn_graph_attribs = None, src_indexer = None, rich_output_filename = None,
        use_unfinished_translation_if_none_found = False):
     
     log.info("writing translation to %s "% dest_fn)
@@ -177,7 +182,7 @@ def translate_to_file_with_beam_search(dest_fn, gpu, encdec, eos_idx, src_data, 
         if rich_output is not None:
             rich_output.add_info(src, translated, t, score, attn)
         if attn_vis is not None:
-            attn_vis.add_plot(src_indexer.deconvert_swallow(src), translated, attn)
+            attn_vis.add_plot(src_indexer.deconvert_swallow(src), translated, attn, attn_graph_with_sum, attn_graph_attribs)
         ct = tgt_indexer.deconvert_post(translated)
         out.write(ct + "\n")
         
