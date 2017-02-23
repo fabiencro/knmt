@@ -56,6 +56,9 @@ class Translator:
 
         dest_file = tempfile.NamedTemporaryFile()
 
+        attn_graph_script_file = tempfile.NamedTemporaryFile()
+        attn_graph_div_file = tempfile.NamedTemporaryFile()
+
         try:
             out = ''
             script = ''
@@ -69,11 +72,17 @@ class Translator:
                    groundhog,
                    self.config_server.output.tgt_unk_id, self.tgt_indexer, force_finish = force_finish,
                    prob_space_combination = prob_space_combination, reverse_encdec = self.reverse_encdec, 
-                   generate_attention_html = None, src_indexer = self.src_indexer, rich_output_filename = None,
+                   generate_attention_html = (attn_graph_script_file.name, attn_graph_div_file.name), src_indexer = self.src_indexer, rich_output_filename = None,
                    use_unfinished_translation_if_none_found = False)
 
             dest_file.seek(0)
             out = dest_file.read()
+
+            attn_graph_script_file.seek(0)
+            script = attn_graph_script_file.read()
+
+            attn_graph_div_file.seek(0)
+            div = attn_graph_div_file.read()
 
             #src_data, stats_src_pp = build_dataset_one_side_pp(src_file.name, self.src_indexer, max_nb_ex = self.config_server.process.max_nb_ex)
             #log.info(stats_src_pp.make_report())
@@ -147,6 +156,8 @@ class Translator:
         finally:
             src_file.close()
             dest_file.close()
+            attn_graph_script_file.close()
+            attn_graph_div_file.close()
 
         return out, script, div, unk_mapping
 
