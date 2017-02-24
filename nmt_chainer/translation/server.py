@@ -128,8 +128,8 @@ class Evaluator:
             translations_gen = beam_search_translate(
                         self.encdec, self.eos_idx, src_data, beam_width = beam_width, beam_pruning_margin = beam_pruning_margin, 
                                         nb_steps = nb_steps, 
-                                        gpu = self.gpu, beam_opt = self.beam_opt, nb_steps_ratio = nb_steps_ratio,
-                                        need_attention = True, post_score_length_normalization = post_score_length_normalization, 
+                                        gpu = self.gpu, need_attention = True, nb_steps_ratio = nb_steps_ratio,
+                                        post_score_length_normalization = post_score_length_normalization, 
                                         length_normalization_strength = length_normalization_strength,
                                         post_score_coverage_penalty = post_score_coverage_penalty,
                                         post_score_coverage_penalty_strength = post_score_coverage_penalty_strength,
@@ -344,46 +344,6 @@ def timestamped_msg(msg):
     timestamp = datetime.datetime.fromtimestamp(time.time()).strftime('%Y-%m-%d %H:%M:%S')
     return "{0}: {1}".format(timestamp, msg) 
 
-def define_parser(parser):
-    parser.add_argument("training_config", help = "prefix of the trained model")
-    parser.add_argument("trained_model", help = "prefix of the trained model")
-    
-    parser.add_argument("--additional_training_config", nargs = "*", help = "prefix of the trained model")
-    parser.add_argument("--additional_trained_model", nargs = "*", help = "prefix of the trained model")
-    
-    parser.add_argument("--tgt_fn", help = "target text")
-    
-    parser.add_argument("--nbest_to_rescore", help = "nbest list in moses format")
-    
-    parser.add_argument("--ref", help = "target text")
-    
-    parser.add_argument("--gpu", type = int, help = "specify gpu number to use, if any")
-    
-    parser.add_argument("--max_nb_ex", type = int, help = "only use the first MAX_NB_EX examples")
-    parser.add_argument("--mb_size", type = int, default= 80, help = "Minibatch size")
-    parser.add_argument("--nb_batch_to_sort", type = int, default= 20, help = "Sort this many batches by size.")
-    parser.add_argument("--beam_opt", default = False, action = "store_true")
-    parser.add_argument("--tgt_unk_id", choices = ["attn", "id"], default = "align")
-    
-    # arguments for unk replace
-    parser.add_argument("--dic")
-    
-    parser.add_argument("--reverse_training_config", help = "prefix of the trained model")
-    parser.add_argument("--reverse_trained_model", help = "prefix of the trained model")
-    
-    parser.add_argument("--netiface", help = "network interface for listening request", default = 'eth0')
-    parser.add_argument("--port", help = "port for listening request", default = 44666)
-    parser.add_argument("--segmenter_command", help = "command to communicate with the segmenter server")
-    parser.add_argument("--segmenter_format", help = "format to expect from the segmenter (parse_server, morph)", default = 'parse_server')
-
-def command_line(arguments = None):
-    import argparse
-    parser = argparse.ArgumentParser(description= "Launch a RNNSearch server", 
-                                     formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-    define_parser(parser)
-    args = parser.parse_args(args = arguments)
-    do_start_server(args)
-   
 def do_start_server(args):
     evaluator = Evaluator(args.training_config, args.trained_model, args.additional_training_config, args.additional_trained_model, 
                    args.reverse_training_config, args.reverse_trained_model, args.max_nb_ex, args.mb_size, args.beam_opt, 
