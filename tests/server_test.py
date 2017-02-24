@@ -7,8 +7,8 @@ __email__ = "bergeron@pa.jst.jp"
 __status__ = "Development"
 
 import json
-import nmt_chainer.server as server
-from nmt_chainer.client import Client
+import nmt_chainer.translation.server as server
+from nmt_chainer.translation.client import Client
 import os.path
 import psutil
 import pytest
