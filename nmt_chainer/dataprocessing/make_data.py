@@ -198,6 +198,10 @@ def do_make_data(config):
         bpe_data_file_tgt = config.save_prefix + ".tgt.bpe"
         files_that_will_be_created.append(bpe_data_file_tgt)
     
+    if config.joint_bpe is not None:
+        bpe_data_file_joint = config.save_prefix + ".joint.bpe"
+        files_that_will_be_created.append(bpe_data_file_joint)    
+    
     already_existing_files = []
     for filename in files_that_will_be_created:  # , valid_data_fn]:
         if os.path.exists(filename):
@@ -211,36 +215,39 @@ def do_make_data(config):
 #         src_voc, tgt_voc = json.load(open(config.use_voc))
 #         src_pp = processors.load_pp_from_data(json.load(open(src_voc)))
 #         tgt_pp = IndexingPrePostProcessor.make_from_serializable(tgt_voc)
-        src_pp, tgt_pp = processors.load_pp_pair_from_file(config.use_voc)
+        bi_idx = processors.load_pp_pair_from_file(config.use_voc)
     else:
-        if config.bpe_src is not None:
-            src_pp = (processors.SimpleSegmenter(config.src_segmentation_type) +
-                      processors.BPEProcessing(bpe_data_file = bpe_data_file_src, symbols = config.bpe_src, separator = "._@@@") +
-                    processors.IndexingPrePostProcessor(voc_limit = config.src_voc_size)
-                    )
-        else:
-            src_pp = (processors.SimpleSegmenter(config.src_segmentation_type) +
-                    processors.IndexingPrePostProcessor(voc_limit = config.src_voc_size)
-                    )
+        
+        bi_idx = processors.BiIndexingPrePostProcessor(voc_limit1 = config.src_voc_size, voc_limit2 = config.tgt_voc_size)
+        pp = processors.BiProcessorChain()
+        
+        
+        if config.latin_tgt:
+            pp.add_tgt_processor(processors.LatinScriptProcess())
         
         if config.latin_src:
-            src_pp = processors.LatinScriptProcess() + src_pp
+            pp.add_src_processor(processors.LatinScriptProcess())
         
+        pp.add_src_processor(processors.SimpleSegmenter(config.src_segmentation_type))
+        if config.bpe_src is not None:
+            pp.add_src_processor(
+                processors.BPEProcessing(bpe_data_file = bpe_data_file_src, symbols = config.bpe_src, separator = "._@@@"))
+        
+        pp.add_tgt_processor(processors.SimpleSegmenter(config.tgt_segmentation_type))
         if config.bpe_tgt is not None:
-            tgt_pp = (processors.SimpleSegmenter(config.tgt_segmentation_type) +
-                      processors.BPEProcessing(bpe_data_file = bpe_data_file_tgt, symbols = config.bpe_tgt, separator = "._@@@") +
-                                 processors.IndexingPrePostProcessor(voc_limit = config.tgt_voc_size))
-        else:
-            tgt_pp = (processors.SimpleSegmenter(config.tgt_segmentation_type) +
-                                 processors.IndexingPrePostProcessor(voc_limit = config.tgt_voc_size))
-    
-        if config.latin_tgt:
-            tgt_pp = processors.LatinScriptProcess() + tgt_pp
+            pp.add_tgt_processor(
+                processors.BPEProcessing(bpe_data_file = bpe_data_file_tgt, symbols = config.bpe_tgt, separator = "._@@@"))
+              
+        if config.joint_bpe is not None:
+            pp.add_biprocessor(processors.JointBPEBiProcessor(bpe_data_file = bpe_data_file_joint, 
+                                                              symbols = config.joint_bpe, separator = "._@@@"))
+                            
+        bi_idx.add_preprocessor(pp)
     
     def load_data(src_fn, tgt_fn, max_nb_ex=None):
 
         training_data, stats_src, stats_tgt = processors.build_dataset_pp(
-            src_fn, tgt_fn, src_pp, tgt_pp,
+            src_fn, tgt_fn, bi_idx,
             max_nb_ex=max_nb_ex)
 
         log.info("src data stats:\n%s", stats_src.make_report())
@@ -282,7 +289,7 @@ def do_make_data(config):
 #               indent=2, separators=(',', ': '))
 
     log.info("saving voc to %s" % voc_fn)
-    processors.save_pp_pair_to_file(src_pp, tgt_pp, voc_fn)
+    processors.save_pp_pair_to_file(bi_idx, voc_fn)
 #     json.dump([src_pp.to_serializable(), tgt_pp.to_serializable()],
 #               open(voc_fn, "w"), indent=2, separators=(',', ': '))
 

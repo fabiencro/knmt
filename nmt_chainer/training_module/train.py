@@ -111,18 +111,18 @@ def create_encdec_and_indexers_from_config_dict(config_dict, src_indexer = None,
     if src_indexer is None or tgt_indexer is None:
         voc_fn = config_dict.data["voc"]
         log.info("loading voc from %s"% voc_fn)
-        src_voc, tgt_voc = json.load(open(voc_fn))
+#         src_voc, tgt_voc = json.load(open(voc_fn))
         
-        src_pp, tgt_pp = processors.load_pp_pair_from_file(voc_fn)
+        bi_idx = processors.load_pp_pair_from_file(voc_fn)
     
     if src_indexer is None:
-        src_indexer = src_pp
+        src_indexer = bi_idx.src_processor()
         
     if tgt_indexer is None:
-        tgt_indexer = tgt_pp
+        tgt_indexer = bi_idx.tgt_processor()
         
-    tgt_voc = None
-    src_voc = None
+#     tgt_voc = None
+#     src_voc = None
 
     encdec = create_encdec_from_config_dict(config_dict["model"], src_indexer, tgt_indexer)
     
@@ -155,7 +155,9 @@ def load_voc_and_update_training_config(config_training):
 #     src_voc, tgt_voc = json.load(open(voc_fn))
     
     
-    src_indexer, tgt_indexer = processors.load_pp_pair_from_file(voc_fn)
+    bi_idx = processors.load_pp_pair_from_file(voc_fn)
+    
+    src_indexer, tgt_indexer = bi_idx.src_processor(), bi_idx.tgt_processor()
 #     src_indexer = processors.PreProcessor.make_from_serializable(src_voc)
 #     tgt_indexer = processors.PreProcessor.make_from_serializable(tgt_voc)
 #     tgt_voc = None
