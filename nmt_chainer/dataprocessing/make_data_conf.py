@@ -37,6 +37,8 @@ def define_parser(parser):
     parser.add_argument("--bpe_src", type = int, help = "Apply BPE to source side, with this many merges")
     parser.add_argument("--bpe_tgt", type = int, help = "Apply BPE to target side, with this many merges")
     
+    parser.add_argument("--joint_bpe", type = int, help = "Apply joint BPE, with this many merges")
+    
     parser.add_argument("--latin_src", default = False, action = "store_true", help = "apply preprocessing for latin scripts to source")
     parser.add_argument("--latin_tgt", default = False, action = "store_true", help = "apply preprocessing for latin scripts to target")
     
@@ -71,6 +73,9 @@ def make_data_config(args):
 
     if not ((config.dev_src is None) == (config.dev_tgt is None)):
         raise CommandLineValuesException("Command Line Error: either specify both --dev_src and --dev_tgt or neither")
+    
+    if config.joint_bpe is not None and (config.bpe_src is not None or config.bpe_tgt is not None):
+        raise CommandLineValuesException("Command Line Error: --joint_bpe is incompatible with --bpe_src and --bpe_tgt")
     return config
 
 def do_make_data(args):
