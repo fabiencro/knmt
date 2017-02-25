@@ -44,18 +44,23 @@ def iterate_eos_scores(new_scores, eos_idx):
 
 def update_next_lists(num_case, idx_in_case, new_cost, eos_idx, new_state_ensemble, finished_translations, current_translations, current_attentions,
            next_states_list, next_words_list, next_score_list, next_translations_list, 
-           attn_ensemble, next_attentions_list, current_states_sum, next_states_sum_list, need_attention = False):
+           attn_ensemble, next_attentions_list, current_states_sum, next_states_sum_list, need_attention = False, is_multisource = False):
     if idx_in_case == eos_idx:
+        if len(current_states_sum) == 0:
+            #current_states_sum.append(next_states_list[-1][0][-1])
+            assert 1==1 # Fix this madness
         if need_attention:
             finished_translations.append((current_translations[num_case], 
                                       -new_cost,
                                       current_attentions[num_case],
-                                      current_states_sum[num_case]/len(current_translations[num_case])
+                                      True
+                                      #current_states_sum[num_case]/(len(current_translations[num_case])+0.001)
                                       ))
         else:
             finished_translations.append((current_translations[num_case], 
                                       -new_cost,
-                                      current_states_sum[num_case]/len(current_translations[num_case])
+                                      True
+                                      #current_states_sum[num_case]/(len(current_translations[num_case])+0.001)
                                       ))
     else:
         next_states_list.append(
@@ -84,13 +89,14 @@ def update_next_lists(num_case, idx_in_case, new_cost, eos_idx, new_state_ensemb
         if need_attention:
             xp = cuda.get_array_module(attn_ensemble[0].data)
             attn_summed = xp.zeros((attn_ensemble[0].data[0].shape), dtype = xp.float32)
-            for attn in attn_ensemble:
-                attn_summed += attn.data[num_case]
+            if not is_multisource: ### Temporary fix to overcome attention mismatch
+                for attn in attn_ensemble:
+                    attn_summed += attn.data[num_case]
             attn_summed /= len(attn_ensemble)
             next_attentions_list.append(current_attentions[num_case] + [attn_summed])
             
 def compute_next_lists(new_state_ensemble, new_scores, beam_width, eos_idx, current_translations, finished_translations, 
-      current_attentions, attn_ensemble, current_states_sum, force_finish = False, need_attention = False):
+      current_attentions, attn_ensemble, current_states_sum, force_finish = False, need_attention = False, is_multisource = False):
 
     next_states_list = []
     next_words_list = []
@@ -108,7 +114,7 @@ def compute_next_lists(new_state_ensemble, new_scores, beam_width, eos_idx, curr
         update_next_lists(num_case, idx_in_case, new_cost, eos_idx, new_state_ensemble, 
                           finished_translations, current_translations, current_attentions,
            next_states_list, next_words_list, next_score_list, next_translations_list, 
-           attn_ensemble, next_attentions_list, current_states_sum, next_states_sum_list, need_attention = need_attention)
+           attn_ensemble, next_attentions_list, current_states_sum, next_states_sum_list, need_attention = need_attention, is_multisource = is_multisource)
         assert len(next_states_list) <= beam_width
 #             if len(next_states_list) >= beam_width:
 #                 break
@@ -148,7 +154,7 @@ def compute_next_states_and_scores(dec_cell_ensemble, current_states_ensemble, c
     
 def advance_one_step(dec_cell_ensemble, eos_idx, current_translations_states, beam_width, finished_translations,
                      force_finish = False, need_attention = False,
-                     prob_space_combination = False):
+                     prob_space_combination = False, is_multisource = False):
 #     xp = cuda.get_array_module(dec_ensemble[0].initial_state.data)
     xp = dec_cell_ensemble[0].xp
     current_translations, current_scores, current_states_ensemble, current_words, current_attentions, current_states_sum = current_translations_states
@@ -168,7 +174,7 @@ def advance_one_step(dec_cell_ensemble, eos_idx, current_translations_states, be
     next_states_list, next_words_list, next_score_list, next_translations_list, next_attentions_list, next_states_sum_list = compute_next_lists(
                 new_state_ensemble, new_scores, beam_width, eos_idx, 
                 current_translations, finished_translations, 
-                current_attentions, attn_ensemble, current_states_sum, force_finish = force_finish, need_attention = need_attention)
+                current_attentions, attn_ensemble, current_states_sum, force_finish = force_finish, need_attention = need_attention, is_multisource = is_multisource)
 
     if len(next_states_list) == 0:
         return None # We only found finished translations
@@ -206,15 +212,21 @@ def advance_one_step(dec_cell_ensemble, eos_idx, current_translations_states, be
 
 def ensemble_beam_search(model_ensemble, src_batch, src_mask, nb_steps, eos_idx, beam_width = 20, need_attention = False,
                          force_finish = False,
-                         prob_space_combination = False):
+                         prob_space_combination = False, src_batch_list = None, src_mask_list = None):
     
     mb_size = src_batch[0].data.shape[0]
     assert len(model_ensemble) >= 1
     xp = model_ensemble[0].xp
     enc_fb_concat = []
-    dec_cell_ensemble = [model.give_conditionalized_cell(src_batch, src_mask, noise_on_prev_word = False,
-                    mode = "test", demux = True, enc_fb_concat = enc_fb_concat) for model in model_ensemble]
-    
+    dec_cell_ensemble = None
+    if len(model_ensemble) > 1 and len(src_batch_list) == 1: # Single source but multiple models
+        dec_cell_ensemble = [model.give_conditionalized_cell(src_batch, src_mask, noise_on_prev_word = False,
+                    mode = "test", demux = True, enc_fb_concat = enc_fb_concat) for model in model_ensemble]    
+    else: # Multiple sources multiple models
+        dec_cell_ensemble = [model.give_conditionalized_cell(src_batch_ind, src_mask_ind, noise_on_prev_word = False,
+                        mode = "test", demux = True, enc_fb_concat = enc_fb_concat) for (model, src_batch_ind, src_mask_ind) in zip(model_ensemble, src_batch_list, src_mask_list)]
+    #print src_batch_list[-1][-1].data
+    #print "Number of models being ensembled:", len(dec_cell_ensemble)
     #print enc_fb_concat[0].data.shape
 
     assert mb_size == 1
@@ -236,6 +248,7 @@ def ensemble_beam_search(model_ensemble, src_batch, src_mask, nb_steps, eos_idx,
     
     # Proceed with the search
     for num_step in xrange(nb_steps):
+        #print "Step: ", num_step
         current_translations_states = advance_one_step(
                             dec_cell_ensemble, 
                             eos_idx, 
@@ -244,7 +257,7 @@ def ensemble_beam_search(model_ensemble, src_batch, src_mask, nb_steps, eos_idx,
                             finished_translations,
                             force_finish = force_finish and num_step == (nb_steps -1),
                             need_attention = need_attention,
-                            prob_space_combination = prob_space_combination)
+                            prob_space_combination = prob_space_combination, is_multisource = (len(src_batch_list) > 1))
         if current_translations_states is None:
             break
         

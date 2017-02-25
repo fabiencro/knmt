@@ -43,6 +43,8 @@ class DataPreparationPipeline:
 		self.merge_operations = args.num_bpe_merge_operations
 		self.is_multisource = args.is_multisource
 		self.drop_source_sentences = args.drop_source_sentences
+		self.pretrained_src_bpe_model = args.pretrained_src_bpe_model
+		self.pretrained_tgt_bpe_model = args.pretrained_tgt_bpe_model
 		self.min_frequency = 2
 		self.verbose = True
 		self.joint_bpe_model = args.joint_bpe_model
@@ -252,34 +254,50 @@ class DataPreparationPipeline:
 		if self.is_multi_target:
 			adjustment = len(set(self.tgts))
 		if self.joint_bpe_model:
-			log.info("Learning joint BPE model for source and target")
-			if self.max_src_vocab or self.max_tgt_vocab:
-				self.max_tgt_vocab = self.max_src_vocab if not self.max_tgt_vocab else self.max_tgt_vocab
-				self.max_src_vocab = self.max_tgt_vocab if not self.max_src_vocab else self.max_src_vocab
-				log.info("The number of merge operations will be determined based on how many merge rules it takes to reach the goal of a joint vocabulary of size %d for source and target. Note that %d vocab symbols will have to be accounted to accommodate the <2xx> tokens in case of multiple target languages." % (self.max_src_vocab, adjustment))
-				self.learn_model(self.merged_voc_src_tgt, self.save_prefix + "/bpe_model.src", self.max_src_vocab - adjustment)
+			if self.pretrained_src_bpe_model or self.pretrained_tgt_bpe_model:
+				log.info("Using pretrained BPE model for source and target. Replicating as copies.")
+				self.replicate_bpe_model(self.pretrained_src_bpe_model, self.save_prefix + "/bpe_model.src")	
+				self.replicate_bpe_model(self.pretrained_src_bpe_model, self.save_prefix + "/bpe_model.tgt")
+				log.info("Replication completed")
 			else:
-				log.info("Number of merges to be done: %d" % self.merge_operations)
-				self.learn_model(self.merged_voc_src_tgt, self.save_prefix + "/bpe_model.src")
-			log.info("Model learned. Now replicating it for target side")
-			self.replicate_bpe_model(self.save_prefix + "/bpe_model.src", self.save_prefix + "/bpe_model.tgt")
-			log.info("Replication completed")
+				log.info("Learning joint BPE model for source and target")
+				if self.max_src_vocab or self.max_tgt_vocab:
+					self.max_tgt_vocab = self.max_src_vocab if not self.max_tgt_vocab else self.max_tgt_vocab
+					self.max_src_vocab = self.max_tgt_vocab if not self.max_src_vocab else self.max_src_vocab
+					log.info("The number of merge operations will be determined based on how many merge rules it takes to reach the goal of a joint vocabulary of size %d for source and target. Note that %d vocab symbols will have to be accounted to accommodate the <2xx> tokens in case of multiple target languages." % (self.max_src_vocab, adjustment))
+					self.learn_model(self.merged_voc_src_tgt, self.save_prefix + "/bpe_model.src", self.max_src_vocab - adjustment)
+				else:
+					log.info("Number of merges to be done: %d" % self.merge_operations)
+					self.learn_model(self.merged_voc_src_tgt, self.save_prefix + "/bpe_model.src")
+				log.info("Model learned. Now replicating it for target side")
+				self.replicate_bpe_model(self.save_prefix + "/bpe_model.src", self.save_prefix + "/bpe_model.tgt")
+				log.info("Replication completed")
 		else:
-			log.info("Learning BPE model for source")
-			if self.max_src_vocab:
-				log.info("The number of merge operations will be determined based on how many merge rules it takes to reach the goal of a vocabulary of size %d for source. Note that %d vocab symbols will have to be accounted to accommodate the <2xx> tokens in case of multiple target languages." % (self.max_src_vocab, adjustment))
-				self.learn_model(self.merged_voc_src, self.save_prefix + "/bpe_model.src", self.max_src_vocab - adjustment)
+			if self.pretrained_src_bpe_model:
+				log.info("Using pretrained BPE model for source. Replicating as a copy.")
+				self.replicate_bpe_model(self.pretrained_src_bpe_model, self.save_prefix + "/bpe_model.src")
+				log.info("Replication completed")
 			else:
-				log.info("Number of merges to be done: %d" % self.merge_operations)
-				self.learn_model(self.merged_voc_src, self.save_prefix + "/bpe_model.src")
+				log.info("Learning BPE model for source")
+				if self.max_src_vocab:
+					log.info("The number of merge operations will be determined based on how many merge rules it takes to reach the goal of a vocabulary of size %d for source. Note that %d vocab symbols will have to be accounted to accommodate the <2xx> tokens in case of multiple target languages." % (self.max_src_vocab, adjustment))
+					self.learn_model(self.merged_voc_src, self.save_prefix + "/bpe_model.src", self.max_src_vocab - adjustment)
+				else:
+					log.info("Number of merges to be done: %d" % self.merge_operations)
+					self.learn_model(self.merged_voc_src, self.save_prefix + "/bpe_model.src")
 			
-			log.info("Learning BPE model for target")
-			if self.max_tgt_vocab:
-				log.info("The number of merge operations will be determined based on how many merge rules it takes to reach the goal of a vocabulary of size %d for target" % self.max_tgt_vocab)
-				self.learn_model(self.merged_voc_tgt, self.save_prefix + "/bpe_model.tgt", self.max_tgt_vocab)
+			if self.pretrained_tgt_bpe_model:
+				log.info("Using pretrained BPE model for target. Replicating as a copy.")
+				self.replicate_bpe_model(self.pretrained_tgt_bpe_model, self.save_prefix + "/bpe_model.tgt")
+				log.info("Replication completed")
 			else:
-				log.info("Number of merges to be done: %d" % self.merge_operations)
-				self.learn_model(self.merged_voc_tgt, self.save_prefix + "/bpe_model.tgt")
+				log.info("Learning BPE model for target")
+				if self.max_tgt_vocab:
+					log.info("The number of merge operations will be determined based on how many merge rules it takes to reach the goal of a vocabulary of size %d for target" % self.max_tgt_vocab)
+					self.learn_model(self.merged_voc_tgt, self.save_prefix + "/bpe_model.tgt", self.max_tgt_vocab)
+				else:
+					log.info("Number of merges to be done: %d" % self.merge_operations)
+					self.learn_model(self.merged_voc_tgt, self.save_prefix + "/bpe_model.tgt")
 
 	def learn_model(self, vocab, model_path, max_vocab = None):
 		if max_vocab:
@@ -511,6 +529,10 @@ if __name__ == '__main__':
 	parser.add_argument("--max_tgt_vocab", type=int, default=None, help="Maximum number of target side symbols desired. This will automatically limit the number of BPE merge operations by stopping when this limit has been reached. When the joint_bpe_model flag has been specified the limit will be decided by the value of the max_src_vocab flag.")
 	parser.add_argument("--is_multisource", default=False, action = "store_true", help="Do you want to generate multisource data? This assumes that the target side of each sentence is the same.")
 	parser.add_argument("--drop_source_sentences", default=False, action = "store_true", help="Do you want to generate multisource data with randomly dropped source sentences? Is to ensure that the NMT system becomes robust enough to deal with situations where multiple source sentences might not exist.")
+	parser.add_argument(
+		"--pretrained_src_bpe_model", help="Use a pretrained BPE model for source text segmentation")
+	parser.add_argument(
+		"--pretrained_tgt_bpe_model", help="Use a pretrained BPE model for target text segmentation")
 	args = parser.parse_args()
 		
 	dpp = DataPreparationPipeline(args)

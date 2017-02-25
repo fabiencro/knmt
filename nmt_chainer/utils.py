@@ -252,34 +252,77 @@ def minibatch_provider(data, eos_idx, mb_size, nb_mb_for_sorting = 1, loop = Tru
                        randomized = False, volatile = "off", sort_key = lambda x:len(x[1]),
                        reverse_src = False, reverse_tgt = False, give_raw_batch = False
                        ):
-    if nb_mb_for_sorting == -1:
-        assert not randomized
-        assert loop == False
-        for mb_raw in batch_sort_and_split(data, mb_size, inplace = inplace_sorting, sort_key = sort_key):
-            mb_raw = mb_reverser(mb_raw, reverse_src = reverse_src, reverse_tgt = reverse_tgt)
-            src_batch, tgt_batch, src_mask = make_batch_src_tgt(mb_raw, eos_idx = eos_idx, gpu = gpu, volatile = volatile)
-            
-            if give_raw_batch:
-                yield src_batch, tgt_batch, src_mask, mb_raw
-            else:
-                yield src_batch, tgt_batch, src_mask
-    else:
-        assert nb_mb_for_sorting > 0
-        required_data = nb_mb_for_sorting *  mb_size
-        if randomized:
-#             assert not loop
-            looper = minibatch_looper_random(data, required_data)
+    if gpu is not None and type(gpu) == list:
+        if nb_mb_for_sorting == -1:
+            assert not randomized
+            assert loop == False
+            for mb_raw in batch_sort_and_split(data, mb_size*len(gpu), inplace = inplace_sorting, sort_key = sort_key):
+                mb_raw = mb_reverser(mb_raw, reverse_src = reverse_src, reverse_tgt = reverse_tgt)
+                src_batch_per_gpu = []
+                tgt_batch_per_gpu = []
+                src_mask_per_gpu = []
+                for gid in xrange(len(gpu)):
+                    src_batch, tgt_batch, src_mask = make_batch_src_tgt(mb_raw[gid*mb_size:(gid+1)*mb_size], eos_idx = eos_idx, gpu = gpu[gid], volatile = volatile)
+                    src_batch_per_gpu.append(src_batch)
+                    tgt_batch_per_gpu.append(tgt_batch)
+                    src_mask_per_gpu.append(src_mask)
+                if give_raw_batch:
+                    yield src_batch_per_gpu, tgt_batch_per_gpu, src_mask_per_gpu, mb_raw
+                else:
+                    yield src_batch_per_gpu, tgt_batch_per_gpu, src_mask_per_gpu
         else:
-            looper = minibatch_looper(data, required_data, loop = loop, avoid_copy = False)
-        for large_batch in looper:
-            # ok to sort in place since minibatch_looper will return copies
-            for mb_raw in batch_sort_and_split(large_batch, mb_size, inplace = True, sort_key = sort_key):
+            assert nb_mb_for_sorting > 0
+            required_data = nb_mb_for_sorting *  mb_size
+            if randomized:
+    #             assert not loop
+                looper = minibatch_looper_random(data, required_data)
+            else:
+                looper = minibatch_looper(data, required_data, loop = loop, avoid_copy = False)
+            for large_batch in looper:
+                # ok to sort in place since minibatch_looper will return copies
+                for mb_raw in batch_sort_and_split(large_batch, mb_size*len(gpu), inplace = True, sort_key = sort_key):
+                    mb_raw = mb_reverser(mb_raw, reverse_src = reverse_src, reverse_tgt = reverse_tgt)
+                    src_batch_per_gpu = []
+                    tgt_batch_per_gpu = []
+                    src_mask_per_gpu = []
+                    for gid in xrange(len(gpu)):
+                        src_batch, tgt_batch, src_mask = make_batch_src_tgt(mb_raw[gid*mb_size:(gid+1)*mb_size], eos_idx = eos_idx, gpu = gpu[gid], volatile = volatile)
+                        src_batch_per_gpu.append(src_batch)
+                        tgt_batch_per_gpu.append(tgt_batch)
+                        src_mask_per_gpu.append(src_mask)
+                    if give_raw_batch:
+                        yield src_batch_per_gpu, tgt_batch_per_gpu, src_mask_per_gpu, mb_raw
+                    else:
+                        yield src_batch_per_gpu, tgt_batch_per_gpu, src_mask_per_gpu
+    else:
+        if nb_mb_for_sorting == -1:
+            assert not randomized
+            assert loop == False
+            for mb_raw in batch_sort_and_split(data, mb_size, inplace = inplace_sorting, sort_key = sort_key):
                 mb_raw = mb_reverser(mb_raw, reverse_src = reverse_src, reverse_tgt = reverse_tgt)
                 src_batch, tgt_batch, src_mask = make_batch_src_tgt(mb_raw, eos_idx = eos_idx, gpu = gpu, volatile = volatile)
+                
                 if give_raw_batch:
                     yield src_batch, tgt_batch, src_mask, mb_raw
                 else:
                     yield src_batch, tgt_batch, src_mask
+        else:
+            assert nb_mb_for_sorting > 0
+            required_data = nb_mb_for_sorting *  mb_size
+            if randomized:
+    #             assert not loop
+                looper = minibatch_looper_random(data, required_data)
+            else:
+                looper = minibatch_looper(data, required_data, loop = loop, avoid_copy = False)
+            for large_batch in looper:
+                # ok to sort in place since minibatch_looper will return copies
+                for mb_raw in batch_sort_and_split(large_batch, mb_size, inplace = True, sort_key = sort_key):
+                    mb_raw = mb_reverser(mb_raw, reverse_src = reverse_src, reverse_tgt = reverse_tgt)
+                    src_batch, tgt_batch, src_mask = make_batch_src_tgt(mb_raw, eos_idx = eos_idx, gpu = gpu, volatile = volatile)
+                    if give_raw_batch:
+                        yield src_batch, tgt_batch, src_mask, mb_raw
+                    else:
+                        yield src_batch, tgt_batch, src_mask
              
 def compute_bleu_with_unk_as_wrong(references, candidates, is_unk_id, new_unk_id_ref, new_unk_id_cand):
     import bleu_computer

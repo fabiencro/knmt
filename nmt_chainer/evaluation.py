@@ -171,15 +171,23 @@ def beam_search_translate(encdec, eos_idx, src_data, beam_width = 20, nb_steps =
                           need_attention = False, nb_steps_ratio = None, score_is_divided_by_length = True, 
                           groundhog = False, force_finish = False,
                           prob_space_combination = False,
-                          reverse_encdec = None):
+                          reverse_encdec = None, src_data_list = None):
     nb_ex = len(src_data)
+    if src_data_list is not None and len(src_data_list) > 1:
+        for src_data_ind in src_data_list[1:]:
+            assert nb_ex == len(src_data_ind)
 #     res = []
     for i in range(nb_ex):
+        #print i
+        src_batch_list = [] # All source batches
+        src_mask_list = [] # All source masks
         src_batch, src_mask = make_batch_src([src_data[i]], gpu = gpu, volatile = "on")
         assert len(src_mask) == 0
+        src_batch_list.append(src_batch)
+        src_mask_list.append(src_mask)
         if nb_steps_ratio is not None:
             nb_steps = int(len(src_data[i]) * nb_steps_ratio) + 1
-            
+        print "nb_steps", nb_steps
 #         if isinstance(encdec, (tuple, list)):
 #             assert len(encdec) == 1
 #             encdec = encdec[0]
@@ -188,12 +196,23 @@ def beam_search_translate(encdec, eos_idx, src_data, beam_width = 20, nb_steps =
 #                                           beam_width = beam_width,
 #                                           beam_opt = beam_opt, need_attention = need_attention,
 #                                     groundhog = groundhog)
+        if src_data_list is not None and len(src_data_list) > 1: # Make batches for all other sources
+            for src_data_ind in src_data_list[1:]:
+                src_batch_ind, src_mask_ind = make_batch_src([src_data_ind[i]], gpu = gpu, volatile = "on")
+                assert len(src_mask_ind) == 0
+                src_batch_list.append(src_batch_ind)
+                src_mask_list.append(src_mask_ind)
+        
         if not isinstance(encdec, (tuple, list)):
             encdec = [encdec]
+        
+        if src_data_list is not None and len(src_data_list) > 1:
+            assert len(encdec) == len(src_batch_list) == len(src_mask_list) == len(src_data_list) # Make sure that there is one source per data point
+
         translations = beam_search.ensemble_beam_search(encdec, src_batch, src_mask, nb_steps = nb_steps, eos_idx = eos_idx, 
                                           beam_width = beam_width,
                                           need_attention = need_attention, force_finish = force_finish,
-                                          prob_space_combination = prob_space_combination)
+                                          prob_space_combination = prob_space_combination, src_batch_list = src_batch_list, src_mask_list = src_mask_list)
             #averaged_activation = reduce(lambda x, y: F.reshape(x[-1], (batch_size, encdec[0].dec.Ho)) + F.reshape(y[-1], (batch_size, encdec[0].dec.Ho)), activations)/len(activations)
             #all_activations += [averaged_activation.data[0]]
         

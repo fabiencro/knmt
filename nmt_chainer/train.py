@@ -150,7 +150,8 @@ def command_line(arguments = None):
                                      formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument("data_prefix", help = "prefix of the training data created by make_data.py")
     parser.add_argument("save_prefix", help = "prefix to be added to all files created during the training")
-    parser.add_argument("--gpu", type = int, help = "specify gpu number to use, if any")
+    parser.add_argument("--gpu", type = int, nargs = "+", default = None, help = "specify gpu number to use, if any")
+    #parser.add_argument("--gpulist", type = int, nargs = "+", default = None, help = "specify gpu number to use, if any")
     parser.add_argument("--load_model", help = "load the parameters of a previously trained model")
     parser.add_argument("--load_optimizer_state", help = "load previously saved optimizer states")
     parser.add_argument("--Ei", type = int, default= 620, help = "Source words embedding size.")
@@ -375,13 +376,23 @@ def command_line(arguments = None):
                                        lexical_probability_dictionary = lexical_probability_dictionary, 
                                        lex_epsilon = args.lexicon_prob_epsilon, is_multitarget = is_multitarget)
     
-
-
+    
     if args.load_model is not None:
         serializers.load_npz(args.load_model, encdec)
     
     if args.gpu is not None:
-        encdec = encdec.to_gpu(args.gpu)
+        models_list = []
+        models_list.append(encdec)
+        import copy
+        for i in range(len(args.gpu)-1):
+            log.info("Creating copy #%d of model for data parallel computation." % (i+1))
+            encdec_copy = copy.deepcopy(encdec)
+            models_list.append(encdec_copy)
+        for i in range(len(args.gpu)):
+            models_list[i] = models_list[i].to_gpu(args.gpu[i])
+        assert models_list[0] == encdec 
+
+    #print len(models_list)
     
     if args.optimizer == "adadelta":
         optimizer = optimizers.AdaDelta()
@@ -420,13 +431,13 @@ def command_line(arguments = None):
         with cuda.get_device(args.gpu):
             serializers.load_npz(args.load_optimizer_state, optimizer)    
     
-    with cuda.get_device(args.gpu):
+    with cuda.get_device(args.gpu[0]):
 #         with MyTimerHook() as timer:
 #             try:
                 train_on_data(encdec, optimizer, training_data, output_files_dict,
                       src_indexer, tgt_indexer, eos_idx = eos_idx, 
                       mb_size = args.mb_size,
-                      nb_of_batch_to_sort = args.nb_batch_to_sort,
+                      nb_of_batch_to_sort = args.nb_batch_to_sort * len(args.gpu),
                       test_data = test_data, dev_data = dev_data, valid_data = valid_data, gpu = args.gpu, report_every = args.report_every,
                       randomized = args.randomized_data, reverse_src = args.reverse_src, reverse_tgt = args.reverse_tgt,
                       max_nb_iters = args.max_nb_iters, do_not_save_data_for_resuming = args.no_resume,
@@ -436,7 +447,8 @@ def command_line(arguments = None):
                       sample_every = args.sample_every,
                       use_reinf = args.use_reinf,
                       save_ckpt_every = args.save_ckpt_every,
-                      postprocess = args.postprocess
+                      postprocess = args.postprocess,
+                      models_list = models_list
 #                     lexical_probability_dictionary = lexical_probability_dictionary,
 #                     V_tgt = Vo + 1,
 #                     lexicon_prob_epsilon = args.lexicon_prob_epsilon

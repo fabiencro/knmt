@@ -819,11 +819,13 @@ class EncoderDecoder(Chain):
         
     def __call__(self, src_batch, tgt_batch, src_mask, use_best_for_sample = False, display_attn = False,
                  raw_loss_info = False, keep_attn_values = False, need_score = False, noise_on_prev_word = False,
-                 use_previous_prediction = 0, mode = "test", activations = None
+                 use_previous_prediction = 0, mode = "test", activations = None, gpuid = None
                  ):
         assert mode in "test train".split()
+        
+        #if gpuid is not None:
+        #    log.info("Starting on GPU %d", gpuid)
 
-            
         lexicon_probability_matrix = self.compute_lexicon_probability_matrix(src_batch)
         
         multi_target_signal = []

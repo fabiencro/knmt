@@ -6,14 +6,19 @@ __version__ = "1.0"
 __email__ = "fabien.cromieres@gmail.com"
 __status__ = "Development"
 
-from chainer import serializers
+from chainer import serializers, cuda
 import time
-
+import six
 import logging
 import sys
 # import h5py
 
 import math
+
+import threading
+import time
+import Queue
+
 
 from utils import minibatch_provider, minibatch_provider_curiculum
 from evaluation import ( 
@@ -22,6 +27,52 @@ from evaluation import (
 logging.basicConfig()
 log = logging.getLogger("rnns:training")
 log.setLevel(logging.INFO)
+
+class myForwardThread (threading.Thread):
+    def __init__(self, threadID, name, model, src_batch, tgt_batch, src_mask, raw_loss_info, noise_on_prev_word, use_previous_prediction,
+                                                          mode, gpuid, loss_list, total_loss_list, total_nb_predictions_list):
+        threading.Thread.__init__(self)
+        self.threadID = threadID
+        self.name = name
+        self.model = model
+        self.src_batch = src_batch
+        self.tgt_batch = tgt_batch
+        self.src_mask = src_mask
+        self.raw_loss_info = raw_loss_info
+        self.noise_on_prev_word = noise_on_prev_word
+        self.use_previous_prediction = use_previous_prediction
+        self.mode = mode
+        self.gpuid = gpuid
+        self.loss_list = loss_list
+        self.total_loss_list = total_loss_list
+        self.total_nb_predictions_list = total_nb_predictions_list
+
+    def run(self):
+        print "Starting forward propagation on " + str(self.gpuid)
+        with cuda.get_device(self.gpuid):
+            (total_loss, total_nb_predictions), attn = self.model(self.src_batch, self.tgt_batch, self.src_mask, raw_loss_info = self.raw_loss_info,
+                                                              noise_on_prev_word = self.noise_on_prev_word,
+                                                              use_previous_prediction = self.use_previous_prediction,
+                                                              mode = self.mode, gpuid = self.gpuid)
+        self.loss_list[self.gpuid] = total_loss / total_nb_predictions
+        self.total_loss_list[self.gpuid] = total_loss
+        self.total_nb_predictions_list[self.gpuid] = total_nb_predictions
+        print "Finishing forward propagation on " + str(self.gpuid)
+
+class myBackwardThread (threading.Thread):
+    def __init__(self, threadID, name, loss, gpuid):
+        threading.Thread.__init__(self)
+        self.threadID = threadID
+        self.name = name
+        self.loss = loss
+        self.gpuid = gpuid
+        
+    def run(self):
+        print "Starting backward propagation  on " + str(self.gpuid)
+        with cuda.get_device(self.gpuid):
+            self.loss.backward()
+        print "Finishing backward propagation on " + str(self.gpuid)
+
 
 def sent_complexity(sent):
     rank_least_common_word = max(sent)
@@ -42,7 +93,8 @@ def train_on_data(encdec, optimizer, training_data, output_files_dict,
                   use_memory_optimization = False, sample_every = 200,
                   use_reinf = False,
                   save_ckpt_every = 2000,
-                  postprocess = False):
+                  postprocess = False,
+                  models_list = None):
 #     ,
 #                   lexical_probability_dictionary = None,
 #                   V_tgt = None,
@@ -89,25 +141,105 @@ def train_on_data(encdec, optimizer, training_data, output_files_dict,
         
     def train_once(src_batch, tgt_batch, src_mask): #, lexicon_matrix = None):
         t0 = time.clock()
-        encdec.zerograds()
+        for gid in xrange(len(gpu)):
+            models_list[gid].zerograds()
         t1 = time.clock()
-        (total_loss, total_nb_predictions), attn = encdec(src_batch, tgt_batch, src_mask, raw_loss_info = True,
+        loss_list = []
+        total_loss_list = []
+        total_nb_predictions_list = []
+        for gid in xrange(len(gpu)):
+            #print len(src_batch[gid]), len(src_batch[gid][0])
+            (total_loss, total_nb_predictions), attn = models_list[gid](src_batch[gid], tgt_batch[gid], src_mask[gid], raw_loss_info = True,
                                                           noise_on_prev_word = noise_on_prev_word,
                                                           use_previous_prediction = use_previous_prediction,
-                                                          mode = "train")
+                                                          mode = "train", gpuid = gid)
 #         ,
 #                                                           lexicon_probability_matrix = lexicon_matrix, 
 #                                                           lex_epsilon = lexicon_prob_epsilon)
-        loss = total_loss / total_nb_predictions
+            loss_list.append(total_loss / total_nb_predictions)
+            total_loss_list.append(total_loss)
+            total_nb_predictions_list.append(total_nb_predictions)
+            #loss = total_loss / total_nb_predictions
         t2 = time.clock()
-        loss.backward()
+        for gid in xrange(len(gpu)):
+            loss_list[gid].backward()
         t3 = time.clock()
+        for gid in xrange(1,len(gpu)):
+            models_list[0].addgrads(models_list[gid])
         optimizer.update()
         t4 = time.clock()
-        print "loss:", loss.data,
+        for gid in xrange(1,len(gpu)):
+            models_list[gid].copyparams(models_list[0])
+        #loss_list[0].to_cpu()
+        #print loss_list[0]
+        for ind_loss in loss_list:
+            ind_loss.to_gpu(gpu[0])
+        for ind_loss in total_loss_list:
+            ind_loss.to_gpu(gpu[0])
+        loss = sum([ind_loss.data for ind_loss in loss_list])
+        total_loss = sum([ind_loss.data for ind_loss in total_loss_list])
+        total_nb_predictions = sum([ind_preds for ind_preds in total_nb_predictions_list])
+        print "loss:", loss/len(gpu),
         print " time %f zgrad:%f fwd:%f bwd:%f upd:%f"%(t4-t0, t1-t0, t2-t1, t3-t2, t4-t3)
-        return float(total_loss.data), total_nb_predictions
+        return float(total_loss), total_nb_predictions
+    
+    def train_once_multigpu(src_batch, tgt_batch, src_mask): #, lexicon_matrix = None):
+        t0 = time.clock()
         
+        for gid in xrange(len(gpu)):
+            models_list[gid].zerograds()
+        t1 = time.clock()
+        loss_list = [None] * len(gpu)
+        total_loss_list = [None] * len(gpu)
+        total_nb_predictions_list = [None] * len(gpu)
+        threadList = ["Thread-"+str(i) for i in range(len(gpu))]
+        threads = []
+        threadID = 0
+        for gid, tName in enumerate(threadList):
+            thread = myForwardThread(threadID, tName, models_list[gid], src_batch[gid], tgt_batch[gid], src_mask[gid], True,
+                                                          noise_on_prev_word,
+                                                          use_previous_prediction,
+                                                          "train", gpu[gid], loss_list, total_loss_list, total_nb_predictions_list)
+            thread.start()
+            threads.append(thread)
+            threadID += 1
+        
+        for t in threads:
+            t.join()
+
+        t2 = time.clock()
+        threadList = ["Thread-"+str(i) for i in range(len(gpu))]
+        threads = []
+        threadID = 0
+        for gid, tName in enumerate(threadList):
+            thread = myBackwardThread(threadID, tName, loss_list[gid], gpu[gid])
+            thread.start()
+            threads.append(thread)
+            threadID += 1
+        
+        for t in threads:
+            t.join()
+        t3 = time.clock()
+        
+        for gid in xrange(1,len(gpu)):
+            models_list[0].addgrads(models_list[gid])
+        optimizer.update()
+        t4 = time.clock()
+        for gid in xrange(1,len(gpu)):
+            models_list[gid].copyparams(models_list[0])
+        #loss_list[0].to_cpu()
+        #print loss_list[0]
+        for ind_loss in loss_list:
+            ind_loss.to_gpu(gpu[0])
+        for ind_loss in total_loss_list:
+            ind_loss.to_gpu(gpu[0])
+        loss = sum([ind_loss.data for ind_loss in loss_list])
+        total_loss = sum([ind_loss.data for ind_loss in total_loss_list])
+        total_nb_predictions = sum([ind_preds for ind_preds in total_nb_predictions_list])
+        print "loss:", loss/len(gpu),
+        print " time %f zgrad:%f fwd:%f bwd:%f upd:%f"%(t4-t0, t1-t0, t2-t1, t3-t2, t4-t3)
+        return float(total_loss), total_nb_predictions
+
     def train_once_optim(src_batch, tgt_batch, src_mask):
         t0 = time.clock()
         encdec.zerograds()
@@ -151,13 +283,13 @@ def train_on_data(encdec, optimizer, training_data, output_files_dict,
         def translate_test():
             translations_fn = output_files_dict["test_translation_output"] #save_prefix + ".test.out"
             control_src_fn = output_files_dict["test_src_output"] #save_prefix + ".test.src.out"
-            return translate_to_file(encdec, eos_idx, test_src_data, mb_size, tgt_indexer, 
+            return translate_to_file(encdec, eos_idx, test_src_data, mb_size*8, tgt_indexer, 
                    translations_fn, test_references = test_references, control_src_fn = control_src_fn,
-                   src_indexer = src_indexer, gpu = gpu, nb_steps = 50, reverse_src = reverse_src, reverse_tgt = reverse_tgt,
+                   src_indexer = src_indexer, gpu = gpu[0], nb_steps = 50, reverse_src = reverse_src, reverse_tgt = reverse_tgt,
                    s_unk_tag = s_unk_tag, t_unk_tag = t_unk_tag, postprocess = postprocess)
         def compute_test_loss():
             log.info("computing test loss")
-            test_loss = compute_loss_all(encdec, test_data, eos_idx, mb_size, gpu = gpu,
+            test_loss = compute_loss_all(encdec, test_data, eos_idx, mb_size*8, gpu = gpu[0],
                                          reverse_src = reverse_src, reverse_tgt = reverse_tgt)
             log.info("test loss: %f" % test_loss)
             return test_loss
@@ -175,13 +307,13 @@ def train_on_data(encdec, optimizer, training_data, output_files_dict,
         def translate_dev():
             translations_fn = output_files_dict["dev_translation_output"] #save_prefix + ".test.out"
             control_src_fn = output_files_dict["dev_src_output"] #save_prefix + ".test.src.out"
-            return translate_to_file(encdec, eos_idx, dev_src_data, mb_size, tgt_indexer, 
+            return translate_to_file(encdec, eos_idx, dev_src_data, mb_size*8, tgt_indexer, 
                    translations_fn, test_references = dev_references, control_src_fn = control_src_fn,
-                   src_indexer = src_indexer, gpu = gpu, nb_steps = 50, reverse_src = reverse_src, reverse_tgt = reverse_tgt,
+                   src_indexer = src_indexer, gpu = gpu[0], nb_steps = 50, reverse_src = reverse_src, reverse_tgt = reverse_tgt,
                    s_unk_tag = s_unk_tag, t_unk_tag = t_unk_tag, postprocess = postprocess)
         def compute_dev_loss():
             log.info("computing dev loss")
-            dev_loss = compute_loss_all(encdec, dev_data, eos_idx, mb_size, gpu = gpu,
+            dev_loss = compute_loss_all(encdec, dev_data, eos_idx, mb_size*8, gpu = gpu[0],
                                          reverse_src = reverse_src, reverse_tgt = reverse_tgt)
             log.info("dev loss: %f" % dev_loss)
             return dev_loss
@@ -199,13 +331,13 @@ def train_on_data(encdec, optimizer, training_data, output_files_dict,
         def translate_valid():
             translations_fn = output_files_dict["valid_translation_output"] #save_prefix + ".test.out"
             control_src_fn = output_files_dict["valid_src_output"] #save_prefix + ".test.src.out"
-            return translate_to_file(encdec, eos_idx, valid_src_data, mb_size, tgt_indexer, 
+            return translate_to_file(encdec, eos_idx, valid_src_data, mb_size*8, tgt_indexer, 
                    translations_fn, test_references = valid_references, control_src_fn = control_src_fn,
-                   src_indexer = src_indexer, gpu = gpu, nb_steps = 50, reverse_src = reverse_src, reverse_tgt = reverse_tgt,
+                   src_indexer = src_indexer, gpu = gpu[0], nb_steps = 50, reverse_src = reverse_src, reverse_tgt = reverse_tgt,
                    s_unk_tag = s_unk_tag, t_unk_tag = t_unk_tag, postprocess = postprocess)
         def compute_valid_loss():
             log.info("computing valid loss")
-            dev_loss = compute_loss_all(encdec, valid_data, eos_idx, mb_size, gpu = gpu,
+            dev_loss = compute_loss_all(encdec, valid_data, eos_idx, mb_size*8, gpu = gpu[0],
                                          reverse_src = reverse_src, reverse_tgt = reverse_tgt)
             log.info("valid loss: %f" % dev_loss)
             return dev_loss
@@ -230,8 +362,10 @@ def train_on_data(encdec, optimizer, training_data, output_files_dict,
                 break
             print i,
             src_batch, tgt_batch, src_mask = mb_provider.next()
-            if src_batch[0].data.shape[0] != mb_size:
-                log.warn("got minibatch of size %i instead of %i"%(src_batch[0].data.shape[0], mb_size))
+            #print dir(src_batch[0][0])
+            for j in xrange(len(models_list)):
+                if src_batch[j][0].data.shape[0] != mb_size:
+                    log.warn("got minibatch of size %i instead of %i"%(src_batch[j][0].data.shape[0], mb_size))
                 
 #             if lexical_probability_dictionary is not None:
 #                 lexicon_matrix = utils.compute_lexicon_matrix(src_batch, lexical_probability_dictionary)
@@ -245,12 +379,12 @@ def train_on_data(encdec, optimizer, training_data, output_files_dict,
 #                 compute_valid()
             if not no_report_or_save:
                 if i%sample_every == 0:
-                    for v in src_batch + tgt_batch:
+                    for v in src_batch[0] + tgt_batch[0]:
                         v.volatile = "on"
-                    sample_once(encdec, src_batch, tgt_batch, src_mask, src_indexer, tgt_indexer, eos_idx,
+                    sample_once(encdec, src_batch[0], tgt_batch[0], src_mask[0], src_indexer, tgt_indexer, eos_idx,
                                 max_nb = 20,
                                 s_unk_tag = s_unk_tag, t_unk_tag = t_unk_tag)
-                    for v in src_batch + tgt_batch:
+                    for v in src_batch[0] + tgt_batch[0]:
                         v.volatile = "off"
                 if i%report_every == 0:
                     current_time = time.clock()

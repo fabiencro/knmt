@@ -713,10 +713,10 @@ def cmdline(arguments=None):
         log.info("loading voc from %s" % args.use_voc)
         src_voc, tgt_voc = json.load(open(args.use_voc))
         if not args.use_tgt_voc_only:
-            dic_src = Indexer.make_from_list(src_voc)
+            dic_src = Indexer.make_from_serializable(src_voc)
         else:
             log.info("Using the target side vocabulary only.")
-        dic_tgt = Indexer.make_from_list(tgt_voc)
+        dic_tgt = Indexer.make_from_serializable(tgt_voc)
 
     log.info("loading training data from %s and %s" %
              (args.src_fn, args.tgt_fn))

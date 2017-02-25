@@ -22,7 +22,7 @@ from evaluation import (greedy_batch_translate,
                         )
 
 from prepostprocessor import *
-# import visualisation
+#import visualisation
 import bleu_computer
 import logging
 import codecs
@@ -91,7 +91,7 @@ def beam_search_all(gpu, encdec, eos_idx, src_data, beam_width, nb_steps, beam_o
        nb_steps_ratio, use_raw_score, 
        groundhog,
        tgt_unk_id, tgt_indexer, force_finish = False,
-       prob_space_combination = False, reverse_encdec = None):
+       prob_space_combination = False, reverse_encdec = None, src_data_list = None):
     
     log.info("starting beam search translation of %i sentences"% len(src_data))
     if isinstance(encdec, (list, tuple)) and len(encdec) > 1:
@@ -104,7 +104,7 @@ def beam_search_all(gpu, encdec, eos_idx, src_data, beam_width, nb_steps, beam_o
                                     need_attention = True, score_is_divided_by_length = not use_raw_score,
                                     groundhog = groundhog, force_finish = force_finish,
                                     prob_space_combination = prob_space_combination,
-                                    reverse_encdec = reverse_encdec)
+                                    reverse_encdec = reverse_encdec, src_data_list = src_data_list)
         for num_t, (t, score, attn, state, enc_state) in enumerate(translations_gen):
             if num_t %200 == 0:
                 print >>sys.stderr, num_t,
@@ -148,7 +148,7 @@ def translate_to_file_with_beam_search(dest_fn, gpu, encdec, eos_idx, src_data, 
        nb_steps_ratio, use_raw_score, 
        groundhog,
        tgt_unk_id, tgt_indexer, force_finish = force_finish,
-       prob_space_combination = prob_space_combination, reverse_encdec = reverse_encdec)
+       prob_space_combination = prob_space_combination, reverse_encdec = reverse_encdec, src_data_list = src_data_list)
     
     
     attn_vis = None
@@ -435,20 +435,20 @@ def commandline():
     src_data_list = [src_data]
 
     if args.is_multisource:
-        assert len(src_indexer_list) > 1:
-        assert additional_src_fn is not None
-        assert len(additional_src_fn) + 1 == len(src_indexer_list)
-        assert len(additional_src_fn) + 1 == len(encdec_list)
+        assert len(src_indexer_list) > 1
+        assert args.additional_src_fn is not None
+        assert len(args.additional_src_fn) + 1 == len(src_indexer_list)
+        assert len(args.additional_src_fn) + 1 == len(encdec_list)
         for i in range(len(args.additional_src_fn)):
             log.info("opening source file %s" % args.additional_src_fn[i])
-            src_data, dic_src, make_data_infos = build_dataset_one_side(args.args.additional_src_fn[i], 
+            src_data_ind, dic_src_ind, make_data_infos = build_dataset_one_side(args.additional_src_fn[i], 
                                             src_voc_limit = None, max_nb_ex = args.max_nb_ex, dic_src = src_indexer_list[i+1])
             log.info("%i sentences loaded" % make_data_infos.nb_ex)
             log.info("#tokens src: %i   of which %i (%f%%) are unknown"%(make_data_infos.total_token, 
                                                                          make_data_infos.total_count_unk, 
                                                                          float(make_data_infos.total_count_unk * 100) / 
                                                                             make_data_infos.total_token))
-            src_data_list.append(src_data)
+            src_data_list.append(src_data_ind)
 
     tgt_data = None
     if args.tgt_fn is not None:
