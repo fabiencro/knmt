@@ -423,6 +423,8 @@ def do_eval(config_eval):
                                                nb_steps_ratio = nb_steps_ratio,
                                                post_score_length_normalization = post_score_length_normalization,
                                                length_normalization_strength = length_normalization_strength,
+                                               post_score_coverage_penalty = post_score_coverage_penalty,
+                                               post_score_coverage_penalty_strength = post_score_coverage_penalty_strength,
                                                groundhog = groundhog,
                                                tgt_unk_id = tgt_unk_id, 
                                                tgt_indexer = tgt_indexer,
