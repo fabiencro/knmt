@@ -2145,6 +2145,24 @@ python eval.py /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms3s/1s1t/"$j"k
 done
 done
 done
+
+
+
+for j in 8 16
+do
+mkdir -p /windroot/raj/corpora_downloads/IWSLT2016/ms3s/3s1t/"$j"k/
+python generate_multilingual_bpe_data.py --train_lang_corpora_pairs fr:en:/windroot/raj/corpora_downloads/IWSLT2016/fr-en/ms3s.train.tags.fr-en.fr:/windroot/raj/corpora_downloads/IWSLT2016/fr-en/ms3s.train.tags.fr-en.en de:en:/windroot/raj/corpora_downloads/IWSLT2016/de-en/ms3s.train.tags.de-en.de:/windroot/raj/corpora_downloads/IWSLT2016/de-en/ms3s.train.tags.de-en.en ar:en:/windroot/raj/corpora_downloads/IWSLT2016/ar-en/ms3s.train.tags.ar-en.ar:/windroot/raj/corpora_downloads/IWSLT2016/ar-en/ms3s.train.tags.ar-en.en --dev_lang_corpora_pairs fr:en:/windroot/raj/corpora_downloads/IWSLT2016/fr-en/ms3s.IWSLT16.TED.dev2010.fr-en.fr.txt:/windroot/raj/corpora_downloads/IWSLT2016/fr-en/ms3s.IWSLT16.TED.dev2010.fr-en.en.txt de:en:/windroot/raj/corpora_downloads/IWSLT2016/de-en/ms3s.IWSLT16.TED.dev2010.de-en.de.txt:/windroot/raj/corpora_downloads/IWSLT2016/de-en/ms3s.IWSLT16.TED.dev2010.de-en.en.txt ar:en:/windroot/raj/corpora_downloads/IWSLT2016/ar-en/ms3s.IWSLT16.TED.dev2010.ar-en.ar.txt:/windroot/raj/corpora_downloads/IWSLT2016/ar-en/ms3s.IWSLT16.TED.dev2010.ar-en.en.txt --test_lang_corpora_pairs fr:en:/windroot/raj/corpora_downloads/IWSLT2016/fr-en/ms3s.IWSLT16.TED.tst2010.fr-en.fr.txt:/windroot/raj/corpora_downloads/IWSLT2016/fr-en/ms3s.IWSLT16.TED.tst2010.fr-en.en.txt de:en:/windroot/raj/corpora_downloads/IWSLT2016/de-en/ms3s.IWSLT16.TED.tst2010.de-en.de.txt:/windroot/raj/corpora_downloads/IWSLT2016/de-en/ms3s.IWSLT16.TED.tst2010.de-en.en.txt ar:en:/windroot/raj/corpora_downloads/IWSLT2016/ar-en/ms3s.IWSLT16.TED.tst2010.ar-en.ar.txt:/windroot/raj/corpora_downloads/IWSLT2016/ar-en/ms3s.IWSLT16.TED.tst2010.ar-en.en.txt --balance_vocab_counts --balance_corpora --save_prefix /windroot/raj/corpora_downloads/IWSLT2016/ms3s/3s1t/"$j"k --max_src_vocab "$j"000 --max_tgt_vocab "$j"000 --is_multisource 
+python make_data.py /windroot/raj/corpora_downloads/IWSLT2016/ms3s/3s1t/"$j"k/mlnmt.train.src /windroot/raj/corpora_downloads/IWSLT2016/ms3s/3s1t/"$j"k/mlnmt.train.tgt /windroot/raj/corpora_downloads/IWSLT2016/ms3s/3s1t/"$j"k/mlnmt.basic --src_voc_size "$j"000 --tgt_voc_size "$j"000 --test_src /windroot/raj/corpora_downloads/IWSLT2016/ms3s/3s1t/"$j"k/mlnmt.test.src --test_tgt /windroot/raj/corpora_downloads/IWSLT2016/ms3s/3s1t/"$j"k/mlnmt.test.tgt --dev_src /windroot/raj/corpora_downloads/IWSLT2016/ms3s/3s1t/"$j"k/mlnmt.dev.src --dev_tgt /windroot/raj/corpora_downloads/IWSLT2016/ms3s/3s1t/"$j"k/mlnmt.dev.tgt
+done
+
+
+for j in 8 16
+do
+python train.py /windroot/raj/corpora_downloads/IWSLT2016/ms3s/3s1t/"$j"k/mlnmt.basic /windroot/raj/corpora_downloads/IWSLT2016/ms3s/3s1t/"$j"k/mlnmt.basic --gpu 2 --mb_size 8 --weight_decay 0.000001 --postprocess --max_nb_iters 50000 
+done
+
+
+
 ###2 Sources
 
 python extract_n_way_corpus_from_multiple_bilingual_corpora.py --src_corpora /windroot/raj/corpora_downloads/IWSLT2016/de-en/train.tags.de-en.de /windroot/raj/corpora_downloads/IWSLT2016/fr-en/train.tags.fr-en.fr --tgt_corpora /windroot/raj/corpora_downloads/IWSLT2016/de-en/train.tags.de-en.en /windroot/raj/corpora_downloads/IWSLT2016/fr-en/train.tags.fr-en.en --extension ms2s
@@ -2264,6 +2282,27 @@ python eval.py /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms2s/1s1t/"$j"k
 done
 done
 done
+
+
+for j in 8 16
+do
+mkdir -p /windroot/raj/corpora_downloads/IWSLT2016/ms2s/2s1t/"$j"k/
+python generate_multilingual_bpe_data.py --train_lang_corpora_pairs fr:en:/windroot/raj/corpora_downloads/IWSLT2016/fr-en/ms2s.train.tags.fr-en.fr:/windroot/raj/corpora_downloads/IWSLT2016/fr-en/ms2s.train.tags.fr-en.en de:en:/windroot/raj/corpora_downloads/IWSLT2016/de-en/ms2s.train.tags.de-en.de:/windroot/raj/corpora_downloads/IWSLT2016/de-en/ms2s.train.tags.de-en.en --dev_lang_corpora_pairs fr:en:/windroot/raj/corpora_downloads/IWSLT2016/fr-en/ms2s.IWSLT16.TED.dev2010.fr-en.fr.txt:/windroot/raj/corpora_downloads/IWSLT2016/fr-en/ms2s.IWSLT16.TED.dev2010.fr-en.en.txt de:en:/windroot/raj/corpora_downloads/IWSLT2016/de-en/ms2s.IWSLT16.TED.dev2010.de-en.de.txt:/windroot/raj/corpora_downloads/IWSLT2016/de-en/ms2s.IWSLT16.TED.dev2010.de-en.en.txt --test_lang_corpora_pairs fr:en:/windroot/raj/corpora_downloads/IWSLT2016/fr-en/ms2s.IWSLT16.TED.tst2010.fr-en.fr.txt:/windroot/raj/corpora_downloads/IWSLT2016/fr-en/ms2s.IWSLT16.TED.tst2010.fr-en.en.txt de:en:/windroot/raj/corpora_downloads/IWSLT2016/de-en/ms2s.IWSLT16.TED.tst2010.de-en.de.txt:/windroot/raj/corpora_downloads/IWSLT2016/de-en/ms2s.IWSLT16.TED.tst2010.de-en.en.txt --balance_vocab_counts --balance_corpora --save_prefix /windroot/raj/corpora_downloads/IWSLT2016/ms2s/2s1t/"$j"k --max_src_vocab "$j"000 --max_tgt_vocab "$j"000 --is_multisource 
+python make_data.py /windroot/raj/corpora_downloads/IWSLT2016/ms2s/2s1t/"$j"k/mlnmt.train.src /windroot/raj/corpora_downloads/IWSLT2016/ms2s/2s1t/"$j"k/mlnmt.train.tgt /windroot/raj/corpora_downloads/IWSLT2016/ms2s/2s1t/"$j"k/mlnmt.basic --src_voc_size "$j"000 --tgt_voc_size "$j"000 --test_src /windroot/raj/corpora_downloads/IWSLT2016/ms2s/2s1t/"$j"k/mlnmt.test.src --test_tgt /windroot/raj/corpora_downloads/IWSLT2016/ms2s/2s1t/"$j"k/mlnmt.test.tgt --dev_src /windroot/raj/corpora_downloads/IWSLT2016/ms2s/2s1t/"$j"k/mlnmt.dev.src --dev_tgt /windroot/raj/corpora_downloads/IWSLT2016/ms2s/2s1t/"$j"k/mlnmt.dev.tgt
+done
+
+
+for j in 16
+do
+python train.py /windroot/raj/corpora_downloads/IWSLT2016/ms2s/2s1t/"$j"k/mlnmt.basic /windroot/raj/corpora_downloads/IWSLT2016/ms2s/2s1t/"$j"k/mlnmt.basic --gpu 0 --mb_size 16 --weight_decay 0.000001 --postprocess --max_nb_iters 100000 
+done
+
+for j in 8
+do
+python train.py /windroot/raj/corpora_downloads/IWSLT2016/ms2s/2s1t/"$j"k/mlnmt.basic /windroot/raj/corpora_downloads/IWSLT2016/ms2s/2s1t/"$j"k/mlnmt.basic --gpu 1 --mb_size 16 --weight_decay 0.000001 --postprocess --max_nb_iters 100000
+done
+
+
 ###### Multigpu
 
 for i in mr
