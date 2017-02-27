@@ -256,7 +256,8 @@ def timestamped_msg(msg):
 
 def do_start_server(config_server):
     translator = Translator(config_server)
-    server = Server((config_server.process.host, int(config_server.process.port)), RequestHandler, config_server.process.segmenter_command, config_server.process.segmenter_format, translator)
+    server_host, server_port = config_server.process.server.split(":")
+    server = Server((server_host, int(server_port)), RequestHandler, config_server.process.segmenter_command, config_server.process.segmenter_format, translator)
     ip, port = server.server_address
     log.info(timestamped_msg("Start listening for requests on {0}:{1}...".format(socket.gethostname(), port)))
 

@@ -411,29 +411,28 @@ def do_eval(config_eval):
 #             ct = convert_idx_to_string(t, tgt_voc + ["#T_UNK#"])
             out.write(ct + "\n")
 
-    elif mode == "server":
-        from nmt_chainer.translation.server import do_start_server
-        do_start_server(config_eval)
     elif mode == "beam_search":
-        translate_to_file_with_beam_search(dest_fn, gpu, encdec_list, eos_idx, src_data, 
-                                           beam_width = beam_width, 
-                                           beam_pruning_margin = beam_pruning_margin,
-                                           nb_steps = nb_steps,
-                                           nb_steps_ratio = nb_steps_ratio,
-                                           post_score_length_normalization = post_score_length_normalization,
-                                           length_normalization_strength = length_normalization_strength,
-                                           post_score_coverage_penalty = post_score_coverage_penalty,
-                                           post_score_coverage_penalty_strength= post_score_coverage_penalty_strength,
-                                           groundhog = groundhog,
-                                           tgt_unk_id = tgt_unk_id, 
-                                           tgt_indexer = tgt_indexer,
-                                           force_finish = force_finish,
-                                           prob_space_combination = prob_space_combination,
-                                           reverse_encdec = reverse_encdec,
-                                           generate_attention_html = generate_attention_html,
-                                           src_indexer = src_indexer,
-                                           rich_output_filename = rich_output_filename,
-                                           use_unfinished_translation_if_none_found = True)
+        if config_eval.process.server is not None:
+            from nmt_chainer.translation.server import do_start_server
+            do_start_server(config_eval)
+        else:
+            translate_to_file_with_beam_search(dest_fn, gpu, encdec_list, eos_idx, src_data, 
+                                               beam_width = beam_width, 
+                                               beam_pruning_margin = beam_pruning_margin,
+                                               nb_steps = nb_steps,
+                                               nb_steps_ratio = nb_steps_ratio,
+                                               post_score_length_normalization = post_score_length_normalization,
+                                               length_normalization_strength = length_normalization_strength,
+                                               groundhog = groundhog,
+                                               tgt_unk_id = tgt_unk_id, 
+                                               tgt_indexer = tgt_indexer,
+                                               force_finish = force_finish,
+                                               prob_space_combination = prob_space_combination,
+                                               reverse_encdec = reverse_encdec,
+                                               generate_attention_html = generate_attention_html,
+                                               src_indexer = src_indexer,
+                                               rich_output_filename = rich_output_filename,
+                                               use_unfinished_translation_if_none_found = True)
             
     elif mode == "eval_bleu":
 #         assert args.ref is not None
