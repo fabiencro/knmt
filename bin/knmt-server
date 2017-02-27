@@ -47,9 +47,9 @@ if [[ ! -z "$RNN_SEARCH_ADDITIONAL_MODEL" ]]; then
 	done
 fi
 
-server_cmd="knmt eval --host $HOST --port $PORT \
+server_cmd="knmt eval --server $HOST:$PORT \
 	--segmenter_command=\"$SEGMENTER_COMMAND\" --segmenter_format $SEGMENTER_FORMAT $OPT_DIC \
-    --mode server \
+    --mode beam_search \
     $RNN_SEARCH_CONFIG $RNN_SEARCH_MODEL $OPT_GPU \
 	$OPT_ADDITIONAL_CONFIGS $OPT_ADDITIONAL_MODELS"
 echo "$server_cmd"
