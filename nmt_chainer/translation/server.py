@@ -47,7 +47,9 @@ class Translator:
         self.encdec_list = [self.encdec]
         
     def translate(self, sentence, beam_width, beam_pruning_margin, nb_steps, nb_steps_ratio, 
-            remove_unk, normalize_unicode_unk, attempt_to_relocate_unk_source, post_score_length_normalization, length_normalization_strength, groundhog, force_finish, prob_space_combination, attn_graph_width, attn_graph_height):
+                  remove_unk, normalize_unicode_unk, attempt_to_relocate_unk_source, post_score_length_normalization, length_normalization_strength, 
+                  post_score_coverage_penalty, post_score_coverage_penalty_strength,
+                  groundhog, force_finish, prob_space_combination, attn_graph_width, attn_graph_height):
         from nmt_chainer.utilities import visualisation
         log.info("processing source string %s" % sentence)
 
@@ -71,6 +73,7 @@ class Translator:
             from nmt_chainer.translation.eval import translate_to_file_with_beam_search
             translate_to_file_with_beam_search(dest_file.name, self.config_server.process.gpu, self.encdec, self.eos_idx, src_data, beam_width, beam_pruning_margin, nb_steps, 
                    nb_steps_ratio, post_score_length_normalization, length_normalization_strength, 
+                   post_score_coverage_penalty, post_score_coverage_penalty_strength,
                    groundhog,
                    self.config_server.output.tgt_unk_id, self.tgt_indexer, force_finish = force_finish,
                    prob_space_combination = prob_space_combination, reverse_encdec = self.reverse_encdec, 
