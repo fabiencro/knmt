@@ -42,6 +42,8 @@ def define_parser(parser):
     parser.add_argument("--latin_src", default = False, action = "store_true", help = "apply preprocessing for latin scripts to source")
     parser.add_argument("--latin_tgt", default = False, action = "store_true", help = "apply preprocessing for latin scripts to target")
     
+    parser.add_argument("--latin_type", choices = "all_adjoint caps_isolate".split(), default = "all_adjoint", help = "choose preprocessing for latin scripts to source")
+
 class CommandLineValuesException(Exception):
     pass
 
