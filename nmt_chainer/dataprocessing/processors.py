@@ -522,6 +522,11 @@ class LatinScriptProcess(MonoProcessor):
     ALL_CAPS_CHAR = u"\u203C"
     SUFFIX_CHAR = u"\u203F"
     
+    def __init__(self, mode = "all_adjoint"):
+        assert mode in "all_adjoint caps_isolate".split()
+        self.mode = mode
+        self.is_initialized_ = False
+    
     def convert_caps(self, w):
         if self.CAP_CHAR in w or self.ALL_CAPS_CHAR in w:
             raise ValueError("Special char in word")
@@ -542,6 +547,37 @@ class LatinScriptProcess(MonoProcessor):
             return w[1:].upper()
         else:
             return w
+        
+    def convert_caps_alt(self, w):
+        if self.CAP_CHAR in w or self.ALL_CAPS_CHAR in w or " " in w:
+            raise ValueError("Special char in word")
+        assert len(w) > 0
+        if w.istitle():
+            return self.CAP_CHAR + " " + w.lower()
+        elif w.isupper():
+            return self.ALL_CAPS_CHAR + " " + w.lower()
+        else:
+            return w
+                
+    def deconvert_caps_alt_sentence(self, sentence):
+        res = []
+        next_is_cap = False
+        next_is_all_caps = False
+        for w in sentence.split(" "):
+            if w == self.CAP_CHAR:
+                next_is_cap = True
+                continue
+            if w == self.ALL_CAPS_CHAR:
+                next_is_all_caps = True
+                continue
+            if next_is_all_caps:
+                w = w.upper()
+            elif next_is_cap:
+                w = w.title()
+            next_is_cap = False
+            next_is_all_caps = False
+            res.append(w)
+        return " ".join(res)
         
     def convert_punct_word(self, w):
         if self.SUFFIX_CHAR in w:
@@ -590,11 +626,17 @@ class LatinScriptProcess(MonoProcessor):
     def convert(self, sentence, stats = None):
         sentence = re.sub("\s+", " ", sentence)
         sentence = " ".join(self.convert_punct_inside(w) for w in sentence.split(" "))
-        sentence = " ".join(self.convert_caps(w) for w in sentence.split(" "))
+        if self.mode == "all_adjoint":
+            sentence = " ".join(self.convert_caps(w) for w in sentence.split(" "))
+        elif self.mode == "caps_isolate":
+            sentence = " ".join(self.convert_caps_alt(w) for w in sentence.split(" "))
         return sentence
     
     def deconvert(self, sentence):
-        sentence = " ".join(self.deconvert_caps(w) for w in sentence.split(" "))
+        if self.mode == "all_adjoint":
+            sentence = " ".join(self.deconvert_caps(w) for w in sentence.split(" "))
+        elif self.mode == "caps_isolate":
+            sentence = self.deconvert_caps_alt_sentence(sentence)
         sentence = self.deconvert_punct_sentence(sentence)
         return sentence
     
@@ -608,16 +650,17 @@ class LatinScriptProcess(MonoProcessor):
     @classmethod
     def make_from_serializable(cls, obj):
         res = LatinScriptProcess()
+        res.mode = obj.get("mode", "all_adjoint")
         res.is_initialized_ = True
         return res
     
     def to_serializable(self):
         assert self.is_initialized()
         obj = self.make_base_serializable_object()
+        obj["mode"] = self.mode
         return obj
    
-   
-
+  
         
 #     class IterableIterator(object):
 #         def __init__(self, filename):
@@ -641,6 +684,9 @@ class IndexingPrePostProcessorBase(MonoProcessor):
         raise NotImplemented
     
     def convert(self, sentence, stats = None):
+        raise NotImplemented
+        
+    def convert_swallow(self, sentence, stats = None):
         raise NotImplemented
         
     def deconvert_swallow(self, seq, unk_tag="#UNK#", no_oov=True, eos_idx=None):
@@ -672,10 +718,10 @@ class BiIndexingPrePostProcessor(BiProcessor):
     def convert(self, sentence1, sentence2, stat1 = None, stat2 = None):
         if self.preprocessor is not None:
             sentence1, sentence2 = self.preprocessor.convert(sentence1, sentence2)
-        return self.indexer1.convert(sentence1, stat1), self.indexer2.convert(sentence2, stat2) 
+        return self.indexer1.convert_swallow(sentence1, stat1), self.indexer2.convert_swallow(sentence2, stat2) 
     
     def deconvert(self, sentence1, sentence2):
-        sentence1, sentence2 = self.indexer1.deconvert(sentence1), self.indexer2.deconvert(sentence2) 
+        sentence1, sentence2 = self.indexer1.deconvert_swallow(sentence1), self.indexer2.deconvert_swallow(sentence2) 
         if self.preprocessor is not None:
             sentence1, sentence2 = self.preprocessor.deconvert(sentence1, sentence2)
         return sentence1, sentence2
@@ -796,9 +842,9 @@ class IndexingPrePostProcessor(IndexingPrePostProcessorBase):
         
     def __str__(self):
         if not self.is_initialized():
-            return "indexer<%i>"%(self.voc_limit)
+            return "indexer<%i>pp[%s]"%(self.voc_limit, "" if self.preprocessor is None else str(self.preprocessor))
         else:
-            return "indexer<%i - %i>"%(self.voc_limit, len(self.indexer))
+            return "indexer<%i - %i>pp[%s]"%(self.voc_limit, len(self.indexer), "" if self.preprocessor is None else str(self.preprocessor))
         
     def __len__(self):
         if not self.is_initialized():
@@ -810,13 +856,19 @@ class IndexingPrePostProcessor(IndexingPrePostProcessorBase):
         return self.is_initialized_
         
     def convert(self, sentence, stats = None):
+        if self.preprocessor is not None:
+            sentence = self.preprocessor.convert(sentence)
+        converted = self.convert_swallow(sentence, stats = stats)
+        return converted
+    
+    def convert_swallow(self, sentence, stats = None):
         assert self.is_initialized()
         converted = self.indexer.convert(sentence)
         if stats is not None:
             unk_cnt = sum(self.indexer.is_unk_idx(w) for w in converted)
             stats.update(unk_cnt = unk_cnt, token = len(converted), nb_ex = 1)
         return converted
-        
+       
     def apply_to_iterable(self, iterable, stats = None):
         raise AssertionError()
         
@@ -940,7 +992,7 @@ def build_dataset_pp(src_fn, tgt_fn, bi_idx, max_nb_ex=None):
 def build_dataset_one_side_pp(src_fn, src_pp, max_nb_ex=None):
 
     src = FileMultiIterator(src_fn, max_nb_ex = max_nb_ex)
-    
+    print src_pp
     if not src_pp.is_initialized():
         log.info("building src_dic")
         src_pp.initialize(src)
@@ -974,8 +1026,12 @@ def build_dataset_one_side_pp(src_fn, src_pp, max_nb_ex=None):
     
 def load_pp_pair_from_file(filename):
     bi_idx = BiIndexingPrePostProcessor.make_from_serializable(json.load(open(filename)))
+    log.info("loading bilingual preprocessor from file %s", filename)
+    log.info(str(bi_idx))
+#     print bi_idx.src_processor()
+#     print bi_idx.tgt_processor()
     return bi_idx
 
 def save_pp_pair_to_file(bi_idx, filename):
-    json.dump(bi_idx.to_serializable(), open(filename, "w"))
+    json.dump(bi_idx.to_serializable(), open(filename, "w"), indent=2, separators=(',', ': '))
     

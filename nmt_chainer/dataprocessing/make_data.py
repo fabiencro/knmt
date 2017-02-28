@@ -223,10 +223,10 @@ def do_make_data(config):
         
         
         if config.latin_tgt:
-            pp.add_tgt_processor(processors.LatinScriptProcess())
+            pp.add_tgt_processor(processors.LatinScriptProcess(config.latin_type))
         
         if config.latin_src:
-            pp.add_src_processor(processors.LatinScriptProcess())
+            pp.add_src_processor(processors.LatinScriptProcess(config.latin_type))
         
         pp.add_src_processor(processors.SimpleSegmenter(config.src_segmentation_type))
         if config.bpe_src is not None:
