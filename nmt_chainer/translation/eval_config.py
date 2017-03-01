@@ -89,6 +89,23 @@ def make_config_eval(args):
     
     return config_eval
     
+def load_config_eval(filename, readonly = True):
+    config = argument_parsing_tools.OrderedNamespace.load_from(filename)
+    if "metadata" not in config: # older config file
+        parse_option_orderer = get_parse_option_orderer()
+        config_eval = parse_option_orderer.convert_args_to_ordered_dict(config, args_is_namespace = False)
+        assert "metadata" not in config_eval
+        config_eval["metadata"] = argument_parsing_tools.OrderedNamespace()
+        config_eval["metadata"]["config_version_num"] = 0.9
+        config_eval["metadata"]["command_line"] = None
+        config_eval["metadata"]["knmt_version"] = None
+        config = config_eval
+    elif config["metadata"]["config_version_num"] != 1.0:
+        raise ValueError("The config version of %s is not supported by this version of the program" % filename)   
+    if readonly:
+        config.set_readonly()
+    return config
+    
 def command_line(arguments = None):
     
     import argparse
