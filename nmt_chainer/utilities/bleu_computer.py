@@ -172,17 +172,20 @@ def get_bc_from_files(ref_fn, trans_fn):
         bc.update(r, t)
     return bc    
     
+def define_parser(parser):
+    parser.add_argument("ref", help = "reference file")
+    parser.add_argument("translations", help = "translations to be evaluated")
+    
+def do_bleu(args):
+    bc = get_bc_from_files(args.ref, args.translations)
+    print bc
     
 def command_line():
     parser = argparse.ArgumentParser(description = "Compute BLEU score")
-    parser.add_argument("ref")
-    parser.add_argument("translations")
+    define_parser(parser)
     args = parser.parse_args()
+    do_bleu(args)
     
-    bc = get_bc_from_files(args.ref, args.translations)
-    
-    print bc
-        
 if __name__ == "__main__":
     command_line()
     

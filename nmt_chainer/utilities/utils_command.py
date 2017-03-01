@@ -2,6 +2,7 @@ import argparse
 from nmt_chainer.utilities import graph_training
 from nmt_chainer.utilities import replace_tgt_unk
 from nmt_chainer.utilities import expe_recap
+from nmt_chainer.utilities import bleu_computer
 
 def define_parser(parser):
     subparsers = parser.add_subparsers(dest = "__sub_subcommand_name")
@@ -18,10 +19,15 @@ def define_parser(parser):
                            help = "Generate recap of experimets.", formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     expe_recap.define_parser(recap_parser)
     
+    bleu_parser = subparsers.add_parser('bleu', description= "Compute BLEU score.", 
+                           help = "Compute BLEU score.", formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+    bleu_computer.define_parser(bleu_parser)
+    
 def do_utils(args):
     func = {"graph": graph_training.do_graph,
             "replace_tgt_unk": replace_tgt_unk.do_replace,
-            "recap": expe_recap.do_recap
+            "recap": expe_recap.do_recap,
+            "bleu": bleu_computer.do_bleu
             }[args.__sub_subcommand_name]
     func(args)
     
