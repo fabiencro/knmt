@@ -61,6 +61,9 @@ def define_parser(parser):
     management_group.add_argument("--reverse_training_config", help = "prefix of the trained model")
     management_group.add_argument("--reverse_trained_model", help = "prefix of the trained model")
 #     management_group.add_argument("--config", help = "load eval config file")
+    management_group.add_argument("--server", help = "host:port for listening request")
+    management_group.add_argument("--segmenter_command", help = "command to communicate with the segmenter server")
+    management_group.add_argument("--segmenter_format", help = "format to expect from the segmenter (parse_server, morph)", default = 'plain')
     
     
 class CommandLineValuesException(Exception):
@@ -69,7 +72,8 @@ class CommandLineValuesException(Exception):
 def get_parse_option_orderer():
     description_to_config_section = dict( (v, k) for (k,v) in _CONFIG_SECTION_TO_DESCRIPTION.iteritems())
     por = argument_parsing_tools.ParseOptionRecorder(group_title_to_section = description_to_config_section,
-                                                     ignore_positional_arguments = set(["src_fn", "dest_fn"]))
+                                                     #ignore_positional_arguments = set(["src_fn", "dest_fn"])
+                                                     )
     define_parser(por)
     return por
     
@@ -79,8 +83,9 @@ def make_config_eval(args):
     config_eval.add_metadata_infos(version_num = 1)
     config_eval.set_readonly()
     
-    if config_eval.process.src_fn is None or config_eval.process.dest_fn is None:
-        raise CommandLineValuesException("src_fn and dest_fn need to be set either on the command line or in a config file")
+    if config_eval.process.server is None:
+        if config_eval.process.src_fn is None or config_eval.process.dest_fn is None:
+            raise CommandLineValuesException("src_fn and dest_fn need to be set either on the command line or in a config file")
     
     return config_eval
     
