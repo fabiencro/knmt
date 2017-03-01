@@ -5,7 +5,7 @@
 LANG_PAIR=ej
 LANG_SRC=en
 LANG_DST=ja
-NETWORK_INTERFACE=eth0
+HOST=localhost
 PORT=44668
 
 

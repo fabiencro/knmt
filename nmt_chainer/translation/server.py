@@ -9,24 +9,16 @@ __status__ = "Development"
 import datetime
 import json
 import numpy as np
-from chainer import cuda, serializers
+from chainer import cuda
 import logging
 import sys
-#import h5py
+import tempfile
 
-from nmt_chainer.dataprocessing.make_data import Indexer, build_dataset_one_side_from_string
-from nmt_chainer.translation.evaluation import (greedy_batch_translate, 
-#                         convert_idx_to_string, 
-                        batch_align, 
-                        beam_search_translate, 
-#                         convert_idx_to_string_with_attn
-                        )
+from nmt_chainer.dataprocessing.processors import build_dataset_one_side_pp
+from nmt_chainer.translation.evaluation import beam_search_translate
+import nmt_chainer.translation.eval
+from nmt_chainer.translation.server_arg_parsing import make_config_server
 
-from nmt_chainer.translation.eval import create_and_load_encdec_from_files
-
-
-from nmt_chainer.utilities import bleu_computer
-import codecs
 import traceback
 
 import time
@@ -37,160 +29,81 @@ import SocketServer
 import xml.etree.ElementTree as ET
 import re
 import subprocess
-from nmt_chainer.utilities import replace_tgt_unk
 import bokeh.embed
 
 logging.basicConfig()
-log = logging.getLogger("rnns:eval")
+log = logging.getLogger("rnns:server")
 log.setLevel(logging.INFO)
 
-class Evaluator:
+class Translator:
 
-    def __init__(self, training_config, trained_model, additional_training_config, additional_trained_model, reverse_training_config, reverse_trained_model, 
-            max_nb_ex, mb_size, beam_opt, tgt_unk_id, gpu, dic):
-        self.training_config = training_config
-        self.trained_model = trained_model
-        self.additional_training_config = additional_training_config
-        self.additional_trained_model = additional_trained_model
-        self.reverse_training_config = reverse_training_config
-        self.reverse_trained_model = reverse_trained_model
-        self.max_nb_ex = max_nb_ex
-        self.mb_size = mb_size
-        self.beam_opt = beam_opt
-        self.tgt_unk_id = tgt_unk_id
-        self.gpu = gpu
-        self.dic = dic
-    
-        self.encdec, self.eos_idx, self.src_indexer, self.tgt_indexer = create_and_load_encdec_from_files(self.training_config, self.trained_model)
-        if self.gpu is not None:
-            self.encdec = self.encdec.to_gpu(self.gpu)
+    def __init__(self, config_server):
+        self.config_server = config_server 
+        from nmt_chainer.translation.eval import create_encdec
+        self.encdec, self.eos_idx, self.src_indexer, self.tgt_indexer, self.reverse_encdec = create_encdec(config_server)
+        if 'gpu' in config_server.process and config_server.process.gpu is not None:
+            self.encdec = self.encdec.to_gpu(config_server.process.gpu)
             
         self.encdec_list = [self.encdec]
         
-        if self.additional_training_config is not None:
-            assert len(self.additional_training_config) == len(self.additional_trained_model)
-            
-            for (config_training_fn, trained_model_fn) in zip(self.additional_training_config, 
-                                                              self.additional_trained_model):
-                this_encdec, this_eos_idx, this_src_indexer, this_tgt_indexer = create_and_load_encdec_from_files(
-                                config_training_fn, trained_model_fn)
-            
-                if self.eos_idx != this_eos_idx:
-                    raise Exception("incompatible models")
-                    
-                if len(self.src_indexer) != len(this_src_indexer):
-                    raise Exception("incompatible models")
-                  
-                if len(self.tgt_indexer) != len(this_tgt_indexer):
-                    raise Exception("incompatible models")
-                                  
-                if self.gpu is not None:
-                    this_encdec = this_encdec.to_gpu(self.gpu)
-                
-                self.encdec_list.append(this_encdec)
-                
-        if self.reverse_training_config is not None:
-            self.reverse_encdec, self.reverse_eos_idx, self.reverse_src_indexer, self.reverse_tgt_indexer = create_and_load_encdec_from_files(
-                                self.reverse_training_config, self.reverse_trained_model)
-            
-            if eos_idx != reverse_eos_idx:
-                raise Exception("incompatible models")
-                
-            if len(src_indexer) != len(reverse_src_indexer):
-                raise Exception("incompatible models")
-              
-            if len(tgt_indexer) != len(reverse_tgt_indexer):
-                raise Exception("incompatible models")
-                              
-            if self.gpu is not None:
-                self.reverse_encdec = self.reverse_encdec.to_gpu(self.gpu)
-        else:
-            self.reverse_encdec = None    
-            
-    def eval(self, request, request_number, beam_width, beam_pruning_margin, nb_steps, nb_steps_ratio, 
-            remove_unk, normalize_unicode_unk, attempt_to_relocate_unk_source, post_score_length_normalization, length_normalization_strength, post_score_coverage_penalty, post_score_coverage_penalty_strength, groundhog, force_finish, prob_space_combination, attn_graph_width, attn_graph_height):
+    def translate(self, sentence, beam_width, beam_pruning_margin, nb_steps, nb_steps_ratio, 
+                  remove_unk, normalize_unicode_unk, attempt_to_relocate_unk_source, post_score_length_normalization, length_normalization_strength, 
+                  post_score_coverage_penalty, post_score_coverage_penalty_strength,
+                  groundhog, force_finish, prob_space_combination, attn_graph_width, attn_graph_height):
         from nmt_chainer.utilities import visualisation
-        log.info("processing source string %s" % request)
-        src_data, dic_src, make_data_infos = build_dataset_one_side_from_string(request, 
-                    src_voc_limit = None, max_nb_ex = self.max_nb_ex, dic_src = self.src_indexer)
-        log.info("%i sentences loaded" % make_data_infos.nb_ex)
-        log.info("#tokens src: %i   of which %i (%f%%) are unknown"%(make_data_infos.total_token, 
-                                                                     make_data_infos.total_count_unk, 
-                                                                     float(make_data_infos.total_count_unk * 100) / 
-                                                                        make_data_infos.total_token))
-        assert dic_src == self.src_indexer
+        log.info("processing source string %s" % sentence)
 
-        tgt_data = None
+        src_file = tempfile.NamedTemporaryFile()
+        src_file.write(sentence.encode('utf-8'))
+        src_file.seek(0)
 
-        out = ''
-        unk_mapping = []
-        with cuda.get_device(self.gpu):
-            translations_gen = beam_search_translate(
-                        self.encdec, self.eos_idx, src_data, beam_width = beam_width, beam_pruning_margin = beam_pruning_margin, 
-                                        nb_steps = nb_steps, 
-                                        gpu = self.gpu, beam_opt = self.beam_opt, nb_steps_ratio = nb_steps_ratio,
-                                        need_attention = True, post_score_length_normalization = post_score_length_normalization, 
-                                        length_normalization_strength = length_normalization_strength,
-                                        post_score_coverage_penalty = post_score_coverage_penalty,
-                                        post_score_coverage_penalty_strength = post_score_coverage_penalty_strength,
-                                        groundhog = groundhog, force_finish = force_finish,
-                                        prob_space_combination = prob_space_combination,
-                                        reverse_encdec = self.reverse_encdec)
-                                        
+        dest_file = tempfile.NamedTemporaryFile()
+        rich_output_file = tempfile.NamedTemporaryFile()
+        attn_graph_script_file = tempfile.NamedTemporaryFile()
+        attn_graph_div_file = tempfile.NamedTemporaryFile()
 
-            for num_t, (t, score, attn) in enumerate(translations_gen):
-                if num_t %200 == 0:
-                    print >>sys.stderr, num_t,
-                elif num_t %40 == 0:
-                    print >>sys.stderr, "*",
-                if self.tgt_unk_id == "align":
-                    def unk_replacer(num_pos, unk_id):
-                        unk_pattern = "#T_UNK_%i#"
-                        a = attn[num_pos]
-                        xp = cuda.get_array_module(a)
-                        src_pos = int(xp.argmax(a))
-                        return unk_pattern%src_pos
-                elif self.tgt_unk_id == "id":
-                    def unk_replacer(num_pos, unk_id):
-                        unk_pattern = "#T_UNK_%i#"
-                        return unk_pattern%unk_id         
-                else:
-                    assert False
-                
-                script = ''
-                div = '<div/>'
-                ct = " ".join(self.tgt_indexer.deconvert(t, unk_tag = unk_replacer))
-                if (ct != ''):
-                    unk_pattern = re.compile("#T_UNK_(\d+)#")
-                    for idx, word in enumerate(ct.split(' ')):
-                        match = unk_pattern.match(word)
-                        if (match):
-                            unk_mapping.append(match.group(1) + '-' + str(idx))    
+        try:
+            out = ''
+            script = ''
+            div = '<div/>'
+            unk_mapping = []
 
-                    ct = replace_tgt_unk.replace_unk_from_string(ct, request, self.dic, remove_unk, normalize_unicode_unk, attempt_to_relocate_unk_source)
+            src_data, stats_src_pp = build_dataset_one_side_pp(src_file.name, self.src_indexer, max_nb_ex = self.config_server.process.max_nb_ex)
 
-                    out += ct + "\n"
+            from nmt_chainer.translation.eval import translate_to_file_with_beam_search
+            translate_to_file_with_beam_search(dest_file.name, self.config_server.process.gpu, self.encdec, self.eos_idx, src_data, beam_width, beam_pruning_margin, nb_steps, 
+                   nb_steps_ratio, post_score_length_normalization, length_normalization_strength, 
+                   post_score_coverage_penalty, post_score_coverage_penalty_strength,
+                   groundhog,
+                   self.config_server.output.tgt_unk_id, self.tgt_indexer, force_finish = force_finish,
+                   prob_space_combination = prob_space_combination, reverse_encdec = self.reverse_encdec, 
+                   generate_attention_html = (attn_graph_script_file.name, attn_graph_div_file.name), 
+                   attn_graph_with_sum = False,
+                   attn_graph_attribs = { 'title': '', 'toolbar_location': 'below', 'plot_width': attn_graph_width, 'plot_height': attn_graph_height }, src_indexer = self.src_indexer, 
+                   rich_output_filename = rich_output_file.name,
+                   use_unfinished_translation_if_none_found = False, 
+                   replace_unk = True, src = sentence, dic = self.config_server.output.dic,
+                   remove_unk = remove_unk, normalize_unicode_unk = normalize_unicode_unk, attempt_to_relocate_unk_source = attempt_to_relocate_unk_source)
 
-                    plots_list = []
-                    src_idx_list = src_data[num_t]
-                    tgt_idx_list = t[:-1]
-                    alignment = np.zeros((len(src_idx_list), len(tgt_idx_list)))
-                    sum_al =[0] * len(tgt_idx_list)
+            dest_file.seek(0)
+            out = dest_file.read()
+    
+            rich_output_file.seek(0)
+            rich_output_data = json.loads(rich_output_file.read())
+            unk_mapping = rich_output_data[0]['unk_mapping']
 
-                    for i in xrange(len(src_idx_list)):
-                        for j in xrange(len(tgt_idx_list)):
-                            alignment[i,j] = attn[j][i]
-                        
-                    src_w = self.src_indexer.deconvert(src_idx_list, unk_tag = "#S_UNK#")
-                    tgt_w = self.tgt_indexer.deconvert(tgt_idx_list, unk_tag = "#T_UNK#")
-                    if (attn_graph_width > 0 and attn_graph_height > 0):
-                        p1 = visualisation.make_alignment_figure(src_w, tgt_w, alignment, title = '', toolbar_location = 'below', plot_width = attn_graph_width, plot_height = attn_graph_height)
-                        plots_list.append(p1)
-                        p_all = visualisation.Column(*plots_list)
+            attn_graph_script_file.seek(0)
+            script = attn_graph_script_file.read()
 
-                        script, div = bokeh.embed.components(p_all)
+            attn_graph_div_file.seek(0)
+            div = attn_graph_div_file.read()
 
-            print >>sys.stderr
+        finally:
+            src_file.close()
+            dest_file.close()
+            rich_output_file.close()
+            attn_graph_script_file.close()
+            attn_graph_div_file.close()
 
         return out, script, div, unk_mapping
 
@@ -294,7 +207,7 @@ class RequestHandler(SocketServer.BaseRequestHandler):
 
                     log.info(timestamped_msg("Translating sentence %d" % idx))
                     decoded_sentence = splitted_sentence.decode('utf-8')
-                    translation, script, div, unk_mapping = self.server.evaluator.eval(decoded_sentence, sentence_number, 
+                    translation, script, div, unk_mapping = self.server.translator.translate(decoded_sentence,
                         beam_width, beam_pruning_margin, nb_steps, nb_steps_ratio, remove_unk, normalize_unicode_unk, attempt_to_relocate_unk_source,
                         post_score_length_normalization, length_normalization_strength, post_score_coverage_penalty, post_score_coverage_penalty_strength, 
                         groundhog, force_finish, prob_space_combination, attn_graph_width, attn_graph_height)
@@ -334,66 +247,22 @@ class Server(SocketServer.ThreadingMixIn, SocketServer.TCPServer):
     daemon_threads = True
     allow_reuse_address = True
 
-    def __init__(self, server_address, handler_class, segmenter_command, segmenter_format, evaluator):
+    def __init__(self, server_address, handler_class, segmenter_command, segmenter_format, translator):
         SocketServer.TCPServer.__init__(self, server_address, handler_class)
         self.segmenter_command = segmenter_command
         self.segmenter_format = segmenter_format
-        self.evaluator = evaluator
+        self.translator = translator
 
 def timestamped_msg(msg):
     timestamp = datetime.datetime.fromtimestamp(time.time()).strftime('%Y-%m-%d %H:%M:%S')
     return "{0}: {1}".format(timestamp, msg) 
 
-def define_parser(parser):
-    parser.add_argument("training_config", help = "prefix of the trained model")
-    parser.add_argument("trained_model", help = "prefix of the trained model")
-    
-    parser.add_argument("--additional_training_config", nargs = "*", help = "prefix of the trained model")
-    parser.add_argument("--additional_trained_model", nargs = "*", help = "prefix of the trained model")
-    
-    parser.add_argument("--tgt_fn", help = "target text")
-    
-    parser.add_argument("--nbest_to_rescore", help = "nbest list in moses format")
-    
-    parser.add_argument("--ref", help = "target text")
-    
-    parser.add_argument("--gpu", type = int, help = "specify gpu number to use, if any")
-    
-    parser.add_argument("--max_nb_ex", type = int, help = "only use the first MAX_NB_EX examples")
-    parser.add_argument("--mb_size", type = int, default= 80, help = "Minibatch size")
-    parser.add_argument("--nb_batch_to_sort", type = int, default= 20, help = "Sort this many batches by size.")
-    parser.add_argument("--beam_opt", default = False, action = "store_true")
-    parser.add_argument("--tgt_unk_id", choices = ["attn", "id"], default = "align")
-    
-    # arguments for unk replace
-    parser.add_argument("--dic")
-    
-    parser.add_argument("--reverse_training_config", help = "prefix of the trained model")
-    parser.add_argument("--reverse_trained_model", help = "prefix of the trained model")
-    
-    parser.add_argument("--netiface", help = "network interface for listening request", default = 'eth0')
-    parser.add_argument("--port", help = "port for listening request", default = 44666)
-    parser.add_argument("--segmenter_command", help = "command to communicate with the segmenter server")
-    parser.add_argument("--segmenter_format", help = "format to expect from the segmenter (parse_server, morph)", default = 'parse_server')
-
-def command_line(arguments = None):
-    import argparse
-    parser = argparse.ArgumentParser(description= "Launch a RNNSearch server", 
-                                     formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-    define_parser(parser)
-    args = parser.parse_args(args = arguments)
-    do_start_server(args)
-   
-def do_start_server(args):
-    evaluator = Evaluator(args.training_config, args.trained_model, args.additional_training_config, args.additional_trained_model, 
-                   args.reverse_training_config, args.reverse_trained_model, args.max_nb_ex, args.mb_size, args.beam_opt, 
-                   args.tgt_unk_id, args.gpu, args.dic)
-
-    retrieve_ip_cmd = "/sbin/ifconfig | grep -A1 '{0}' | grep 'inet addr' | cut -f 2 -d ':' | cut -f 1 -d ' '".format(args.netiface)
-    external_ip = subprocess.check_output(retrieve_ip_cmd, shell=True) 
-    server = Server((external_ip, int(args.port)), RequestHandler, args.segmenter_command, args.segmenter_format, evaluator)
+def do_start_server(config_server):
+    translator = Translator(config_server)
+    server_host, server_port = config_server.process.server.split(":")
+    server = Server((server_host, int(server_port)), RequestHandler, config_server.process.segmenter_command, config_server.process.segmenter_format, translator)
     ip, port = server.server_address
-    log.info(timestamped_msg("Start listening for requests on {0}({1}) port {2}...".format(socket.gethostname(), external_ip, port)))
+    log.info(timestamped_msg("Start listening for requests on {0}:{1}...".format(socket.gethostname(), port)))
 
     try:
         server.serve_forever()

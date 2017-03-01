@@ -14,6 +14,7 @@ from nmt_chainer.dataprocessing.processors import build_dataset_one_side_pp
 import nmt_chainer.dataprocessing.make_data as make_data
 import nmt_chainer.training_module.train as train
 import nmt_chainer.training_module.train_config as train_config
+import re
 
 # from utils import make_batch_src, make_batch_src_tgt, minibatch_provider, compute_bleu_with_unk_as_wrong, de_batch
 from nmt_chainer.translation.evaluation import (greedy_batch_translate, 
@@ -28,6 +29,7 @@ from nmt_chainer.utilities import bleu_computer
 import logging
 import codecs
 # import h5py
+import bokeh.embed
 
 
 logging.basicConfig()
@@ -39,7 +41,7 @@ class AttentionVisualizer(object):
     def __init__(self):
         self.plots_list = []
         
-    def add_plot(self, src_w, tgt_w, attn):
+    def add_plot(self, src_w, tgt_w, attn, include_sum = True, visual_attribs = None):
         from nmt_chainer.utilities import visualisation
         alignment = np.zeros((len(src_w) + 1, len(tgt_w)))
         sum_al =[0] * len(tgt_w)
@@ -50,17 +52,30 @@ class AttentionVisualizer(object):
         for j in xrange(len(tgt_w)):        
             alignment[len(src_w), j] =  sum_al[j]
             
-        p1 = visualisation.make_alignment_figure(
-                            src_w + ["SUM_ATTN"], tgt_w, alignment)
+        src = src_w
+        if include_sum:
+            src += ["SUM_ATTN"]
+        if visual_attribs is not None:
+            p1 = visualisation.make_alignment_figure(src, tgt_w, alignment, **visual_attribs)
+        else:
+            p1 = visualisation.make_alignment_figure(src, tgt_w, alignment)
         
         self.plots_list.append(p1)
             
     def make_plot(self, output_file):
         from nmt_chainer.utilities import visualisation
-        log.info("writing attention to %s"% output_file)
+        log.info("writing attention to {0}".format(output_file))
         p_all = visualisation.Column(*self.plots_list)
-        visualisation.output_file(output_file)
-        visualisation.show(p_all)
+        if isinstance(output_file, tuple):
+            script_output_fn, div_output_fn = output_file
+            script, div = bokeh.embed.components(p_all)
+            with open(script_output_fn, 'w') as f:
+                f.write(script.encode('utf-8'))
+            with open(div_output_fn, 'w') as f:
+                f.write(div)
+        else:
+            visualisation.output_file(output_file)
+            visualisation.show(p_all)
 
 class RichOutputWriter(object):
     def __init__(self, filename):
@@ -70,7 +85,7 @@ class RichOutputWriter(object):
         self.no_entry_yet = True
         self.output.write("[\n")
         
-    def add_info(self, src, translated, t, score, attn):
+    def add_info(self, src, translated, t, score, attn, unk_mapping = None):
         if not self.no_entry_yet:
             self.output.write(",\n")
         else:
@@ -79,6 +94,9 @@ class RichOutputWriter(object):
         self.output.write(json.dumps(translated))
         self.output.write(",\n\"attn\": ")
         self.output.write(json.dumps([[float(a) for a in a_list] for a_list in attn]))
+        if unk_mapping is not None:
+            self.output.write(",\n\"unk_mapping\": ")
+            self.output.write(json.dumps(unk_mapping))
         self.output.write("}")
             
     def finish(self):
@@ -94,7 +112,13 @@ def beam_search_all(gpu, encdec, eos_idx, src_data, beam_width, beam_pruning_mar
        groundhog,
        tgt_unk_id, tgt_indexer, force_finish = False,
        prob_space_combination = False, reverse_encdec = None,
-       use_unfinished_translation_if_none_found = False):
+       use_unfinished_translation_if_none_found = False,
+       replace_unk = False,
+       src = None,
+       dic = None,
+       remove_unk = False,
+       normalize_unicode_unk = False,
+       attempt_to_relocate_unk_source = False):
     
     log.info("starting beam search translation of %i sentences"% len(src_data))
     if isinstance(encdec, (list, tuple)) and len(encdec) > 1:
@@ -136,8 +160,21 @@ def beam_search_all(gpu, encdec, eos_idx, src_data, beam_width, beam_pruning_mar
                 assert False
             
             translated = tgt_indexer.deconvert_swallow(t, unk_tag = unk_replacer)
+
+            unk_mapping = []
+            ct = " ".join(translated)
+            if ct != '':
+                unk_pattern = re.compile("#T_UNK_(\d+)#")
+                for idx, word in enumerate(ct.split(' ')):
+                    match = unk_pattern.match(word)
+                    if (match):
+                        unk_mapping.append(match.group(1) + '-' + str(idx))    
+                
+                if replace_unk:
+                    from nmt_chainer.utilities import replace_tgt_unk
+                    translated = replace_tgt_unk.replace_unk_from_string(ct, src, dic, remove_unk, normalize_unicode_unk, attempt_to_relocate_unk_source).strip().split(" ")
             
-            yield src_data[num_t], translated, t, score, attn 
+            yield src_data[num_t], translated, t, score, attn, unk_mapping
         print >>sys.stderr
 
 def translate_to_file_with_beam_search(dest_fn, gpu, encdec, eos_idx, src_data, beam_width, beam_pruning_margin, nb_steps, 
@@ -146,8 +183,14 @@ def translate_to_file_with_beam_search(dest_fn, gpu, encdec, eos_idx, src_data, 
        groundhog,
        tgt_unk_id, tgt_indexer, force_finish = False,
        prob_space_combination = False, reverse_encdec = None, 
-       generate_attention_html = None, src_indexer = None, rich_output_filename = None,
-       use_unfinished_translation_if_none_found = False):
+       generate_attention_html = None, attn_graph_with_sum = True, attn_graph_attribs = None, src_indexer = None, rich_output_filename = None,
+       use_unfinished_translation_if_none_found = False,
+       replace_unk = False,
+       src = None,
+       dic = None,
+       remove_unk = False,
+       normalize_unicode_unk = False,
+       attempt_to_relocate_unk_source = False):
     
     log.info("writing translation to %s "% dest_fn)
     out = codecs.open(dest_fn, "w", encoding = "utf8")
@@ -158,7 +201,13 @@ def translate_to_file_with_beam_search(dest_fn, gpu, encdec, eos_idx, src_data, 
        groundhog,
        tgt_unk_id, tgt_indexer, force_finish = force_finish,
        prob_space_combination = prob_space_combination, reverse_encdec = reverse_encdec,
-       use_unfinished_translation_if_none_found = use_unfinished_translation_if_none_found)
+       use_unfinished_translation_if_none_found = use_unfinished_translation_if_none_found,
+       replace_unk = replace_unk,
+       src = src,
+       dic = dic,
+       remove_unk = remove_unk,
+       normalize_unicode_unk = normalize_unicode_unk,
+       attempt_to_relocate_unk_source = attempt_to_relocate_unk_source)
     
     attn_vis = None
     if generate_attention_html is not None:
@@ -169,11 +218,11 @@ def translate_to_file_with_beam_search(dest_fn, gpu, encdec, eos_idx, src_data, 
     if rich_output_filename is not None:
         rich_output = RichOutputWriter(rich_output_filename)
         
-    for src, translated, t, score, attn in translation_iterator:
+    for src, translated, t, score, attn, unk_mapping in translation_iterator:
         if rich_output is not None:
-            rich_output.add_info(src, translated, t, score, attn)
+            rich_output.add_info(src, translated, t, score, attn, unk_mapping = unk_mapping)
         if attn_vis is not None:
-            attn_vis.add_plot(src_indexer.deconvert_swallow(src), translated, attn)
+            attn_vis.add_plot(src_indexer.deconvert_swallow(src), translated, attn, attn_graph_with_sum, attn_graph_attribs)
         ct = tgt_indexer.deconvert_post(translated)
         out.write(ct + "\n")
         
@@ -215,7 +264,7 @@ def create_encdec(config_eval):
         
         encdec_list.append(encdec)
     
-    if config_eval.process.load_model_config is not None:
+    if 'load_model_config' in config_eval and config_eval.process.load_model_config is not None:
         for config_filename in config_eval.process.load_model_config:
             log.info("loading model and parameters from config %s" % config_filename)
             config_training = train_config.load_config_train(config_filename)
@@ -234,7 +283,7 @@ def create_encdec(config_eval):
     assert len(encdec_list) > 0
         
             
-    if config_eval.process.additional_training_config is not None:
+    if 'additional_training_config' in config_eval.process and config_eval.process.additional_training_config is not None:
         assert len(config_eval.process.additional_training_config) == len(config_eval.process.additional_trained_model)
     
         
@@ -251,11 +300,11 @@ def create_encdec(config_eval):
             encdec_list.append(this_encdec)
             
             
-    if config_eval.process.gpu is not None:
+    if 'gpu' in config_eval.process and  config_eval.process.gpu is not None:
         encdec_list = [encdec.to_gpu(config_eval.process.gpu) for encdec in encdec_list]
             
             
-    if config_eval.process.reverse_training_config is not None:
+    if 'reverse_training_config' in config_eval.process and config_eval.process.reverse_training_config is not None:
         reverse_encdec, reverse_eos_idx, reverse_src_indexer, reverse_tgt_indexer = create_and_load_encdec_from_files(
                             config_eval.process.reverse_training_config, config_eval.process.reverse_trained_model)
         
@@ -308,9 +357,10 @@ def do_eval(config_eval):
     post_score_coverage_penalty = config_eval.method.post_score_coverage_penalty
     post_score_coverage_penalty_strength = config_eval.method.post_score_coverage_penalty_strength
     
-    save_eval_config_fn = dest_fn + ".eval.config.json"
-    log.info("Saving eval config to %s" % save_eval_config_fn)
-    config_eval.save_to(save_eval_config_fn)
+    if dest_fn is not None:
+        save_eval_config_fn = dest_fn + ".eval.config.json"
+        log.info("Saving eval config to %s" % save_eval_config_fn)
+        config_eval.save_to(save_eval_config_fn)
 #     json.dump(config_eval, open(save_eval_config_fn, "w"), indent=2, separators=(',', ': '))
     
     encdec_list, eos_idx, src_indexer, tgt_indexer, reverse_encdec = create_encdec(config_eval)
@@ -318,11 +368,12 @@ def do_eval(config_eval):
 
         
         
-    log.info("opening source file %s" % src_fn)
-    src_data, stats_src_pp = build_dataset_one_side_pp(src_fn, src_pp = src_indexer,
-                                    max_nb_ex = max_nb_ex)
-    log.info("src data stats:\n%s", stats_src_pp.make_report())
-    
+    if src_fn is not None:
+        log.info("opening source file %s" % src_fn)
+        src_data, stats_src_pp = build_dataset_one_side_pp(src_fn, src_pp = src_indexer,
+                                        max_nb_ex = max_nb_ex)
+        log.info("src data stats:\n%s", stats_src_pp.make_report())
+        
 #     log.info("%i sentences loaded" % make_data_infos.nb_ex)
 #     log.info("#tokens src: %i   of which %i (%f%%) are unknown"%(make_data_infos.total_token, 
 #                                                                  make_data_infos.total_count_unk, 
@@ -361,25 +412,29 @@ def do_eval(config_eval):
             out.write(ct + "\n")
 
     elif mode == "beam_search":
-        translate_to_file_with_beam_search(dest_fn, gpu, encdec_list, eos_idx, src_data, 
-                                           beam_width = beam_width, 
-                                           beam_pruning_margin = beam_pruning_margin,
-                                           nb_steps = nb_steps,
-                                           nb_steps_ratio = nb_steps_ratio,
-                                           post_score_length_normalization = post_score_length_normalization,
-                                           length_normalization_strength = length_normalization_strength,
-                                           post_score_coverage_penalty = post_score_coverage_penalty,
-                                           post_score_coverage_penalty_strength= post_score_coverage_penalty_strength,
-                                           groundhog = groundhog,
-                                           tgt_unk_id = tgt_unk_id, 
-                                           tgt_indexer = tgt_indexer,
-                                           force_finish = force_finish,
-                                           prob_space_combination = prob_space_combination,
-                                           reverse_encdec = reverse_encdec,
-                                           generate_attention_html = generate_attention_html,
-                                           src_indexer = src_indexer,
-                                           rich_output_filename = rich_output_filename,
-                                           use_unfinished_translation_if_none_found = True)
+        if config_eval.process.server is not None:
+            from nmt_chainer.translation.server import do_start_server
+            do_start_server(config_eval)
+        else:
+            translate_to_file_with_beam_search(dest_fn, gpu, encdec_list, eos_idx, src_data, 
+                                               beam_width = beam_width, 
+                                               beam_pruning_margin = beam_pruning_margin,
+                                               nb_steps = nb_steps,
+                                               nb_steps_ratio = nb_steps_ratio,
+                                               post_score_length_normalization = post_score_length_normalization,
+                                               length_normalization_strength = length_normalization_strength,
+                                               post_score_coverage_penalty = post_score_coverage_penalty,
+                                               post_score_coverage_penalty_strength = post_score_coverage_penalty_strength,
+                                               groundhog = groundhog,
+                                               tgt_unk_id = tgt_unk_id, 
+                                               tgt_indexer = tgt_indexer,
+                                               force_finish = force_finish,
+                                               prob_space_combination = prob_space_combination,
+                                               reverse_encdec = reverse_encdec,
+                                               generate_attention_html = generate_attention_html,
+                                               src_indexer = src_indexer,
+                                               rich_output_filename = rich_output_filename,
+                                               use_unfinished_translation_if_none_found = True)
             
     elif mode == "eval_bleu":
 #         assert args.ref is not None
