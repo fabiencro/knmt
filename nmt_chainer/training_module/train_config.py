@@ -100,24 +100,28 @@ def get_parse_option_orderer():
     define_parser(por)
     return por
 
-def convert_cell_string(config_training):
+def convert_cell_string(config_training, no_error = False):
     import nmt_chainer.models.rnn_cells_config
     
-    if config_training["model"]["encoder_cell_type"] is not None:
-        config_training["model"]["encoder_cell_type"] = nmt_chainer.models.rnn_cells_config.create_cell_config_from_string(
-            config_training["model"]["encoder_cell_type"])
+    try:
+        if "encoder_cell_type" in config_training["model"] and  config_training["model"]["encoder_cell_type"] is not None:
+            config_training["model"]["encoder_cell_type"] = nmt_chainer.models.rnn_cells_config.create_cell_config_from_string(
+                config_training["model"]["encoder_cell_type"])
+            
+        if "decoder_cell_type" in config_training["model"] and config_training["model"]["decoder_cell_type"] is not None:
+            config_training["model"]["decoder_cell_type"] = nmt_chainer.models.rnn_cells_config.create_cell_config_from_string(
+                config_training["model"]["decoder_cell_type"])
+    except:
+        if not no_error:
+            raise
         
-    if config_training["model"]["decoder_cell_type"] is not None:
-        config_training["model"]["decoder_cell_type"] = nmt_chainer.models.rnn_cells_config.create_cell_config_from_string(
-            config_training["model"]["decoder_cell_type"])
-        
-def load_config_train(filename, readonly = True):
+def load_config_train(filename, readonly = True, no_error = False):
     config = argument_parsing_tools.OrderedNamespace.load_from(filename)
     if "metadata" not in config: # older config file
         parse_option_orderer = get_parse_option_orderer()
         config_training = parse_option_orderer.convert_args_to_ordered_dict(config["command_line"], args_is_namespace = False)
         
-        convert_cell_string(config_training)
+        convert_cell_string(config_training, no_error = no_error)
         
         assert "data" not in config_training
         config_training["data"] = argument_parsing_tools.OrderedNamespace()
@@ -134,6 +138,15 @@ def load_config_train(filename, readonly = True):
         config = config_training
     elif config["metadata"]["config_version_num"] != 1.0:
         raise ValueError("The config version of %s is not supported by this version of the program" % filename)
+    
+    # Compatibility with intermediate verions of config file
+    if "data_prefix" in config and "data_prefix" not in config["training_management"]:
+        config["training_management"]["data_prefix"] = config["data_prefix"]
+        del config["data_prefix"]
+
+    if "train_prefix" in config and "train_prefix" not in config["training_management"]:
+        config["training_management"]["train_prefix"] = config["train_prefix"]
+        del config["train_prefix"]
     
     if readonly:
         config.set_readonly()

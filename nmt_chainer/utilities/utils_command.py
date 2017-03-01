@@ -1,6 +1,7 @@
 import argparse
 from nmt_chainer.utilities import graph_training
 from nmt_chainer.utilities import replace_tgt_unk
+from nmt_chainer.utilities import expe_recap
 
 def define_parser(parser):
     subparsers = parser.add_subparsers(dest = "__sub_subcommand_name")
@@ -13,9 +14,14 @@ def define_parser(parser):
                            help = "Replace UNK tags using a dictionnary.", formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     replace_tgt_unk.define_parser(replace_tgt_parser)
     
+    recap_parser = subparsers.add_parser('recap', description= "Generate recap of experiments.", 
+                           help = "Generate recap of experimets.", formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+    expe_recap.define_parser(recap_parser)
+    
 def do_utils(args):
     func = {"graph": graph_training.do_graph,
-            "replace_tgt_unk": replace_tgt_unk.do_replace
+            "replace_tgt_unk": replace_tgt_unk.do_replace,
+            "recap": expe_recap.do_recap
             }[args.__sub_subcommand_name]
     func(args)
     
