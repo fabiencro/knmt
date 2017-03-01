@@ -161,6 +161,23 @@ class BleuComputer(object):
                         ngrams_corrects[n] += reference_freq
         return ngrams_corrects, ngrams_total, len(translation), len(reference)
     
+def sample_bleu(ref_fn, trans_fn):
+    import numpy
+    ref_file = codecs.open(ref_fn, "r", encoding = "utf8")
+    trans_file = codecs.open(trans_fn, "r", encoding = "utf8")
+    infos_list = []
+    for line_ref, line_trans in izip(ref_file, trans_file):
+        r = line_ref.strip().split(" ")
+        t = line_trans.strip().split(" ")
+        infos_list.append(BleuComputer.compute_update_diff(r, t))
+    nb_sentences = len(infos_list)
+    while 1:
+        sample_idx = numpy.random.choice(nb_sentences, nb_sentences)
+        bc = BleuComputer()
+        for i in sample_idx:
+            bc.update_plus(infos_list[i])
+        yield bc
+        
 def get_bc_from_files(ref_fn, trans_fn):
     ref_file = codecs.open(ref_fn, "r", encoding = "utf8")
     trans_file = codecs.open(trans_fn, "r", encoding = "utf8")
@@ -172,14 +189,73 @@ def get_bc_from_files(ref_fn, trans_fn):
         bc.update(r, t)
     return bc    
     
+def compute_confidence_interval_from_sampler(bleu_sampler, nb_resampling, confidence_interval = 0.95):
+    bleu_list = []
+    for num_sample, bc in enumerate(bleu_sampler):
+        if num_sample >= nb_resampling:
+            break
+        bleu_list.append(bc.bleu())
+    bleu_list.sort()
+    threshold_95 = int(nb_resampling * ((1.0 - confidence_interval) / 2.0))
+    lower = bleu_list[threshold_95]
+    higher = bleu_list[-threshold_95-1]
+    sampled_mean = sum(bleu_list)/ nb_resampling
+#     print bleu_list[0], lower, higher, bleu_list[-1]
+    return lower, higher, sampled_mean
+    
+def compute_pairwise_superiority_from_sampler_pair(bleu_sampler, other_bleu_sampler, nb_resampling):
+    this = 0.0
+    other = 0.0
+    for num_sample, (bc, bc_other) in enumerate(izip(bleu_sampler, other_bleu_sampler)):
+        if num_sample >= nb_resampling:
+            break
+        this_bleu = bc.bleu()
+        other_bleu = bc_other.bleu()
+        if this_bleu > other_bleu:
+            this += 1
+        if other_bleu > this_bleu:
+            other += 1
+    return this/nb_resampling, other/nb_resampling
+            
+        
 def define_parser(parser):
     parser.add_argument("ref", help = "reference file")
     parser.add_argument("translations", help = "translations to be evaluated")
+    parser.add_argument("--bootstrap", type = int, help = "Do bootstrap resampling with that many resample")
+    parser.add_argument("--other_translation", help = "Another translation file for which we want to compare translation quality")
     
 def do_bleu(args):
-    bc = get_bc_from_files(args.ref, args.translations)
-    print bc
-    
+    if args.bootstrap is None:
+        bc = get_bc_from_files(args.ref, args.translations)
+        print bc
+    else:
+        bleu_sampler = sample_bleu(args.ref, args.translations)
+        lower, higher, sampled_mean = compute_confidence_interval_from_sampler(bleu_sampler, 
+                    nb_resampling = args.bootstrap,
+                    confidence_interval = 0.95)
+        
+        bc = get_bc_from_files(args.ref, args.translations)
+        print bc
+        print "95%% confidence interval: %.02f - %.02f  (sampled mean:%.02f)"%(lower*100, higher*100, sampled_mean*100)
+        
+        if args.other_translation is not None:
+            other_bleu_sampler = sample_bleu(args.ref, args.other_translation)
+            lower, higher, sampled_mean = compute_confidence_interval_from_sampler(other_bleu_sampler, 
+                    nb_resampling = args.bootstrap,
+                    confidence_interval = 0.95)
+            bc = get_bc_from_files(args.ref, args.other_translation)
+            print "\nOther translation:"
+            print bc
+            print "95%% confidence interval: %.02f - %.02f  (sampled mean:%.02f)"%(lower*100, higher*100, sampled_mean*100)
+            
+            this_better, other_better = compute_pairwise_superiority_from_sampler_pair(
+                bleu_sampler, other_bleu_sampler, nb_resampling = args.bootstrap)
+            
+            print
+            print "better than other:", this_better * 100, "% of times"
+            print "worse than other:", other_better * 100, "% of times"
+                
+            
 def command_line():
     parser = argparse.ArgumentParser(description = "Compute BLEU score")
     define_parser(parser)
