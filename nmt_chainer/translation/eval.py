@@ -264,7 +264,7 @@ def create_encdec(config_eval):
         
         encdec_list.append(encdec)
     
-    if 'load_model_config' in config_eval and config_eval.process.load_model_config is not None:
+    if 'load_model_config' in config_eval.process and config_eval.process.load_model_config is not None:
         for config_filename in config_eval.process.load_model_config:
             log.info("loading model and parameters from config %s" % config_filename)
             config_training = train_config.load_config_train(config_filename)
