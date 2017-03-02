@@ -29,12 +29,12 @@ class TestServer:
         segmenter_format = "plain"
         config_file = os.path.join(str(test_data_dir), "models/result_invariability.train.train.config")
         model_file = os.path.join(str(test_data_dir),"models/result_invariability.train.model.best.npz")
-        args_server = '--netiface eth0 --port 45766 --segmenter_command="{0}" --segmenter_format {1} {2} {3}'.format(segmenter_command, 
+        args_server = '--server 127.0.0.1:45766 --mode beam_search --segmenter_command="{0}" --segmenter_format {1} {2} {3}'.format(segmenter_command, 
             segmenter_format, config_file, model_file)
         if gpu is not None:
             args_server += '--gpu {0}'.format(gpu)
 
-        server_process = subprocess.Popen(["python -m nmt_chainer server {0}".format(args_server)], shell=True)
+        server_process = subprocess.Popen(["python -m nmt_chainer eval {0}".format(args_server)], shell=True)
         try:
             print "Server PID={0}".format(server_process.pid)
 
@@ -52,4 +52,4 @@ class TestServer:
                 process.send_signal(signal.SIGTERM)
             server_process.terminate()
         
-        assert(resp_json['out'] == "die Brille sind rot\n\n")
+        assert(resp_json['out'] == "die Brille sind rot\n")
