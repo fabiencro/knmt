@@ -85,7 +85,8 @@ def define_parser(parser):
     training_monitoring_group.add_argument("--reshuffle_every_epoch", default = False, action = "store_true", help = "reshuffle training data at the end of each epoch")
     training_monitoring_group.add_argument("--resume", default = False, action = "store_true", help = "resume training from checkpoint config")
     training_monitoring_group.add_argument("--timer_hook", default = False, action = "store_true", help = "activate timer hook for profiling")
-    
+    training_monitoring_group.add_argument("--force_overwrite", default = False, action = "store_true", help = "Do not ask before overwiting existing files")
+
 class CommandLineValuesException(Exception):
     pass
     
@@ -152,10 +153,10 @@ def load_config_train(filename, readonly = True, no_error = False):
         config.set_readonly()
     return config
     
-def find_which_command_line_arguments_were_given():
+def find_which_command_line_arguments_were_given(argument_list):
     pwndan = argument_parsing_tools.ParserWithNoneDefaultAndNoGroup()
     define_parser(pwndan)
-    args_given_set = pwndan.get_args_given(sys.argv)
+    args_given_set = pwndan.get_args_given(argument_list)
     return args_given_set
     
 def make_config_from_args(args, readonly = True):
@@ -170,7 +171,7 @@ def make_config_from_args(args, readonly = True):
     convert_cell_string(config_training)
         
     if config_base is not None:
-        args_given_set = find_which_command_line_arguments_were_given()
+        args_given_set = find_which_command_line_arguments_were_given(args.__original_argument_list)
         for argname in set(args_given_set):
             if getattr(args, argname) is None:
                 args_given_set.remove(argname)

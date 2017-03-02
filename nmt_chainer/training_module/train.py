@@ -218,7 +218,8 @@ def do_train(config_training):
             already_existing_files.append(filename)
     if len(already_existing_files) > 0:
         print "Warning: existing files are going to be replaced / updated: ",  already_existing_files
-        raw_input("Press Enter to Continue")
+        if not config_training.training_management.force_overwrite:
+            raw_input("Press Enter to Continue")
     
     
     save_train_config_fn = output_files_dict["train_config"]

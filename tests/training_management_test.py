@@ -86,7 +86,7 @@ class TestTrainingManagement:
                         return False
             return True
 
-        assert compare_dict_except(config1, config2, except_fields = "metadata save_prefix".split())
+        assert compare_dict_except(config1, config2, except_fields = "metadata save_prefix config".split())
         
         
         

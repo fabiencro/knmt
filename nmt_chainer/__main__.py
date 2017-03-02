@@ -78,7 +78,11 @@ def main(arguments = None):
         argcomplete.autocomplete(parser)
     
     args = parser.parse_args(args = arguments)
-    
+    if arguments is not None:
+        args.__original_argument_list = arguments
+    else:
+        args.__original_argument_list = sys.argv
+        
     func = {"make_data": make_data.do_make_data, 
             "train": train.do_train, 
             "eval":eval_module.do_eval, 
