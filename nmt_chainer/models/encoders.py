@@ -23,7 +23,7 @@ log.setLevel(logging.INFO)
 
 
 def make_encoder(Vi, Ei, Hi, init_orth, use_bn_length, cell_type):
-    if cell_type.meta_data_cell_type == rnn_cells.NStepsCell:
+    if hasattr(cell_type, "meta_data_cell_type") and cell_type.meta_data_cell_type == rnn_cells.NStepsCell:
         return EncoderNSteps(Vi, Ei, Hi, 
                           cell_type = cell_type)
     else:
