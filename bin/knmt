@@ -1,0 +1,3 @@
+#!/usr/bin/env bash
+# PYTHON_ARGCOMPLETE_OK
+CHAINER_TYPE_CHECK=0 python -O -m nmt_chainer "$@"
