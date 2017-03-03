@@ -1,0 +1,3 @@
+#!/usr/bin/env bash
+# PYTHON_ARGCOMPLETE_OK
+python -m nmt_chainer --run_in_pdb "$@"

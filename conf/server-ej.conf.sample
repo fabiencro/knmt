@@ -1,0 +1,45 @@
+#
+# General
+#
+
+LANG_PAIR=ej
+LANG_SRC=en
+LANG_DST=ja
+HOST=localhost
+PORT=44668
+
+
+#
+# RNN-Search
+#
+
+RNN_SEARCH_CONFIG=data/train/JST-EJ.model.ens1.train.config
+
+RNN_SEARCH_ADDITIONAL_CONFIG=( \
+data/train/JST-EJ.model.ens2.train.config \
+data/train/JST-EJ.model.ens3.train.config \
+data/train/JST-EJ.lex.model.ens1.train.config \
+data/train/JST-EJ.lex.model.ens2.train.config \
+)
+
+RNN_SEARCH_MODEL=data/train/JST-EJ.model.ens1.best.npz
+
+RNN_SEARCH_ADDITIONAL_MODEL=( \
+data/train/JST-EJ.model.ens2.best.npz \
+data/train/JST-EJ.model.ens3.best.npz \
+data/train/JST-EJ.lex.model.ens1.best.npz \
+data/train/JST-EJ.lex.model.ens2.best.npz \
+)
+
+RNN_SEARCH_DICTIONARY=data/dict/dic.en_ja.json
+
+
+
+
+#
+# Segmenter
+#
+
+SEGMENTER_COMMAND="echo '%s' | bin/z2h.pl | bin/tokenizer.perl"
+SEGMENTER_FORMAT=plain
+

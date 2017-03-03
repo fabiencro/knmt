@@ -1,0 +1,47 @@
+#
+# General
+#
+
+LANG_PAIR=cj
+LANG_SRC=zh
+LANG_DST=ja
+HOST=localhost
+PORT=44667
+
+
+#
+# RNN-Search
+#
+
+RNN_SEARCH_CONFIG=~/experiments/rnnsearch/train/LCAS-CJ.model.ens1.train.config
+
+RNN_SEARCH_ADDITIONAL_CONFIG=( \
+~/experiments/rnnsearch/train/LCAS-CJ.model.ens2.train.config \
+~/experiments/rnnsearch/train/LCAS-CJ.model.ens3.train.config \
+)
+
+RNN_SEARCH_MODEL=~/experiments/rnnsearch/train/LCAS-CJ.model.ens1.best.npz
+
+RNN_SEARCH_ADDITIONAL_MODEL=( \
+~/experiments/rnnsearch/train/LCAS-CJ.model.ens2.best.npz \
+~/experiments/rnnsearch/train/LCAS-CJ.model.ens3.best.npz \
+)
+
+RNN_SEARCH_DICTIONARY=
+
+
+#
+# Segmenter
+#
+
+#SEGMENTER_HOME=~/parse-tools
+#SEGMENTER_HOST=basil123
+#SEGMENTER_PORT=12351
+#SEGMENTER_COMMAND="echo '%s' | $SEGMENTER_HOME/src/parse_client.pl --host $SEGMENTER_HOST --port $SEGMENTER_PORT --lang $LANG_SRC"
+#SEGMENTER_FORMAT=parse_server
+
+SEGMENTER_HOME=~/MorphServer
+SEGMENTER_HOST=basil123
+SEGMENTER_PORT=13388
+SEGMENTER_COMMAND="echo '%s' | bin/h2z.pl | $SEGMENTER_HOME/src/ChineseSegmenterClient.py --host $SEGMENTER_HOST --port $SEGMENTER_PORT"
+SEGMENTER_FORMAT=morph
