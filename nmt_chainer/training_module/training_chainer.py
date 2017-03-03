@@ -527,8 +527,6 @@ def train_on_data_chainer(encdec, optimizer, training_data, output_files_dict,
 #     trainer.extend(chainer.training.extensions.PrintReport(['epoch', 'iteration', 'trg_loss', "dev_loss", "dev_bleu"]), 
 #                    trigger = (1, "iteration"))
     
-    if not no_report_or_save:
-    
     if dev_data is not None and not no_report_or_save:
         dev_loss_extension = ComputeLossExtension(dev_data, eos_idx, 
                      mb_size, gpu, reverse_src, reverse_tgt,
