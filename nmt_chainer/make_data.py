@@ -766,7 +766,7 @@ def cmdline(arguments=None):
     if valid_data is not None:
         data_all["valid"] = valid_data
 
-    json.dump(data_all, gzip.open(data_fn, "wb"),
+    json.dump(data_all, gzip.open(data_fn, "wb", 4),
               indent=2, separators=(',', ': '))
 #     fh5 = h5py.File(args.save_data_to_hdf5, 'w')
 #     train_grp = fh5.create_group("train")

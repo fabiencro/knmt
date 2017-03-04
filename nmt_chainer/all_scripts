@@ -1094,10 +1094,14 @@ python eval.py /loquat/chu/nmt-experiments/wiki_zh_ja/ASPEC-CJ-adapt/multilingua
 
 
 
+## Bidirectional model
+
+python generate_multilingual_bpe_data.py --train_lang_corpora_pairs zh:en:/loquat/chu/resource/parallel_corpus/IWSLT2015/zh-en/train.zh-en.zh.seg.fil:/loquat/chu/resource/parallel_corpus/IWSLT2015/zh-en/train.zh-en.en.tok.lc.fil en:zh:/loquat/chu/resource/parallel_corpus/IWSLT2015/zh-en/train.zh-en.en.tok.lc.fil:/loquat/chu/resource/parallel_corpus/IWSLT2015/zh-en/train.zh-en.zh.seg.fil --dev_lang_corpora_pairs zh:en:/loquat/chu/resource/parallel_corpus/IWSLT2015/zh-en/testset/IWSLT15.TED.dev2010.zh-en.zh.seg:/loquat/chu/resource/parallel_corpus/IWSLT2015/zh-en/testset/IWSLT15.TED.dev2010.zh-en.en.tok.lc en:zh:/loquat/chu/resource/parallel_corpus/IWSLT2015/zh-en/testset/IWSLT15.TED.dev2010.zh-en.en.tok.lc:/loquat/chu/resource/parallel_corpus/IWSLT2015/zh-en/testset/IWSLT15.TED.dev2010.zh-en.zh.seg --test_lang_corpora_pairs zh:en:/loquat/chu/resource/parallel_corpus/IWSLT2015/zh-en/testset/IWSLT15.TED.tst2010.zh-en.zh.seg:/loquat/chu/resource/parallel_corpus/IWSLT2015/zh-en/testset/IWSLT15.TED.tst2010.zh-en.en.tok.lc en:zh:/loquat/chu/resource/parallel_corpus/IWSLT2015/zh-en/testset/IWSLT15.TED.tst2010.zh-en.en.tok.lc:/loquat/chu/resource/parallel_corpus/IWSLT2015/zh-en/testset/IWSLT15.TED.tst2010.zh-en.zh.seg --balance_vocab_counts --balance_corpora --save_prefix /loquat/raj/NNExperiments/DOMADAPT/zhen2s2t --max_src_vocab 16000 --max_tgt_vocab 16000
 
 
+python make_data.py /loquat/raj/NNExperiments/DOMADAPT/zhen2s2t/mlnmt.train.src /loquat/raj/NNExperiments/DOMADAPT/zhen2s2t/mlnmt.train.tgt /loquat/raj/NNExperiments/DOMADAPT/zhen2s2t/mlnmt.trial --src_voc_size 16000 --tgt_voc_size 16000 --dev_src /loquat/raj/NNExperiments/DOMADAPT/zhen2s2t/mlnmt.dev.src --dev_tgt /loquat/raj/NNExperiments/DOMADAPT/zhen2s2t/mlnmt.dev.tgt --test_src /loquat/raj/NNExperiments/DOMADAPT/zhen2s2t/mlnmt.test.src --test_tgt /loquat/raj/NNExperiments/DOMADAPT/zhen2s2t/mlnmt.test.tgt
 
-
+python train.py /loquat/raj/NNExperiments/DOMADAPT/zhen2s2t/mlnmt.trial /loquat/raj/NNExperiments/DOMADAPT/zhen2s2t/mlnmt.trial --gpu 1 --optimizer adam --weight_decay 0.000001 --l2_gradient_clipping 1 --mb_size 64 --max_src_tgt_length 100 --encoder_cell_type lstm --decoder_cell_type lstm --postprocess
 
 
 ############## indian languages
@@ -1978,13 +1982,23 @@ python train.py /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms4s/1s1t/"$j"
 done
 done
 
+
+for i in ar cs de fr
+do
+for j in 8 16
+do
+python graph_training.py --lib plotly /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms4s/1s1t/"$j"k/mlnmt.basic.batch_size_"$j".result.sqlite ~/public_html/IWSLT2016"$i"-enms4s1s1t"$j"k.html&
+done
+done
+
+
 for i in ar cs de fr
 do
 for j in 8 16
 do
 for l in 4
-python eval.py /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms4s/1s1t/"$j"k/mlnmt.basic.batch_size_"$j".train.config /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms4s/1s1t/"$j"k/mlnmt.basic.batch_size_"$j".model.best.npz /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms4s.IWSLT16.TED.tst2010."$i"-en."$i".txt /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms4s/1s1t/"$j"k/mlnmt.basic.batch_size_"$j".beam_search_"$l" --mode eval_bleu --beam_width "$l" --nb_steps_ratio 1.5 --ref /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms4s.IWSLT16.TED.tst2010."$i"-en.en.txt --apply_preprocessing --apply_postprocessing --prepostprocessor /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms4s/1s1t/"$j"k/ --tgt_fn /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms4s.IWSLT16.TED.tst2010."$i"-en.en.txt --gpu 0
-python eval.py /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms4s/1s1t/"$j"k/mlnmt.basic.batch_size_"$j".train.config /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms4s/1s1t/"$j"k/mlnmt.basic.batch_size_"$j".model.best.npz /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms4s.IWSLT16.TED.tst2013."$i"-en."$i".txt /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms4s/1s1t/"$j"k/mlnmt.basic.batch_size_"$j".beam_search_"$l" --mode eval_bleu --beam_width "$l" --nb_steps_ratio 1.5 --ref /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms4s.IWSLT16.TED.tst2013."$i"-en.en.txt --apply_preprocessing --apply_postprocessing --prepostprocessor /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms4s/1s1t/"$j"k/ --tgt_fn /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms4s.IWSLT16.TED.tst2013."$i"-en.en.txt --gpu 0
+python eval.py /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms4s/1s1t/"$j"k/mlnmt.basic.batch_size_"$j".train.config /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms4s/1s1t/"$j"k/mlnmt.basic.batch_size_"$j".model.best.npz /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms4s.IWSLT16.TED.tst2010."$i"-en."$i".txt /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms4s/1s1t/"$j"k/IWSLT16.TED.tst2010.beam_search_"$l" --mode eval_bleu --beam_width "$l" --nb_steps_ratio 1.5 --ref /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms4s.IWSLT16.TED.tst2010."$i"-en.en.txt --apply_preprocessing --apply_postprocessing --prepostprocessor /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms4s/1s1t/"$j"k/ --tgt_fn /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms4s.IWSLT16.TED.tst2010."$i"-en.en.txt --gpu 2
+python eval.py /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms4s/1s1t/"$j"k/mlnmt.basic.batch_size_"$j".train.config /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms4s/1s1t/"$j"k/mlnmt.basic.batch_size_"$j".model.best.npz /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms4s.IWSLT16.TED.tst2013."$i"-en."$i".txt /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms4s/1s1t/"$j"k/IWSLT16.TED.tst2013.beam_search_"$l" --mode eval_bleu --beam_width "$l" --nb_steps_ratio 1.5 --ref /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms4s.IWSLT16.TED.tst2013."$i"-en.en.txt --apply_preprocessing --apply_postprocessing --prepostprocessor /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms4s/1s1t/"$j"k/ --tgt_fn /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms4s.IWSLT16.TED.tst2013."$i"-en.en.txt --gpu 2
 done
 done
 done
@@ -1994,8 +2008,8 @@ do
 for j in 8 16
 do
 for l in 8
-python eval.py /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms4s/1s1t/"$j"k/mlnmt.basic.batch_size_"$j".train.config /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms4s/1s1t/"$j"k/mlnmt.basic.batch_size_"$j".model.best.npz /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms4s.IWSLT16.TED.tst2010."$i"-en."$i".txt /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms4s/1s1t/"$j"k/mlnmt.basic.batch_size_"$j".beam_search_"$l" --mode eval_bleu --beam_width "$l" --nb_steps_ratio 1.5 --ref /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms4s.IWSLT16.TED.tst2010."$i"-en.en.txt --apply_preprocessing --apply_postprocessing --prepostprocessor /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms4s/1s1t/"$j"k/ --tgt_fn /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms4s.IWSLT16.TED.tst2010."$i"-en.en.txt --gpu 0
-python eval.py /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms4s/1s1t/"$j"k/mlnmt.basic.batch_size_"$j".train.config /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms4s/1s1t/"$j"k/mlnmt.basic.batch_size_"$j".model.best.npz /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms4s.IWSLT16.TED.tst2013."$i"-en."$i".txt /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms4s/1s1t/"$j"k/mlnmt.basic.batch_size_"$j".beam_search_"$l" --mode eval_bleu --beam_width "$l" --nb_steps_ratio 1.5 --ref /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms4s.IWSLT16.TED.tst2013."$i"-en.en.txt --apply_preprocessing --apply_postprocessing --prepostprocessor /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms4s/1s1t/"$j"k/ --tgt_fn /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms4s.IWSLT16.TED.tst2013."$i"-en.en.txt --gpu 0
+python eval.py /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms4s/1s1t/"$j"k/mlnmt.basic.batch_size_"$j".train.config /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms4s/1s1t/"$j"k/mlnmt.basic.batch_size_"$j".model.best.npz /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms4s.IWSLT16.TED.tst2010."$i"-en."$i".txt /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms4s/1s1t/"$j"k/IWSLT16.TED.tst2010.beam_search_"$l" --mode eval_bleu --beam_width "$l" --nb_steps_ratio 1.5 --ref /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms4s.IWSLT16.TED.tst2010."$i"-en.en.txt --apply_preprocessing --apply_postprocessing --prepostprocessor /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms4s/1s1t/"$j"k/ --tgt_fn /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms4s.IWSLT16.TED.tst2010."$i"-en.en.txt --gpu 2
+python eval.py /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms4s/1s1t/"$j"k/mlnmt.basic.batch_size_"$j".train.config /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms4s/1s1t/"$j"k/mlnmt.basic.batch_size_"$j".model.best.npz /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms4s.IWSLT16.TED.tst2013."$i"-en."$i".txt /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms4s/1s1t/"$j"k/IWSLT16.TED.tst2013.beam_search_"$l" --mode eval_bleu --beam_width "$l" --nb_steps_ratio 1.5 --ref /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms4s.IWSLT16.TED.tst2013."$i"-en.en.txt --apply_preprocessing --apply_postprocessing --prepostprocessor /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms4s/1s1t/"$j"k/ --tgt_fn /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms4s.IWSLT16.TED.tst2013."$i"-en.en.txt --gpu 2
 done
 done
 done
@@ -2005,8 +2019,8 @@ do
 for j in 8 16
 do
 for l in 12
-python eval.py /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms4s/1s1t/"$j"k/mlnmt.basic.batch_size_"$j".train.config /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms4s/1s1t/"$j"k/mlnmt.basic.batch_size_"$j".model.best.npz /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms4s.IWSLT16.TED.tst2010."$i"-en."$i".txt /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms4s/1s1t/"$j"k/mlnmt.basic.batch_size_"$j".beam_search_"$l" --mode eval_bleu --beam_width "$l" --nb_steps_ratio 1.5 --ref /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms4s.IWSLT16.TED.tst2010."$i"-en.en.txt --apply_preprocessing --apply_postprocessing --prepostprocessor /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms4s/1s1t/"$j"k/ --tgt_fn /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms4s.IWSLT16.TED.tst2010."$i"-en.en.txt --gpu 0
-python eval.py /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms4s/1s1t/"$j"k/mlnmt.basic.batch_size_"$j".train.config /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms4s/1s1t/"$j"k/mlnmt.basic.batch_size_"$j".model.best.npz /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms4s.IWSLT16.TED.tst2013."$i"-en."$i".txt /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms4s/1s1t/"$j"k/mlnmt.basic.batch_size_"$j".beam_search_"$l" --mode eval_bleu --beam_width "$l" --nb_steps_ratio 1.5 --ref /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms4s.IWSLT16.TED.tst2013."$i"-en.en.txt --apply_preprocessing --apply_postprocessing --prepostprocessor /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms4s/1s1t/"$j"k/ --tgt_fn /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms4s.IWSLT16.TED.tst2013."$i"-en.en.txt --gpu 0
+python eval.py /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms4s/1s1t/"$j"k/mlnmt.basic.batch_size_"$j".train.config /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms4s/1s1t/"$j"k/mlnmt.basic.batch_size_"$j".model.best.npz /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms4s.IWSLT16.TED.tst2010."$i"-en."$i".txt /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms4s/1s1t/"$j"k/IWSLT16.TED.tst2010.beam_search_"$l" --mode eval_bleu --beam_width "$l" --nb_steps_ratio 1.5 --ref /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms4s.IWSLT16.TED.tst2010."$i"-en.en.txt --apply_preprocessing --apply_postprocessing --prepostprocessor /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms4s/1s1t/"$j"k/ --tgt_fn /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms4s.IWSLT16.TED.tst2010."$i"-en.en.txt --gpu 2
+python eval.py /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms4s/1s1t/"$j"k/mlnmt.basic.batch_size_"$j".train.config /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms4s/1s1t/"$j"k/mlnmt.basic.batch_size_"$j".model.best.npz /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms4s.IWSLT16.TED.tst2013."$i"-en."$i".txt /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms4s/1s1t/"$j"k/IWSLT16.TED.tst2013.beam_search_"$l" --mode eval_bleu --beam_width "$l" --nb_steps_ratio 1.5 --ref /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms4s.IWSLT16.TED.tst2013."$i"-en.en.txt --apply_preprocessing --apply_postprocessing --prepostprocessor /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms4s/1s1t/"$j"k/ --tgt_fn /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms4s.IWSLT16.TED.tst2013."$i"-en.en.txt --gpu 2
 done
 done
 done
@@ -2016,9 +2030,100 @@ do
 for j in 8 16
 do
 for l in 16
-python eval.py /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms4s/1s1t/"$j"k/mlnmt.basic.batch_size_"$j".train.config /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms4s/1s1t/"$j"k/mlnmt.basic.batch_size_"$j".model.best.npz /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms4s.IWSLT16.TED.tst2010."$i"-en."$i".txt /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms4s/1s1t/"$j"k/mlnmt.basic.batch_size_"$j".beam_search_"$l" --mode eval_bleu --beam_width "$l" --nb_steps_ratio 1.5 --ref /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms4s.IWSLT16.TED.tst2010."$i"-en.en.txt --apply_preprocessing --apply_postprocessing --prepostprocessor /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms4s/1s1t/"$j"k/ --tgt_fn /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms4s.IWSLT16.TED.tst2010."$i"-en.en.txt --gpu 0
-python eval.py /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms4s/1s1t/"$j"k/mlnmt.basic.batch_size_"$j".train.config /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms4s/1s1t/"$j"k/mlnmt.basic.batch_size_"$j".model.best.npz /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms4s.IWSLT16.TED.tst2013."$i"-en."$i".txt /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms4s/1s1t/"$j"k/mlnmt.basic.batch_size_"$j".beam_search_"$l" --mode eval_bleu --beam_width "$l" --nb_steps_ratio 1.5 --ref /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms4s.IWSLT16.TED.tst2013."$i"-en.en.txt --apply_preprocessing --apply_postprocessing --prepostprocessor /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms4s/1s1t/"$j"k/ --tgt_fn /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms4s.IWSLT16.TED.tst2013."$i"-en.en.txt --gpu 0
+python eval.py /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms4s/1s1t/"$j"k/mlnmt.basic.batch_size_"$j".train.config /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms4s/1s1t/"$j"k/mlnmt.basic.batch_size_"$j".model.best.npz /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms4s.IWSLT16.TED.tst2010."$i"-en."$i".txt /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms4s/1s1t/"$j"k/IWSLT16.TED.tst2010.beam_search_"$l" --mode eval_bleu --beam_width "$l" --nb_steps_ratio 1.5 --ref /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms4s.IWSLT16.TED.tst2010."$i"-en.en.txt --apply_preprocessing --apply_postprocessing --prepostprocessor /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms4s/1s1t/"$j"k/ --tgt_fn /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms4s.IWSLT16.TED.tst2010."$i"-en.en.txt --gpu 2
+python eval.py /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms4s/1s1t/"$j"k/mlnmt.basic.batch_size_"$j".train.config /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms4s/1s1t/"$j"k/mlnmt.basic.batch_size_"$j".model.best.npz /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms4s.IWSLT16.TED.tst2013."$i"-en."$i".txt /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms4s/1s1t/"$j"k/IWSLT16.TED.tst2013.beam_search_"$l" --mode eval_bleu --beam_width "$l" --nb_steps_ratio 1.5 --ref /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms4s.IWSLT16.TED.tst2013."$i"-en.en.txt --apply_preprocessing --apply_postprocessing --prepostprocessor /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms4s/1s1t/"$j"k/ --tgt_fn /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms4s.IWSLT16.TED.tst2013."$i"-en.en.txt --gpu 2
 done
+done
+done
+
+for j in 8 16
+do
+mkdir -p /windroot/raj/corpora_downloads/IWSLT2016/ms4s/4s1t/"$j"k/
+python generate_multilingual_bpe_data.py --train_lang_corpora_pairs fr:en:/windroot/raj/corpora_downloads/IWSLT2016/fr-en/ms4s.train.tags.fr-en.fr:/windroot/raj/corpora_downloads/IWSLT2016/fr-en/ms4s.train.tags.fr-en.en de:en:/windroot/raj/corpora_downloads/IWSLT2016/de-en/ms4s.train.tags.de-en.de:/windroot/raj/corpora_downloads/IWSLT2016/de-en/ms4s.train.tags.de-en.en ar:en:/windroot/raj/corpora_downloads/IWSLT2016/ar-en/ms4s.train.tags.ar-en.ar:/windroot/raj/corpora_downloads/IWSLT2016/ar-en/ms4s.train.tags.ar-en.en cs:en:/windroot/raj/corpora_downloads/IWSLT2016/cs-en/ms4s.train.tags.cs-en.cs:/windroot/raj/corpora_downloads/IWSLT2016/cs-en/ms4s.train.tags.cs-en.en --dev_lang_corpora_pairs fr:en:/windroot/raj/corpora_downloads/IWSLT2016/fr-en/ms4s.IWSLT16.TED.dev2010.fr-en.fr.txt:/windroot/raj/corpora_downloads/IWSLT2016/fr-en/ms4s.IWSLT16.TED.dev2010.fr-en.en.txt de:en:/windroot/raj/corpora_downloads/IWSLT2016/de-en/ms4s.IWSLT16.TED.dev2010.de-en.de.txt:/windroot/raj/corpora_downloads/IWSLT2016/de-en/ms4s.IWSLT16.TED.dev2010.de-en.en.txt ar:en:/windroot/raj/corpora_downloads/IWSLT2016/ar-en/ms4s.IWSLT16.TED.dev2010.ar-en.ar.txt:/windroot/raj/corpora_downloads/IWSLT2016/ar-en/ms4s.IWSLT16.TED.dev2010.ar-en.en.txt cs:en:/windroot/raj/corpora_downloads/IWSLT2016/cs-en/ms4s.IWSLT16.TED.dev2010.cs-en.cs.txt:/windroot/raj/corpora_downloads/IWSLT2016/cs-en/ms4s.IWSLT16.TED.dev2010.cs-en.en.txt --test_lang_corpora_pairs fr:en:/windroot/raj/corpora_downloads/IWSLT2016/fr-en/ms4s.IWSLT16.TED.tst2010.fr-en.fr.txt:/windroot/raj/corpora_downloads/IWSLT2016/fr-en/ms4s.IWSLT16.TED.tst2010.fr-en.en.txt de:en:/windroot/raj/corpora_downloads/IWSLT2016/de-en/ms4s.IWSLT16.TED.tst2010.de-en.de.txt:/windroot/raj/corpora_downloads/IWSLT2016/de-en/ms4s.IWSLT16.TED.tst2010.de-en.en.txt ar:en:/windroot/raj/corpora_downloads/IWSLT2016/ar-en/ms4s.IWSLT16.TED.tst2010.ar-en.ar.txt:/windroot/raj/corpora_downloads/IWSLT2016/ar-en/ms4s.IWSLT16.TED.tst2010.ar-en.en.txt cs:en:/windroot/raj/corpora_downloads/IWSLT2016/cs-en/ms4s.IWSLT16.TED.tst2010.cs-en.cs.txt:/windroot/raj/corpora_downloads/IWSLT2016/cs-en/ms4s.IWSLT16.TED.tst2010.cs-en.en.txt --balance_vocab_counts --balance_corpora --save_prefix /windroot/raj/corpora_downloads/IWSLT2016/ms4s/4s1t/"$j"k --max_src_vocab "$j"000 --max_tgt_vocab "$j"000 --is_multisource 
+python make_data.py /windroot/raj/corpora_downloads/IWSLT2016/ms4s/4s1t/"$j"k/mlnmt.train.src /windroot/raj/corpora_downloads/IWSLT2016/ms4s/4s1t/"$j"k/mlnmt.train.tgt /windroot/raj/corpora_downloads/IWSLT2016/ms4s/4s1t/"$j"k/mlnmt.basic --src_voc_size "$j"000 --tgt_voc_size "$j"000 --test_src /windroot/raj/corpora_downloads/IWSLT2016/ms4s/4s1t/"$j"k/mlnmt.test.src --test_tgt /windroot/raj/corpora_downloads/IWSLT2016/ms4s/4s1t/"$j"k/mlnmt.test.tgt --dev_src /windroot/raj/corpora_downloads/IWSLT2016/ms4s/4s1t/"$j"k/mlnmt.dev.src --dev_tgt /windroot/raj/corpora_downloads/IWSLT2016/ms4s/4s1t/"$j"k/mlnmt.dev.tgt
+done
+
+
+for j in 8 16
+do
+python train.py /windroot/raj/corpora_downloads/IWSLT2016/ms4s/4s1t/"$j"k/mlnmt.basic /windroot/raj/corpora_downloads/IWSLT2016/ms4s/4s1t/"$j"k/mlnmt.basic --gpu 2 --mb_size 8 --weight_decay 0.000001 --postprocess --max_nb_iters 50000 
+done
+
+
+for i in 8 16
+do
+python create_multisource_corpus.py --incorpus /windroot/raj/corpora_downloads/IWSLT2016/fr-en/ms4s.IWSLT16.TED.tst2010.fr-en.fr.txt /windroot/raj/corpora_downloads/IWSLT2016/de-en/ms4s.IWSLT16.TED.tst2010.de-en.de.txt /windroot/raj/corpora_downloads/IWSLT2016/ar-en/ms4s.IWSLT16.TED.tst2010.ar-en.ar.txt /windroot/raj/corpora_downloads/IWSLT2016/cs-en/ms4s.IWSLT16.TED.tst2010.cs-en.cs.txt --outcorpus /windroot/raj/corpora_downloads/IWSLT2016/ms4s/4s1t/"$i"k/IWSLT16.TED.tst2010.src
+python create_multisource_corpus.py --incorpus /windroot/raj/corpora_downloads/IWSLT2016/fr-en/ms4s.IWSLT16.TED.tst2010.fr-en.en.txt --outcorpus /windroot/raj/corpora_downloads/IWSLT2016/ms4s/4s1t/"$i"k/IWSLT16.TED.tst2010.tgt
+python create_multisource_corpus.py --incorpus /windroot/raj/corpora_downloads/IWSLT2016/fr-en/ms4s.IWSLT16.TED.tst2013.fr-en.fr.txt /windroot/raj/corpora_downloads/IWSLT2016/de-en/ms4s.IWSLT16.TED.tst2013.de-en.de.txt /windroot/raj/corpora_downloads/IWSLT2016/ar-en/ms4s.IWSLT16.TED.tst2013.ar-en.ar.txt /windroot/raj/corpora_downloads/IWSLT2016/cs-en/ms4s.IWSLT16.TED.tst2013.cs-en.cs.txt --outcorpus /windroot/raj/corpora_downloads/IWSLT2016/ms4s/4s1t/"$i"k/IWSLT16.TED.tst2013.src
+python create_multisource_corpus.py --incorpus /windroot/raj/corpora_downloads/IWSLT2016/fr-en/ms4s.IWSLT16.TED.tst2013.fr-en.en.txt --outcorpus /windroot/raj/corpora_downloads/IWSLT2016/ms4s/4s1t/"$i"k/IWSLT16.TED.tst2013.tgt
+done
+
+for j in 8 16
+do
+for l in 4
+do
+python eval.py /windroot/raj/corpora_downloads/IWSLT2016/ms4s/4s1t/"$j"k/mlnmt.basic.train.config /windroot/raj/corpora_downloads/IWSLT2016/ms4s/4s1t/"$j"k/mlnmt.basic.model.best.npz /windroot/raj/corpora_downloads/IWSLT2016/ms4s/4s1t/"$j"k/IWSLT16.TED.tst2010.src /windroot/raj/corpora_downloads/IWSLT2016/ms4s/4s1t/"$j"k/IWSLT16.TED.tst2010.beam_search_"$l" --mode eval_bleu --beam_width "$l" --nb_steps_ratio 1.5 --ref /windroot/raj/corpora_downloads/IWSLT2016/ms4s/4s1t/"$j"k/IWSLT16.TED.tst2010.tgt --apply_preprocessing --apply_postprocessing --prepostprocessor /windroot/raj/corpora_downloads/IWSLT2016/ms4s/4s1t/"$j"k/ --tgt_fn /windroot/raj/corpora_downloads/IWSLT2016/ms4s/4s1t/"$j"k/IWSLT16.TED.tst2010.tgt --gpu 4
+python eval.py /windroot/raj/corpora_downloads/IWSLT2016/ms4s/4s1t/"$j"k/mlnmt.basic.train.config /windroot/raj/corpora_downloads/IWSLT2016/ms4s/4s1t/"$j"k/mlnmt.basic.model.best.npz /windroot/raj/corpora_downloads/IWSLT2016/ms4s/4s1t/"$j"k/IWSLT16.TED.tst2013.src /windroot/raj/corpora_downloads/IWSLT2016/ms4s/4s1t/"$j"k/IWSLT16.TED.tst2013.beam_search_"$l" --mode eval_bleu --beam_width "$l" --nb_steps_ratio 1.5 --ref /windroot/raj/corpora_downloads/IWSLT2016/ms4s/4s1t/"$j"k/IWSLT16.TED.tst2013.tgt --apply_preprocessing --apply_postprocessing --prepostprocessor /windroot/raj/corpora_downloads/IWSLT2016/ms4s/4s1t/"$j"k/ --tgt_fn /windroot/raj/corpora_downloads/IWSLT2016/ms4s/4s1t/"$j"k/IWSLT16.TED.tst2013.tgt --gpu 4
+done
+done
+
+
+for j in 8 16
+do
+for l in 8
+do
+python eval.py /windroot/raj/corpora_downloads/IWSLT2016/ms4s/4s1t/"$j"k/mlnmt.basic.train.config /windroot/raj/corpora_downloads/IWSLT2016/ms4s/4s1t/"$j"k/mlnmt.basic.model.best.npz /windroot/raj/corpora_downloads/IWSLT2016/ms4s/4s1t/"$j"k/IWSLT16.TED.tst2010.src /windroot/raj/corpora_downloads/IWSLT2016/ms4s/4s1t/"$j"k/IWSLT16.TED.tst2010.beam_search_"$l" --mode eval_bleu --beam_width "$l" --nb_steps_ratio 1.5 --ref /windroot/raj/corpora_downloads/IWSLT2016/ms4s/4s1t/"$j"k/IWSLT16.TED.tst2010.tgt --apply_preprocessing --apply_postprocessing --prepostprocessor /windroot/raj/corpora_downloads/IWSLT2016/ms4s/4s1t/"$j"k/ --tgt_fn /windroot/raj/corpora_downloads/IWSLT2016/ms4s/4s1t/"$j"k/IWSLT16.TED.tst2010.tgt --gpu 4
+python eval.py /windroot/raj/corpora_downloads/IWSLT2016/ms4s/4s1t/"$j"k/mlnmt.basic.train.config /windroot/raj/corpora_downloads/IWSLT2016/ms4s/4s1t/"$j"k/mlnmt.basic.model.best.npz /windroot/raj/corpora_downloads/IWSLT2016/ms4s/4s1t/"$j"k/IWSLT16.TED.tst2013.src /windroot/raj/corpora_downloads/IWSLT2016/ms4s/4s1t/"$j"k/IWSLT16.TED.tst2013.beam_search_"$l" --mode eval_bleu --beam_width "$l" --nb_steps_ratio 1.5 --ref /windroot/raj/corpora_downloads/IWSLT2016/ms4s/4s1t/"$j"k/IWSLT16.TED.tst2013.tgt --apply_preprocessing --apply_postprocessing --prepostprocessor /windroot/raj/corpora_downloads/IWSLT2016/ms4s/4s1t/"$j"k/ --tgt_fn /windroot/raj/corpora_downloads/IWSLT2016/ms4s/4s1t/"$j"k/IWSLT16.TED.tst2013.tgt --gpu 4
+done
+done
+
+for j in 8 16
+do
+for l in 12
+do
+python eval.py /windroot/raj/corpora_downloads/IWSLT2016/ms4s/4s1t/"$j"k/mlnmt.basic.train.config /windroot/raj/corpora_downloads/IWSLT2016/ms4s/4s1t/"$j"k/mlnmt.basic.model.best.npz /windroot/raj/corpora_downloads/IWSLT2016/ms4s/4s1t/"$j"k/IWSLT16.TED.tst2010.src /windroot/raj/corpora_downloads/IWSLT2016/ms4s/4s1t/"$j"k/IWSLT16.TED.tst2010.beam_search_"$l" --mode eval_bleu --beam_width "$l" --nb_steps_ratio 1.5 --ref /windroot/raj/corpora_downloads/IWSLT2016/ms4s/4s1t/"$j"k/IWSLT16.TED.tst2010.tgt --apply_preprocessing --apply_postprocessing --prepostprocessor /windroot/raj/corpora_downloads/IWSLT2016/ms4s/4s1t/"$j"k/ --tgt_fn /windroot/raj/corpora_downloads/IWSLT2016/ms4s/4s1t/"$j"k/IWSLT16.TED.tst2010.tgt --gpu 4
+python eval.py /windroot/raj/corpora_downloads/IWSLT2016/ms4s/4s1t/"$j"k/mlnmt.basic.train.config /windroot/raj/corpora_downloads/IWSLT2016/ms4s/4s1t/"$j"k/mlnmt.basic.model.best.npz /windroot/raj/corpora_downloads/IWSLT2016/ms4s/4s1t/"$j"k/IWSLT16.TED.tst2013.src /windroot/raj/corpora_downloads/IWSLT2016/ms4s/4s1t/"$j"k/IWSLT16.TED.tst2013.beam_search_"$l" --mode eval_bleu --beam_width "$l" --nb_steps_ratio 1.5 --ref /windroot/raj/corpora_downloads/IWSLT2016/ms4s/4s1t/"$j"k/IWSLT16.TED.tst2013.tgt --apply_preprocessing --apply_postprocessing --prepostprocessor /windroot/raj/corpora_downloads/IWSLT2016/ms4s/4s1t/"$j"k/ --tgt_fn /windroot/raj/corpora_downloads/IWSLT2016/ms4s/4s1t/"$j"k/IWSLT16.TED.tst2013.tgt --gpu 4
+done
+done
+
+for j in 8 16
+do
+for l in 16
+do
+python eval.py /windroot/raj/corpora_downloads/IWSLT2016/ms4s/4s1t/"$j"k/mlnmt.basic.train.config /windroot/raj/corpora_downloads/IWSLT2016/ms4s/4s1t/"$j"k/mlnmt.basic.model.best.npz /windroot/raj/corpora_downloads/IWSLT2016/ms4s/4s1t/"$j"k/IWSLT16.TED.tst2010.src /windroot/raj/corpora_downloads/IWSLT2016/ms4s/4s1t/"$j"k/IWSLT16.TED.tst2010.beam_search_"$l" --mode eval_bleu --beam_width "$l" --nb_steps_ratio 1.5 --ref /windroot/raj/corpora_downloads/IWSLT2016/ms4s/4s1t/"$j"k/IWSLT16.TED.tst2010.tgt --apply_preprocessing --apply_postprocessing --prepostprocessor /windroot/raj/corpora_downloads/IWSLT2016/ms4s/4s1t/"$j"k/ --tgt_fn /windroot/raj/corpora_downloads/IWSLT2016/ms4s/4s1t/"$j"k/IWSLT16.TED.tst2010.tgt --gpu 4
+python eval.py /windroot/raj/corpora_downloads/IWSLT2016/ms4s/4s1t/"$j"k/mlnmt.basic.train.config /windroot/raj/corpora_downloads/IWSLT2016/ms4s/4s1t/"$j"k/mlnmt.basic.model.best.npz /windroot/raj/corpora_downloads/IWSLT2016/ms4s/4s1t/"$j"k/IWSLT16.TED.tst2013.src /windroot/raj/corpora_downloads/IWSLT2016/ms4s/4s1t/"$j"k/IWSLT16.TED.tst2013.beam_search_"$l" --mode eval_bleu --beam_width "$l" --nb_steps_ratio 1.5 --ref /windroot/raj/corpora_downloads/IWSLT2016/ms4s/4s1t/"$j"k/IWSLT16.TED.tst2013.tgt --apply_preprocessing --apply_postprocessing --prepostprocessor /windroot/raj/corpora_downloads/IWSLT2016/ms4s/4s1t/"$j"k/ --tgt_fn /windroot/raj/corpora_downloads/IWSLT2016/ms4s/4s1t/"$j"k/IWSLT16.TED.tst2013.tgt --gpu 4
+done
+done
+
+for j in 8 16
+do
+python graph_training.py --lib plotly /windroot/raj/corpora_downloads/IWSLT2016/ms4s/4s1t/"$j"k/mlnmt.basic.result.sqlite ~/public_html/IWSLT2016"$i"-enms4s4s1t"$j"k.html&
+done
+
+rm /windroot/raj/corpora_downloads/IWSLT2016/ms4s1s1t
+for i in fr de ar cs
+do
+for j in 8 16
+do
+for k in 4 8 12 16
+do
+echo -n "Lang pair: $i-en Vocab size: ${j}k Beam size: $k Test Set: tst2010 --- " >> /windroot/raj/corpora_downloads/IWSLT2016/ms4s1s1t
+python bleu_computer.py /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms4s.IWSLT16.TED.tst2010."$i"-en.en.txt /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms4s/1s1t/"$j"k/IWSLT16.TED.tst2010.beam_search_"$k".unk_replaced.restored >> /windroot/raj/corpora_downloads/IWSLT2016/ms4s1s1t
+echo -n "Lang pair: $i-en Vocab size: ${j}k Beam size: $k Test Set: tst2013 --- " >> /windroot/raj/corpora_downloads/IWSLT2016/ms4s1s1t
+python bleu_computer.py /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms4s.IWSLT16.TED.tst2013."$i"-en.en.txt /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms4s/1s1t/"$j"k/IWSLT16.TED.tst2013.beam_search_"$k".unk_replaced.restored >> /windroot/raj/corpora_downloads/IWSLT2016/ms4s1s1t
+done
+done
+done
+
+rm /windroot/raj/corpora_downloads/IWSLT2016/ms4s4s1t
+for j in 8 16
+do
+for k in 4 8 12 16
+do
+echo -n "Dropping Random sentences setting: Without Drop Vocab size: ${j}k Beam size: $k Test Set: tst2010 --- " >> /windroot/raj/corpora_downloads/IWSLT2016/ms4s4s1t
+python bleu_computer.py /windroot/raj/corpora_downloads/IWSLT2016/ms4s/4s1t/"$j"k/IWSLT16.TED.tst2010.tgt /windroot/raj/corpora_downloads/IWSLT2016/ms4s/4s1t/"$j"k/IWSLT16.TED.tst2010.beam_search_"$k".unk_replaced.restored >> /windroot/raj/corpora_downloads/IWSLT2016/ms4s4s1t
+echo -n "Dropping Random sentences setting: Without Drop Vocab size: ${j}k Beam size: $k Test Set: tst2013 --- " >> /windroot/raj/corpora_downloads/IWSLT2016/ms4s4s1t
+python bleu_computer.py /windroot/raj/corpora_downloads/IWSLT2016/ms4s/4s1t/"$j"k/IWSLT16.TED.tst2013.tgt /windroot/raj/corpora_downloads/IWSLT2016/ms4s/4s1t/"$j"k/IWSLT16.TED.tst2013.beam_search_"$k".unk_replaced.restored >> /windroot/raj/corpora_downloads/IWSLT2016/ms4s4s1t
 done
 done
 
@@ -2107,8 +2212,8 @@ do
 for j in 8 16
 do
 for l in 4
-python eval.py /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms3s/1s1t/"$j"k/mlnmt.basic.batch_size_"$j".train.config /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms3s/1s1t/"$j"k/mlnmt.basic.batch_size_"$j".model.best.npz /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms3s.IWSLT16.TED.tst2010."$i"-en."$i".txt /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms3s/1s1t/"$j"k/mlnmt.basic.batch_size_"$j".beam_search_"$l" --mode eval_bleu --beam_width "$l" --nb_steps_ratio 1.5 --ref /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms3s.IWSLT16.TED.tst2010."$i"-en.en.txt --apply_preprocessing --apply_postprocessing --prepostprocessor /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms3s/1s1t/"$j"k/ --tgt_fn /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms3s.IWSLT16.TED.tst2010."$i"-en.en.txt --gpu 1
-python eval.py /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms3s/1s1t/"$j"k/mlnmt.basic.batch_size_"$j".train.config /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms3s/1s1t/"$j"k/mlnmt.basic.batch_size_"$j".model.best.npz /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms3s.IWSLT16.TED.tst2013."$i"-en."$i".txt /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms3s/1s1t/"$j"k/mlnmt.basic.batch_size_"$j".beam_search_"$l" --mode eval_bleu --beam_width "$l" --nb_steps_ratio 1.5 --ref /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms3s.IWSLT16.TED.tst2013."$i"-en.en.txt --apply_preprocessing --apply_postprocessing --prepostprocessor /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms3s/1s1t/"$j"k/ --tgt_fn /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms3s.IWSLT16.TED.tst2013."$i"-en.en.txt --gpu 1
+python eval.py /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms3s/1s1t/"$j"k/mlnmt.basic.batch_size_"$j".train.config /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms3s/1s1t/"$j"k/mlnmt.basic.batch_size_"$j".model.best.npz /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms3s.IWSLT16.TED.tst2010."$i"-en."$i".txt /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms3s/1s1t/"$j"k/IWSLT16.TED.tst2010.beam_search_"$l" --mode eval_bleu --beam_width "$l" --nb_steps_ratio 1.5 --ref /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms3s.IWSLT16.TED.tst2010."$i"-en.en.txt --apply_preprocessing --apply_postprocessing --prepostprocessor /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms3s/1s1t/"$j"k/ --tgt_fn /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms3s.IWSLT16.TED.tst2010."$i"-en.en.txt --gpu 3
+python eval.py /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms3s/1s1t/"$j"k/mlnmt.basic.batch_size_"$j".train.config /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms3s/1s1t/"$j"k/mlnmt.basic.batch_size_"$j".model.best.npz /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms3s.IWSLT16.TED.tst2013."$i"-en."$i".txt /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms3s/1s1t/"$j"k/IWSLT16.TED.tst2013.beam_search_"$l" --mode eval_bleu --beam_width "$l" --nb_steps_ratio 1.5 --ref /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms3s.IWSLT16.TED.tst2013."$i"-en.en.txt --apply_preprocessing --apply_postprocessing --prepostprocessor /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms3s/1s1t/"$j"k/ --tgt_fn /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms3s.IWSLT16.TED.tst2013."$i"-en.en.txt --gpu 3
 done
 done
 done
@@ -2118,8 +2223,8 @@ do
 for j in 8 16
 do
 for l in 8
-python eval.py /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms3s/1s1t/"$j"k/mlnmt.basic.batch_size_"$j".train.config /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms3s/1s1t/"$j"k/mlnmt.basic.batch_size_"$j".model.best.npz /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms3s.IWSLT16.TED.tst2010."$i"-en."$i".txt /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms3s/1s1t/"$j"k/mlnmt.basic.batch_size_"$j".beam_search_"$l" --mode eval_bleu --beam_width "$l" --nb_steps_ratio 1.5 --ref /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms3s.IWSLT16.TED.tst2010."$i"-en.en.txt --apply_preprocessing --apply_postprocessing --prepostprocessor /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms3s/1s1t/"$j"k/ --tgt_fn /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms3s.IWSLT16.TED.tst2010."$i"-en.en.txt --gpu 1
-python eval.py /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms3s/1s1t/"$j"k/mlnmt.basic.batch_size_"$j".train.config /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms3s/1s1t/"$j"k/mlnmt.basic.batch_size_"$j".model.best.npz /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms3s.IWSLT16.TED.tst2013."$i"-en."$i".txt /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms3s/1s1t/"$j"k/mlnmt.basic.batch_size_"$j".beam_search_"$l" --mode eval_bleu --beam_width "$l" --nb_steps_ratio 1.5 --ref /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms3s.IWSLT16.TED.tst2013."$i"-en.en.txt --apply_preprocessing --apply_postprocessing --prepostprocessor /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms3s/1s1t/"$j"k/ --tgt_fn /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms3s.IWSLT16.TED.tst2013."$i"-en.en.txt --gpu 1
+python eval.py /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms3s/1s1t/"$j"k/mlnmt.basic.batch_size_"$j".train.config /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms3s/1s1t/"$j"k/mlnmt.basic.batch_size_"$j".model.best.npz /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms3s.IWSLT16.TED.tst2010."$i"-en."$i".txt /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms3s/1s1t/"$j"k/IWSLT16.TED.tst2010.beam_search_"$l" --mode eval_bleu --beam_width "$l" --nb_steps_ratio 1.5 --ref /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms3s.IWSLT16.TED.tst2010."$i"-en.en.txt --apply_preprocessing --apply_postprocessing --prepostprocessor /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms3s/1s1t/"$j"k/ --tgt_fn /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms3s.IWSLT16.TED.tst2010."$i"-en.en.txt --gpu 3
+python eval.py /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms3s/1s1t/"$j"k/mlnmt.basic.batch_size_"$j".train.config /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms3s/1s1t/"$j"k/mlnmt.basic.batch_size_"$j".model.best.npz /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms3s.IWSLT16.TED.tst2013."$i"-en."$i".txt /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms3s/1s1t/"$j"k/IWSLT16.TED.tst2013.beam_search_"$l" --mode eval_bleu --beam_width "$l" --nb_steps_ratio 1.5 --ref /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms3s.IWSLT16.TED.tst2013."$i"-en.en.txt --apply_preprocessing --apply_postprocessing --prepostprocessor /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms3s/1s1t/"$j"k/ --tgt_fn /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms3s.IWSLT16.TED.tst2013."$i"-en.en.txt --gpu 3
 done
 done
 done
@@ -2129,8 +2234,8 @@ do
 for j in 8 16
 do
 for l in 12
-python eval.py /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms3s/1s1t/"$j"k/mlnmt.basic.batch_size_"$j".train.config /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms3s/1s1t/"$j"k/mlnmt.basic.batch_size_"$j".model.best.npz /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms3s.IWSLT16.TED.tst2010."$i"-en."$i".txt /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms3s/1s1t/"$j"k/mlnmt.basic.batch_size_"$j".beam_search_"$l" --mode eval_bleu --beam_width "$l" --nb_steps_ratio 1.5 --ref /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms3s.IWSLT16.TED.tst2010."$i"-en.en.txt --apply_preprocessing --apply_postprocessing --prepostprocessor /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms3s/1s1t/"$j"k/ --tgt_fn /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms3s.IWSLT16.TED.tst2010."$i"-en.en.txt --gpu 1
-python eval.py /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms3s/1s1t/"$j"k/mlnmt.basic.batch_size_"$j".train.config /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms3s/1s1t/"$j"k/mlnmt.basic.batch_size_"$j".model.best.npz /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms3s.IWSLT16.TED.tst2013."$i"-en."$i".txt /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms3s/1s1t/"$j"k/mlnmt.basic.batch_size_"$j".beam_search_"$l" --mode eval_bleu --beam_width "$l" --nb_steps_ratio 1.5 --ref /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms3s.IWSLT16.TED.tst2013."$i"-en.en.txt --apply_preprocessing --apply_postprocessing --prepostprocessor /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms3s/1s1t/"$j"k/ --tgt_fn /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms3s.IWSLT16.TED.tst2013."$i"-en.en.txt --gpu 1
+python eval.py /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms3s/1s1t/"$j"k/mlnmt.basic.batch_size_"$j".train.config /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms3s/1s1t/"$j"k/mlnmt.basic.batch_size_"$j".model.best.npz /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms3s.IWSLT16.TED.tst2010."$i"-en."$i".txt /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms3s/1s1t/"$j"k/IWSLT16.TED.tst2010.beam_search_"$l" --mode eval_bleu --beam_width "$l" --nb_steps_ratio 1.5 --ref /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms3s.IWSLT16.TED.tst2010."$i"-en.en.txt --apply_preprocessing --apply_postprocessing --prepostprocessor /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms3s/1s1t/"$j"k/ --tgt_fn /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms3s.IWSLT16.TED.tst2010."$i"-en.en.txt --gpu 3
+python eval.py /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms3s/1s1t/"$j"k/mlnmt.basic.batch_size_"$j".train.config /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms3s/1s1t/"$j"k/mlnmt.basic.batch_size_"$j".model.best.npz /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms3s.IWSLT16.TED.tst2013."$i"-en."$i".txt /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms3s/1s1t/"$j"k/IWSLT16.TED.tst2013.beam_search_"$l" --mode eval_bleu --beam_width "$l" --nb_steps_ratio 1.5 --ref /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms3s.IWSLT16.TED.tst2013."$i"-en.en.txt --apply_preprocessing --apply_postprocessing --prepostprocessor /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms3s/1s1t/"$j"k/ --tgt_fn /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms3s.IWSLT16.TED.tst2013."$i"-en.en.txt --gpu 3
 done
 done
 done
@@ -2140,8 +2245,8 @@ do
 for j in 8 16
 do
 for l in 16
-python eval.py /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms3s/1s1t/"$j"k/mlnmt.basic.batch_size_"$j".train.config /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms3s/1s1t/"$j"k/mlnmt.basic.batch_size_"$j".model.best.npz /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms3s.IWSLT16.TED.tst2010."$i"-en."$i".txt /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms3s/1s1t/"$j"k/mlnmt.basic.batch_size_"$j".beam_search_"$l" --mode eval_bleu --beam_width "$l" --nb_steps_ratio 1.5 --ref /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms3s.IWSLT16.TED.tst2010."$i"-en.en.txt --apply_preprocessing --apply_postprocessing --prepostprocessor /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms3s/1s1t/"$j"k/ --tgt_fn /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms3s.IWSLT16.TED.tst2010."$i"-en.en.txt --gpu 1
-python eval.py /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms3s/1s1t/"$j"k/mlnmt.basic.batch_size_"$j".train.config /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms3s/1s1t/"$j"k/mlnmt.basic.batch_size_"$j".model.best.npz /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms3s.IWSLT16.TED.tst2013."$i"-en."$i".txt /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms3s/1s1t/"$j"k/mlnmt.basic.batch_size_"$j".beam_search_"$l" --mode eval_bleu --beam_width "$l" --nb_steps_ratio 1.5 --ref /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms3s.IWSLT16.TED.tst2013."$i"-en.en.txt --apply_preprocessing --apply_postprocessing --prepostprocessor /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms3s/1s1t/"$j"k/ --tgt_fn /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms3s.IWSLT16.TED.tst2013."$i"-en.en.txt --gpu 1
+python eval.py /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms3s/1s1t/"$j"k/mlnmt.basic.batch_size_"$j".train.config /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms3s/1s1t/"$j"k/mlnmt.basic.batch_size_"$j".model.best.npz /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms3s.IWSLT16.TED.tst2010."$i"-en."$i".txt /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms3s/1s1t/"$j"k/IWSLT16.TED.tst2010.beam_search_"$l" --mode eval_bleu --beam_width "$l" --nb_steps_ratio 1.5 --ref /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms3s.IWSLT16.TED.tst2010."$i"-en.en.txt --apply_preprocessing --apply_postprocessing --prepostprocessor /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms3s/1s1t/"$j"k/ --tgt_fn /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms3s.IWSLT16.TED.tst2010."$i"-en.en.txt --gpu 3
+python eval.py /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms3s/1s1t/"$j"k/mlnmt.basic.batch_size_"$j".train.config /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms3s/1s1t/"$j"k/mlnmt.basic.batch_size_"$j".model.best.npz /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms3s.IWSLT16.TED.tst2013."$i"-en."$i".txt /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms3s/1s1t/"$j"k/IWSLT16.TED.tst2013.beam_search_"$l" --mode eval_bleu --beam_width "$l" --nb_steps_ratio 1.5 --ref /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms3s.IWSLT16.TED.tst2013."$i"-en.en.txt --apply_preprocessing --apply_postprocessing --prepostprocessor /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms3s/1s1t/"$j"k/ --tgt_fn /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms3s.IWSLT16.TED.tst2013."$i"-en.en.txt --gpu 3
 done
 done
 done
@@ -2159,6 +2264,85 @@ done
 for j in 8 16
 do
 python train.py /windroot/raj/corpora_downloads/IWSLT2016/ms3s/3s1t/"$j"k/mlnmt.basic /windroot/raj/corpora_downloads/IWSLT2016/ms3s/3s1t/"$j"k/mlnmt.basic --gpu 2 --mb_size 8 --weight_decay 0.000001 --postprocess --max_nb_iters 50000 
+done
+
+for i in 8 16
+do
+python create_multisource_corpus.py --incorpus /windroot/raj/corpora_downloads/IWSLT2016/fr-en/ms3s.IWSLT16.TED.tst2010.fr-en.fr.txt /windroot/raj/corpora_downloads/IWSLT2016/de-en/ms3s.IWSLT16.TED.tst2010.de-en.de.txt /windroot/raj/corpora_downloads/IWSLT2016/ar-en/ms3s.IWSLT16.TED.tst2010.ar-en.ar.txt --outcorpus /windroot/raj/corpora_downloads/IWSLT2016/ms3s/3s1t/"$i"k/IWSLT16.TED.tst2010.src
+python create_multisource_corpus.py --incorpus /windroot/raj/corpora_downloads/IWSLT2016/fr-en/ms3s.IWSLT16.TED.tst2010.fr-en.en.txt --outcorpus /windroot/raj/corpora_downloads/IWSLT2016/ms3s/3s1t/"$i"k/IWSLT16.TED.tst2010.tgt
+python create_multisource_corpus.py --incorpus /windroot/raj/corpora_downloads/IWSLT2016/fr-en/ms3s.IWSLT16.TED.tst2013.fr-en.fr.txt /windroot/raj/corpora_downloads/IWSLT2016/de-en/ms3s.IWSLT16.TED.tst2013.de-en.de.txt /windroot/raj/corpora_downloads/IWSLT2016/ar-en/ms3s.IWSLT16.TED.tst2013.ar-en.ar.txt --outcorpus /windroot/raj/corpora_downloads/IWSLT2016/ms3s/3s1t/"$i"k/IWSLT16.TED.tst2013.src
+python create_multisource_corpus.py --incorpus /windroot/raj/corpora_downloads/IWSLT2016/fr-en/ms3s.IWSLT16.TED.tst2013.fr-en.en.txt --outcorpus /windroot/raj/corpora_downloads/IWSLT2016/ms3s/3s1t/"$i"k/IWSLT16.TED.tst2013.tgt
+done
+
+
+for j in 8 16
+do
+for l in 4
+do
+python eval.py /windroot/raj/corpora_downloads/IWSLT2016/ms3s/3s1t/"$j"k/mlnmt.basic.train.config /windroot/raj/corpora_downloads/IWSLT2016/ms3s/3s1t/"$j"k/mlnmt.basic.model.best.npz /windroot/raj/corpora_downloads/IWSLT2016/ms3s/3s1t/"$j"k/IWSLT16.TED.tst2010.src /windroot/raj/corpora_downloads/IWSLT2016/ms3s/3s1t/"$j"k/IWSLT16.TED.tst2010.beam_search_"$l" --mode eval_bleu --beam_width "$l" --nb_steps_ratio 1.5 --ref /windroot/raj/corpora_downloads/IWSLT2016/ms3s/3s1t/"$j"k/IWSLT16.TED.tst2010.tgt --apply_preprocessing --apply_postprocessing --prepostprocessor /windroot/raj/corpora_downloads/IWSLT2016/ms3s/3s1t/"$j"k/ --tgt_fn /windroot/raj/corpora_downloads/IWSLT2016/ms3s/3s1t/"$j"k/IWSLT16.TED.tst2010.tgt --gpu 3
+python eval.py /windroot/raj/corpora_downloads/IWSLT2016/ms3s/3s1t/"$j"k/mlnmt.basic.train.config /windroot/raj/corpora_downloads/IWSLT2016/ms3s/3s1t/"$j"k/mlnmt.basic.model.best.npz /windroot/raj/corpora_downloads/IWSLT2016/ms3s/3s1t/"$j"k/IWSLT16.TED.tst2013.src /windroot/raj/corpora_downloads/IWSLT2016/ms3s/3s1t/"$j"k/IWSLT16.TED.tst2013.beam_search_"$l" --mode eval_bleu --beam_width "$l" --nb_steps_ratio 1.5 --ref /windroot/raj/corpora_downloads/IWSLT2016/ms3s/3s1t/"$j"k/IWSLT16.TED.tst2013.tgt --apply_preprocessing --apply_postprocessing --prepostprocessor /windroot/raj/corpora_downloads/IWSLT2016/ms3s/3s1t/"$j"k/ --tgt_fn /windroot/raj/corpora_downloads/IWSLT2016/ms3s/3s1t/"$j"k/IWSLT16.TED.tst2013.tgt --gpu 3
+done
+done
+
+
+for j in 8 16
+do
+for l in 8
+do
+python eval.py /windroot/raj/corpora_downloads/IWSLT2016/ms3s/3s1t/"$j"k/mlnmt.basic.train.config /windroot/raj/corpora_downloads/IWSLT2016/ms3s/3s1t/"$j"k/mlnmt.basic.model.best.npz /windroot/raj/corpora_downloads/IWSLT2016/ms3s/3s1t/"$j"k/IWSLT16.TED.tst2010.src /windroot/raj/corpora_downloads/IWSLT2016/ms3s/3s1t/"$j"k/IWSLT16.TED.tst2010.beam_search_"$l" --mode eval_bleu --beam_width "$l" --nb_steps_ratio 1.5 --ref /windroot/raj/corpora_downloads/IWSLT2016/ms3s/3s1t/"$j"k/IWSLT16.TED.tst2010.tgt --apply_preprocessing --apply_postprocessing --prepostprocessor /windroot/raj/corpora_downloads/IWSLT2016/ms3s/3s1t/"$j"k/ --tgt_fn /windroot/raj/corpora_downloads/IWSLT2016/ms3s/3s1t/"$j"k/IWSLT16.TED.tst2010.tgt --gpu 3
+python eval.py /windroot/raj/corpora_downloads/IWSLT2016/ms3s/3s1t/"$j"k/mlnmt.basic.train.config /windroot/raj/corpora_downloads/IWSLT2016/ms3s/3s1t/"$j"k/mlnmt.basic.model.best.npz /windroot/raj/corpora_downloads/IWSLT2016/ms3s/3s1t/"$j"k/IWSLT16.TED.tst2013.src /windroot/raj/corpora_downloads/IWSLT2016/ms3s/3s1t/"$j"k/IWSLT16.TED.tst2013.beam_search_"$l" --mode eval_bleu --beam_width "$l" --nb_steps_ratio 1.5 --ref /windroot/raj/corpora_downloads/IWSLT2016/ms3s/3s1t/"$j"k/IWSLT16.TED.tst2013.tgt --apply_preprocessing --apply_postprocessing --prepostprocessor /windroot/raj/corpora_downloads/IWSLT2016/ms3s/3s1t/"$j"k/ --tgt_fn /windroot/raj/corpora_downloads/IWSLT2016/ms3s/3s1t/"$j"k/IWSLT16.TED.tst2013.tgt --gpu 3
+done
+done
+
+for j in 8 16
+do
+for l in 12
+do
+python eval.py /windroot/raj/corpora_downloads/IWSLT2016/ms3s/3s1t/"$j"k/mlnmt.basic.train.config /windroot/raj/corpora_downloads/IWSLT2016/ms3s/3s1t/"$j"k/mlnmt.basic.model.best.npz /windroot/raj/corpora_downloads/IWSLT2016/ms3s/3s1t/"$j"k/IWSLT16.TED.tst2010.src /windroot/raj/corpora_downloads/IWSLT2016/ms3s/3s1t/"$j"k/IWSLT16.TED.tst2010.beam_search_"$l" --mode eval_bleu --beam_width "$l" --nb_steps_ratio 1.5 --ref /windroot/raj/corpora_downloads/IWSLT2016/ms3s/3s1t/"$j"k/IWSLT16.TED.tst2010.tgt --apply_preprocessing --apply_postprocessing --prepostprocessor /windroot/raj/corpora_downloads/IWSLT2016/ms3s/3s1t/"$j"k/ --tgt_fn /windroot/raj/corpora_downloads/IWSLT2016/ms3s/3s1t/"$j"k/IWSLT16.TED.tst2010.tgt --gpu 3
+python eval.py /windroot/raj/corpora_downloads/IWSLT2016/ms3s/3s1t/"$j"k/mlnmt.basic.train.config /windroot/raj/corpora_downloads/IWSLT2016/ms3s/3s1t/"$j"k/mlnmt.basic.model.best.npz /windroot/raj/corpora_downloads/IWSLT2016/ms3s/3s1t/"$j"k/IWSLT16.TED.tst2013.src /windroot/raj/corpora_downloads/IWSLT2016/ms3s/3s1t/"$j"k/IWSLT16.TED.tst2013.beam_search_"$l" --mode eval_bleu --beam_width "$l" --nb_steps_ratio 1.5 --ref /windroot/raj/corpora_downloads/IWSLT2016/ms3s/3s1t/"$j"k/IWSLT16.TED.tst2013.tgt --apply_preprocessing --apply_postprocessing --prepostprocessor /windroot/raj/corpora_downloads/IWSLT2016/ms3s/3s1t/"$j"k/ --tgt_fn /windroot/raj/corpora_downloads/IWSLT2016/ms3s/3s1t/"$j"k/IWSLT16.TED.tst2013.tgt --gpu 3
+done
+done
+
+for j in 8 16
+do
+for l in 16
+do
+python eval.py /windroot/raj/corpora_downloads/IWSLT2016/ms3s/3s1t/"$j"k/mlnmt.basic.train.config /windroot/raj/corpora_downloads/IWSLT2016/ms3s/3s1t/"$j"k/mlnmt.basic.model.best.npz /windroot/raj/corpora_downloads/IWSLT2016/ms3s/3s1t/"$j"k/IWSLT16.TED.tst2010.src /windroot/raj/corpora_downloads/IWSLT2016/ms3s/3s1t/"$j"k/IWSLT16.TED.tst2010.beam_search_"$l" --mode eval_bleu --beam_width "$l" --nb_steps_ratio 1.5 --ref /windroot/raj/corpora_downloads/IWSLT2016/ms3s/3s1t/"$j"k/IWSLT16.TED.tst2010.tgt --apply_preprocessing --apply_postprocessing --prepostprocessor /windroot/raj/corpora_downloads/IWSLT2016/ms3s/3s1t/"$j"k/ --tgt_fn /windroot/raj/corpora_downloads/IWSLT2016/ms3s/3s1t/"$j"k/IWSLT16.TED.tst2010.tgt --gpu 3
+python eval.py /windroot/raj/corpora_downloads/IWSLT2016/ms3s/3s1t/"$j"k/mlnmt.basic.train.config /windroot/raj/corpora_downloads/IWSLT2016/ms3s/3s1t/"$j"k/mlnmt.basic.model.best.npz /windroot/raj/corpora_downloads/IWSLT2016/ms3s/3s1t/"$j"k/IWSLT16.TED.tst2013.src /windroot/raj/corpora_downloads/IWSLT2016/ms3s/3s1t/"$j"k/IWSLT16.TED.tst2013.beam_search_"$l" --mode eval_bleu --beam_width "$l" --nb_steps_ratio 1.5 --ref /windroot/raj/corpora_downloads/IWSLT2016/ms3s/3s1t/"$j"k/IWSLT16.TED.tst2013.tgt --apply_preprocessing --apply_postprocessing --prepostprocessor /windroot/raj/corpora_downloads/IWSLT2016/ms3s/3s1t/"$j"k/ --tgt_fn /windroot/raj/corpora_downloads/IWSLT2016/ms3s/3s1t/"$j"k/IWSLT16.TED.tst2013.tgt --gpu 3
+done
+done
+
+
+for j in 8 16
+do
+python graph_training.py --lib plotly /windroot/raj/corpora_downloads/IWSLT2016/ms3s/3s1t/"$j"k/mlnmt.basic.result.sqlite ~/public_html/IWSLT2016"$i"-enms3s3s1t"$j"k.html&
+done
+
+rm /windroot/raj/corpora_downloads/IWSLT2016/ms3s1s1t
+for i in fr de ar
+do
+for j in 8 16
+do
+for k in 4 8 12 16
+do
+echo -n "Lang pair: $i-en Vocab size: ${j}k Beam size: $k Test Set: tst2010 --- " >> /windroot/raj/corpora_downloads/IWSLT2016/ms3s1s1t
+python bleu_computer.py /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms3s.IWSLT16.TED.tst2010."$i"-en.en.txt /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms3s/1s1t/"$j"k/IWSLT16.TED.tst2010.beam_search_"$k".unk_replaced.restored >> /windroot/raj/corpora_downloads/IWSLT2016/ms3s1s1t
+echo -n "Lang pair: $i-en Vocab size: ${j}k Beam size: $k Test Set: tst2013 --- " >> /windroot/raj/corpora_downloads/IWSLT2016/ms3s1s1t
+python bleu_computer.py /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms3s.IWSLT16.TED.tst2013."$i"-en.en.txt /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms3s/1s1t/"$j"k/IWSLT16.TED.tst2013.beam_search_"$k".unk_replaced.restored >> /windroot/raj/corpora_downloads/IWSLT2016/ms3s1s1t
+done
+done
+done
+
+rm /windroot/raj/corpora_downloads/IWSLT2016/ms3s3s1t
+for j in 8 16
+do
+for k in 4 8 12 16
+do
+echo -n "Dropping Random sentences setting: Without Drop Vocab size: ${j}k Beam size: $k Test Set: tst2010 --- " >> /windroot/raj/corpora_downloads/IWSLT2016/ms3s3s1t
+python bleu_computer.py /windroot/raj/corpora_downloads/IWSLT2016/ms3s/3s1t/"$j"k/IWSLT16.TED.tst2010.tgt /windroot/raj/corpora_downloads/IWSLT2016/ms3s/3s1t/"$j"k/IWSLT16.TED.tst2010.beam_search_"$k".unk_replaced.restored >> /windroot/raj/corpora_downloads/IWSLT2016/ms3s3s1t
+echo -n "Dropping Random sentences setting: Without Drop Vocab size: ${j}k Beam size: $k Test Set: tst2013 --- " >> /windroot/raj/corpora_downloads/IWSLT2016/ms3s3s1t
+python bleu_computer.py /windroot/raj/corpora_downloads/IWSLT2016/ms3s/3s1t/"$j"k/IWSLT16.TED.tst2013.tgt /windroot/raj/corpora_downloads/IWSLT2016/ms3s/3s1t/"$j"k/IWSLT16.TED.tst2013.beam_search_"$k".unk_replaced.restored >> /windroot/raj/corpora_downloads/IWSLT2016/ms3s3s1t
+done
 done
 
 
@@ -2244,8 +2428,8 @@ do
 for j in 8 16
 do
 for l in 4
-python eval.py /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms2s/1s1t/"$j"k/mlnmt.basic.batch_size_"$j".train.config /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms2s/1s1t/"$j"k/mlnmt.basic.batch_size_"$j".model.best.npz /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms2s.IWSLT16.TED.tst2010."$i"-en."$i".txt /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms2s/1s1t/"$j"k/mlnmt.basic.batch_size_"$j".beam_search_"$l" --mode eval_bleu --beam_width "$l" --nb_steps_ratio 1.5 --ref /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms2s.IWSLT16.TED.tst2010."$i"-en.en.txt --apply_preprocessing --apply_postprocessing --prepostprocessor /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms2s/1s1t/"$j"k/ --tgt_fn /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms2s.IWSLT16.TED.tst2010."$i"-en.en.txt --gpu 2
-python eval.py /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms2s/1s1t/"$j"k/mlnmt.basic.batch_size_"$j".train.config /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms2s/1s1t/"$j"k/mlnmt.basic.batch_size_"$j".model.best.npz /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms2s.IWSLT16.TED.tst2013."$i"-en."$i".txt /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms2s/1s1t/"$j"k/mlnmt.basic.batch_size_"$j".beam_search_"$l" --mode eval_bleu --beam_width "$l" --nb_steps_ratio 1.5 --ref /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms2s.IWSLT16.TED.tst2013."$i"-en.en.txt --apply_preprocessing --apply_postprocessing --prepostprocessor /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms2s/1s1t/"$j"k/ --tgt_fn /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms2s.IWSLT16.TED.tst2013."$i"-en.en.txt --gpu 2
+python eval.py /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms2s/1s1t/"$j"k/mlnmt.basic.batch_size_"$j".train.config /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms2s/1s1t/"$j"k/mlnmt.basic.batch_size_"$j".model.best.npz /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms2s.IWSLT16.TED.tst2010."$i"-en."$i".txt /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms2s/1s1t/"$j"k/IWSLT16.TED.tst2010.beam_search_"$l" --mode eval_bleu --beam_width "$l" --nb_steps_ratio 1.5 --ref /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms2s.IWSLT16.TED.tst2010."$i"-en.en.txt --apply_preprocessing --apply_postprocessing --prepostprocessor /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms2s/1s1t/"$j"k/ --tgt_fn /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms2s.IWSLT16.TED.tst2010."$i"-en.en.txt --gpu 4
+python eval.py /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms2s/1s1t/"$j"k/mlnmt.basic.batch_size_"$j".train.config /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms2s/1s1t/"$j"k/mlnmt.basic.batch_size_"$j".model.best.npz /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms2s.IWSLT16.TED.tst2013."$i"-en."$i".txt /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms2s/1s1t/"$j"k/IWSLT16.TED.tst2013.beam_search_"$l" --mode eval_bleu --beam_width "$l" --nb_steps_ratio 1.5 --ref /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms2s.IWSLT16.TED.tst2013."$i"-en.en.txt --apply_preprocessing --apply_postprocessing --prepostprocessor /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms2s/1s1t/"$j"k/ --tgt_fn /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms2s.IWSLT16.TED.tst2013."$i"-en.en.txt --gpu 4
 done
 done
 done
@@ -2255,8 +2439,8 @@ do
 for j in 8 16
 do
 for l in 8
-python eval.py /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms2s/1s1t/"$j"k/mlnmt.basic.batch_size_"$j".train.config /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms2s/1s1t/"$j"k/mlnmt.basic.batch_size_"$j".model.best.npz /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms2s.IWSLT16.TED.tst2010."$i"-en."$i".txt /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms2s/1s1t/"$j"k/mlnmt.basic.batch_size_"$j".beam_search_"$l" --mode eval_bleu --beam_width "$l" --nb_steps_ratio 1.5 --ref /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms2s.IWSLT16.TED.tst2010."$i"-en.en.txt --apply_preprocessing --apply_postprocessing --prepostprocessor /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms2s/1s1t/"$j"k/ --tgt_fn /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms2s.IWSLT16.TED.tst2010."$i"-en.en.txt --gpu 2
-python eval.py /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms2s/1s1t/"$j"k/mlnmt.basic.batch_size_"$j".train.config /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms2s/1s1t/"$j"k/mlnmt.basic.batch_size_"$j".model.best.npz /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms2s.IWSLT16.TED.tst2013."$i"-en."$i".txt /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms2s/1s1t/"$j"k/mlnmt.basic.batch_size_"$j".beam_search_"$l" --mode eval_bleu --beam_width "$l" --nb_steps_ratio 1.5 --ref /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms2s.IWSLT16.TED.tst2013."$i"-en.en.txt --apply_preprocessing --apply_postprocessing --prepostprocessor /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms2s/1s1t/"$j"k/ --tgt_fn /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms2s.IWSLT16.TED.tst2013."$i"-en.en.txt --gpu 2
+python eval.py /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms2s/1s1t/"$j"k/mlnmt.basic.batch_size_"$j".train.config /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms2s/1s1t/"$j"k/mlnmt.basic.batch_size_"$j".model.best.npz /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms2s.IWSLT16.TED.tst2010."$i"-en."$i".txt /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms2s/1s1t/"$j"k/IWSLT16.TED.tst2010.beam_search_"$l" --mode eval_bleu --beam_width "$l" --nb_steps_ratio 1.5 --ref /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms2s.IWSLT16.TED.tst2010."$i"-en.en.txt --apply_preprocessing --apply_postprocessing --prepostprocessor /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms2s/1s1t/"$j"k/ --tgt_fn /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms2s.IWSLT16.TED.tst2010."$i"-en.en.txt --gpu 4
+python eval.py /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms2s/1s1t/"$j"k/mlnmt.basic.batch_size_"$j".train.config /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms2s/1s1t/"$j"k/mlnmt.basic.batch_size_"$j".model.best.npz /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms2s.IWSLT16.TED.tst2013."$i"-en."$i".txt /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms2s/1s1t/"$j"k/IWSLT16.TED.tst2013.beam_search_"$l" --mode eval_bleu --beam_width "$l" --nb_steps_ratio 1.5 --ref /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms2s.IWSLT16.TED.tst2013."$i"-en.en.txt --apply_preprocessing --apply_postprocessing --prepostprocessor /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms2s/1s1t/"$j"k/ --tgt_fn /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms2s.IWSLT16.TED.tst2013."$i"-en.en.txt --gpu 4
 done
 done
 done
@@ -2266,8 +2450,8 @@ do
 for j in 8 16
 do
 for l in 12
-python eval.py /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms2s/1s1t/"$j"k/mlnmt.basic.batch_size_"$j".train.config /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms2s/1s1t/"$j"k/mlnmt.basic.batch_size_"$j".model.best.npz /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms2s.IWSLT16.TED.tst2010."$i"-en."$i".txt /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms2s/1s1t/"$j"k/mlnmt.basic.batch_size_"$j".beam_search_"$l" --mode eval_bleu --beam_width "$l" --nb_steps_ratio 1.5 --ref /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms2s.IWSLT16.TED.tst2010."$i"-en.en.txt --apply_preprocessing --apply_postprocessing --prepostprocessor /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms2s/1s1t/"$j"k/ --tgt_fn /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms2s.IWSLT16.TED.tst2010."$i"-en.en.txt --gpu 2
-python eval.py /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms2s/1s1t/"$j"k/mlnmt.basic.batch_size_"$j".train.config /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms2s/1s1t/"$j"k/mlnmt.basic.batch_size_"$j".model.best.npz /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms2s.IWSLT16.TED.tst2013."$i"-en."$i".txt /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms2s/1s1t/"$j"k/mlnmt.basic.batch_size_"$j".beam_search_"$l" --mode eval_bleu --beam_width "$l" --nb_steps_ratio 1.5 --ref /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms2s.IWSLT16.TED.tst2013."$i"-en.en.txt --apply_preprocessing --apply_postprocessing --prepostprocessor /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms2s/1s1t/"$j"k/ --tgt_fn /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms2s.IWSLT16.TED.tst2013."$i"-en.en.txt --gpu 2
+python eval.py /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms2s/1s1t/"$j"k/mlnmt.basic.batch_size_"$j".train.config /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms2s/1s1t/"$j"k/mlnmt.basic.batch_size_"$j".model.best.npz /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms2s.IWSLT16.TED.tst2010."$i"-en."$i".txt /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms2s/1s1t/"$j"k/IWSLT16.TED.tst2010.beam_search_"$l" --mode eval_bleu --beam_width "$l" --nb_steps_ratio 1.5 --ref /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms2s.IWSLT16.TED.tst2010."$i"-en.en.txt --apply_preprocessing --apply_postprocessing --prepostprocessor /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms2s/1s1t/"$j"k/ --tgt_fn /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms2s.IWSLT16.TED.tst2010."$i"-en.en.txt --gpu 4
+python eval.py /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms2s/1s1t/"$j"k/mlnmt.basic.batch_size_"$j".train.config /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms2s/1s1t/"$j"k/mlnmt.basic.batch_size_"$j".model.best.npz /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms2s.IWSLT16.TED.tst2013."$i"-en."$i".txt /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms2s/1s1t/"$j"k/IWSLT16.TED.tst2013.beam_search_"$l" --mode eval_bleu --beam_width "$l" --nb_steps_ratio 1.5 --ref /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms2s.IWSLT16.TED.tst2013."$i"-en.en.txt --apply_preprocessing --apply_postprocessing --prepostprocessor /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms2s/1s1t/"$j"k/ --tgt_fn /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms2s.IWSLT16.TED.tst2013."$i"-en.en.txt --gpu 4
 done
 done
 done
@@ -2277,8 +2461,9 @@ do
 for j in 8 16
 do
 for l in 16
-python eval.py /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms2s/1s1t/"$j"k/mlnmt.basic.batch_size_"$j".train.config /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms2s/1s1t/"$j"k/mlnmt.basic.batch_size_"$j".model.best.npz /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms2s.IWSLT16.TED.tst2010."$i"-en."$i".txt /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms2s/1s1t/"$j"k/mlnmt.basic.batch_size_"$j".beam_search_"$l" --mode eval_bleu --beam_width "$l" --nb_steps_ratio 1.5 --ref /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms2s.IWSLT16.TED.tst2010."$i"-en.en.txt --apply_preprocessing --apply_postprocessing --prepostprocessor /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms2s/1s1t/"$j"k/ --tgt_fn /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms2s.IWSLT16.TED.tst2010."$i"-en.en.txt --gpu 2
-python eval.py /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms2s/1s1t/"$j"k/mlnmt.basic.batch_size_"$j".train.config /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms2s/1s1t/"$j"k/mlnmt.basic.batch_size_"$j".model.best.npz /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms2s.IWSLT16.TED.tst2013."$i"-en."$i".txt /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms2s/1s1t/"$j"k/mlnmt.basic.batch_size_"$j".beam_search_"$l" --mode eval_bleu --beam_width "$l" --nb_steps_ratio 1.5 --ref /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms2s.IWSLT16.TED.tst2013."$i"-en.en.txt --apply_preprocessing --apply_postprocessing --prepostprocessor /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms2s/1s1t/"$j"k/ --tgt_fn /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms2s.IWSLT16.TED.tst2013."$i"-en.en.txt --gpu 2
+do
+python eval.py /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms2s/1s1t/"$j"k/mlnmt.basic.batch_size_"$j".train.config /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms2s/1s1t/"$j"k/mlnmt.basic.batch_size_"$j".model.best.npz /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms2s.IWSLT16.TED.tst2010."$i"-en."$i".txt /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms2s/1s1t/"$j"k/IWSLT16.TED.tst2010.beam_search_"$l" --mode eval_bleu --beam_width "$l" --nb_steps_ratio 1.5 --ref /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms2s.IWSLT16.TED.tst2010."$i"-en.en.txt --apply_preprocessing --apply_postprocessing --prepostprocessor /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms2s/1s1t/"$j"k/ --tgt_fn /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms2s.IWSLT16.TED.tst2010."$i"-en.en.txt --gpu 4
+python eval.py /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms2s/1s1t/"$j"k/mlnmt.basic.batch_size_"$j".train.config /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms2s/1s1t/"$j"k/mlnmt.basic.batch_size_"$j".model.best.npz /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms2s.IWSLT16.TED.tst2013."$i"-en."$i".txt /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms2s/1s1t/"$j"k/IWSLT16.TED.tst2013.beam_search_"$l" --mode eval_bleu --beam_width "$l" --nb_steps_ratio 1.5 --ref /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms2s.IWSLT16.TED.tst2013."$i"-en.en.txt --apply_preprocessing --apply_postprocessing --prepostprocessor /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms2s/1s1t/"$j"k/ --tgt_fn /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms2s.IWSLT16.TED.tst2013."$i"-en.en.txt --gpu 4
 done
 done
 done
@@ -2300,6 +2485,119 @@ done
 for j in 8
 do
 python train.py /windroot/raj/corpora_downloads/IWSLT2016/ms2s/2s1t/"$j"k/mlnmt.basic /windroot/raj/corpora_downloads/IWSLT2016/ms2s/2s1t/"$j"k/mlnmt.basic --gpu 1 --mb_size 16 --weight_decay 0.000001 --postprocess --max_nb_iters 100000
+done
+
+
+
+
+for i in 8 16
+do
+python create_multisource_corpus.py --incorpus /windroot/raj/corpora_downloads/IWSLT2016/fr-en/ms2s.IWSLT16.TED.tst2010.fr-en.fr.txt /windroot/raj/corpora_downloads/IWSLT2016/de-en/ms2s.IWSLT16.TED.tst2010.de-en.de.txt --outcorpus /windroot/raj/corpora_downloads/IWSLT2016/ms2s/2s1t/"$i"k/IWSLT16.TED.tst2010.src
+python create_multisource_corpus.py --incorpus /windroot/raj/corpora_downloads/IWSLT2016/fr-en/ms2s.IWSLT16.TED.tst2010.fr-en.en.txt --outcorpus /windroot/raj/corpora_downloads/IWSLT2016/ms2s/2s1t/"$i"k/IWSLT16.TED.tst2010.tgt
+python create_multisource_corpus.py --incorpus /windroot/raj/corpora_downloads/IWSLT2016/fr-en/ms2s.IWSLT16.TED.tst2013.fr-en.fr.txt /windroot/raj/corpora_downloads/IWSLT2016/de-en/ms2s.IWSLT16.TED.tst2013.de-en.de.txt --outcorpus /windroot/raj/corpora_downloads/IWSLT2016/ms2s/2s1t/"$i"k/IWSLT16.TED.tst2013.src
+python create_multisource_corpus.py --incorpus /windroot/raj/corpora_downloads/IWSLT2016/fr-en/ms2s.IWSLT16.TED.tst2013.fr-en.en.txt --outcorpus /windroot/raj/corpora_downloads/IWSLT2016/ms2s/2s1t/"$i"k/IWSLT16.TED.tst2013.tgt
+done
+
+for j in 8 16
+do
+for l in 4
+do
+python eval.py /windroot/raj/corpora_downloads/IWSLT2016/ms2s/2s1t/"$j"k/mlnmt.basic.train.config /windroot/raj/corpora_downloads/IWSLT2016/ms2s/2s1t/"$j"k/mlnmt.basic.model.best.npz /windroot/raj/corpora_downloads/IWSLT2016/ms2s/2s1t/"$j"k/IWSLT16.TED.tst2010.src /windroot/raj/corpora_downloads/IWSLT2016/ms2s/2s1t/"$j"k/IWSLT16.TED.tst2010.beam_search_"$l" --mode eval_bleu --beam_width "$l" --nb_steps_ratio 1.5 --ref /windroot/raj/corpora_downloads/IWSLT2016/ms2s/2s1t/"$j"k/IWSLT16.TED.tst2010.tgt --apply_preprocessing --apply_postprocessing --prepostprocessor /windroot/raj/corpora_downloads/IWSLT2016/ms2s/2s1t/"$j"k/ --tgt_fn /windroot/raj/corpora_downloads/IWSLT2016/ms2s/2s1t/"$j"k/IWSLT16.TED.tst2010.tgt --gpu 2
+python eval.py /windroot/raj/corpora_downloads/IWSLT2016/ms2s/2s1t/"$j"k/mlnmt.basic.train.config /windroot/raj/corpora_downloads/IWSLT2016/ms2s/2s1t/"$j"k/mlnmt.basic.model.best.npz /windroot/raj/corpora_downloads/IWSLT2016/ms2s/2s1t/"$j"k/IWSLT16.TED.tst2013.src /windroot/raj/corpora_downloads/IWSLT2016/ms2s/2s1t/"$j"k/IWSLT16.TED.tst2010.beam_search_"$l" --mode eval_bleu --beam_width "$l" --nb_steps_ratio 1.5 --ref /windroot/raj/corpora_downloads/IWSLT2016/ms2s/2s1t/"$j"k/IWSLT16.TED.tst2013.tgt --apply_preprocessing --apply_postprocessing --prepostprocessor /windroot/raj/corpora_downloads/IWSLT2016/ms2s/2s1t/"$j"k/ --tgt_fn /windroot/raj/corpora_downloads/IWSLT2016/ms2s/2s1t/"$j"k/IWSLT16.TED.tst2013.tgt --gpu 2
+done
+done
+
+
+for j in 8 16
+do
+for l in 8
+do
+python eval.py /windroot/raj/corpora_downloads/IWSLT2016/ms2s/2s1t/"$j"k/mlnmt.basic.train.config /windroot/raj/corpora_downloads/IWSLT2016/ms2s/2s1t/"$j"k/mlnmt.basic.model.best.npz /windroot/raj/corpora_downloads/IWSLT2016/ms2s/2s1t/"$j"k/IWSLT16.TED.tst2010.src /windroot/raj/corpora_downloads/IWSLT2016/ms2s/2s1t/"$j"k/IWSLT16.TED.tst2010.beam_search_"$l" --mode eval_bleu --beam_width "$l" --nb_steps_ratio 1.5 --ref /windroot/raj/corpora_downloads/IWSLT2016/ms2s/2s1t/"$j"k/IWSLT16.TED.tst2010.tgt --apply_preprocessing --apply_postprocessing --prepostprocessor /windroot/raj/corpora_downloads/IWSLT2016/ms2s/2s1t/"$j"k/ --tgt_fn /windroot/raj/corpora_downloads/IWSLT2016/ms2s/2s1t/"$j"k/IWSLT16.TED.tst2010.tgt --gpu 2
+python eval.py /windroot/raj/corpora_downloads/IWSLT2016/ms2s/2s1t/"$j"k/mlnmt.basic.train.config /windroot/raj/corpora_downloads/IWSLT2016/ms2s/2s1t/"$j"k/mlnmt.basic.model.best.npz /windroot/raj/corpora_downloads/IWSLT2016/ms2s/2s1t/"$j"k/IWSLT16.TED.tst2013.src /windroot/raj/corpora_downloads/IWSLT2016/ms2s/2s1t/"$j"k/IWSLT16.TED.tst2013.beam_search_"$l" --mode eval_bleu --beam_width "$l" --nb_steps_ratio 1.5 --ref /windroot/raj/corpora_downloads/IWSLT2016/ms2s/2s1t/"$j"k/IWSLT16.TED.tst2013.tgt --apply_preprocessing --apply_postprocessing --prepostprocessor /windroot/raj/corpora_downloads/IWSLT2016/ms2s/2s1t/"$j"k/ --tgt_fn /windroot/raj/corpora_downloads/IWSLT2016/ms2s/2s1t/"$j"k/IWSLT16.TED.tst2013.tgt --gpu 2
+done
+done
+
+for j in 8 16
+do
+for l in 12
+do
+python eval.py /windroot/raj/corpora_downloads/IWSLT2016/ms2s/2s1t/"$j"k/mlnmt.basic.train.config /windroot/raj/corpora_downloads/IWSLT2016/ms2s/2s1t/"$j"k/mlnmt.basic.model.best.npz /windroot/raj/corpora_downloads/IWSLT2016/ms2s/2s1t/"$j"k/IWSLT16.TED.tst2010.src /windroot/raj/corpora_downloads/IWSLT2016/ms2s/2s1t/"$j"k/IWSLT16.TED.tst2010.beam_search_"$l" --mode eval_bleu --beam_width "$l" --nb_steps_ratio 1.5 --ref /windroot/raj/corpora_downloads/IWSLT2016/ms2s/2s1t/"$j"k/IWSLT16.TED.tst2010.tgt --apply_preprocessing --apply_postprocessing --prepostprocessor /windroot/raj/corpora_downloads/IWSLT2016/ms2s/2s1t/"$j"k/ --tgt_fn /windroot/raj/corpora_downloads/IWSLT2016/ms2s/2s1t/"$j"k/IWSLT16.TED.tst2010.tgt --gpu 2
+python eval.py /windroot/raj/corpora_downloads/IWSLT2016/ms2s/2s1t/"$j"k/mlnmt.basic.train.config /windroot/raj/corpora_downloads/IWSLT2016/ms2s/2s1t/"$j"k/mlnmt.basic.model.best.npz /windroot/raj/corpora_downloads/IWSLT2016/ms2s/2s1t/"$j"k/IWSLT16.TED.tst2013.src /windroot/raj/corpora_downloads/IWSLT2016/ms2s/2s1t/"$j"k/IWSLT16.TED.tst2013.beam_search_"$l" --mode eval_bleu --beam_width "$l" --nb_steps_ratio 1.5 --ref /windroot/raj/corpora_downloads/IWSLT2016/ms2s/2s1t/"$j"k/IWSLT16.TED.tst2013.tgt --apply_preprocessing --apply_postprocessing --prepostprocessor /windroot/raj/corpora_downloads/IWSLT2016/ms2s/2s1t/"$j"k/ --tgt_fn /windroot/raj/corpora_downloads/IWSLT2016/ms2s/2s1t/"$j"k/IWSLT16.TED.tst2013.tgt --gpu 2
+done
+done
+
+for j in 8 16
+do
+for l in 16
+do
+python eval.py /windroot/raj/corpora_downloads/IWSLT2016/ms2s/2s1t/"$j"k/mlnmt.basic.train.config /windroot/raj/corpora_downloads/IWSLT2016/ms2s/2s1t/"$j"k/mlnmt.basic.model.best.npz /windroot/raj/corpora_downloads/IWSLT2016/ms2s/2s1t/"$j"k/IWSLT16.TED.tst2010.src /windroot/raj/corpora_downloads/IWSLT2016/ms2s/2s1t/"$j"k/IWSLT16.TED.tst2010.beam_search_"$l" --mode eval_bleu --beam_width "$l" --nb_steps_ratio 1.5 --ref /windroot/raj/corpora_downloads/IWSLT2016/ms2s/2s1t/"$j"k/IWSLT16.TED.tst2010.tgt --apply_preprocessing --apply_postprocessing --prepostprocessor /windroot/raj/corpora_downloads/IWSLT2016/ms2s/2s1t/"$j"k/ --tgt_fn /windroot/raj/corpora_downloads/IWSLT2016/ms2s/2s1t/"$j"k/IWSLT16.TED.tst2010.tgt --gpu 2
+python eval.py /windroot/raj/corpora_downloads/IWSLT2016/ms2s/2s1t/"$j"k/mlnmt.basic.train.config /windroot/raj/corpora_downloads/IWSLT2016/ms2s/2s1t/"$j"k/mlnmt.basic.model.best.npz /windroot/raj/corpora_downloads/IWSLT2016/ms2s/2s1t/"$j"k/IWSLT16.TED.tst2013.src /windroot/raj/corpora_downloads/IWSLT2016/ms2s/2s1t/"$j"k/IWSLT16.TED.tst2013.beam_search_"$l" --mode eval_bleu --beam_width "$l" --nb_steps_ratio 1.5 --ref /windroot/raj/corpora_downloads/IWSLT2016/ms2s/2s1t/"$j"k/IWSLT16.TED.tst2013.tgt --apply_preprocessing --apply_postprocessing --prepostprocessor /windroot/raj/corpora_downloads/IWSLT2016/ms2s/2s1t/"$j"k/ --tgt_fn /windroot/raj/corpora_downloads/IWSLT2016/ms2s/2s1t/"$j"k/IWSLT16.TED.tst2013.tgt --gpu 2
+done
+done
+
+for j in 8 16
+do
+python graph_training.py --lib plotly /windroot/raj/corpora_downloads/IWSLT2016/ms2s/2s1t/"$j"k/mlnmt.basic /windroot/raj/corpora_downloads/IWSLT2016/ms2s/2s1t/"$j"k/mlnmt.basic.result.sqlite ~/public_html/IWSLT2016"$i"-enms2s2s1t"$j"k.html&
+done
+
+rm /windroot/raj/corpora_downloads/IWSLT2016/ms2s1s1t
+for i in fr de
+do
+for j in 8 16
+do
+for k in 4 8 12 16
+do
+echo -n "Lang pair: $i-en Vocab size: ${j}k Beam size: $k Test Set: tst2010 --- " >> /windroot/raj/corpora_downloads/IWSLT2016/ms2s1s1t
+python bleu_computer.py /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms2s.IWSLT16.TED.tst2010."$i"-en.en.txt /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms2s/1s1t/"$j"k/IWSLT16.TED.tst2010.beam_search_"$k".unk_replaced.restored >> /windroot/raj/corpora_downloads/IWSLT2016/ms2s1s1t
+echo -n "Lang pair: $i-en Vocab size: ${j}k Beam size: $k Test Set: tst2013 --- " >> /windroot/raj/corpora_downloads/IWSLT2016/ms2s1s1t
+python bleu_computer.py /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms2s.IWSLT16.TED.tst2013."$i"-en.en.txt /windroot/raj/corpora_downloads/IWSLT2016/"$i"-en/ms2s/1s1t/"$j"k/IWSLT16.TED.tst2013.beam_search_"$k".unk_replaced.restored >> /windroot/raj/corpora_downloads/IWSLT2016/ms2s1s1t
+done
+done
+done
+
+rm /windroot/raj/corpora_downloads/IWSLT2016/ms2s2s1t
+for j in 8 16
+do
+for k in 4 8 12 16
+do
+echo -n "Dropping Random sentences setting: Without Drop Vocab size: ${j}k Beam size: $k Test Set: tst2010 --- " >> /windroot/raj/corpora_downloads/IWSLT2016/ms2s2s1t
+python bleu_computer.py /windroot/raj/corpora_downloads/IWSLT2016/ms2s/2s1t/"$j"k/IWSLT16.TED.tst2010.tgt /windroot/raj/corpora_downloads/IWSLT2016/ms2s/2s1t/"$j"k/IWSLT16.TED.tst2010.beam_search_"$k".unk_replaced.restored >> /windroot/raj/corpora_downloads/IWSLT2016/ms2s2s1t
+echo -n "Dropping Random sentences setting: Without Drop Vocab size: ${j}k Beam size: $k Test Set: tst2013 --- " >> /windroot/raj/corpora_downloads/IWSLT2016/ms2s2s1t
+python bleu_computer.py /windroot/raj/corpora_downloads/IWSLT2016/ms2s/2s1t/"$j"k/IWSLT16.TED.tst2013.tgt /windroot/raj/corpora_downloads/IWSLT2016/ms2s/2s1t/"$j"k/IWSLT16.TED.tst2013.beam_search_"$k".unk_replaced.restored >> /windroot/raj/corpora_downloads/IWSLT2016/ms2s2s1t
+done
+done
+
+
+
+########## UN CORPUS --- HERE COME THE BIG DADDIES!
+
+
+for i in fr
+do
+for j in 16
+do
+mkdir -p /windroot/raj/corpora_downloads/UN_CORPUS/"$i"-en/ms6s/2M/1s1t/"$j"k/
+python generate_multilingual_bpe_data.py --train_lang_corpora_pairs "$i":en:/windroot/raj/corpora_downloads/UN_CORPUS/UNv1.0.6way."$i".2M.tok.txt:/windroot/raj/corpora_downloads/UN_CORPUS/UNv1.0.6way.en.2M.tok.txt --dev_lang_corpora_pairs "$i":en:/windroot/raj/corpora_downloads/UN_CORPUS/testsets/devset/UNv1.0.devset.tok."$i":/windroot/raj/corpora_downloads/UN_CORPUS/testsets/devset/UNv1.0.devset.tok.en --test_lang_corpora_pairs "$i":en:/windroot/raj/corpora_downloads/UN_CORPUS/testsets/testset/UNv1.0.testset.tok."$i":/windroot/raj/corpora_downloads/UN_CORPUS/testsets/testset/UNv1.0.testset.tok.en --balance_vocab_counts --balance_corpora --save_prefix /windroot/raj/corpora_downloads/UN_CORPUS/"$i"-en/ms6s/2M/1s1t/"$j"k --max_src_vocab "$j"000 --max_tgt_vocab "$j"000
+python make_data.py /windroot/raj/corpora_downloads/UN_CORPUS/"$i"-en/ms6s/2M/1s1t/"$j"k/mlnmt.train.src /windroot/raj/corpora_downloads/UN_CORPUS/"$i"-en/ms6s/2M/1s1t/"$j"k/mlnmt.train.tgt /windroot/raj/corpora_downloads/UN_CORPUS/"$i"-en/ms6s/2M/1s1t/"$j"k/mlnmt.basic --src_voc_size "$j"000 --tgt_voc_size "$j"000 --test_src /windroot/raj/corpora_downloads/UN_CORPUS/"$i"-en/ms6s/2M/1s1t/"$j"k/mlnmt.test.src --test_tgt /windroot/raj/corpora_downloads/UN_CORPUS/"$i"-en/ms6s/2M/1s1t/"$j"k/mlnmt.test.tgt --dev_src /windroot/raj/corpora_downloads/UN_CORPUS/"$i"-en/ms6s/2M/1s1t/"$j"k/mlnmt.dev.src --dev_tgt /windroot/raj/corpora_downloads/UN_CORPUS/"$i"-en/ms6s/2M/1s1t/"$j"k/mlnmt.dev.tgt
+done
+done
+
+for i in es
+do
+for j in 16
+do
+mkdir -p /windroot/raj/corpora_downloads/UN_CORPUS/"$i"-en/ms6s/2M/1s1t/"$j"k/
+python generate_multilingual_bpe_data.py --train_lang_corpora_pairs "$i":en:/windroot/raj/corpora_downloads/UN_CORPUS/UNv1.0.6way."$i".2M.tok.txt:/windroot/raj/corpora_downloads/UN_CORPUS/UNv1.0.6way.en.2M.tok.txt --dev_lang_corpora_pairs "$i":en:/windroot/raj/corpora_downloads/UN_CORPUS/testsets/devset/UNv1.0.devset.tok."$i":/windroot/raj/corpora_downloads/UN_CORPUS/testsets/devset/UNv1.0.devset.tok.en --test_lang_corpora_pairs "$i":en:/windroot/raj/corpora_downloads/UN_CORPUS/testsets/testset/UNv1.0.testset.tok."$i":/windroot/raj/corpora_downloads/UN_CORPUS/testsets/testset/UNv1.0.testset.tok.en --balance_vocab_counts --balance_corpora --save_prefix /windroot/raj/corpora_downloads/UN_CORPUS/"$i"-en/ms6s/2M/1s1t/"$j"k --max_src_vocab "$j"000 --max_tgt_vocab "$j"000
+python make_data.py /windroot/raj/corpora_downloads/UN_CORPUS/"$i"-en/ms6s/2M/1s1t/"$j"k/mlnmt.train.src /windroot/raj/corpora_downloads/UN_CORPUS/"$i"-en/ms6s/2M/1s1t/"$j"k/mlnmt.train.tgt /windroot/raj/corpora_downloads/UN_CORPUS/"$i"-en/ms6s/2M/1s1t/"$j"k/mlnmt.basic --src_voc_size "$j"000 --tgt_voc_size "$j"000 --test_src /windroot/raj/corpora_downloads/UN_CORPUS/"$i"-en/ms6s/2M/1s1t/"$j"k/mlnmt.test.src --test_tgt /windroot/raj/corpora_downloads/UN_CORPUS/"$i"-en/ms6s/2M/1s1t/"$j"k/mlnmt.test.tgt --dev_src /windroot/raj/corpora_downloads/UN_CORPUS/"$i"-en/ms6s/2M/1s1t/"$j"k/mlnmt.dev.src --dev_tgt /windroot/raj/corpora_downloads/UN_CORPUS/"$i"-en/ms6s/2M/1s1t/"$j"k/mlnmt.dev.tgt --use_voc /windroot/raj/corpora_downloads/UN_CORPUS/fr-en/ms6s/2M/1s1t/"$j"k/mlnmt.basic.voc --use_tgt_voc_only
+done
+done
+
+
+for j in 16
+do
+mkdir -p /windroot/raj/corpora_downloads/UN_CORPUS/ms6s/2M/2s1t/"$j"k/
+python generate_multilingual_bpe_data.py --train_lang_corpora_pairs fr:en:/windroot/raj/corpora_downloads/UN_CORPUS/UNv1.0.6way.fr.2M.tok.txt:/windroot/raj/corpora_downloads/UN_CORPUS/UNv1.0.6way.en.2M.tok.txt es:en:/windroot/raj/corpora_downloads/UN_CORPUS/UNv1.0.6way.es.2M.tok.txt:/windroot/raj/corpora_downloads/UN_CORPUS/UNv1.0.6way.en.2M.tok.txt --dev_lang_corpora_pairs fr:en:/windroot/raj/corpora_downloads/UN_CORPUS/testsets/devset/UNv1.0.devset.tok.fr:/windroot/raj/corpora_downloads/UN_CORPUS/testsets/devset/UNv1.0.devset.tok.en es:en:/windroot/raj/corpora_downloads/UN_CORPUS/testsets/devset/UNv1.0.devset.tok.es:/windroot/raj/corpora_downloads/UN_CORPUS/testsets/devset/UNv1.0.devset.tok.en --test_lang_corpora_pairs fr:en:/windroot/raj/corpora_downloads/UN_CORPUS/testsets/testset/UNv1.0.testset.tok.fr:/windroot/raj/corpora_downloads/UN_CORPUS/testsets/testset/UNv1.0.testset.tok.en es:en:/windroot/raj/corpora_downloads/UN_CORPUS/testsets/testset/UNv1.0.testset.tok.es:/windroot/raj/corpora_downloads/UN_CORPUS/testsets/testset/UNv1.0.testset.tok.en --balance_vocab_counts --balance_corpora --save_prefix /windroot/raj/corpora_downloads/UN_CORPUS/ms6s/2M/2s1t/"$j"k --max_src_vocab "$j"000 --max_tgt_vocab "$j"000
+python make_data.py /windroot/raj/corpora_downloads/UN_CORPUS/ms6s/2M/2s1t/"$j"k/mlnmt.train.src /windroot/raj/corpora_downloads/UN_CORPUS/ms6s/2M/2s1t/"$j"k/mlnmt.train.tgt /windroot/raj/corpora_downloads/UN_CORPUS/ms6s/2M/2s1t/"$j"k/mlnmt.basic --src_voc_size "$j"000 --tgt_voc_size "$j"000 --test_src /windroot/raj/corpora_downloads/UN_CORPUS/ms6s/2M/2s1t/"$j"k/mlnmt.test.src --test_tgt /windroot/raj/corpora_downloads/UN_CORPUS/ms6s/2M/2s1t/"$j"k/mlnmt.test.tgt --dev_src /windroot/raj/corpora_downloads/UN_CORPUS/ms6s/2M/2s1t/"$j"k/mlnmt.dev.src --dev_tgt /windroot/raj/corpora_downloads/UN_CORPUS/ms6s/2M/2s1t/"$j"k/mlnmt.dev.tgt
 done
 
 
