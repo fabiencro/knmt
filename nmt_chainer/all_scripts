@@ -2582,7 +2582,53 @@ python make_data.py /windroot/raj/corpora_downloads/UN_CORPUS/"$i"-en/ms6s/2M/1s
 done
 done
 
+
+for i in fr
+do
+for j in 16
+do
+python train.py /windroot/raj/corpora_downloads/UN_CORPUS/"$i"-en/ms6s/2M/1s1t/"$j"k/mlnmt.basic /windroot/raj/corpora_downloads/UN_CORPUS/"$i"-en/ms6s/2M/1s1t/"$j"k/mlnmt.basic --gpu 2 --mb_size 48 --weight_decay 0.000001 --postprocess --max_nb_iters 300000 --max_src_tgt_len 100
+done
+done
+
+
 for i in es
+do
+for j in 16
+do
+mkdir -p /windroot/raj/corpora_downloads/UN_CORPUS/"$i"-en/ms6s/2M/1s1t/"$j"k/
+python generate_multilingual_bpe_data.py --train_lang_corpora_pairs "$i":en:/windroot/raj/corpora_downloads/UN_CORPUS/UNv1.0.6way."$i".2M.tok.txt:/windroot/raj/corpora_downloads/UN_CORPUS/UNv1.0.6way.en.2M.tok.txt --dev_lang_corpora_pairs "$i":en:/windroot/raj/corpora_downloads/UN_CORPUS/testsets/devset/UNv1.0.devset.tok."$i":/windroot/raj/corpora_downloads/UN_CORPUS/testsets/devset/UNv1.0.devset.tok.en --test_lang_corpora_pairs "$i":en:/windroot/raj/corpora_downloads/UN_CORPUS/testsets/testset/UNv1.0.testset.tok."$i":/windroot/raj/corpora_downloads/UN_CORPUS/testsets/testset/UNv1.0.testset.tok.en --balance_vocab_counts --balance_corpora --save_prefix /windroot/raj/corpora_downloads/UN_CORPUS/"$i"-en/ms6s/2M/1s1t/"$j"k --max_src_vocab "$j"000 --max_tgt_vocab "$j"000
+python make_data.py /windroot/raj/corpora_downloads/UN_CORPUS/"$i"-en/ms6s/2M/1s1t/"$j"k/mlnmt.train.src /windroot/raj/corpora_downloads/UN_CORPUS/"$i"-en/ms6s/2M/1s1t/"$j"k/mlnmt.train.tgt /windroot/raj/corpora_downloads/UN_CORPUS/"$i"-en/ms6s/2M/1s1t/"$j"k/mlnmt.basic --src_voc_size "$j"000 --tgt_voc_size "$j"000 --test_src /windroot/raj/corpora_downloads/UN_CORPUS/"$i"-en/ms6s/2M/1s1t/"$j"k/mlnmt.test.src --test_tgt /windroot/raj/corpora_downloads/UN_CORPUS/"$i"-en/ms6s/2M/1s1t/"$j"k/mlnmt.test.tgt --dev_src /windroot/raj/corpora_downloads/UN_CORPUS/"$i"-en/ms6s/2M/1s1t/"$j"k/mlnmt.dev.src --dev_tgt /windroot/raj/corpora_downloads/UN_CORPUS/"$i"-en/ms6s/2M/1s1t/"$j"k/mlnmt.dev.tgt --use_voc /windroot/raj/corpora_downloads/UN_CORPUS/fr-en/ms6s/2M/1s1t/"$j"k/mlnmt.basic.voc --use_tgt_voc_only
+done
+done
+
+
+
+for i in es
+do
+for j in 16
+do
+python train.py /windroot/raj/corpora_downloads/UN_CORPUS/"$i"-en/ms6s/2M/1s1t/"$j"k/mlnmt.basic /windroot/raj/corpora_downloads/UN_CORPUS/"$i"-en/ms6s/2M/1s1t/"$j"k/mlnmt.basic --gpu 2 --mb_size 64 --weight_decay 0.000001 --postprocess --max_nb_iters 200000 --max_src_tgt_len 100
+done
+done
+
+for j in 16
+do
+python graph_training.py --lib plotly /windroot/raj/corpora_downloads/UN_CORPUS/es-en/ms6s/2M/1s1t/"$j"k/mlnmt.basic.result.sqlite ~/public_html/UN_CORPUSes-enms6s2M1s1t"$j"k.html&
+done
+
+for j in 16
+do
+python graph_training.py --lib plotly /windroot/raj/corpora_downloads/UN_CORPUS/fr-en/ms6s/2M/1s1t/"$j"k/mlnmt.basic.result.sqlite ~/public_html/UN_CORPUSfr-enms6s2M1s1t"$j"k.html&
+done
+
+for j in 16
+do
+python graph_training.py --lib plotly /windroot/raj/corpora_downloads/UN_CORPUS/ms6s/2M/2s1t/"$j"k/mlnmt.basic.result.sqlite ~/public_html/UN_CORPUSfres-enms6s2M2s1t"$j"k.html&
+done
+
+
+for i in ru zh ar
 do
 for j in 16
 do
@@ -2596,8 +2642,89 @@ done
 for j in 16
 do
 mkdir -p /windroot/raj/corpora_downloads/UN_CORPUS/ms6s/2M/2s1t/"$j"k/
-python generate_multilingual_bpe_data.py --train_lang_corpora_pairs fr:en:/windroot/raj/corpora_downloads/UN_CORPUS/UNv1.0.6way.fr.2M.tok.txt:/windroot/raj/corpora_downloads/UN_CORPUS/UNv1.0.6way.en.2M.tok.txt es:en:/windroot/raj/corpora_downloads/UN_CORPUS/UNv1.0.6way.es.2M.tok.txt:/windroot/raj/corpora_downloads/UN_CORPUS/UNv1.0.6way.en.2M.tok.txt --dev_lang_corpora_pairs fr:en:/windroot/raj/corpora_downloads/UN_CORPUS/testsets/devset/UNv1.0.devset.tok.fr:/windroot/raj/corpora_downloads/UN_CORPUS/testsets/devset/UNv1.0.devset.tok.en es:en:/windroot/raj/corpora_downloads/UN_CORPUS/testsets/devset/UNv1.0.devset.tok.es:/windroot/raj/corpora_downloads/UN_CORPUS/testsets/devset/UNv1.0.devset.tok.en --test_lang_corpora_pairs fr:en:/windroot/raj/corpora_downloads/UN_CORPUS/testsets/testset/UNv1.0.testset.tok.fr:/windroot/raj/corpora_downloads/UN_CORPUS/testsets/testset/UNv1.0.testset.tok.en es:en:/windroot/raj/corpora_downloads/UN_CORPUS/testsets/testset/UNv1.0.testset.tok.es:/windroot/raj/corpora_downloads/UN_CORPUS/testsets/testset/UNv1.0.testset.tok.en --balance_vocab_counts --balance_corpora --save_prefix /windroot/raj/corpora_downloads/UN_CORPUS/ms6s/2M/2s1t/"$j"k --max_src_vocab "$j"000 --max_tgt_vocab "$j"000
+python generate_multilingual_bpe_data.py --train_lang_corpora_pairs fr:en:/windroot/raj/corpora_downloads/UN_CORPUS/UNv1.0.6way.fr.2M.tok.txt:/windroot/raj/corpora_downloads/UN_CORPUS/UNv1.0.6way.en.2M.tok.txt es:en:/windroot/raj/corpora_downloads/UN_CORPUS/UNv1.0.6way.es.2M.tok.txt:/windroot/raj/corpora_downloads/UN_CORPUS/UNv1.0.6way.en.2M.tok.txt --dev_lang_corpora_pairs fr:en:/windroot/raj/corpora_downloads/UN_CORPUS/testsets/devset/UNv1.0.devset.tok.fr:/windroot/raj/corpora_downloads/UN_CORPUS/testsets/devset/UNv1.0.devset.tok.en es:en:/windroot/raj/corpora_downloads/UN_CORPUS/testsets/devset/UNv1.0.devset.tok.es:/windroot/raj/corpora_downloads/UN_CORPUS/testsets/devset/UNv1.0.devset.tok.en --test_lang_corpora_pairs fr:en:/windroot/raj/corpora_downloads/UN_CORPUS/testsets/testset/UNv1.0.testset.tok.fr:/windroot/raj/corpora_downloads/UN_CORPUS/testsets/testset/UNv1.0.testset.tok.en es:en:/windroot/raj/corpora_downloads/UN_CORPUS/testsets/testset/UNv1.0.testset.tok.es:/windroot/raj/corpora_downloads/UN_CORPUS/testsets/testset/UNv1.0.testset.tok.en --balance_vocab_counts --balance_corpora --save_prefix /windroot/raj/corpora_downloads/UN_CORPUS/ms6s/2M/2s1t/"$j"k --max_src_vocab "$j"000 --max_tgt_vocab "$j"000 --is_multisource
 python make_data.py /windroot/raj/corpora_downloads/UN_CORPUS/ms6s/2M/2s1t/"$j"k/mlnmt.train.src /windroot/raj/corpora_downloads/UN_CORPUS/ms6s/2M/2s1t/"$j"k/mlnmt.train.tgt /windroot/raj/corpora_downloads/UN_CORPUS/ms6s/2M/2s1t/"$j"k/mlnmt.basic --src_voc_size "$j"000 --tgt_voc_size "$j"000 --test_src /windroot/raj/corpora_downloads/UN_CORPUS/ms6s/2M/2s1t/"$j"k/mlnmt.test.src --test_tgt /windroot/raj/corpora_downloads/UN_CORPUS/ms6s/2M/2s1t/"$j"k/mlnmt.test.tgt --dev_src /windroot/raj/corpora_downloads/UN_CORPUS/ms6s/2M/2s1t/"$j"k/mlnmt.dev.src --dev_tgt /windroot/raj/corpora_downloads/UN_CORPUS/ms6s/2M/2s1t/"$j"k/mlnmt.dev.tgt
+done
+
+for j in 16
+do
+python train.py /windroot/raj/corpora_downloads/UN_CORPUS/ms6s/2M/2s1t/"$j"k/mlnmt.basic /windroot/raj/corpora_downloads/UN_CORPUS/ms6s/2M/2s1t/"$j"k/mlnmt.basic --gpu 1 --mb_size 32 --weight_decay 0.000001 --postprocess --max_nb_iters 400000 --max_src_tgt_len 200
+done
+
+
+langs=(fr es ru ar)
+
+for x in `seq 1 4`
+do
+i=$langs[$x]
+next=`echo $x+1 | bc`
+for y in `seq $next 4`
+do
+j=$langs[$y]
+if [[ $i != $j ]]
+then
+echo $i $j
+for k in 16
+do
+mkdir -p /windroot/raj/corpora_downloads/UN_CORPUS/ms6s/2M/2s1t/"$i"-"$j"/"$k"k/
+python generate_multilingual_bpe_data.py --train_lang_corpora_pairs "$i":en:/windroot/raj/corpora_downloads/UN_CORPUS/UNv1.0.6way."$i".2M.tok.txt:/windroot/raj/corpora_downloads/UN_CORPUS/UNv1.0.6way.en.2M.tok.txt "$j":en:/windroot/raj/corpora_downloads/UN_CORPUS/UNv1.0.6way."$j".2M.tok.txt:/windroot/raj/corpora_downloads/UN_CORPUS/UNv1.0.6way.en.2M.tok.txt --dev_lang_corpora_pairs "$i":en:/windroot/raj/corpora_downloads/UN_CORPUS/testsets/devset/UNv1.0.devset.tok."$i":/windroot/raj/corpora_downloads/UN_CORPUS/testsets/devset/UNv1.0.devset.tok.en "$j":en:/windroot/raj/corpora_downloads/UN_CORPUS/testsets/devset/UNv1.0.devset.tok."$j":/windroot/raj/corpora_downloads/UN_CORPUS/testsets/devset/UNv1.0.devset.tok.en --test_lang_corpora_pairs "$i":en:/windroot/raj/corpora_downloads/UN_CORPUS/testsets/testset/UNv1.0.testset.tok."$i":/windroot/raj/corpora_downloads/UN_CORPUS/testsets/testset/UNv1.0.testset.tok.en "$j":en:/windroot/raj/corpora_downloads/UN_CORPUS/testsets/testset/UNv1.0.testset.tok."$j":/windroot/raj/corpora_downloads/UN_CORPUS/testsets/testset/UNv1.0.testset.tok.en --balance_vocab_counts --balance_corpora --save_prefix /windroot/raj/corpora_downloads/UN_CORPUS/ms6s/2M/2s1t/"$i"-"$j"/"$k"k --max_src_vocab "$k"000 --max_tgt_vocab "$k"000 --is_multisource
+python make_data.py /windroot/raj/corpora_downloads/UN_CORPUS/ms6s/2M/2s1t/"$i"-"$j"/"$k"k/mlnmt.train.src /windroot/raj/corpora_downloads/UN_CORPUS/ms6s/2M/2s1t/"$i"-"$j"/"$k"k/mlnmt.train.tgt /windroot/raj/corpora_downloads/UN_CORPUS/ms6s/2M/2s1t/"$i"-"$j"/"$k"k/mlnmt.basic --src_voc_size "$k"000 --tgt_voc_size "$k"000 --test_src /windroot/raj/corpora_downloads/UN_CORPUS/ms6s/2M/2s1t/"$i"-"$j"/"$k"k/mlnmt.test.src --test_tgt /windroot/raj/corpora_downloads/UN_CORPUS/ms6s/2M/2s1t/"$i"-"$j"/"$k"k/mlnmt.test.tgt --dev_src /windroot/raj/corpora_downloads/UN_CORPUS/ms6s/2M/2s1t/"$i"-"$j"/"$k"k/mlnmt.dev.src --dev_tgt /windroot/raj/corpora_downloads/UN_CORPUS/ms6s/2M/2s1t/"$i"-"$j"/"$k"k/mlnmt.dev.tgt
+done
+fi
+done
+done
+
+
+
+
+for j in 16
+do
+mkdir -p /windroot/raj/corpora_downloads/UN_CORPUS/ms6s/2M/3s1t/"$j"k/
+python generate_multilingual_bpe_data.py --train_lang_corpora_pairs fr:en:/windroot/raj/corpora_downloads/UN_CORPUS/UNv1.0.6way.fr.2M.tok.txt:/windroot/raj/corpora_downloads/UN_CORPUS/UNv1.0.6way.en.2M.tok.txt es:en:/windroot/raj/corpora_downloads/UN_CORPUS/UNv1.0.6way.es.2M.tok.txt:/windroot/raj/corpora_downloads/UN_CORPUS/UNv1.0.6way.en.2M.tok.txt ru:en:/windroot/raj/corpora_downloads/UN_CORPUS/UNv1.0.6way.ru.2M.tok.txt:/windroot/raj/corpora_downloads/UN_CORPUS/UNv1.0.6way.en.2M.tok.txt --dev_lang_corpora_pairs fr:en:/windroot/raj/corpora_downloads/UN_CORPUS/testsets/devset/UNv1.0.devset.tok.fr:/windroot/raj/corpora_downloads/UN_CORPUS/testsets/devset/UNv1.0.devset.tok.en es:en:/windroot/raj/corpora_downloads/UN_CORPUS/testsets/devset/UNv1.0.devset.tok.es:/windroot/raj/corpora_downloads/UN_CORPUS/testsets/devset/UNv1.0.devset.tok.en ru:en:/windroot/raj/corpora_downloads/UN_CORPUS/testsets/devset/UNv1.0.devset.tok.ru:/windroot/raj/corpora_downloads/UN_CORPUS/testsets/devset/UNv1.0.devset.tok.en --test_lang_corpora_pairs fr:en:/windroot/raj/corpora_downloads/UN_CORPUS/testsets/testset/UNv1.0.testset.tok.fr:/windroot/raj/corpora_downloads/UN_CORPUS/testsets/testset/UNv1.0.testset.tok.en es:en:/windroot/raj/corpora_downloads/UN_CORPUS/testsets/testset/UNv1.0.testset.tok.es:/windroot/raj/corpora_downloads/UN_CORPUS/testsets/testset/UNv1.0.testset.tok.en ru:en:/windroot/raj/corpora_downloads/UN_CORPUS/testsets/testset/UNv1.0.testset.tok.ru:/windroot/raj/corpora_downloads/UN_CORPUS/testsets/testset/UNv1.0.testset.tok.en --balance_vocab_counts --balance_corpora --save_prefix /windroot/raj/corpora_downloads/UN_CORPUS/ms6s/2M/3s1t/"$j"k --max_src_vocab "$j"000 --max_tgt_vocab "$j"000 --is_multisource
+python make_data.py /windroot/raj/corpora_downloads/UN_CORPUS/ms6s/2M/3s1t/"$j"k/mlnmt.train.src /windroot/raj/corpora_downloads/UN_CORPUS/ms6s/2M/3s1t/"$j"k/mlnmt.train.tgt /windroot/raj/corpora_downloads/UN_CORPUS/ms6s/2M/3s1t/"$j"k/mlnmt.basic --src_voc_size "$j"000 --tgt_voc_size "$j"000 --test_src /windroot/raj/corpora_downloads/UN_CORPUS/ms6s/2M/3s1t/"$j"k/mlnmt.test.src --test_tgt /windroot/raj/corpora_downloads/UN_CORPUS/ms6s/2M/3s1t/"$j"k/mlnmt.test.tgt --dev_src /windroot/raj/corpora_downloads/UN_CORPUS/ms6s/2M/3s1t/"$j"k/mlnmt.dev.src --dev_tgt /windroot/raj/corpora_downloads/UN_CORPUS/ms6s/2M/3s1t/"$j"k/mlnmt.dev.tgt
+done
+
+
+for j in 16
+do
+python train.py /windroot/raj/corpora_downloads/UN_CORPUS/ms6s/2M/3s1t/"$j"k/mlnmt.basic /windroot/raj/corpora_downloads/UN_CORPUS/ms6s/2M/3s1t/"$j"k/mlnmt.basic --gpu 1 --mb_size 16 --weight_decay 0.000001 --postprocess --max_nb_iters 600000 --max_src_tgt_len 350
+done
+
+
+langs=(fr es ru ar)
+for x in `seq 1 4`
+do
+i=$langs[$x]
+next=`echo $x+1 | bc`
+for y in `seq $next 4`
+do
+j=$langs[$y]
+nextnext=`echo $y+1 | bc`
+for z in `seq $nextnext 4`
+do
+k=$langs[$z]
+nextnextnext=`echo $z+1 | bc`
+echo $i $j $k
+for l in 16
+do
+mkdir -p /windroot/raj/corpora_downloads/UN_CORPUS/ms6s/2M/3s1t/"$i"-"$j"-"$k"/"$l"k/
+python generate_multilingual_bpe_data.py --train_lang_corpora_pairs "$i":en:/windroot/raj/corpora_downloads/UN_CORPUS/UNv1.0.6way."$i".2M.tok.txt:/windroot/raj/corpora_downloads/UN_CORPUS/UNv1.0.6way.en.2M.tok.txt "$j":en:/windroot/raj/corpora_downloads/UN_CORPUS/UNv1.0.6way."$j".2M.tok.txt:/windroot/raj/corpora_downloads/UN_CORPUS/UNv1.0.6way.en.2M.tok.txt "$k":en:/windroot/raj/corpora_downloads/UN_CORPUS/UNv1.0.6way."$k".2M.tok.txt:/windroot/raj/corpora_downloads/UN_CORPUS/UNv1.0.6way.en.2M.tok.txt --dev_lang_corpora_pairs "$i":en:/windroot/raj/corpora_downloads/UN_CORPUS/testsets/devset/UNv1.0.devset.tok."$i":/windroot/raj/corpora_downloads/UN_CORPUS/testsets/devset/UNv1.0.devset.tok.en "$j":en:/windroot/raj/corpora_downloads/UN_CORPUS/testsets/devset/UNv1.0.devset.tok."$j":/windroot/raj/corpora_downloads/UN_CORPUS/testsets/devset/UNv1.0.devset.tok.en "$k":en:/windroot/raj/corpora_downloads/UN_CORPUS/testsets/devset/UNv1.0.devset.tok."$k":/windroot/raj/corpora_downloads/UN_CORPUS/testsets/devset/UNv1.0.devset.tok.en --test_lang_corpora_pairs "$i":en:/windroot/raj/corpora_downloads/UN_CORPUS/testsets/testset/UNv1.0.testset.tok."$i":/windroot/raj/corpora_downloads/UN_CORPUS/testsets/testset/UNv1.0.testset.tok.en "$j":en:/windroot/raj/corpora_downloads/UN_CORPUS/testsets/testset/UNv1.0.testset.tok."$j":/windroot/raj/corpora_downloads/UN_CORPUS/testsets/testset/UNv1.0.testset.tok.en "$k":en:/windroot/raj/corpora_downloads/UN_CORPUS/testsets/testset/UNv1.0.testset.tok."$k":/windroot/raj/corpora_downloads/UN_CORPUS/testsets/testset/UNv1.0.testset.tok.en --balance_vocab_counts --balance_corpora --save_prefix /windroot/raj/corpora_downloads/UN_CORPUS/ms6s/2M/3s1t/"$i"-"$j"-"$k"/"$l"k --max_src_vocab "$l"000 --max_tgt_vocab "$l"000 --is_multisource
+python make_data.py /windroot/raj/corpora_downloads/UN_CORPUS/ms6s/2M/3s1t/"$i"-"$j"-"$k"/"$l"k/mlnmt.train.src /windroot/raj/corpora_downloads/UN_CORPUS/ms6s/2M/3s1t/"$i"-"$j"-"$k"/"$l"k/mlnmt.train.tgt /windroot/raj/corpora_downloads/UN_CORPUS/ms6s/2M/3s1t/"$i"-"$j"-"$k"/"$l"k/mlnmt.basic --src_voc_size "$l"000 --tgt_voc_size "$l"000 --test_src /windroot/raj/corpora_downloads/UN_CORPUS/ms6s/2M/3s1t/"$i"-"$j"-"$k"/"$l"k/mlnmt.test.src --test_tgt /windroot/raj/corpora_downloads/UN_CORPUS/ms6s/2M/3s1t/"$i"-"$j"-"$k"/"$l"k/mlnmt.test.tgt --dev_src /windroot/raj/corpora_downloads/UN_CORPUS/ms6s/2M/3s1t/"$i"-"$j"-"$k"/"$l"k/mlnmt.dev.src --dev_tgt /windroot/raj/corpora_downloads/UN_CORPUS/ms6s/2M/3s1t/"$i"-"$j"-"$k"/"$l"k/mlnmt.dev.tgt
+done
+done
+done
+done
+
+for j in 16
+do
+mkdir -p /windroot/raj/corpora_downloads/UN_CORPUS/ms6s/2M/4s1t/"$j"k/
+python generate_multilingual_bpe_data.py --train_lang_corpora_pairs fr:en:/windroot/raj/corpora_downloads/UN_CORPUS/UNv1.0.6way.fr.2M.tok.txt:/windroot/raj/corpora_downloads/UN_CORPUS/UNv1.0.6way.en.2M.tok.txt es:en:/windroot/raj/corpora_downloads/UN_CORPUS/UNv1.0.6way.es.2M.tok.txt:/windroot/raj/corpora_downloads/UN_CORPUS/UNv1.0.6way.en.2M.tok.txt ru:en:/windroot/raj/corpora_downloads/UN_CORPUS/UNv1.0.6way.ru.2M.tok.txt:/windroot/raj/corpora_downloads/UN_CORPUS/UNv1.0.6way.en.2M.tok.txt ar:en:/windroot/raj/corpora_downloads/UN_CORPUS/UNv1.0.6way.ar.2M.tok.txt:/windroot/raj/corpora_downloads/UN_CORPUS/UNv1.0.6way.en.2M.tok.txt --dev_lang_corpora_pairs fr:en:/windroot/raj/corpora_downloads/UN_CORPUS/testsets/devset/UNv1.0.devset.tok.fr:/windroot/raj/corpora_downloads/UN_CORPUS/testsets/devset/UNv1.0.devset.tok.en es:en:/windroot/raj/corpora_downloads/UN_CORPUS/testsets/devset/UNv1.0.devset.tok.es:/windroot/raj/corpora_downloads/UN_CORPUS/testsets/devset/UNv1.0.devset.tok.en ru:en:/windroot/raj/corpora_downloads/UN_CORPUS/testsets/devset/UNv1.0.devset.tok.ru:/windroot/raj/corpora_downloads/UN_CORPUS/testsets/devset/UNv1.0.devset.tok.en ar:en:/windroot/raj/corpora_downloads/UN_CORPUS/testsets/devset/UNv1.0.devset.tok.ar:/windroot/raj/corpora_downloads/UN_CORPUS/testsets/devset/UNv1.0.devset.tok.en --test_lang_corpora_pairs fr:en:/windroot/raj/corpora_downloads/UN_CORPUS/testsets/testset/UNv1.0.testset.tok.fr:/windroot/raj/corpora_downloads/UN_CORPUS/testsets/testset/UNv1.0.testset.tok.en es:en:/windroot/raj/corpora_downloads/UN_CORPUS/testsets/testset/UNv1.0.testset.tok.es:/windroot/raj/corpora_downloads/UN_CORPUS/testsets/testset/UNv1.0.testset.tok.en ru:en:/windroot/raj/corpora_downloads/UN_CORPUS/testsets/testset/UNv1.0.testset.tok.ru:/windroot/raj/corpora_downloads/UN_CORPUS/testsets/testset/UNv1.0.testset.tok.en ar:en:/windroot/raj/corpora_downloads/UN_CORPUS/testsets/testset/UNv1.0.testset.tok.ar:/windroot/raj/corpora_downloads/UN_CORPUS/testsets/testset/UNv1.0.testset.tok.en --balance_vocab_counts --balance_corpora --save_prefix /windroot/raj/corpora_downloads/UN_CORPUS/ms6s/2M/4s1t/"$j"k --max_src_vocab "$j"000 --max_tgt_vocab "$j"000 --is_multisource
+python make_data.py /windroot/raj/corpora_downloads/UN_CORPUS/ms6s/2M/4s1t/"$j"k/mlnmt.train.src /windroot/raj/corpora_downloads/UN_CORPUS/ms6s/2M/4s1t/"$j"k/mlnmt.train.tgt /windroot/raj/corpora_downloads/UN_CORPUS/ms6s/2M/4s1t/"$j"k/mlnmt.basic --src_voc_size "$j"000 --tgt_voc_size "$j"000 --test_src /windroot/raj/corpora_downloads/UN_CORPUS/ms6s/2M/4s1t/"$j"k/mlnmt.test.src --test_tgt /windroot/raj/corpora_downloads/UN_CORPUS/ms6s/2M/4s1t/"$j"k/mlnmt.test.tgt --dev_src /windroot/raj/corpora_downloads/UN_CORPUS/ms6s/2M/4s1t/"$j"k/mlnmt.dev.src --dev_tgt /windroot/raj/corpora_downloads/UN_CORPUS/ms6s/2M/4s1t/"$j"k/mlnmt.dev.tgt
+done
+
+for j in 16
+do
+python train.py /windroot/raj/corpora_downloads/UN_CORPUS/ms6s/2M/4s1t/"$j"k/mlnmt.basic /windroot/raj/corpora_downloads/UN_CORPUS/ms6s/2M/4s1t/"$j"k/mlnmt.basic --gpu 1 --mb_size 8 --weight_decay 0.000001 --postprocess --max_nb_iters 800000 --max_src_tgt_len 500
 done
 
 
