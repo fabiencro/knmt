@@ -214,7 +214,7 @@ def create_encdec_from_config(config_training):
     is_multitarget = config_training["is_multitarget"]
 
     if is_multitarget:
-        print "Multiple target languages"
+        print "Last state of backward encoder RNN is first state of decoder RNN."
 
     encoder_cell_type = config_training["command_line"].get("encoder_cell_type", "gru")
     decoder_cell_type = config_training["command_line"].get("decoder_cell_type", "gru")

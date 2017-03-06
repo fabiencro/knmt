@@ -258,6 +258,9 @@ python make_data.py /home/raj/softwares-and-scripts/NNProjects/knmt/nmt_chainer/
 python train.py /home/raj/softwares-and-scripts/NNProjects/knmt/nmt_chainer/5s5t_fewer/mlnmt.basic /home/raj/softwares-and-scripts/NNProjects/knmt/nmt_chainer/5s5t_fewer/mlnmt.basic --gpu 1 --mb_size 64 --weight_decay 0.000001 --is_multitarget --postprocess
 
 
+python eval.py /home/raj/softwares-and-scripts/NNProjects/knmt/nmt_chainer/5s5t_fewer/mlnmt.basic.train.config /home/raj/softwares-and-scripts/NNProjects/knmt/nmt_chainer/5s5t_fewer/mlnmt.basic.model.ckpt.npz /windroot/raj/parallel_corpora_normalized/general/hi-en/test.en /windroot/raj/parallel_corpora_normalized/general/hi-en/test.hi.paraphrase --mode eval_bleu --beam_width 4 --nb_steps_ratio 2 --ref /windroot/raj/parallel_corpora_normalized/general/hi-en/test.tgt.en --apply_preprocessing --apply_postprocessing --prepostprocessor /home/raj/softwares-and-scripts/NNProjects/knmt/nmt_chainer/5s5t_fewer/ --tgt_fn /windroot/raj/parallel_corpora_normalized/general/hi-en/test.tgt.en --gpu 2 --tgt_lang "en" --is_multitarget
+
+
 for i in en mr ta te
 do
 bash softwares-and-scripts/NNProjects/knmt/nmt_chainer/mr_gxp.sh /home/raj/softwares-and-scripts/NNProjects/knmt/nmt_chainer/1s1t_hi_"$i"_fewer/test_beam_12 /home/raj/softwares-and-scripts/NNProjects/knmt/nmt_chainer/1s1t_hi_"$i"_fewer/mlnmt.basic.train.config /home/raj/softwares-and-scripts/NNProjects/knmt/nmt_chainer/1s1t_hi_"$i"_fewer/mlnmt.basic.model.best.npz /home/raj/softwares-and-scripts/NNProjects/knmt/nmt_chainer/1s1t_hi_"$i"_fewer/mlnmt.test.src.raw /home/raj/softwares-and-scripts/NNProjects/knmt/nmt_chainer/1s1t_hi_"$i"_fewer/mlnmt.test.tgt.raw /home/raj/softwares-and-scripts/NNProjects/knmt/nmt_chainer/1s1t_hi_"$i"_fewer/ None 12 20
@@ -804,6 +807,8 @@ bash softwares-and-scripts/NNProjects/knmt/nmt_chainer/mr_gxp.sh /windroot/raj/c
 bash softwares-and-scripts/NNProjects/knmt/nmt_chainer/mr_gxp.sh /windroot/raj/corpora_downloads/IWSLT2016/2s2t_"$i"_en/en_"$i"_test_beam_12 /windroot/raj/corpora_downloads/IWSLT2016/2s2t_"$i"_en/mlnmt.basic.train.config /windroot/raj/corpora_downloads/IWSLT2016/2s2t_"$i"_en/mlnmt.basic.model.best.npz /windroot/raj/corpora_downloads/IWSLT2016/1s1t_en_"$i"/mlnmt.test.src.raw /windroot/raj/corpora_downloads/IWSLT2016/1s1t_en_"$i"/mlnmt.test.tgt.raw /windroot/raj/corpora_downloads/IWSLT2016/2s2t_"$i"_en/ $i 12 20
 done
 
+python eval.py /windroot/raj/corpora_downloads/IWSLT2016/2s2t_fr_en/mlnmt.basic.train.config /windroot/raj/corpora_downloads/IWSLT2016/2s2t_fr_en/mlnmt.basic.model.ckpt.npz /windroot/raj/corpora_downloads/IWSLT2016/en-fr/IWSLT16.TED.dev2010.en-fr.en.txt /windroot/raj/corpora_downloads/IWSLT2016/en-fr/IWSLT16.TED.dev2010.en-fr.en.txt.paraphrase --mode eval_bleu --beam_width 4 --nb_steps_ratio 2 --ref /windroot/raj/corpora_downloads/IWSLT2016/fr-en/IWSLT16.TED.dev2010.fr-en.en.txt --apply_preprocessing --apply_postprocessing --prepostprocessor /windroot/raj/corpora_downloads/IWSLT2016/2s2t_fr_en/ --tgt_fn /windroot/raj/corpora_downloads/IWSLT2016/fr-en/IWSLT16.TED.dev2010.fr-en.en.txt --gpu 2 --tgt_lang "en"
+
 ### 3 source 3 target
 
 
@@ -1103,6 +1108,8 @@ python make_data.py /loquat/raj/NNExperiments/DOMADAPT/zhen2s2t/mlnmt.train.src 
 
 python train.py /loquat/raj/NNExperiments/DOMADAPT/zhen2s2t/mlnmt.trial /loquat/raj/NNExperiments/DOMADAPT/zhen2s2t/mlnmt.trial --gpu 1 --optimizer adam --weight_decay 0.000001 --l2_gradient_clipping 1 --mb_size 64 --max_src_tgt_length 100 --encoder_cell_type lstm --decoder_cell_type lstm --postprocess
 
+
+python eval.py /loquat/raj/NNExperiments/DOMADAPT/zhen2s2t/mlnmt.trial.train.config /loquat/raj/NNExperiments/DOMADAPT/zhen2s2t/mlnmt.trial.model.ckpt.npz /loquat/raj/NNExperiments/DOMADAPT/zhen2s2t/en.src /loquat/raj/NNExperiments/DOMADAPT/zhen2s2t/en.src.paraphrase --mode eval_bleu --beam_width 4 --nb_steps_ratio 2 --ref /loquat/raj/NNExperiments/DOMADAPT/zhen2s2t/en.src --apply_preprocessing --apply_postprocessing --prepostprocessor /loquat/raj/NNExperiments/DOMADAPT/zhen2s2t/ --tgt_fn /loquat/raj/NNExperiments/DOMADAPT/zhen2s2t/en.src --gpu 2 --tgt_lang "en"
 
 ############## indian languages
 
