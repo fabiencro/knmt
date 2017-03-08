@@ -1,3 +1,4 @@
+""" Some utilities to leverage the argparse module and produce nicer config files."""
 
 from collections import OrderedDict
 import argparse
@@ -7,6 +8,10 @@ import sys
 from nmt_chainer.utilities import versioning_tools
 
 class OrderedNamespace(OrderedDict):
+    """A class that act as a configuration dictionnary.
+    Inherit from OrderedDict. When set to readonly mode, fields can be accessed by attributes:
+        config["name"] == config.name
+    """
     def __init__(self, *args, **kwargs):
         self.readonly = False
         super(OrderedNamespace, self).__init__(*args, **kwargs)
@@ -102,7 +107,17 @@ class OrderedNamespace(OrderedDict):
             metadata = self[keep_at_bottom]
             del self[keep_at_bottom]
             self[keep_at_bottom] = metadata
-                                 
+                  
+    def insert_section(self, name, content, even_if_readonly = False, keep_at_bottom = None, overwrite = False):
+        if self.readonly and not  even_if_readonly:
+            raise ValueError()
+        if name in self and not overwrite:
+            raise ValueError()
+        super(OrderedNamespace, self).__setitem__(name, content)
+        if keep_at_bottom is not None:
+            metadata = self[keep_at_bottom]
+            del self[keep_at_bottom]
+            super(OrderedNamespace, self).__setitem__(keep_at_bottom, metadata)
                           
     def add_metadata_infos(self, version_num, overwrite = False):
         if self.readonly:
@@ -126,6 +141,8 @@ class OrderedNamespace(OrderedDict):
         self["metadata"]["modified_time"] = datetime.datetime.now().strftime("%I:%M%p %B %d, %Y")
                                  
 class ParseOptionRecorder(object):
+    """ A class whose main role is to remember the order in which argparse options have been defined, and to which subparser they belong.
+    """
     def __init__(self, name = None, group_title_to_section = None, ignore_positional_arguments = set()):
         self.name = name
         self.argument_list = []
@@ -173,6 +190,7 @@ class ParseOptionRecorder(object):
     
 
 class ParserWithNoneDefaultAndNoGroup(object):
+    """ A class whose main role is to help determine which arguments have been set on the command line."""
     def __init__(self):
         self.parser = argparse.ArgumentParser()
          
@@ -202,6 +220,8 @@ class ParserWithNoneDefaultAndNoGroup(object):
         return args_given_set
     
 class ArgumentActionNotOverwriteWithNone(argparse.Action):
+    """An argparse action that will not overwrite a dest that is already set to a non-None value.
+    Useful for options that are set by multiple arguments"""
     def __call__(self, parser, namespace, values, option_string=None):
         if self.dest in namespace and getattr(namespace, self.dest) is not None and values is None:
             return
