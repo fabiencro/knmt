@@ -64,7 +64,7 @@ def define_parser(parser):
     management_group.add_argument("--server", help = "host:port for listening request")
     management_group.add_argument("--segmenter_command", help = "command to communicate with the segmenter server")
     management_group.add_argument("--segmenter_format", help = "format to expect from the segmenter (parse_server, morph)", default = 'plain')
-    
+    management_group.add_argument("--description", help = "Optional message to be stored in the configuration file")
     
 class CommandLineValuesException(Exception):
     pass
