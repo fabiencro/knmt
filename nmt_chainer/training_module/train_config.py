@@ -86,6 +86,7 @@ def define_parser(parser):
     training_monitoring_group.add_argument("--resume", default = False, action = "store_true", help = "resume training from checkpoint config")
     training_monitoring_group.add_argument("--timer_hook", default = False, action = "store_true", help = "activate timer hook for profiling")
     training_monitoring_group.add_argument("--force_overwrite", default = False, action = "store_true", help = "Do not ask before overwiting existing files")
+    training_monitoring_group.add_argument("--description", help = "Optional message to be stored in the configuration file")
 
 class CommandLineValuesException(Exception):
     pass
