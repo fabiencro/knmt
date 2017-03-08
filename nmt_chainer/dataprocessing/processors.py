@@ -703,6 +703,9 @@ class IndexingPrePostProcessorBase(MonoProcessor):
     class Stats(object):
         def make_report(self):
             return "nothing to report" 
+        
+        def report_as_obj(self):
+            return OrderedDict()
             
     def make_new_stat(self):
         return self.Stats()
@@ -827,6 +830,13 @@ class IndexingPrePostProcessor(IndexingPrePostProcessorBase):
                                                                        (self.unk_cnt * 100.0) / self.token if self.token != 0 else 0
                                                                        )
             return report
+        
+        def report_as_obj(self):
+            return OrderedDict([
+                ("nb_tokens", self.token),
+                 ("nb_unk", self.unk_cnt), 
+                 ("unknown_percent",  (self.unk_cnt * 100.0) / self.token if self.token != 0 else 0)
+                ])
         
     def initialize_swallow(self, iterable):
         log.info("building dic")
