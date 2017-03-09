@@ -209,7 +209,7 @@ class StackedCell(ChainList):
     
     
 class NStepsCell(Chain):
-    def __init__(self, in_size, out_size, nb_stacks, dropout):
+    def __init__(self, in_size, out_size, nb_stacks, dropout, **kwds):
         super(NStepsCell, self).__init__(
             nstep_lstm = L.NStepLSTM(nb_stacks, in_size, out_size, dropout)
             )
