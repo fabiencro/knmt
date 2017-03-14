@@ -86,7 +86,7 @@ class RichOutputWriter(object):
           
 
 
-def beam_search_all(gpu, encdec, eos_idx, src_data, beam_width, beam_pruning_margin, nb_steps, beam_opt, 
+def beam_search_all(gpu, encdec, eos_idx, src_data, beam_width, beam_pruning_margin, beam_score_coverage_penalty, beam_score_coverage_penalty_strength, nb_steps, beam_opt, 
        nb_steps_ratio, post_score_length_normalization, length_normalization_strength, 
        post_score_coverage_penalty, post_score_coverage_penalty_strength,
        groundhog,
@@ -101,7 +101,10 @@ def beam_search_all(gpu, encdec, eos_idx, src_data, beam_width, beam_pruning_mar
     with cuda.get_device(gpu):
         translations_gen = beam_search_translate(
                     encdec, eos_idx, src_data, beam_width = beam_width, nb_steps = nb_steps, 
-                                    gpu = gpu, beam_opt = beam_opt, beam_pruning_margin = beam_pruning_margin, nb_steps_ratio = nb_steps_ratio,
+                                    gpu = gpu, beam_opt = beam_opt, beam_pruning_margin = beam_pruning_margin, 
+                                    beam_score_coverage_penalty = beam_score_coverage_penalty, 
+                                    beam_score_coverage_penalty_strength = beam_score_coverage_penalty_strength,
+                                    nb_steps_ratio = nb_steps_ratio,
                                     need_attention = True, post_score_length_normalization = post_score_length_normalization,
                                     length_normalization_strength = length_normalization_strength,
                                     post_score_coverage_penalty = post_score_coverage_penalty,
@@ -138,7 +141,7 @@ def beam_search_all(gpu, encdec, eos_idx, src_data, beam_width, beam_pruning_mar
             yield src_data[num_t], translated, t, score, attn 
         print >>sys.stderr
 
-def translate_to_file_with_beam_search(dest_fn, gpu, encdec, eos_idx, src_data, beam_width, beam_pruning_margin, nb_steps, beam_opt, 
+def translate_to_file_with_beam_search(dest_fn, gpu, encdec, eos_idx, src_data, beam_width, beam_pruning_margin, beam_score_coverage_penalty, beam_score_coverage_penalty_strength, nb_steps, beam_opt, 
        nb_steps_ratio, post_score_length_normalization, length_normalization_strength, 
        post_score_coverage_penalty, post_score_coverage_penalty_strength,
        groundhog,
@@ -150,7 +153,7 @@ def translate_to_file_with_beam_search(dest_fn, gpu, encdec, eos_idx, src_data, 
     log.info("writing translation to %s "% dest_fn)
     out = codecs.open(dest_fn, "w", encoding = "utf8")
     
-    translation_iterator = beam_search_all(gpu, encdec, eos_idx, src_data, beam_width, beam_pruning_margin, nb_steps, beam_opt, 
+    translation_iterator = beam_search_all(gpu, encdec, eos_idx, src_data, beam_width, beam_pruning_margin, beam_score_coverage_penalty, beam_score_coverage_penalty_strength, nb_steps, beam_opt, 
        nb_steps_ratio, post_score_length_normalization, length_normalization_strength, 
        post_score_coverage_penalty, post_score_coverage_penalty_strength,
        groundhog,
@@ -282,6 +285,8 @@ def define_parser(parser):
     parser.add_argument("--mb_size", type = int, default= 80, help = "Minibatch size")
     parser.add_argument("--beam_width", type = int, default= 20, help = "beam width")
     parser.add_argument("--beam_pruning_margin", type = float, default= None, help = "beam pruning margin")
+    parser.add_argument("--beam_score_coverage_penalty", choices = ['none', 'google'], default = 'none')
+    parser.add_argument("--beam_score_coverage_penalty_strength", type = float, default = 0.2)
     parser.add_argument("--nb_steps", type = int, default= 50, help = "nb_steps used in generation")
     parser.add_argument("--nb_steps_ratio", type = float, help = "nb_steps used in generation as a ratio of input length")
     parser.add_argument("--nb_batch_to_sort", type = int, default= 20, help = "Sort this many batches by size.")
@@ -416,6 +421,7 @@ def do_eval(args):
 
     elif args.mode == "beam_search":
         translate_to_file_with_beam_search(args.dest_fn, args.gpu, encdec_list, eos_idx, src_data, args.beam_width, args.beam_pruning_margin,
+                                           args.beam_score_coverage_penalty, args.beam_score_coverage_penalty_strength,
                                            args.nb_steps, args.beam_opt, 
                                            args.nb_steps_ratio, args.post_score_length_normalization, args.length_normalization_strength,
                                            args.post_score_coverage_penalty, args.post_score_coverage_penalty_strength,
@@ -431,6 +437,7 @@ def do_eval(args):
     elif args.mode == "eval_bleu":
 #         assert args.ref is not None
         translate_to_file_with_beam_search(args.dest_fn, args.gpu, encdec_list, eos_idx, src_data, args.beam_width, args.beam_pruning_margin,
+                                           args.beam_score_coverage_penalty, args.beam_score_coverage_penalty_strength,
                                            args.nb_steps, args.beam_opt, 
                                            args.nb_steps_ratio, args.post_score_length_normalization, args.length_normalization_strength,
                                            args.post_score_coverage_penalty, args.post_score_coverage_penalty_strength,

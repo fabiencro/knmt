@@ -57,8 +57,8 @@ def iterate_eos_scores(new_scores, eos_idx):
 
 def update_next_lists(num_case, idx_in_case, new_cost, eos_idx, new_state_ensemble, finished_translations, current_translations, 
                       current_attentions,
-           next_states_list, next_words_list, next_score_list, next_translations_list, 
-           attn_ensemble, next_attentions_list, need_attention = False):
+           next_states_list, next_words_list, next_score_list, next_normalized_score_list, next_translations_list, 
+           attn_ensemble, next_attentions_list, beam_score_coverage_penalty, beam_score_coverage_penalty_strength, need_attention = False):
     """
     Updates the lists containing the infos on translations in current beam
     
@@ -109,6 +109,17 @@ def update_next_lists(num_case, idx_in_case, new_cost, eos_idx, new_state_ensemb
         
         next_words_list.append(idx_in_case)
         next_score_list.append(-new_cost)
+
+        # Compute the normalized score if needed.
+        if beam_score_coverage_penalty == "google":
+            coverage_penalty = 0
+            if len(current_attentions[num_case]) > 0:
+                xp = cuda.get_array_module(attn_ensemble[0].data)
+                log_of_min_of_sum_over_j = xp.log(xp.minimum(sum(current_attentions[num_case]), xp.array(1.0)))
+                coverage_penalty = beam_score_coverage_penalty_strength * xp.sum(log_of_min_of_sum_over_j)
+            normalized_score = -new_cost + coverage_penalty
+            next_normalized_score_list.append(normalized_score)
+
         next_translations_list.append(current_translations[num_case] + [idx_in_case])
         if need_attention:
             xp = cuda.get_array_module(attn_ensemble[0].data)
@@ -118,7 +129,8 @@ def update_next_lists(num_case, idx_in_case, new_cost, eos_idx, new_state_ensemb
             attn_summed /= len(attn_ensemble)
             next_attentions_list.append(current_attentions[num_case] + [attn_summed])
             
-def compute_next_lists(new_state_ensemble, new_scores, beam_width, beam_pruning_margin, eos_idx, 
+def compute_next_lists(new_state_ensemble, new_scores, beam_width, beam_pruning_margin, 
+                       beam_score_coverage_penalty, beam_score_coverage_penalty_strength, eos_idx, 
                        current_translations, 
                        finished_translations, 
                        current_attentions, 
@@ -155,9 +167,10 @@ def compute_next_lists(new_state_ensemble, new_scores, beam_width, beam_pruning_
     next_states_list = [] # each item is a list of list
     next_words_list = []
     next_score_list = []
+    next_normalized_score_list = []
     next_translations_list = []
     next_attentions_list = []
-    
+
     if force_finish:
         score_iterator = iterate_eos_scores(new_scores, eos_idx)
     else:
@@ -166,8 +179,8 @@ def compute_next_lists(new_state_ensemble, new_scores, beam_width, beam_pruning_
     for num_case, idx_in_case, new_cost in score_iterator:
         update_next_lists(num_case, idx_in_case, new_cost, eos_idx, new_state_ensemble, 
                           finished_translations, current_translations, current_attentions,
-           next_states_list, next_words_list, next_score_list, next_translations_list, 
-           attn_ensemble, next_attentions_list, need_attention = need_attention)
+           next_states_list, next_words_list, next_score_list, next_normalized_score_list, next_translations_list, 
+           attn_ensemble, next_attentions_list, beam_score_coverage_penalty, beam_score_coverage_penalty_strength, need_attention = need_attention)
         assert len(next_states_list) <= beam_width
 #             if len(next_states_list) >= beam_width:
 #                 break
@@ -176,12 +189,26 @@ def compute_next_lists(new_state_ensemble, new_scores, beam_width, beam_pruning_
     if (beam_pruning_margin is not None and next_score_list):
         best_next_score = max(next_score_list)
         bad_score_indices = [idx for idx, elem in enumerate(next_score_list) if (best_next_score - elem > beam_pruning_margin)]
-        wc = len(next_words_list)
 
         for i in bad_score_indices[::-1]:
             del next_states_list[i]
             del next_words_list[i]
             del next_score_list[i]
+            del next_translations_list[i]
+            del next_attentions_list[i]
+            if beam_score_coverage_penalty == "google":
+                del next_normalized_score_list[i]
+
+    # Prune items that have a normalized score worse than beam_pruning_margin below the best normalized score.
+    if (beam_score_coverage_penalty == "google" and beam_pruning_margin is not None and next_normalized_score_list):
+        best_next_normalized_score = max(next_normalized_score_list)
+        bad_score_indices = [idx for idx, elem in enumerate(next_normalized_score_list) if (best_next_normalized_score - elem > beam_pruning_margin)]
+
+        for i in bad_score_indices[::-1]:
+            del next_states_list[i]
+            del next_words_list[i]
+            del next_score_list[i]
+            del next_normalized_score_list[i]
             del next_translations_list[i]
             del next_attentions_list[i]
 
@@ -238,7 +265,8 @@ def compute_next_states_and_scores(dec_cell_ensemble, current_states_ensemble, c
         
     return combined_scores, new_state_ensemble, attn_ensemble
     
-def advance_one_step(dec_cell_ensemble, eos_idx, current_translations_states, beam_width, beam_pruning_margin, finished_translations,
+def advance_one_step(dec_cell_ensemble, eos_idx, current_translations_states, beam_width, beam_pruning_margin, 
+                     beam_score_coverage_penalty, beam_score_coverage_penalty_strength, finished_translations,
                      force_finish = False, need_attention = False,
                      prob_space_combination = False):
     """
@@ -288,7 +316,7 @@ def advance_one_step(dec_cell_ensemble, eos_idx, current_translations_states, be
     
     # Compute the list of new translation states after pruning
     next_states_list, next_words_list, next_score_list, next_translations_list, next_attentions_list = compute_next_lists(
-                new_state_ensemble, new_scores, beam_width, beam_pruning_margin, eos_idx, 
+                new_state_ensemble, new_scores, beam_width, beam_pruning_margin, beam_score_coverage_penalty, beam_score_coverage_penalty_strength, eos_idx, 
                 current_translations, finished_translations, 
                 current_attentions, attn_ensemble, force_finish = force_finish, need_attention = need_attention)
 
@@ -318,6 +346,7 @@ def advance_one_step(dec_cell_ensemble, eos_idx, current_translations_states, be
 
 def ensemble_beam_search(model_ensemble, src_batch, src_mask, nb_steps, eos_idx, 
                          beam_width = 20, beam_pruning_margin = None, 
+                         beam_score_coverage_penalty = None, beam_score_coverage_penalty_strength = 0.2,
                          need_attention = False,
                          force_finish = False,
                          prob_space_combination = False, use_unfinished_translation_if_none_found = False):
@@ -381,6 +410,8 @@ def ensemble_beam_search(model_ensemble, src_batch, src_mask, nb_steps, eos_idx,
                             current_translations_states, 
                             beam_width, 
                             beam_pruning_margin,
+                            beam_score_coverage_penalty,
+                            beam_score_coverage_penalty_strength,
                             finished_translations,
                             force_finish = force_finish and num_step == (nb_steps -1),
                             need_attention = need_attention,
