@@ -46,7 +46,7 @@ class Translator:
             
         self.encdec_list = [self.encdec]
         
-    def translate(self, sentence, beam_width, beam_pruning_margin, nb_steps, nb_steps_ratio, 
+    def translate(self, sentence, beam_width, beam_pruning_margin, beam_score_coverage_penalty, beam_score_coverage_penalty_strength, nb_steps, nb_steps_ratio, 
                   remove_unk, normalize_unicode_unk, attempt_to_relocate_unk_source, post_score_length_normalization, length_normalization_strength, 
                   post_score_coverage_penalty, post_score_coverage_penalty_strength,
                   groundhog, force_finish, prob_space_combination, attn_graph_width, attn_graph_height):
@@ -71,7 +71,10 @@ class Translator:
             src_data, stats_src_pp = build_dataset_one_side_pp(src_file.name, self.src_indexer, max_nb_ex = self.config_server.process.max_nb_ex)
 
             from nmt_chainer.translation.eval import translate_to_file_with_beam_search
-            translate_to_file_with_beam_search(dest_file.name, self.config_server.process.gpu, self.encdec, self.eos_idx, src_data, beam_width, beam_pruning_margin, nb_steps, 
+            translate_to_file_with_beam_search(dest_file.name, self.config_server.process.gpu, self.encdec, self.eos_idx, src_data, beam_width, beam_pruning_margin, 
+                   beam_score_coverage_penalty,
+                   beam_score_coverage_penalty_strength,
+                   nb_steps, 
                    nb_steps_ratio, post_score_length_normalization, length_normalization_strength, 
                    post_score_coverage_penalty, post_score_coverage_penalty_strength,
                    groundhog,
@@ -135,6 +138,12 @@ class RequestHandler(SocketServer.BaseRequestHandler):
                 beam_pruning_margin = None
                 try:
                     beam_pruning_margin = float(root.get('beam_pruning_margin'))
+                except:
+                    pass
+                beam_score_coverage_penalty = root.get('beam_score_coverage_penalty', 'none')
+                beam_score_coverage_penalty_strength = None
+                try:
+                    beam_score_coverage_penalty_strength = float(root.get('beam_score_coverage_penalty_strength', 0.2))
                 except:
                     pass
                 nb_steps_ratio = None
@@ -208,7 +217,7 @@ class RequestHandler(SocketServer.BaseRequestHandler):
                     log.info(timestamped_msg("Translating sentence %d" % idx))
                     decoded_sentence = splitted_sentence.decode('utf-8')
                     translation, script, div, unk_mapping = self.server.translator.translate(decoded_sentence,
-                        beam_width, beam_pruning_margin, nb_steps, nb_steps_ratio, remove_unk, normalize_unicode_unk, attempt_to_relocate_unk_source,
+                        beam_width, beam_pruning_margin, beam_score_coverage_penalty, beam_score_coverage_penalty_strength, nb_steps, nb_steps_ratio, remove_unk, normalize_unicode_unk, attempt_to_relocate_unk_source,
                         post_score_length_normalization, length_normalization_strength, post_score_coverage_penalty, post_score_coverage_penalty_strength, 
                         groundhog, force_finish, prob_space_combination, attn_graph_width, attn_graph_height)
                     out += translation
