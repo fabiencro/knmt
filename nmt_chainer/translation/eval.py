@@ -447,6 +447,7 @@ def do_eval(config_eval):
         translate_to_file_with_beam_search(dest_fn, gpu, encdec_list, eos_idx, src_data, 
                                            beam_width = beam_width, 
                                            beam_pruning_margin = beam_pruning_margin,
+                                           beam_score_coverage_penalty = beam_score_coverage_penalty, beam_score_coverage_penalty_strength = beam_score_coverage_penalty_strength,
                                            nb_steps = nb_steps,
                                            nb_steps_ratio = nb_steps_ratio,
                                            post_score_length_normalization = post_score_length_normalization,
