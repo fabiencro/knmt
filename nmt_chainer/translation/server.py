@@ -165,11 +165,6 @@ class RequestHandler(SocketServer.BaseRequestHandler):
                     post_score_coverage_penalty_strength = float(root.get('post_score_coverage_penalty_strength', 0.2))
                 except:
                     pass
-
-                print("beam_score_length_normalization={0} beam_score_length_normalization_strength={1}".format(beam_score_length_normalization, beam_score_length_normalization_strength))
-                print("post_score_length_normalization={0} post_score_length_normalization_strength={1}".format(post_score_length_normalization, post_score_length_normalization_strength))
-                print("post_score_coverage_penalty={0} post_score_coverage_penalty_strength={1}".format(post_score_coverage_penalty, post_score_coverage_penalty_strength))
-
                 prob_space_combination = ('true' == root.get('prob_space_combination', 'false'))
                 remove_unk = ('true' == root.get('remove_unk', 'false'))
                 normalize_unicode_unk = ('true' == root.get('normalize_unicode_unk', 'true'))
