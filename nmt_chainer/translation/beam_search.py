@@ -134,7 +134,7 @@ def compute_next_lists(new_state_ensemble, new_scores, beam_width, beam_pruning_
                        beam_score_coverage_penalty, beam_score_coverage_penalty_strength, 
                        eos_idx, 
                        current_translations,
-                       finished_translation,
+                       finished_translations,
                        current_attentions, 
                        attn_ensemble, 
                        force_finish = False, 
