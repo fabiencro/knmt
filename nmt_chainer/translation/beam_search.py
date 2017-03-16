@@ -129,10 +129,12 @@ def update_next_lists(num_case, idx_in_case, new_cost, eos_idx, new_state_ensemb
             attn_summed /= len(attn_ensemble)
             next_attentions_list.append(current_attentions[num_case] + [attn_summed])
             
-def compute_next_lists(new_state_ensemble, new_scores, beam_width, beam_pruning_margin, 
-                       beam_score_coverage_penalty, beam_score_coverage_penalty_strength, eos_idx, 
-                       current_translations, 
-                       finished_translations, 
+def compute_next_lists(new_state_ensemble, new_scores, beam_width, beam_pruning_margin,
+                       beam_score_length_normalization, beam_score_length_normalization_strength,
+                       beam_score_coverage_penalty, beam_score_coverage_penalty_strength, 
+                       eos_idx, 
+                       current_translations,
+                       finished_translations,
                        current_attentions, 
                        attn_ensemble, 
                        force_finish = False, 
@@ -177,6 +179,11 @@ def compute_next_lists(new_state_ensemble, new_scores, beam_width, beam_pruning_
         score_iterator = iterate_best_score(new_scores, beam_width)
         
     for num_case, idx_in_case, new_cost in score_iterator:
+        if len(current_translations[num_case]) > 0:
+            if beam_score_length_normalization == 'simple':
+                new_cost /= len(current_translations[num_case])
+            elif beam_score_length_normalization == 'google':
+                new_cost /= ( pow((len(current_translations[num_case])+5), beam_score_length_normalization_strength) / pow(6, beam_score_length_normalization_strength) )
         update_next_lists(num_case, idx_in_case, new_cost, eos_idx, new_state_ensemble, 
                           finished_translations, current_translations, current_attentions,
            next_states_list, next_words_list, next_score_list, next_normalized_score_list, next_translations_list, 
@@ -267,7 +274,11 @@ def compute_next_states_and_scores(dec_cell_ensemble, current_states_ensemble, c
     return combined_scores, new_state_ensemble, attn_ensemble
     
 def advance_one_step(dec_cell_ensemble, eos_idx, current_translations_states, beam_width, beam_pruning_margin, 
-                     beam_score_coverage_penalty, beam_score_coverage_penalty_strength, finished_translations,
+                     beam_score_length_normalization,
+                     beam_score_length_normalization_strength,
+                     beam_score_coverage_penalty, 
+                     beam_score_coverage_penalty_strength, 
+                     finished_translations,
                      force_finish = False, need_attention = False,
                      prob_space_combination = False):
     """
@@ -317,7 +328,10 @@ def advance_one_step(dec_cell_ensemble, eos_idx, current_translations_states, be
     
     # Compute the list of new translation states after pruning
     next_states_list, next_words_list, next_score_list, next_translations_list, next_attentions_list = compute_next_lists(
-                new_state_ensemble, new_scores, beam_width, beam_pruning_margin, beam_score_coverage_penalty, beam_score_coverage_penalty_strength, eos_idx, 
+                new_state_ensemble, new_scores, beam_width, beam_pruning_margin,
+                beam_score_length_normalization, beam_score_length_normalization_strength,
+                beam_score_coverage_penalty, beam_score_coverage_penalty_strength, 
+                eos_idx,
                 current_translations, finished_translations, 
                 current_attentions, attn_ensemble, force_finish = force_finish, need_attention = need_attention)
 
@@ -347,7 +361,10 @@ def advance_one_step(dec_cell_ensemble, eos_idx, current_translations_states, be
 
 def ensemble_beam_search(model_ensemble, src_batch, src_mask, nb_steps, eos_idx, 
                          beam_width = 20, beam_pruning_margin = None, 
-                         beam_score_coverage_penalty = None, beam_score_coverage_penalty_strength = 0.2,
+                         beam_score_length_normalization = None,
+                         beam_score_length_normalization_strength = 0.2,
+                         beam_score_coverage_penalty = None, 
+                         beam_score_coverage_penalty_strength = 0.2,
                          need_attention = False,
                          force_finish = False,
                          prob_space_combination = False, use_unfinished_translation_if_none_found = False):
@@ -411,6 +428,8 @@ def ensemble_beam_search(model_ensemble, src_batch, src_mask, nb_steps, eos_idx,
                             current_translations_states, 
                             beam_width, 
                             beam_pruning_margin,
+                            beam_score_length_normalization,
+                            beam_score_length_normalization_strength,
                             beam_score_coverage_penalty,
                             beam_score_coverage_penalty_strength,
                             finished_translations,

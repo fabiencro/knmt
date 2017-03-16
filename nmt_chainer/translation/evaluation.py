@@ -138,7 +138,7 @@ def reverse_rescore(encdec, src_batch, src_mask, eos_idx, translations, gpu = No
      
 def beam_search_translate(encdec, eos_idx, src_data, beam_width = 20, beam_pruning_margin = None, nb_steps = 50, gpu = None,
                           beam_score_coverage_penalty = None, beam_score_coverage_penalty_strength = 0.2,
-                          need_attention = False, nb_steps_ratio = None, post_score_length_normalization = 'simple', length_normalization_strength = 0.2,  
+                          need_attention = False, nb_steps_ratio = None, beam_score_length_normalization = 'none', beam_score_length_normalization_strength = 0.2, post_score_length_normalization = 'simple', post_score_length_normalization_strength = 0.2,  
                           post_score_coverage_penalty = 'none', post_score_coverage_penalty_strength = 0.2,
                           groundhog = False, force_finish = False,
                           prob_space_combination = False,
@@ -165,6 +165,8 @@ def beam_search_translate(encdec, eos_idx, src_data, beam_width = 20, beam_pruni
         translations = beam_search.ensemble_beam_search(encdec, src_batch, src_mask, nb_steps = nb_steps, eos_idx = eos_idx, 
                                           beam_width = beam_width,
                                           beam_pruning_margin = beam_pruning_margin,
+                                          beam_score_length_normalization = beam_score_length_normalization,
+                                          beam_score_length_normalization_strength = beam_score_length_normalization_strength,
                                           beam_score_coverage_penalty = beam_score_coverage_penalty,
                                           beam_score_coverage_penalty_strength = beam_score_coverage_penalty_strength,
                                           need_attention = need_attention, force_finish = force_finish,
@@ -200,7 +202,7 @@ def beam_search_translate(encdec, eos_idx, src_data, beam_width = 20, beam_pruni
                 if post_score_length_normalization == 'simple':
                     length_normalization = len(x[0])+1
                 elif post_score_length_normalization == 'google':
-                    length_normalization = pow((len(x[0])+5), length_normalization_strength) / pow(6, length_normalization_strength)
+                    length_normalization = pow((len(x[0])+5), post_score_length_normalization_strength) / pow(6, post_score_length_normalization_strength)
 
                 coverage_penalty = 0
                 if post_score_coverage_penalty == 'google':
