@@ -12,7 +12,7 @@
   "beam_opt": false,
   "force_finish": false,
   "max_nb_ex": null,
-  "length_normalization_strength": 0.2,
+  "post_score_length_normalization_strength": 0.2,
   "post_score_length_normalization": "simple",
   "generate_attention_html": null,
   "__subcommand_name": "eval",

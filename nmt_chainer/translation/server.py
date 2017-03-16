@@ -15,7 +15,6 @@ import sys
 import tempfile
 
 from nmt_chainer.dataprocessing.processors import build_dataset_one_side_pp
-from nmt_chainer.translation.evaluation import beam_search_translate
 import nmt_chainer.translation.eval
 from nmt_chainer.translation.server_arg_parsing import make_config_server
 
@@ -47,7 +46,7 @@ class Translator:
         self.encdec_list = [self.encdec]
         
     def translate(self, sentence, beam_width, beam_pruning_margin, nb_steps, nb_steps_ratio, 
-                  remove_unk, normalize_unicode_unk, attempt_to_relocate_unk_source, post_score_length_normalization, length_normalization_strength, 
+                  remove_unk, normalize_unicode_unk, attempt_to_relocate_unk_source, beam_score_length_normalization, beam_score_length_normalization_strength, post_score_length_normalization, post_score_length_normalization_strength, 
                   post_score_coverage_penalty, post_score_coverage_penalty_strength,
                   groundhog, force_finish, prob_space_combination, attn_graph_width, attn_graph_height):
         from nmt_chainer.utilities import visualisation
@@ -72,10 +71,14 @@ class Translator:
 
             from nmt_chainer.translation.eval import translate_to_file_with_beam_search
             translate_to_file_with_beam_search(dest_file.name, self.config_server.process.gpu, self.encdec, self.eos_idx, src_data, beam_width, beam_pruning_margin, nb_steps, 
-                   nb_steps_ratio, post_score_length_normalization, length_normalization_strength, 
-                   post_score_coverage_penalty, post_score_coverage_penalty_strength,
-                   groundhog,
-                   self.config_server.output.tgt_unk_id, self.tgt_indexer, force_finish = force_finish,
+                   nb_steps_ratio, 
+                   beam_score_length_normalization = beam_score_length_normalization,
+                   beam_score_length_normalization_strength = beam_score_length_normalization_strength, 
+                   post_score_length_normalization = post_score_length_normalization, 
+                   post_score_length_normalization_strength = post_score_length_normalization_strength, 
+                   post_score_coverage_penalty = post_score_coverage_penalty, post_score_coverage_penalty_strength = post_score_coverage_penalty_strength,
+                   groundhog = groundhog,
+                   tgt_unk_id = self.config_server.output.tgt_unk_id, tgt_indexer = self.tgt_indexer, force_finish = force_finish,
                    prob_space_combination = prob_space_combination, reverse_encdec = self.reverse_encdec, 
                    generate_attention_html = (attn_graph_script_file.name, attn_graph_div_file.name), 
                    attn_graph_with_sum = False,
@@ -144,10 +147,16 @@ class RequestHandler(SocketServer.BaseRequestHandler):
                     pass
                 groundhog = ('true' == root.get('groundhog', 'false'))
                 force_finish = ('true' == root.get('force_finish', 'false'))
-                post_score_length_normalization = root.get('post_score_length_normalization', 'simple')
-                length_normalization_strength = None
+                beam_score_length_normalization = root.get('beam_score_length_normalization', 'none')
+                beam_score_length_normalization_strength = None
                 try:
-                    length_normalization_strength = float(root.get('length_normalization_strength', 0.2))
+                    beam_score_length_normalization_strength = float(root.get('beam_score_length_normalization_strength', 0.2))
+                except:
+                    pass
+                post_score_length_normalization = root.get('post_score_length_normalization', 'simple')
+                post_score_length_normalization_strength = None
+                try:
+                    post_score_length_normalization_strength = float(root.get('post_score_length_normalization_strength', 0.2))
                 except:
                     pass
                 post_score_coverage_penalty = root.get('post_score_coverage_penalty', 'none')
@@ -156,6 +165,11 @@ class RequestHandler(SocketServer.BaseRequestHandler):
                     post_score_coverage_penalty_strength = float(root.get('post_score_coverage_penalty_strength', 0.2))
                 except:
                     pass
+
+                print("beam_score_length_normalization={0} beam_score_length_normalization_strength={1}".format(beam_score_length_normalization, beam_score_length_normalization_strength))
+                print("post_score_length_normalization={0} post_score_length_normalization_strength={1}".format(post_score_length_normalization, post_score_length_normalization_strength))
+                print("post_score_coverage_penalty={0} post_score_coverage_penalty_strength={1}".format(post_score_coverage_penalty, post_score_coverage_penalty_strength))
+
                 prob_space_combination = ('true' == root.get('prob_space_combination', 'false'))
                 remove_unk = ('true' == root.get('remove_unk', 'false'))
                 normalize_unicode_unk = ('true' == root.get('normalize_unicode_unk', 'true'))
@@ -209,7 +223,8 @@ class RequestHandler(SocketServer.BaseRequestHandler):
                     decoded_sentence = splitted_sentence.decode('utf-8')
                     translation, script, div, unk_mapping = self.server.translator.translate(decoded_sentence,
                         beam_width, beam_pruning_margin, nb_steps, nb_steps_ratio, remove_unk, normalize_unicode_unk, attempt_to_relocate_unk_source,
-                        post_score_length_normalization, length_normalization_strength, post_score_coverage_penalty, post_score_coverage_penalty_strength, 
+                        beam_score_length_normalization, beam_score_length_normalization_strength,
+                        post_score_length_normalization, post_score_length_normalization_strength, post_score_coverage_penalty, post_score_coverage_penalty_strength, 
                         groundhog, force_finish, prob_space_combination, attn_graph_width, attn_graph_height)
                     out += translation
                     segmented_input.append(splitted_sentence)
