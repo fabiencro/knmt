@@ -164,11 +164,11 @@ def compute_next_lists(new_state_ensemble, new_scores, beam_width, beam_pruning_
         score_iterator = iterate_best_score(new_scores, beam_width)
         
     for num_case, idx_in_case, new_cost in score_iterator:
-        if len(finished_translations) > 0:
+        if len(current_translations[num_case]) > 0:
             if beam_score_length_normalization == 'simple':
-                new_cost /= len(finished_translations)
+                new_cost /= len(current_translations[num_case])
             elif beam_score_length_normalization == 'google':
-                new_cost /= ( pow((len(finished_translations)+5), beam_score_length_normalization_strength) / pow(6, beam_score_length_normalization_strength) )
+                new_cost /= ( pow((len(current_translations[num_case])+5), beam_score_length_normalization_strength) / pow(6, beam_score_length_normalization_strength) )
         update_next_lists(num_case, idx_in_case, new_cost, eos_idx, new_state_ensemble, 
                           finished_translations, current_translations, current_attentions,
            next_states_list, next_words_list, next_score_list, next_translations_list, 
