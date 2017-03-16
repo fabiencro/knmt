@@ -12,9 +12,10 @@ try:
     from chainer.functions.math.matmul import _batch_matmul_gpu
 except ImportError:
     def _batch_matmul_gpu(*args, **kwds):
-        #TO DO: fix this for recent chainer
+        # TO DO: fix this for recent chainer
         print "Sorry, use of lexical probabilities is broken with this version of chainer"
         raise NotImplemented
+
 
 class MatMulConstant(function.Function):
 
@@ -65,6 +66,7 @@ def matmul_constant(a, b, transa=False, transb=False):
     """
     return MatMulConstant(b, transa=transa, transb=transb)(a)
 
+
 class BatchMatMulConstant(function.Function):
     def __init__(self, b, transa=False, transb=False):
         self.transa = transa
@@ -83,8 +85,8 @@ class BatchMatMulConstant(function.Function):
 
         type_check.expect(
             a_type.dtype == numpy.float32
-#             ,
-#             self.b.dtype == numpy.float32
+            #             ,
+            #             self.b.dtype == numpy.float32
         )
 
         _check_ndim(a_type, lower=2, upper=3)

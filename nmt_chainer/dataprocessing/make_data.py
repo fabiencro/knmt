@@ -23,9 +23,10 @@ logging.basicConfig()
 log = logging.getLogger("rnns:make_data")
 log.setLevel(logging.INFO)
 
+
 def do_make_data(config):
-#     raw_input("Press Enter to Continue 222")
-    
+    #     raw_input("Press Enter to Continue 222")
+
     save_prefix_dir, save_prefix_fn = os.path.split(config.data.save_prefix)
     ensure_path(save_prefix_dir)
 
@@ -36,27 +37,27 @@ def do_make_data(config):
 
 #     voc_fn_src = config.save_prefix + ".src.voc"
 #     voc_fn_tgt = config.save_prefix + ".tgt.voc"
-    
+
     files_that_will_be_created = [config_fn, voc_fn, data_fn]
-    
+
     if config.processing.bpe_src is not None:
         bpe_data_file_src = config.data.save_prefix + ".src.bpe"
         files_that_will_be_created.append(bpe_data_file_src)
-    
+
     if config.processing.bpe_tgt is not None:
         bpe_data_file_tgt = config.data.save_prefix + ".tgt.bpe"
         files_that_will_be_created.append(bpe_data_file_tgt)
-    
+
     if config.processing.joint_bpe is not None:
         bpe_data_file_joint = config.data.save_prefix + ".joint.bpe"
-        files_that_will_be_created.append(bpe_data_file_joint)    
-    
+        files_that_will_be_created.append(bpe_data_file_joint)
+
     already_existing_files = []
     for filename in files_that_will_be_created:  # , valid_data_fn]:
         if os.path.exists(filename):
             already_existing_files.append(filename)
     if len(already_existing_files) > 0:
-        print "Warning: existing files are going to be replaced: ",  already_existing_files
+        print "Warning: existing files are going to be replaced: ", already_existing_files
         raw_input("Press Enter to Continue")
 
     if config.processing.use_voc is not None:
@@ -66,35 +67,52 @@ def do_make_data(config):
 #         tgt_pp = IndexingPrePostProcessor.make_from_serializable(tgt_voc)
         bi_idx = processors.load_pp_pair_from_file(config.processing.use_voc)
     else:
-        
-        bi_idx = processors.BiIndexingPrePostProcessor(voc_limit1 = config.processing.src_voc_size, 
-                                                       voc_limit2 = config.processing.tgt_voc_size)
+
+        bi_idx = processors.BiIndexingPrePostProcessor(
+            voc_limit1=config.processing.src_voc_size,
+            voc_limit2=config.processing.tgt_voc_size)
         pp = processors.BiProcessorChain()
-        
-        
+
         if config.processing.latin_tgt:
-            pp.add_tgt_processor(processors.LatinScriptProcess(config.processing.latin_type))
-        
+            pp.add_tgt_processor(
+                processors.LatinScriptProcess(
+                    config.processing.latin_type))
+
         if config.processing.latin_src:
-            pp.add_src_processor(processors.LatinScriptProcess(config.processing.latin_type))
-        
-        pp.add_src_processor(processors.SimpleSegmenter(config.processing.src_segmentation_type))
+            pp.add_src_processor(
+                processors.LatinScriptProcess(
+                    config.processing.latin_type))
+
+        pp.add_src_processor(
+            processors.SimpleSegmenter(
+                config.processing.src_segmentation_type))
         if config.processing.bpe_src is not None:
             pp.add_src_processor(
-                processors.BPEProcessing(bpe_data_file = bpe_data_file_src, symbols = config.processing.bpe_src, separator = "._@@@"))
-        
-        pp.add_tgt_processor(processors.SimpleSegmenter(config.processing.tgt_segmentation_type))
+                processors.BPEProcessing(
+                    bpe_data_file=bpe_data_file_src,
+                    symbols=config.processing.bpe_src,
+                    separator="._@@@"))
+
+        pp.add_tgt_processor(
+            processors.SimpleSegmenter(
+                config.processing.tgt_segmentation_type))
         if config.processing.bpe_tgt is not None:
             pp.add_tgt_processor(
-                processors.BPEProcessing(bpe_data_file = bpe_data_file_tgt, symbols = config.processing.bpe_tgt, separator = "._@@@"))
-              
+                processors.BPEProcessing(
+                    bpe_data_file=bpe_data_file_tgt,
+                    symbols=config.processing.bpe_tgt,
+                    separator="._@@@"))
+
         if config.processing.joint_bpe is not None:
-            pp.add_biprocessor(processors.JointBPEBiProcessor(bpe_data_file = bpe_data_file_joint, 
-                                                              symbols = config.processing.joint_bpe, separator = "._@@@"))
-                            
+            pp.add_biprocessor(
+                processors.JointBPEBiProcessor(
+                    bpe_data_file=bpe_data_file_joint,
+                    symbols=config.processing.joint_bpe,
+                    separator="._@@@"))
+
         bi_idx.add_preprocessor(pp)
-    
-    def load_data(src_fn, tgt_fn, max_nb_ex=None, infos_dict = None):
+
+    def load_data(src_fn, tgt_fn, max_nb_ex=None, infos_dict=None):
 
         training_data, stats_src, stats_tgt = processors.build_dataset_pp(
             src_fn, tgt_fn, bi_idx,
@@ -106,35 +124,44 @@ def do_make_data(config):
         if infos_dict is not None:
             infos_dict["src"] = stats_src.report_as_obj()
             infos_dict["tgt"] = stats_tgt.report_as_obj()
-            
-        return training_data
 
+        return training_data
 
     infos = collections.OrderedDict()
     infos["train"] = collections.OrderedDict()
-    
+
     log.info("loading training data from %s and %s" %
              (config.data.src_fn, config.data.tgt_fn))
-    training_data = load_data(config.data.src_fn, config.data.tgt_fn, max_nb_ex=config.data.max_nb_ex, infos_dict = infos["train"])
+    training_data = load_data(
+        config.data.src_fn,
+        config.data.tgt_fn,
+        max_nb_ex=config.data.max_nb_ex,
+        infos_dict=infos["train"])
 
-    
     dev_data = None
     if config.data.dev_src is not None:
         log.info("loading dev data from %s and %s" %
                  (config.data.dev_src, config.data.dev_tgt))
         infos["dev"] = collections.OrderedDict()
         dev_data = load_data(
-            config.data.dev_src, config.data.dev_tgt, infos_dict = infos["dev"])
-    
+            config.data.dev_src, config.data.dev_tgt, infos_dict=infos["dev"])
+
     test_data = None
     if config.data.test_src is not None:
         log.info("loading test data from %s and %s" %
                  (config.data.test_src, config.data.test_tgt))
         infos["test"] = collections.OrderedDict()
         test_data = load_data(
-            config.data.test_src, config.data.test_tgt, infos_dict = infos["test"])
+            config.data.test_src,
+            config.data.test_tgt,
+            infos_dict=infos["test"])
 
-    config.insert_section("infos", infos, even_if_readonly = True, keep_at_bottom = "metadata", overwrite = False)
+    config.insert_section(
+        "infos",
+        infos,
+        even_if_readonly=True,
+        keep_at_bottom="metadata",
+        overwrite=False)
 
 #     if config.shuffle:
 #         log.info("shuffling data")
@@ -161,4 +188,3 @@ def do_make_data(config):
 
     json.dump(data_all, gzip.open(data_fn, "wb"),
               indent=2, separators=(',', ': '))
-
