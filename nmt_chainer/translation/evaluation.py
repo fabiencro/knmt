@@ -137,9 +137,8 @@ def reverse_rescore(encdec, src_batch, src_mask, eos_idx, translations, gpu = No
     return de_sorted_scores
      
 def beam_search_translate(encdec, eos_idx, src_data, beam_width = 20, beam_pruning_margin = None, nb_steps = 50, gpu = None,
-                          need_attention = False, nb_steps_ratio = None, 
-                          beam_score_length_normalization = 'none', beam_score_length_normalization_strength = 0.2,
-                          post_score_length_normalization = 'simple', post_score_length_normalization_strength = 0.2,  
+                          beam_score_coverage_penalty = None, beam_score_coverage_penalty_strength = 0.2,
+                          need_attention = False, nb_steps_ratio = None, beam_score_length_normalization = 'none', beam_score_length_normalization_strength = 0.2, post_score_length_normalization = 'simple', length_normalization_strength = 0.2,  
                           post_score_coverage_penalty = 'none', post_score_coverage_penalty_strength = 0.2,
                           groundhog = False, force_finish = False,
                           prob_space_combination = False,
@@ -168,6 +167,8 @@ def beam_search_translate(encdec, eos_idx, src_data, beam_width = 20, beam_pruni
                                           beam_pruning_margin = beam_pruning_margin,
                                           beam_score_length_normalization = beam_score_length_normalization,
                                           beam_score_length_normalization_strength = beam_score_length_normalization_strength,
+                                          beam_score_coverage_penalty = beam_score_coverage_penalty,
+                                          beam_score_coverage_penalty_strength = beam_score_coverage_penalty_strength,
                                           need_attention = need_attention, force_finish = force_finish,
                                           prob_space_combination = prob_space_combination,
                                           use_unfinished_translation_if_none_found = use_unfinished_translation_if_none_found)

@@ -22,6 +22,8 @@ def define_parser(parser):
                                    "score_nbest"], help = "target text")
     translation_method_group.add_argument("--beam_width", type = int, default= 20, help = "beam width")
     translation_method_group.add_argument("--beam_pruning_margin", type = float, default= None, help = "beam pruning margin")
+    parser.add_argument("--beam_score_coverage_penalty", choices = ['none', 'google'], default = 'none')
+    parser.add_argument("--beam_score_coverage_penalty_strength", type = float, default = 0.2)
     translation_method_group.add_argument("--nb_steps", type = int, default= 50, help = "nb_steps used in generation")
     translation_method_group.add_argument("--nb_steps_ratio", type = float, help = "nb_steps used in generation as a ratio of input length")
 #     translation_method_group.add_argument("--beam_opt", default = False, action = "store_true")
