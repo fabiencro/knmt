@@ -17,7 +17,7 @@ import nmt_chainer.models as models
 import nmt_chainer.utilities.utils as utils
 
 from nmt_chainer.utilities.utils import de_batch
-import nmt_chainer.training_module.training_chainer as iterators
+import nmt_chainer.training_module.training_updater as iterators
 from numpy.random import RandomState
 
 
