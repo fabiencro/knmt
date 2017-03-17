@@ -11,11 +11,9 @@ from chainer import serializers
 import time
 
 import logging
-import sys
 # import h5py
 
-import math
-import json
+import chainer
 
 from nmt_chainer.utilities.utils import minibatch_provider, minibatch_provider_curiculum, make_batch_src_tgt
 from nmt_chainer.translation.evaluation import sample_once
