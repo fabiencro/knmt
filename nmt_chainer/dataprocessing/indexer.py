@@ -4,6 +4,7 @@ logging.basicConfig()
 log = logging.getLogger("rnns:indexer")
 log.setLevel(logging.INFO)
 
+
 class Indexer(object):
 
     def __init__(self, unk_tag="#UNK#"):
@@ -112,7 +113,11 @@ class Indexer(object):
         return len(self.lst)
 
     def to_serializable(self):
-        return {"type": "simple_indexer", "rev": 1,  "voc_lst": self.lst, "unk_label_dic": self.unk_label_dictionary}
+        return {
+            "type": "simple_indexer",
+            "rev": 1,
+            "voc_lst": self.lst,
+            "unk_label_dic": self.unk_label_dictionary}
 
     @staticmethod
     def make_from_serializable(datas):
@@ -141,14 +146,14 @@ class Indexer(object):
                 res.dic[w] = idx
             res.finalized = True
             return res
-        
+
     @staticmethod
     def check_if_data_indexer(datas):
         if isinstance(datas, list):
             return True
         elif isinstance(datas, dict) and "type" in datas and datas["type"] == "simple_indexer":
             return True
-        
+
 # class Indexer(object):
 #     def __init__(self, unk_tag = "#UNK#"):
 #         self.dic = {}

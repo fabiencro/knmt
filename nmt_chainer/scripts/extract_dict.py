@@ -15,6 +15,7 @@ logging.basicConfig()
 log = logging.getLogger("aparse")
 log.setLevel(logging.INFO)
 
+
 def read_one_parse_info_from_file_object(f):
     id_line = f.readline()
     if len(id_line) == 0:
@@ -27,7 +28,7 @@ def read_one_parse_info_from_file_object(f):
     assert score_tag == "SCORE"
     score = float(score)
     sentence = []
-    while 1:
+    while True:
         line = f.readline().strip()
         if len(line) == 0:
             return id_, sentence
@@ -37,8 +38,9 @@ def read_one_parse_info_from_file_object(f):
         word = splitted_line[2]
         assert num_pos == len(sentence)
         sentence.append(word)
-        
-def read_one_align_info_from_file_object(f):  
+
+
+def read_one_align_info_from_file_object(f):
     id_line = f.readline()
     if len(id_line) == 0:
         raise exceptions.EOFError()
@@ -62,55 +64,82 @@ def read_one_align_info_from_file_object(f):
         alignment.append((left, right))
     return id_, score, alignment
 
-def load_aligned_corpus(src_fn, tgt_fn, align_fn, skip_empty_align = True, invert_alignment_links = False):
-    src = codecs.open(src_fn, encoding = "utf8")
-    tgt = codecs.open(tgt_fn, encoding = "utf8")
-    align_f = codecs.open(align_fn, encoding = "utf8")
-    
+
+def load_aligned_corpus(
+        src_fn,
+        tgt_fn,
+        align_fn,
+        skip_empty_align=True,
+        invert_alignment_links=False):
+    src = codecs.open(src_fn, encoding="utf8")
+    tgt = codecs.open(tgt_fn, encoding="utf8")
+    align_f = codecs.open(align_fn, encoding="utf8")
+
     num_sentence = 0
-    while 1:
+    while True:
         try:
             id_src, sentence_src = read_one_parse_info_from_file_object(src)
             id_tgt, sentence_tgt = read_one_parse_info_from_file_object(tgt)
-            id_align, score_align, alignment = read_one_align_info_from_file_object(align_f)
+            id_align, score_align, alignment = read_one_align_info_from_file_object(
+                align_f)
         except exceptions.EOFError:
             return
         if skip_empty_align and len(alignment) == 0:
-            log.warn("skipping empty alignment %i %s"%(num_sentence, id_align))
+            log.warn(
+                "skipping empty alignment %i %s" %
+                (num_sentence, id_align))
             continue
-        assert id_src == id_tgt, "%s != %s @%i"%(id_src, id_tgt, num_sentence)
-        assert id_src == id_align, "%s != %s @%i"%(id_src, id_align, num_sentence)
-        
+        assert id_src == id_tgt, "%s != %s @%i" % (
+            id_src, id_tgt, num_sentence)
+        assert id_src == id_align, "%s != %s @%i" % (
+            id_src, id_align, num_sentence)
+
         if invert_alignment_links:
             inverted_alignment = [(right, left) for (left, right) in alignment]
             alignment = inverted_alignment
-        
+
         yield sentence_src, sentence_tgt, alignment
         num_sentence += 1
 
+
 def commandline():
-    import argparse, operator, json
+    import argparse
+    import operator
+    import json
     parser = argparse.ArgumentParser()
     parser.add_argument("src_fn")
     parser.add_argument("tgt_fn")
     parser.add_argument("align_fn")
     parser.add_argument("dest")
-    parser.add_argument("--max_n", type = int)
-    parser.add_argument("--invert_alignment_links", default = False, action = "store_true")
-    parser.add_argument("--generate_lexical_prob", default = False, action = "store_true")
-    parser.add_argument("--count_null_translations", default = False, action = "store_true")
-    
+    parser.add_argument("--max_n", type=int)
+    parser.add_argument(
+        "--invert_alignment_links",
+        default=False,
+        action="store_true")
+    parser.add_argument(
+        "--generate_lexical_prob",
+        default=False,
+        action="store_true")
+    parser.add_argument(
+        "--count_null_translations",
+        default=False,
+        action="store_true")
+
     args = parser.parse_args()
-    corpus = load_aligned_corpus(args.src_fn, args.tgt_fn, args.align_fn, invert_alignment_links = args.invert_alignment_links)
-    
+    corpus = load_aligned_corpus(
+        args.src_fn,
+        args.tgt_fn,
+        args.align_fn,
+        invert_alignment_links=args.invert_alignment_links)
+
     counter = defaultdict(lambda: defaultdict(int))
     for num, (sentence_src, sentence_tgt, alignment) in enumerate(corpus):
         if args.max_n and num > args.max_n:
             break
-        if num%1000 == 0:
-            log.info("%i sentences processed"% num)
-        unaligned_pos_left = set(range(len(sentence_src))) 
-        unaligned_pos_right = set(range(len(sentence_tgt))) 
+        if num % 1000 == 0:
+            log.info("%i sentences processed" % num)
+        unaligned_pos_left = set(range(len(sentence_src)))
+        unaligned_pos_right = set(range(len(sentence_tgt)))
         for left, right in alignment:
             for spos in left:
                 if spos in unaligned_pos_left:
@@ -121,7 +150,7 @@ def commandline():
                         unaligned_pos_right.remove(tpos)
                     wt = sentence_tgt[tpos]
                     counter[ws][wt] += 1
-                    
+
         if args.count_null_translations:
             for spos in unaligned_pos_left:
                 ws = sentence_src[spos]
@@ -129,7 +158,7 @@ def commandline():
             for tpos in unaligned_pos_right:
                 wt = sentence_tgt[tpos]
                 counter[None][wt] += 1
-            
+
     if args.generate_lexical_prob:
         log.info("computing lexical probabilities")
         res = {}
@@ -147,11 +176,12 @@ def commandline():
         res = {}
         for ws in counter:
             translations = counter[ws].items()
-            translations.sort(key = operator.itemgetter(1), reverse = True)
+            translations.sort(key=operator.itemgetter(1), reverse=True)
             res[ws] = translations[0][0]
-    
+
     log.info("saving")
     json.dump(res, open(args.dest, "w"))
-    
+
+
 if __name__ == '__main__':
     commandline()
