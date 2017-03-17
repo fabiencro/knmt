@@ -181,6 +181,9 @@ def compute_loss_from_decoder_cell(
         if per_sentence:
             normalized_logits = F.log_softmax(logits)
             total_local_loss = F.select_item(normalized_logits, targets[i])
+            nb_predictions = targets[i].data.shape[0]
+            total_nb_predictions += nb_predictions
+            assert nb_predictions == total_local_loss.data.shape[0]
             if loss is not None and total_local_loss.data.shape[0] != loss.data.shape[0]:
                 assert total_local_loss.data.shape[0] < loss.data.shape[0]
                 total_local_loss = F.concat(
