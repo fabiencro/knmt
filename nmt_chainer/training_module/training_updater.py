@@ -9,6 +9,9 @@ import math
 import chainer
 import time
 import numpy
+import heapq
+
+from chainer.dataset import iterator
 
 def sent_complexity(sent):
     rank_least_common_word = max(sent)
@@ -19,7 +22,189 @@ def sent_complexity(sent):
 def example_complexity(ex):
     return sent_complexity(ex[0]) + sent_complexity(ex[1])
 
+class SpacedRepetitor(object):
+    def __init__(self, ratios = numpy.array([0.5] + [0.5**num for num in range(1, 4)]), cap_unknown = None):
+        nb_boxes = len(ratios)
+        self.unk_box = []
+        self.boxes = [[] for _ in range(nb_boxes)] # + unk box
+        self.nb_boxes = nb_boxes
+        self.being_evaluated = {}
+        
+        self.ratios = ratios
+        self.ratio_remainders = numpy.zeros((nb_boxes,))
+        self.cap_unknown = cap_unknown
+        
+    def __repr__(self):
+        res = ["#UNK:%i"%len(self.boxes[0])]
+        for num_box in range(1, self.nb_boxes):
+            res += ["#%i:%i "%(num_box, len(self.boxes[num_box]))]
+        return "SR<" + " ".join(res) + ">"
+    
+    def __str__(self):
+        res = ["UNK:%s"%(self.boxes[0],)]
+        for num_box in range(1, self.nb_boxes):
+            res += ["%i:%s "%(num_box, self.boxes[num_box])]
+        return "\n".join(res)
+        
+    def add_dataset(self, dataset):
+        self.boxes[0] = sorted(range(len(dataset)), key = lambda i:example_complexity(dataset[i]))
+    
+    def get_n_examples(self, n, just_peek = False):
+        boxes_sizes = numpy.array([float(len(box)) for box in self.boxes])
+        assert numpy.sum(boxes_sizes) >= n
+        
+        boxes_ratios = boxes_sizes * self.ratios
+        
+        if self.cap_unknown is not None and boxes_sizes[1] > self.cap_unknown:
+            boxes_ratios[0] = 0
+        
+        boxes_ratios /= sum(boxes_ratios)
+        
+        
+        fractional_nb = n * boxes_ratios + self.ratio_remainders
+        rounded_nb = numpy.maximum(numpy.round(fractional_nb), 0) * (boxes_sizes > 0)
+        rounded_nb = rounded_nb.astype(numpy.int)
+        
+        over_value = numpy.sum(rounded_nb) - n
+        
+        if over_value < 0:
+            rounded_nb[rounded_nb.argmax()] += -over_value
+        elif over_value > 0:
+            for _ in xrange(over_value):
+                rounded_nb[rounded_nb.argmax()] -= over_value
 
+        if not just_peek:
+            self.ratio_remainders = fractional_nb - rounded_nb
+        
+        res = []
+        
+        for num_box in xrange(self.nb_boxes):
+            box = self.boxes[num_box]
+            expected_nb = rounded_nb[num_box]
+            if len(box) < expected_nb:
+                print "using duplication for", num_box, box, len(box), expected_nb
+                duplicated_box = box[:]
+                remaining = expected_nb - len(box)
+                while remaining > 0:
+                    duplicated_box += box[:remaining]
+                    remaining -= len(box)
+                    
+                print "duplicated box", duplicated_box
+                res += duplicated_box
+                if not just_peek:
+                    for ex in box:
+                        self.being_evaluated[ex] = num_box
+                    self.boxes[num_box] = []
+            else:
+                res += box[:expected_nb]
+                if not just_peek:
+                    for ex in box[:expected_nb]:
+                        self.being_evaluated[ex] = num_box
+                    self.boxes[num_box] = box[expected_nb:]
+        
+        assert len(res) == n
+        return res
+        
+        
+    def update_known(self, good, bad):
+        seen = set()
+        for ex in good:
+            if ex in seen:
+                continue #probably a duplicated ex
+            assert ex in self.being_evaluated
+            box = self.being_evaluated.pop(ex)
+            if box == 0:
+                box = 2 #case unk -> 2
+            elif box+1 < self.nb_boxes:
+                box += 1
+            self.boxes[box].append(ex)
+            seen.add(ex)
+        for ex in bad:
+            if ex in seen:
+                continue #probably a duplicated ex
+            assert ex in self.being_evaluated
+            box = self.being_evaluated.pop(ex)
+            self.boxes[1].append(ex)            
+            seen.add(ex)
+    
+    def serialize(self, serializer):
+        self.sr = serializer('sr', self.sr)
+        
+    
+class ScheduledIterator(iterator.Iterator):
+
+    """Dataset iterator that serially reads the examples.
+
+    This is a simple implementation of :class:`~chainer.dataset.Iterator`
+    that just visits each example in either the order of indexes or a shuffled
+    order.
+
+    To avoid unintentional performance degradation, the ``shuffle`` option is
+    set to ``True`` by default. For validation, it is better to set it to
+    ``False`` when the underlying dataset supports fast slicing. If the
+    order of examples has an important meaning and the updater depends on the
+    original order, this option should be set to ``False``.
+
+    Args:
+        dataset: Dataset to iterate.
+        batch_size (int): Number of examples within each batch.
+        repeat (bool): If ``True``, it infinitely loops over the dataset.
+            Otherwise, it stops iteration at the end of the first epoch.
+        shuffle (bool): If ``True``, the order of examples is shuffled at the
+            beginning of each epoch. Otherwise, examples are extracted in the
+            order of indexes.
+
+    """
+
+    def __init__(self, dataset, batch_size, repeat = False, shuffle = False, 
+                 sr_ratios = numpy.array([0.5] + [0.5**num for num in range(1, 4)]),
+                 sr_cap = None):
+        self.dataset = dataset
+        self.batch_size = batch_size
+
+        self.current_position = 0
+        self.epoch = 0
+        self.is_new_epoch = False
+
+        self.sr = SpacedRepetitor(ratios=sr_ratios, cap_unknown=sr_cap)
+        self.sr.add_dataset(dataset)
+    
+    def __next__(self):
+        print "__next__ sr state:", repr(self.sr),
+        indices = self.sr.get_n_examples(self.batch_size)
+        print " -> ", repr(self.sr)
+        
+        batch = [self.dataset[i] for i in indices]
+    
+        return indices, batch            
+         
+    def update_known(self, good, bad):
+        self.sr.update_known(good, bad)
+
+    next = __next__
+
+    @property
+    def epoch_detail(self):
+        return self.epoch + self.current_position / len(self.dataset)
+
+    def serialize(self, serializer):
+        self.sr = serializer('sr', self.sr)
+        self.epoch = serializer('epoch', self.epoch)
+        self.is_new_epoch = serializer('is_new_epoch', self.is_new_epoch)
+
+    def peek(self):
+        """
+        Return the next batch of data without updating its internal state.
+        Several call to peek() should return the same result. A call to next()
+        after a call to peek() will return the same result as the previous peek.
+        """
+        print "peek sr state:", repr(self.sr),
+        indices = self.sr.get_n_examples(self.batch_size, just_peek = True)
+        print " -> ", repr(self.sr)
+        
+        batch = [self.dataset[i] for i in indices]
+    
+        return indices, batch   
 
 
 class SerialIteratorWithPeek(chainer.iterators.SerialIterator):
@@ -63,10 +248,11 @@ class LengthBasedSerialIterator(chainer.dataset.iterator.Iterator):
     """
 
     def __init__(self, dataset, batch_size, nb_of_batch_to_sort=20, sort_key=lambda x: len(x[1]),
-                 repeat=True, shuffle=True):
+                 repeat=True, shuffle=True, subiterator_type = SerialIteratorWithPeek, composed_batch = False,
+                 subiterator_keyword_args = {}):
 
-        self.sub_iterator = SerialIteratorWithPeek(dataset, batch_size * nb_of_batch_to_sort,
-                                                   repeat=repeat, shuffle=shuffle)
+        self.sub_iterator = subiterator_type(dataset, batch_size * nb_of_batch_to_sort,
+                                                   repeat=repeat, shuffle=shuffle, **subiterator_keyword_args)
         self.dataset = dataset
         self.index_in_sub_batch = 0
         self.sub_batch = None
@@ -74,14 +260,10 @@ class LengthBasedSerialIterator(chainer.dataset.iterator.Iterator):
         self.batch_size = batch_size
         self.nb_of_batch_to_sort = nb_of_batch_to_sort
         self.repeat = repeat
+        self.composed_batch = composed_batch
 
     def update_sub_batch(self):
-        # copy the result so that we can sort without side effects
-        self.sub_batch = list(self.sub_iterator.next())
-        if self.repeat and len(
-    self.sub_batch) != self.batch_size * self.nb_of_batch_to_sort:
-            raise AssertionError
-        self.sub_batch.sort(key=self.sort_key)
+        self.sub_batch = self.sort_batch(self.sub_iterator.next())
         self.index_in_sub_batch = 0
 
     def __next__(self):
@@ -89,29 +271,50 @@ class LengthBasedSerialIterator(chainer.dataset.iterator.Iterator):
             assert self.sub_batch is None or self.index_in_sub_batch == self.nb_of_batch_to_sort
             self.update_sub_batch()
 
-        minibatch = self.sub_batch[self.index_in_sub_batch *
-    self.batch_size: (self.index_in_sub_batch +
-    1) *
-     self.batch_size]
+        minibatch = self.extract_sub_batch(self.index_in_sub_batch, self.sub_batch)
 
         self.index_in_sub_batch += 1
 
         return minibatch
 
+    def update_known(self, good, bad):
+        self.sub_iterator.update_known(good, bad)
+        
+    
+    def sort_batch(self, batch):
+        if self.composed_batch:
+            batch=  zip(*sorted(zip(*batch), key=self.sort_key))
+        else:
+            # copy the result so that we can sort without side effects
+            batch = list(self.sub_iterator.next())
+            if self.repeat and len(batch) != self.batch_size * self.nb_of_batch_to_sort:
+                raise AssertionError
+            batch.sort(key=self.sort_key)
+        return batch
+        
+    def extract_sub_batch(self, index_in_sub_batch, batch):
+        start_index = index_in_sub_batch * self.batch_size
+        end_index = (index_in_sub_batch + 1) *  self.batch_size
+        
+        if self.composed_batch:
+            minibatch = [component[start_index: end_index] for component in batch]
+        else:
+            minibatch = batch[start_index: end_index]
+        return minibatch
+            
     def peek(self):
         if self.sub_batch is None or self.index_in_sub_batch >= self.nb_of_batch_to_sort:
             assert self.sub_batch is None or self.index_in_sub_batch == self.nb_of_batch_to_sort
             # copy the result so that we can sort without side effects
             sub_batch = list(self.sub_iterator.peek())
-            sub_batch.sort(key=self.sort_key)
+            sub_batch = self.sort_batch(sub_batch)
             index_in_sub_batch = 0
         else:
             sub_batch = self.sub_batch
             index_in_sub_batch = self.index_in_sub_batch
-        minibatch = sub_batch[index_in_sub_batch *
-    self.batch_size: (index_in_sub_batch +
-    1) *
-     self.batch_size]
+            
+        minibatch = self.extract_sub_batch(index_in_sub_batch, sub_batch)
+
         return minibatch
 
     next = __next__
@@ -204,16 +407,18 @@ class Updater(chainer.training.StandardUpdater):
   
 class UpdaterScheduledLearning(chainer.training.StandardUpdater):
     def __init__(self, iterator, optimizer, loss_per_example_func, converter=chainer.dataset.convert.concat_examples,
-                 device=None, need_to_convert_to_variables = True):
-        super(Updater, self).__init__(iterator, optimizer, converter=converter,
+                 device=None, need_to_convert_to_variables = True, loss_threshold = 1):
+        super(UpdaterScheduledLearning, self).__init__(iterator, optimizer, converter=converter,
                  device=device, loss_func=loss_per_example_func)
         self.need_to_convert_to_variables = need_to_convert_to_variables
+        self.loss_threshold = loss_threshold
         
     def update_core(self):
         t0 = time.clock()
         
-        batch, sent_ids = self._iterators['main'].next()
-        in_arrays = self.converter(batch, self.device)
+        sent_ids, batch = self._iterators['main'].next()
+        src_batch, tgt_batch_v, src_mask, argsort = self.converter(batch, self.device)
+        in_arrays = [src_batch, tgt_batch_v, src_mask]
         
         optimizer = self._optimizers['main']
 
@@ -224,7 +429,17 @@ class UpdaterScheduledLearning(chainer.training.StandardUpdater):
         
         loss_each, loss = self.loss_func(*in_arrays)
         
-        self._iterators['main'].update_knowledge(sent_ids, loss_each)
+        good = set()
+        bad = set()
+        for i in xrange(loss_each.data.shape[0]):
+            tgt_length = len(batch[argsort[i]][1])
+            loss_per_word = loss_each.data[i] / tgt_length
+            if loss_per_word < self.loss_threshold:
+                good.add(sent_ids[argsort[i]])
+            else:
+                bad.add(sent_ids[argsort[i]])
+        
+        self._iterators['main'].update_known(good=good, bad=bad)
         
         optimizer.target.cleargrads()
         loss.backward()

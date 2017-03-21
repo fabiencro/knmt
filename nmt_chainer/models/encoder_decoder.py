@@ -555,7 +555,8 @@ class EncoderDecoder(Chain):
             need_score=False,
             noise_on_prev_word=False,
             use_previous_prediction=0,
-            mode="test"):
+            mode="test",
+            per_sentence = False):
         assert mode in "test train".split()
 
         lexicon_probability_matrix = self.compute_lexicon_probability_matrix(
@@ -587,7 +588,7 @@ class EncoderDecoder(Chain):
                 noise_on_prev_word=noise_on_prev_word,
                 use_previous_prediction=use_previous_prediction,
                 mode="test",
-                per_sentence=False,
+                per_sentence=per_sentence,
                 lexicon_probability_matrix=lexicon_probability_matrix,
                 lex_epsilon=self.lex_epsilon)
 

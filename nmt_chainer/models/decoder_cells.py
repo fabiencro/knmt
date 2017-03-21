@@ -180,7 +180,7 @@ def compute_loss_from_decoder_cell(
 
         if per_sentence:
             normalized_logits = F.log_softmax(logits)
-            total_local_loss = F.select_item(normalized_logits, targets[i])
+            total_local_loss = - F.select_item(normalized_logits, targets[i])
             nb_predictions = targets[i].data.shape[0]
             total_nb_predictions += nb_predictions
             assert nb_predictions == total_local_loss.data.shape[0]
@@ -201,6 +201,8 @@ def compute_loss_from_decoder_cell(
             total_local_loss = local_loss * nb_predictions
             total_nb_predictions += nb_predictions
 
+
+#         print "loss this step", loss.data if loss is not None else None, total_local_loss.data
         loss = total_local_loss if loss is None else loss + total_local_loss
 
         if i >= len(targets) - \

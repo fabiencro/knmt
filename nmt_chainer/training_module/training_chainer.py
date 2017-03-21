@@ -8,6 +8,7 @@ __status__ = "Development"
 
 from nmt_chainer.utilities import argument_parsing_tools
 from chainer import serializers
+import chainer.functions as F
 import time
 
 import logging
@@ -23,7 +24,7 @@ from nmt_chainer.training_module.training_extensions import (ComputeLossExtensio
                                                              SqliteLogExtension,
                                                              CheckpontSavingExtension)
 
-from training_updater import LengthBasedSerialIterator, Updater
+from training_updater import LengthBasedSerialIterator, Updater, ScheduledIterator, UpdaterScheduledLearning
 
 logging.basicConfig()
 log = logging.getLogger("rnns:training")
@@ -56,12 +57,21 @@ def train_on_data_chainer(encdec, optimizer, training_data, output_files_dict,
     trainer_snapshot = config_training.training_management.load_trainer_snapshot
     save_initial_model_to = config_training.training_management.save_initial_model_to
     reshuffle_every_epoch = config_training.training_management.reshuffle_every_epoch
-
+    
+    sr_schedule_ratio = config_training.training_management.sr_schedule_ratio
+    sr_schedule_cap = config_training.training_management.sr_schedule_cap
+    sr_threshold = config_training.training_management.sr_threshold
+    scheduled = sr_schedule_ratio is not None
+    
+    
     @chainer.training.make_extension()
     def sample_extension(trainer):
         encdec = trainer.updater.get_optimizer("main").target
         iterator = trainer.updater.get_iterator("main")
         mb_raw = iterator.peek()
+        
+        if scheduled:
+            mb_raw = mb_raw[1]
 
         src_batch, tgt_batch, src_mask = make_batch_src_tgt(
     mb_raw, eos_idx=eos_idx, padding_idx=0, gpu=gpu, volatile="on", need_arg_sort=False)
@@ -71,43 +81,91 @@ def train_on_data_chainer(encdec, optimizer, training_data, output_files_dict,
                     max_nb=20,
                     s_unk_tag=s_unk_tag, t_unk_tag=t_unk_tag)
 
-    iterator_training_data = LengthBasedSerialIterator(training_data, mb_size,
+    
+    
+    if scheduled:
+        iterator_training_data = LengthBasedSerialIterator(training_data, mb_size,
+                                            nb_of_batch_to_sort=nb_of_batch_to_sort,
+                                            sort_key=lambda x: len(x[1][0]),
+                                            subiterator_type = ScheduledIterator,
+                                            composed_batch = True,
+                                            subiterator_keyword_args = {"sr_ratios": sr_schedule_ratio,
+                                                                        "sr_cap":sr_schedule_cap})
+
+    else:
+        iterator_training_data = LengthBasedSerialIterator(training_data, mb_size,
                                             nb_of_batch_to_sort=nb_of_batch_to_sort,
                                             sort_key=lambda x: len(x[0]),
                                             repeat=True,
                                                        shuffle=reshuffle_every_epoch)
+    
+    if scheduled:
+        def loss_func(src_batch, tgt_batch, src_mask):
+    
+            t0 = time.clock()
+            (total_loss, total_nb_predictions), attn = encdec(src_batch, tgt_batch, src_mask, raw_loss_info=True,
+                                                              noise_on_prev_word=noise_on_prev_word,
+                                                              use_previous_prediction=use_previous_prediction,
+                                                              mode="train", per_sentence = True)
+#             print " loss/nb pred", total_loss.data, total_nb_predictions
+            summed_total_loss = F.sum(total_loss)
+            avg_loss = summed_total_loss / total_nb_predictions
+    
+            t1 = time.clock()
+            chainer.reporter.report({"forward_time": t1 - t0})
+    
+            chainer.reporter.report({"mb_loss": summed_total_loss.data})
+            chainer.reporter.report({"mb_nb_predictions": total_nb_predictions})
+            chainer.reporter.report({"trg_loss": avg_loss.data})
+            return total_loss, avg_loss     
+    else:
+        def loss_func(src_batch, tgt_batch, src_mask):
+    
+            t0 = time.clock()
+            (total_loss, total_nb_predictions), attn = encdec(src_batch, tgt_batch, src_mask, raw_loss_info=True,
+                                                              noise_on_prev_word=noise_on_prev_word,
+                                                              use_previous_prediction=use_previous_prediction,
+                                                              mode="train")
+            avg_loss = total_loss / total_nb_predictions
+    
+            t1 = time.clock()
+            chainer.reporter.report({"forward_time": t1 - t0})
+    
+            chainer.reporter.report({"mb_loss": total_loss.data})
+            chainer.reporter.report({"mb_nb_predictions": total_nb_predictions})
+            chainer.reporter.report({"trg_loss": avg_loss.data})
+            return avg_loss
 
-    def loss_func(src_batch, tgt_batch, src_mask):
 
-        t0 = time.clock()
-        (total_loss, total_nb_predictions), attn = encdec(src_batch, tgt_batch, src_mask, raw_loss_info=True,
-                                                          noise_on_prev_word=noise_on_prev_word,
-                                                          use_previous_prediction=use_previous_prediction,
-                                                          mode="train")
-        avg_loss = total_loss / total_nb_predictions
+    if scheduled:
+        def convert_mb(mb_raw, device):
+            return make_batch_src_tgt(
+        mb_raw,
+        eos_idx=eos_idx,
+        padding_idx=0,
+        gpu=device,
+        volatile="off",
+         need_arg_sort=True)
+    else:
+        def convert_mb(mb_raw, device):
+            return make_batch_src_tgt(
+        mb_raw,
+        eos_idx=eos_idx,
+        padding_idx=0,
+        gpu=device,
+        volatile="off",
+         need_arg_sort=False)
 
-        t1 = time.clock()
-        chainer.reporter.report({"forward_time": t1 - t0})
-
-        chainer.reporter.report({"mb_loss": total_loss.data})
-        chainer.reporter.report({"mb_nb_predictions": total_nb_predictions})
-        chainer.reporter.report({"trg_loss": avg_loss.data})
-        return avg_loss
-
-    def convert_mb(mb_raw, device):
-        return make_batch_src_tgt(
-    mb_raw,
-    eos_idx=eos_idx,
-    padding_idx=0,
-    gpu=device,
-    volatile="off",
-     need_arg_sort=False)
-
-    updater = Updater(iterator_training_data, optimizer,
+    if scheduled:
+        updater = UpdaterScheduledLearning(iterator_training_data, optimizer,
                 converter=convert_mb,
-      # iterator_training_data = chainer.iterators.SerialIterator(training_data, mb_size,
-#                                               repeat = True,
-                      # shuffle = reshuffle_every_epoch)
+                device=gpu,
+                      loss_per_example_func=loss_func,
+                      need_to_convert_to_variables=False,
+                      loss_threshold = sr_threshold)        
+    else:
+        updater = Updater(iterator_training_data, optimizer,
+                converter=convert_mb,
                 device=gpu,
                       loss_func=loss_func,
                       need_to_convert_to_variables=False)

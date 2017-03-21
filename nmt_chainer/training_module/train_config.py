@@ -217,6 +217,17 @@ def define_parser(parser):
         "--description",
         help="Optional message to be stored in the configuration file")
 
+    training_monitoring_group.add_argument(
+        "--sr_schedule_ratio", type = float, nargs = "+",
+        help="Ratios of boxes in spaced repetition scheduling (box 0 is box of not yet seen, box 1 of not yet known)")
+
+    training_monitoring_group.add_argument(
+        "--sr_schedule_cap", type = int,
+        help="unseen cap in spaced repetition scheduling")
+
+    training_monitoring_group.add_argument(
+        "--sr_threshold", type = float, default = 1,
+        help="loss threshold in spaced repetition scheduling")
 
 class CommandLineValuesException(Exception):
     pass
