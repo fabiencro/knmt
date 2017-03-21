@@ -277,7 +277,7 @@ class DecoderNaive(decoder_cells.Decoder):
         assert current_mb_size == 1
         previous_states = self.gru.get_initial_states(current_mb_size)
 #         previous_word = Variable(np.array([self.bos_idx] * mb_size, dtype = np.int32))
-        #xp = cuda.get_array_module(self.gru.initial_state.data)
+        # xp = cuda.get_array_module(self.gru.initial_state.data)
         with cuda.get_device(self.gru.initial_state.data):
             prev_y = F.broadcast_to(self.bos_embeding, (1, self.Eo))
 #             previous_word = Variable(xp.array([self.bos_idx] * current_mb_size, dtype = np.int32))

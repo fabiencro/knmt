@@ -257,8 +257,8 @@ def minibatch_provider_curiculum(
         volatile="off",
         sort_key=lambda x: len(
             x[1]),
-    reverse_src=False,
-    reverse_tgt=False,
+        reverse_src=False,
+        reverse_tgt=False,
         starting_size=200):
     current_size = starting_size
     while True:
@@ -297,12 +297,12 @@ def minibatch_provider(
         volatile="off",
         sort_key=lambda x: len(
             x[1]),
-    reverse_src=False,
-    reverse_tgt=False,
+        reverse_src=False,
+        reverse_tgt=False,
         give_raw_batch=False):
     if nb_mb_for_sorting == -1:
         assert not randomized
-        assert loop == False
+        assert not loop
         for mb_raw in batch_sort_and_split(
                 data,
                 mb_size,

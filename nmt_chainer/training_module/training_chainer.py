@@ -100,8 +100,7 @@ class LengthBasedSerialIterator(chainer.dataset.iterator.Iterator):
     def update_sub_batch(self):
         # copy the result so that we can sort without side effects
         self.sub_batch = list(self.sub_iterator.next())
-        if self.repeat and len(
-    self.sub_batch) != self.batch_size * self.nb_of_batch_to_sort:
+        if self.repeat and len(self.sub_batch) != self.batch_size * self.nb_of_batch_to_sort:
             raise AssertionError
         self.sub_batch.sort(key=self.sort_key)
         self.index_in_sub_batch = 0
@@ -112,9 +111,7 @@ class LengthBasedSerialIterator(chainer.dataset.iterator.Iterator):
             self.update_sub_batch()
 
         minibatch = self.sub_batch[self.index_in_sub_batch *
-    self.batch_size: (self.index_in_sub_batch +
-    1) *
-     self.batch_size]
+                                   self.batch_size:(self.index_in_sub_batch + 1) * self.batch_size]
 
         self.index_in_sub_batch += 1
 
@@ -130,10 +127,7 @@ class LengthBasedSerialIterator(chainer.dataset.iterator.Iterator):
         else:
             sub_batch = self.sub_batch
             index_in_sub_batch = self.index_in_sub_batch
-        minibatch = sub_batch[index_in_sub_batch *
-    self.batch_size: (index_in_sub_batch +
-    1) *
-     self.batch_size]
+        minibatch = sub_batch[index_in_sub_batch * self.batch_size: (index_in_sub_batch + 1) * self.batch_size]
         return minibatch
 
     next = __next__
@@ -142,8 +136,7 @@ class LengthBasedSerialIterator(chainer.dataset.iterator.Iterator):
     # epoch_detail clipped to epoch
     @property
     def epoch_detail(self):
-        remaining_sub_batch_lenth = (
-    self.nb_of_batch_to_sort - self.index_in_sub_batch) * self.batch_size
+        remaining_sub_batch_lenth = (self.nb_of_batch_to_sort - self.index_in_sub_batch) * self.batch_size
         assert remaining_sub_batch_lenth >= 0
         epoch_discount = remaining_sub_batch_lenth / float(len(self.dataset))
         sub_epoch_detail = self.sub_iterator.epoch_detail
@@ -176,9 +169,7 @@ import six
 
 def make_collection_of_variables(in_arrays, volatile="off"):
     if isinstance(in_arrays, tuple):
-        in_vars = tuple(
-    chainer.variable.Variable(
-        x, volatile=volatile) for x in in_arrays)
+        in_vars = tuple(chainer.variable.Variable(x, volatile=volatile) for x in in_arrays)
     elif isinstance(in_arrays, dict):
         in_vars = {key: chainer.variable.Variable(x, volatile=volatile)
                    for key, x in six.iteritems(in_arrays)}
@@ -248,7 +239,7 @@ class ComputeLossExtension(chainer.training.Extension):
                                     gpu=self.gpu,
                                     reverse_src=self.reverse_src, reverse_tgt=self.reverse_tgt)
         log.info("%s: %f (current best: %r)" %
-     (self.observation_name, dev_loss, self.best_loss))
+                 (self.observation_name, dev_loss, self.best_loss))
         chainer.reporter.report({self.observation_name: dev_loss})
 
         if self.best_loss is None or self.best_loss > dev_loss:
@@ -256,21 +247,17 @@ class ComputeLossExtension(chainer.training.Extension):
                                                           self.best_loss, dev_loss))
             self.best_loss = dev_loss
             if self.save_best_model_to is not None:
-                log.info(
-    "saving best loss (%s) model to %s" %
-     (self.observation_name, self.save_best_model_to,))
+                log.info("saving best loss (%s) model to %s" %
+                         (self.observation_name, self.save_best_model_to,))
                 serializers.save_npz(self.save_best_model_to, encdec)
                 if self.config_training is not None:
                     config_session = self.config_training.copy(readonly=False)
-                    config_session.add_section(
-    "model_parameters", keep_at_bottom="metadata")
+                    config_session.add_section("model_parameters", keep_at_bottom="metadata")
                     config_session["model_parameters"]["filename"] = self.save_best_model_to
                     config_session["model_parameters"]["type"] = "model"
                     config_session["model_parameters"]["description"] = "best_loss"
-                    config_session["model_parameters"]["infos"] = argument_parsing_tools.OrderedNamespace(
-                        )
-                    config_session["model_parameters"]["infos"]["loss"] = float(
-                        dev_loss)
+                    config_session["model_parameters"]["infos"] = argument_parsing_tools.OrderedNamespace()
+                    config_session["model_parameters"]["infos"]["loss"] = float(dev_loss)
                     config_session["model_parameters"]["infos"]["iteration"] = trainer.updater.iteration
                     config_session.set_metadata_modified_time()
                     config_session.save_to(self.save_best_model_to + ".config")
@@ -289,9 +276,8 @@ class ComputeLossExtension(chainer.training.Extension):
         else:
             import cupy
             if self.best_loss is not None and (
-    isinstance(
-        self.best_loss,
-         numpy.ndarray) or self.best_loss.device.id != self.gpu):
+               isinstance(self.best_loss,
+                          numpy.ndarray) or self.best_loss.device.id != self.gpu):
                 with cupy.cuda.Device(self.gpu):
                     self.best_loss = cupy.array(self.best_loss)
 
@@ -338,9 +324,9 @@ class ComputeBleuExtension(chainer.training.Extension):
 # ".test.src.out"
         bleu_stats = translate_to_file(encdec, self.eos_idx, self.src_data, self.mb_size,
                                        self.tgt_indexer,
-               self.translations_fn, test_references=self.references,
+                                       self.translations_fn, test_references=self.references,
                                        control_src_fn=self.control_src_fn,
-               src_indexer=self.src_indexer, gpu=self.gpu, nb_steps=50,
+                                       src_indexer=self.src_indexer, gpu=self.gpu, nb_steps=50,
                                        reverse_src=self.reverse_src, reverse_tgt=self.reverse_tgt,
                                        s_unk_tag=self.s_unk_tag, t_unk_tag=self.t_unk_tag)
         bleu = bleu_stats.bleu()
@@ -349,33 +335,28 @@ class ComputeBleuExtension(chainer.training.Extension):
 
         if self.best_bleu is None or self.best_bleu < bleu:
             log.info("%s improvement: %r -> %r" %
-     (self.observation_name, self.best_bleu, bleu))
+                     (self.observation_name, self.best_bleu, bleu))
             self.best_bleu = bleu
             if self.save_best_model_to is not None:
-                log.info(
-    "saving best bleu (%s) model to %s" %
-     (self.observation_name, self.save_best_model_to,))
+                log.info("saving best bleu (%s) model to %s" %
+                         (self.observation_name, self.save_best_model_to,))
                 serializers.save_npz(self.save_best_model_to, encdec)
                 if self.config_training is not None:
                     config_session = self.config_training.copy(readonly=False)
-                    config_session.add_section(
-    "model_parameters", keep_at_bottom="metadata")
+                    config_session.add_section("model_parameters", keep_at_bottom="metadata")
                     config_session["model_parameters"]["filename"] = self.save_best_model_to
                     config_session["model_parameters"]["type"] = "model"
                     config_session["model_parameters"]["description"] = "best_bleu"
-                    config_session["model_parameters"]["infos"] = argument_parsing_tools.OrderedNamespace(
-                        )
-                    config_session["model_parameters"]["infos"]["bleu_stats"] = str(
-                        bleu_stats)
+                    config_session["model_parameters"]["infos"] = argument_parsing_tools.OrderedNamespace()
+                    config_session["model_parameters"]["infos"]["bleu_stats"] = str(bleu_stats)
                     config_session["model_parameters"]["infos"]["iteration"] = trainer.updater.iteration
                     config_session.set_metadata_modified_time()
                     config_session.save_to(self.save_best_model_to + ".config")
 # json.dump(config_session, open(self.save_best_model_to + ".config",
 # "w"), indent=2, separators=(',', ': '))
         else:
-            log.info(
-    "no bleu (%s) improvement: %f >= %f" %
-     (self.observation_name, self.best_bleu, bleu))
+            log.info("no bleu (%s) improvement: %f >= %f" %
+                     (self.observation_name, self.best_bleu, bleu))
 
     def serialize(self, serializer):
         self.best_bleu = serializer("best_bleu", self.best_bleu)
@@ -398,14 +379,14 @@ class TrainingLossSummaryExtension(chainer.training.Extension):
     def __call__(self, trainer):
         # accumulate the observations
 
-        mb_avg_loss = float(
-    trainer.observation["mb_loss"]) / trainer.observation["mb_nb_predictions"]
-        log.info("E:%i I:%i L:%f U: %.4f = %.4f + %.4f F:%.4f" % (trainer.updater.epoch,
-                 trainer.updater.iteration, mb_avg_loss,
-                                                                trainer.observation["update_duration"],
-                 trainer.observation["mb_preparation_duration"],
-                 trainer.observation["optimizer_update_cycle_duration"],
-                 trainer.observation["forward_time"]))
+        mb_avg_loss = float(trainer.observation["mb_loss"]) / trainer.observation["mb_nb_predictions"]
+        log.info("E:%i I:%i L:%f U: %.4f = %.4f + %.4f F:%.4f" %
+                 (trainer.updater.epoch,
+                  trainer.updater.iteration, mb_avg_loss,
+                  trainer.observation["update_duration"],
+                  trainer.observation["mb_preparation_duration"],
+                  trainer.observation["optimizer_update_cycle_duration"],
+                  trainer.observation["forward_time"]))
 
         self.total_loss += trainer.observation["mb_loss"]
         self.total_nb_predictions += trainer.observation["mb_nb_predictions"]
@@ -458,16 +439,15 @@ avg_time real, avg_training_loss real)''')
                 avg_training_loss = float(avg_training_loss)
 
             infos = (datetime.datetime.now().strftime("%I:%M%p %B %d, %Y"),
-                     trainer.observation.get(
-    "test_bleu_details", None), trainer.updater.iteration,
+                     trainer.observation.get("test_bleu_details", None),
+                     trainer.updater.iteration,
                      test_loss,
                      trainer.observation.get("test_bleu", None),
                      dev_loss,
                      trainer.observation.get("dev_bleu", None),
                      None, None,
                      trainer.observation.get("avg_update_time", None), avg_training_loss)
-            db_cursor.execute(
-    "INSERT INTO exp_data VALUES (?,?,?,?,?,?,?,?,?,?,?)", infos)
+            db_cursor.execute("INSERT INTO exp_data VALUES (?,?,?,?,?,?,?,?,?,?,?)", infos)
             db_connection.commit()
             db_connection.close()
 
@@ -483,9 +463,8 @@ class CheckpontSavingExtension(chainer.training.Extension):
         log.info("Saving current trainer state to file %s" % self.save_to)
         serializers.save_npz(self.save_to, trainer)
         config_session = self.config_training.copy(readonly=False)
-        config_session.add_section(
-    "model_parameters",
-     keep_at_bottom="metadata")
+        config_session.add_section("model_parameters",
+                                   keep_at_bottom="metadata")
         config_session["model_parameters"]["filename"] = self.save_to
         config_session["model_parameters"]["type"] = "snapshot"
         config_session["model_parameters"]["description"] = "checkpoint"
@@ -532,19 +511,23 @@ def train_on_data_chainer(encdec, optimizer, training_data, output_files_dict,
         iterator = trainer.updater.get_iterator("main")
         mb_raw = iterator.peek()
 
-        src_batch, tgt_batch, src_mask = make_batch_src_tgt(
-    mb_raw, eos_idx=eos_idx, padding_idx=0, gpu=gpu, volatile="on", need_arg_sort=False)
-        s_unk_tag = lambda num, utag: "S_UNK_%i" % utag
-        t_unk_tag = lambda num, utag: "T_UNK_%i" % utag
+        src_batch, tgt_batch, src_mask = make_batch_src_tgt(mb_raw, eos_idx=eos_idx, padding_idx=0,
+                                                            gpu=gpu, volatile="on", need_arg_sort=False)
+
+        def s_unk_tag(num, utag):
+            "S_UNK_%i" % utag
+
+        def t_unk_tag(num, utag):
+            "T_UNK_%i" % utag
+
         sample_once(encdec, src_batch, tgt_batch, src_mask, src_indexer, tgt_indexer, eos_idx,
                     max_nb=20,
                     s_unk_tag=s_unk_tag, t_unk_tag=t_unk_tag)
 
     iterator_training_data = LengthBasedSerialIterator(training_data, mb_size,
-                                            nb_of_batch_to_sort=nb_of_batch_to_sort,
-                                            sort_key=lambda x: len(x[0]),
-                                            repeat=True,
-                                                       shuffle=reshuffle_every_epoch)
+                                                       nb_of_batch_to_sort=nb_of_batch_to_sort,
+                                                       sort_key=lambda x: len(x[0]),
+                                                       repeat=True, shuffle=reshuffle_every_epoch)
 
     def loss_func(src_batch, tgt_batch, src_mask):
 
@@ -564,20 +547,19 @@ def train_on_data_chainer(encdec, optimizer, training_data, output_files_dict,
         return avg_loss
 
     def convert_mb(mb_raw, device):
-        return make_batch_src_tgt(
-    mb_raw,
-    eos_idx=eos_idx,
-    padding_idx=0,
-    gpu=device,
-    volatile="off",
-     need_arg_sort=False)
+        return make_batch_src_tgt(mb_raw,
+                                  eos_idx=eos_idx,
+                                  padding_idx=0,
+                                  gpu=device,
+                                  volatile="off",
+                                  need_arg_sort=False)
 
     updater = Updater(iterator_training_data, optimizer,
-                converter=convert_mb,
-      # iterator_training_data = chainer.iterators.SerialIterator(training_data, mb_size,
-#                                               repeat = True,
-                      # shuffle = reshuffle_every_epoch)
-                device=gpu,
+                      converter=convert_mb,
+                      # iterator_training_data = chainer.iterators.SerialIterator(training_data, mb_size,
+                      #                                                           repeat = True,
+                      #                                                           shuffle = reshuffle_every_epoch)
+                      device=gpu,
                       loss_func=loss_func,
                       need_to_convert_to_variables=False)
 
@@ -589,16 +571,16 @@ def train_on_data_chainer(encdec, optimizer, training_data, output_files_dict,
     if dev_data is not None and not no_report_or_save:
         dev_loss_extension = ComputeLossExtension(dev_data, eos_idx,
                                                   mb_size, gpu, reverse_src, reverse_tgt,
-                     save_best_model_to=output_files_dict["model_best_loss"],
+                                                  save_best_model_to=output_files_dict["model_best_loss"],
                                                   observation_name="dev_loss", config_training=config_training)
         trainer.extend(dev_loss_extension, trigger=(report_every, "iteration"))
 
         dev_bleu_extension = ComputeBleuExtension(dev_data, eos_idx, src_indexer, tgt_indexer,
                                                   output_files_dict["dev_translation_output"],
-            output_files_dict["dev_src_output"],
-            mb_size, gpu, reverse_src, reverse_tgt,
-            save_best_model_to=output_files_dict["model_best"],
-            observation_name="dev_bleu", config_training=config_training)
+                                                  output_files_dict["dev_src_output"],
+                                                  mb_size, gpu, reverse_src, reverse_tgt,
+                                                  save_best_model_to=output_files_dict["model_best"],
+                                                  observation_name="dev_bleu", config_training=config_training)
 
         trainer.extend(dev_bleu_extension, trigger=(report_every, "iteration"))
 
@@ -606,23 +588,15 @@ def train_on_data_chainer(encdec, optimizer, training_data, output_files_dict,
         test_loss_extension = ComputeLossExtension(test_data, eos_idx,
                                                    mb_size, gpu, reverse_src, reverse_tgt,
                                                    observation_name="test_loss")
-        trainer.extend(
-    test_loss_extension,
-    trigger=(
-        report_every,
-         "iteration"))
+        trainer.extend(test_loss_extension, trigger=(report_every, "iteration"))
 
         test_bleu_extension = ComputeBleuExtension(test_data, eos_idx, src_indexer, tgt_indexer,
                                                    output_files_dict["test_translation_output"],
-            output_files_dict["test_src_output"],
-            mb_size, gpu, reverse_src, reverse_tgt,
-            observation_name="test_bleu")
+                                                   output_files_dict["test_src_output"],
+                                                   mb_size, gpu, reverse_src, reverse_tgt,
+                                                   observation_name="test_bleu")
 
-        trainer.extend(
-    test_bleu_extension,
-    trigger=(
-        report_every,
-         "iteration"))
+        trainer.extend(test_bleu_extension, trigger=(report_every, "iteration"))
 
     if not no_report_or_save:
         trainer.extend(sample_extension, trigger=(sample_every, "iteration"))
@@ -630,20 +604,11 @@ def train_on_data_chainer(encdec, optimizer, training_data, output_files_dict,
         # trainer.extend(chainer.training.extensions.snapshot(), trigger =
         # (save_ckpt_every, "iteration"))
 
-        trainer.extend(
-    CheckpontSavingExtension(
-        output_files_dict["model_ckpt"], config_training), trigger=(
-            save_ckpt_every, "iteration"))
+        trainer.extend(CheckpontSavingExtension(output_files_dict["model_ckpt"], config_training),
+                       trigger=(save_ckpt_every, "iteration"))
+        trainer.extend(SqliteLogExtension(db_path=output_files_dict["sqlite_db"]))
 
-        trainer.extend(
-    SqliteLogExtension(
-        db_path=output_files_dict["sqlite_db"]))
-
-    trainer.extend(
-    TrainingLossSummaryExtension(
-        trigger=(
-            report_every,
-             "iteration")))
+    trainer.extend(TrainingLossSummaryExtension(trigger=(report_every, "iteration")))
 
     if config_training.training_management.resume:
         if "model_parameters" not in config_training:
@@ -666,23 +631,20 @@ def train_on_data_chainer(encdec, optimizer, training_data, output_files_dict,
             serializers.save_npz(save_initial_model_to, encdec)
 
         trainer.run()
-    except BaseException: 
+    except BaseException:
         if not no_report_or_save:
             final_snapshot_fn = output_files_dict["model_final"]
-            log.info(
-    "Exception met. Trying to save current trainer state to file %s" %
-     final_snapshot_fn)
+            log.info("Exception met. Trying to save current trainer state to file %s" %
+                     final_snapshot_fn)
             serializers.save_npz(final_snapshot_fn, trainer)
 # chainer.training.extensions.snapshot(filename =
 # final_snapshot_fn)(trainer)
             config_session = config_training.copy(readonly=False)
-            config_session.add_section(
-    "model_parameters", keep_at_bottom="metadata")
+            config_session.add_section("model_parameters", keep_at_bottom="metadata")
             config_session["model_parameters"]["filename"] = final_snapshot_fn
             config_session["model_parameters"]["type"] = "snapshot"
             config_session["model_parameters"]["description"] = "final"
-            config_session["model_parameters"]["infos"] = argument_parsing_tools.OrderedNamespace(
-                )
+            config_session["model_parameters"]["infos"] = argument_parsing_tools.OrderedNamespace()
             config_session["model_parameters"]["infos"]["iteration"] = trainer.updater.iteration
             config_session.set_metadata_modified_time()
             config_session.save_to(final_snapshot_fn + ".config")
