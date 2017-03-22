@@ -65,12 +65,7 @@ def read_one_align_info_from_file_object(f):
     return id_, score, alignment
 
 
-def load_aligned_corpus(
-        src_fn,
-        tgt_fn,
-        align_fn,
-        skip_empty_align=True,
-        invert_alignment_links=False):
+def load_aligned_corpus(src_fn, tgt_fn, align_fn, skip_empty_align=True, invert_alignment_links=False):
     src = codecs.open(src_fn, encoding="utf8")
     tgt = codecs.open(tgt_fn, encoding="utf8")
     align_f = codecs.open(align_fn, encoding="utf8")
@@ -85,14 +80,10 @@ def load_aligned_corpus(
         except exceptions.EOFError:
             return
         if skip_empty_align and len(alignment) == 0:
-            log.warn(
-                "skipping empty alignment %i %s" %
-                (num_sentence, id_align))
+            log.warn("skipping empty alignment %i %s" % (num_sentence, id_align))
             continue
-        assert id_src == id_tgt, "%s != %s @%i" % (
-            id_src, id_tgt, num_sentence)
-        assert id_src == id_align, "%s != %s @%i" % (
-            id_src, id_align, num_sentence)
+        assert id_src == id_tgt, "%s != %s @%i" % (id_src, id_tgt, num_sentence)
+        assert id_src == id_align, "%s != %s @%i" % (id_src, id_align, num_sentence)
 
         if invert_alignment_links:
             inverted_alignment = [(right, left) for (left, right) in alignment]
@@ -112,25 +103,12 @@ def commandline():
     parser.add_argument("align_fn")
     parser.add_argument("dest")
     parser.add_argument("--max_n", type=int)
-    parser.add_argument(
-        "--invert_alignment_links",
-        default=False,
-        action="store_true")
-    parser.add_argument(
-        "--generate_lexical_prob",
-        default=False,
-        action="store_true")
-    parser.add_argument(
-        "--count_null_translations",
-        default=False,
-        action="store_true")
+    parser.add_argument("--invert_alignment_links", default=False, action="store_true")
+    parser.add_argument("--generate_lexical_prob", default=False, action="store_true")
+    parser.add_argument("--count_null_translations", default=False, action="store_true")
 
     args = parser.parse_args()
-    corpus = load_aligned_corpus(
-        args.src_fn,
-        args.tgt_fn,
-        args.align_fn,
-        invert_alignment_links=args.invert_alignment_links)
+    corpus = load_aligned_corpus(args.src_fn, args.tgt_fn, args.align_fn, invert_alignment_links=args.invert_alignment_links)
 
     counter = defaultdict(lambda: defaultdict(int))
     for num, (sentence_src, sentence_tgt, alignment) in enumerate(corpus):

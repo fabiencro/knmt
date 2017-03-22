@@ -31,14 +31,10 @@ class TestServer:
             "tests_data")
         segmenter_command = "echo '%s' | bin/z2h.pl | bin/tokenizer.perl"
         segmenter_format = "plain"
-        config_file = os.path.join(
-            str(test_data_dir),
-            "models/result_invariability.train.train.config")
-        model_file = os.path.join(
-            str(test_data_dir),
-            "models/result_invariability.train.model.best.npz")
-        args_server = '--server 127.0.0.1:45766 --mode beam_search --segmenter_command="{0}" --segmenter_format {1} {2} {3}'.format(
-            segmenter_command, segmenter_format, config_file, model_file)
+        config_file = os.path.join(str(test_data_dir), "models/result_invariability.train.train.config")
+        model_file = os.path.join(str(test_data_dir), "models/result_invariability.train.model.best.npz")
+        args_server = '--server 127.0.0.1:45766 --mode beam_search --segmenter_command="{0}" --segmenter_format {1} {2} {3}'.format(segmenter_command,
+                                                                                                                                    segmenter_format, config_file, model_file)
         if gpu is not None:
             args_server += '--gpu {0}'.format(gpu)
 

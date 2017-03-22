@@ -44,8 +44,7 @@ class ApplyToMultiIterator(object):
             self.iterator = iter(self.iterable)
 
     def __iter__(self):
-        return ApplyToMultiIterator(
-            self.iterable, self.function, can_iter=True)
+        return ApplyToMultiIterator(self.iterable, self.function, can_iter=True)
 
     def next(self):
         elem = self.iterator.next()
@@ -63,11 +62,7 @@ class ApplyToMultiIteratorPair(object):
             self.iterator2 = iter(self.iterable2)
 
     def __iter__(self):
-        return ApplyToMultiIteratorPair(
-            self.iterable1,
-            self.iterable2,
-            self.function,
-            can_iter=True)
+        return ApplyToMultiIteratorPair(self.iterable1, self.iterable2, self.function, can_iter=True)
 
     def next(self):
         elem1 = self.iterator1.next()
@@ -96,10 +91,7 @@ class FileMultiIterator(object):
             return line.strip()
 
     def __iter__(self):
-        return FileMultiIterator(
-            self.filename,
-            max_nb_ex=self.max_nb_ex,
-            can_iter=True)
+        return FileMultiIterator(self.filename, max_nb_ex=self.max_nb_ex, can_iter=True)
 
 
 REGISTERED_PROCESSORS = []
@@ -192,13 +184,7 @@ class BiProcessor(PreProcessor):
         raise NotImplemented
 
     def apply_to_iterable(self, iterable1, iterable2):
-        return ApplyToMultiIteratorPair(
-            iterable1,
-            iterable2,
-            lambda elem1,
-            elem2: self.convert(
-                elem1,
-                elem2))
+        return ApplyToMultiIteratorPair(iterable1, iterable2, lambda elem1, elem2: self.convert(elem1, elem2))
 
 
 @registered_processor
@@ -222,8 +208,7 @@ class ProcessorChain(MonoProcessor):
 #             return self.stats_list[num]
 
     def __str__(self):
-        return "[%s]" % (" -> ".join([str(processor)
-                                      for processor in self.processor_list]))
+        return "[%s]" % (" -> ".join([str(processor) for processor in self.processor_list]))
 
     def __add__(self, other):
         if isinstance(other, ProcessorChain):
@@ -251,8 +236,7 @@ class ProcessorChain(MonoProcessor):
                 this_stats = stats.get_sub_stats(num_processor)
             else:
                 this_stats = None
-# print num_processor, sentence, processor, this_stats,
-# this_stats.make_report()
+#             print num_processor, sentence, processor, this_stats, this_stats.make_report()
             sentence = processor.convert(sentence, stats=this_stats)
         return sentence
 
@@ -293,8 +277,7 @@ class BiProcessorChain(BiProcessor):
         self.tgt_processor_ = ProcessorChain()
 
     def __str__(self):
-        return "[%s]" % (" -> ".join(["[%s]%s" % (channel, str(processor))
-                                      for (channel, processor) in self.processors_list]))
+        return "[%s]" % (" -> ".join(["[%s]%s" % (channel, str(processor)) for (channel, processor) in self.processors_list]))
 
     def is_initialized(self):
         all_initialized = all(processor.is_initialized()
@@ -320,8 +303,7 @@ class BiProcessorChain(BiProcessor):
             elif channel == "all":
                 processor.initialize(iterable1, iterable2)
                 if num_processor < len(self.processors_list) - 1:
-                    iterable1, iterable2 = processor.apply_to_iterable(
-                        iterable1, iterable2)
+                    iterable1, iterable2 = processor.apply_to_iterable(iterable1, iterable2)
 
     def convert(self, sentence1, sentence2):
         for num_processor, (channel, processor) in enumerate(
@@ -376,8 +358,7 @@ class BiProcessorChain(BiProcessor):
     @classmethod
     def make_from_serializable(cls, obj):
         res = BiProcessorChain()
-        for ch, processor in [[channel, PreProcessor.make_from_serializable(
-                subobj)] for channel, subobj in obj["processors_list"]]:
+        for ch, processor in [[channel, PreProcessor.make_from_serializable(subobj)] for channel, subobj in obj["processors_list"]]:
             if ch == "src":
                 res.add_src_processor(processor)
             elif ch == "tgt":
@@ -396,28 +377,17 @@ class BiProcessorChain(BiProcessor):
 
 @registered_processor
 class JointBPEBiProcessor(BiProcessor):
-    def __init__(
-            self,
-            bpe_data_file,
-            symbols=10000,
-            min_frequency=2,
-            separator="@@"):
-        self.bpe_processor = BPEProcessing(
-            bpe_data_file,
-            symbols=symbols,
-            min_frequency=min_frequency,
-            separator=separator)
+    def __init__(self, bpe_data_file, symbols=10000, min_frequency=2, separator="@@"):
+        self.bpe_processor = BPEProcessing(bpe_data_file, symbols=symbols, min_frequency=min_frequency, separator=separator)
 
     def initialize(self, iterable1, iterable2):
         self.bpe_processor.initialize(itertools.chain(iterable1, iterable2))
 
     def convert(self, sentence1, sentence2):
-        return self.bpe_processor.convert(
-            sentence1), self.bpe_processor.convert(sentence2)
+        return self.bpe_processor.convert(sentence1), self.bpe_processor.convert(sentence2)
 
     def deconvert(self, sentence1, sentence2):
-        return self.bpe_processor.deconvert(
-            sentence1), self.bpe_processor.deconvert(sentence2)
+        return self.bpe_processor.deconvert(sentence1), self.bpe_processor.deconvert(sentence2)
 
     def src_processor(self):
         return self.bpe_processor
@@ -430,8 +400,7 @@ class JointBPEBiProcessor(BiProcessor):
 
     @classmethod
     def make_from_serializable(cls, obj):
-        bpe_processor = PreProcessor.make_from_serializable(
-            obj["bpe_processor"])
+        bpe_processor = PreProcessor.make_from_serializable(obj["bpe_processor"])
         res = JointBPEBiProcessor(bpe_data_file="dummy")
         res.bpe_processor = bpe_processor
         return res
@@ -445,12 +414,7 @@ class JointBPEBiProcessor(BiProcessor):
 
 @registered_processor
 class BPEProcessing(MonoProcessor):
-    def __init__(
-            self,
-            bpe_data_file,
-            symbols=10000,
-            min_frequency=2,
-            separator="@@"):
+    def __init__(self, bpe_data_file, symbols=10000, min_frequency=2, separator="@@"):
         self.bpe_data_file = bpe_data_file
         self.symbols = symbols
         self.min_frequency = min_frequency
@@ -466,12 +430,10 @@ class BPEProcessing(MonoProcessor):
     def initialize(self, iterable):
         log.info("Creating BPE data and saving it to %s", self.bpe_data_file)
         with codecs.open(self.bpe_data_file, "w", encoding="utf8") as output:
-            learn_bpe.learn_bpe_from_sentence_iterable(
-                iterable,
-                output=output,
-                symbols=self.symbols,
-                min_frequency=self.min_frequency,
-                verbose=False)
+            learn_bpe.learn_bpe_from_sentence_iterable(iterable, output=output,
+                                                       symbols=self.symbols,
+                                                       min_frequency=self.min_frequency,
+                                                       verbose=False)
         self.load_bpe()
 
     def __str__(self):
@@ -492,8 +454,7 @@ class BPEProcessing(MonoProcessor):
         res = []
         merge_to_previous = False
         for position, w in enumerate(seq):
-            if len(w) >= len(
-                    self.separator) and w[-len(self.separator):] == self.separator and position != (len(seq) - 1):
+            if len(w) >= len(self.separator) and w[-len(self.separator):] == self.separator and position != (len(seq) - 1):
                 has_separator = True
                 w = w[:-len(self.separator)]
             else:
@@ -513,11 +474,8 @@ class BPEProcessing(MonoProcessor):
 
     @classmethod
     def make_from_serializable(cls, obj):
-        res = BPEProcessing(
-            obj["bpe_data_file"],
-            symbols=obj["symbols"],
-            min_frequency=obj["min_frequency"],
-            separator=obj["separator"])
+        res = BPEProcessing(obj["bpe_data_file"], symbols=obj["symbols"],
+                            min_frequency=obj["min_frequency"], separator=obj["separator"])
         res.load_bpe()
         return res
 
@@ -675,8 +633,7 @@ class LatinScriptProcess(MonoProcessor):
             for punct in ".!?:,;\"%$'`)]-([&=+*<>_/\\^~#@|":
                 splitted = w.split(punct)
                 if len(splitted[0]) == 0:
-                    # do not split if punc at the beginning
-                    splitted = [punct + splitted[1]] + splitted[2:]
+                    splitted = [punct + splitted[1]] + splitted[2:]  # do not split if punc at the beginning
                 w = (" " + self.SUFFIX_CHAR + punct).join(splitted)
         if ends_with_triple_dots:
             w = w + " " + self.SUFFIX_CHAR + "..."
@@ -760,12 +717,7 @@ class IndexingPrePostProcessorBase(MonoProcessor):
     def convert_swallow(self, sentence, stats=None):
         raise NotImplemented
 
-    def deconvert_swallow(
-            self,
-            seq,
-            unk_tag="#UNK#",
-            no_oov=True,
-            eos_idx=None):
+    def deconvert_swallow(self, seq, unk_tag="#UNK#", no_oov=True, eos_idx=None):
         raise NotImplemented
 
     def deconvert_post(self, seq):
@@ -798,15 +750,11 @@ class BiIndexingPrePostProcessor(BiProcessor):
 
     def convert(self, sentence1, sentence2, stat1=None, stat2=None):
         if self.preprocessor is not None:
-            sentence1, sentence2 = self.preprocessor.convert(
-                sentence1, sentence2)
-        return self.indexer1.convert_swallow(
-            sentence1, stat1), self.indexer2.convert_swallow(
-            sentence2, stat2)
+            sentence1, sentence2 = self.preprocessor.convert(sentence1, sentence2)
+        return self.indexer1.convert_swallow(sentence1, stat1), self.indexer2.convert_swallow(sentence2, stat2)
 
     def deconvert(self, sentence1, sentence2):
-        sentence1, sentence2 = self.indexer1.deconvert_swallow(
-            sentence1), self.indexer2.deconvert_swallow(sentence2)
+        sentence1, sentence2 = self.indexer1.deconvert_swallow(sentence1), self.indexer2.deconvert_swallow(sentence2)
         if self.preprocessor is not None:
             sentence1, sentence2 = self.preprocessor.deconvert(
                 sentence1, sentence2)
@@ -842,12 +790,8 @@ class BiIndexingPrePostProcessor(BiProcessor):
         if not can_be_initialized and self.is_initialized():
             raise ValueError("adding preprocessor to initialized biindexer")
         self.preprocessor = processor
-        self.indexer1.add_preprocessor(
-            processor.src_processor(),
-            can_be_initialized=can_be_initialized)
-        self.indexer2.add_preprocessor(
-            processor.tgt_processor(),
-            can_be_initialized=can_be_initialized)
+        self.indexer1.add_preprocessor(processor.src_processor(), can_be_initialized=can_be_initialized)
+        self.indexer2.add_preprocessor(processor.tgt_processor(), can_be_initialized=can_be_initialized)
 
     @classmethod
     def make_from_serializable(cls, obj):
@@ -880,8 +824,7 @@ class BiIndexingPrePostProcessor(BiProcessor):
             assert isinstance(res.indexer1, IndexingPrePostProcessorBase)
             assert isinstance(res.indexer2, IndexingPrePostProcessorBase)
             if "preprocessor" in obj:
-                preprocessor = PreProcessor.make_from_serializable(
-                    obj["preprocessor"])
+                preprocessor = PreProcessor.make_from_serializable(obj["preprocessor"])
                 res.add_preprocessor(preprocessor, can_be_initialized=True)
             else:
                 res.preprocessor = None
@@ -913,14 +856,16 @@ class IndexingPrePostProcessor(IndexingPrePostProcessorBase):
             self.nb_ex = 0
 
         def update(self, unk_cnt, token, nb_ex):
-            # print unk_cnt, token, nb_ex, self.unk_cnt, self.token, self.nb_ex
+            #             print unk_cnt, token, nb_ex, self.unk_cnt, self.token, self.nb_ex
             self.unk_cnt += unk_cnt
             self.token += token
             self.nb_ex += nb_ex
 
         def make_report(self):
-            report = "#tokens: %i   of which %i (%f%%) are unknown" % (
-                self.token, self.unk_cnt, (self.unk_cnt * 100.0) / self.token if self.token != 0 else 0)
+            report = "#tokens: %i   of which %i (%f%%) are unknown" % (self.token,
+                                                                       self.unk_cnt,
+                                                                       (self.unk_cnt * 100.0) / self.token if self.token != 0 else 0
+                                                                       )
             return report
 
         def report_as_obj(self):
@@ -944,11 +889,9 @@ class IndexingPrePostProcessor(IndexingPrePostProcessorBase):
 
     def __str__(self):
         if not self.is_initialized():
-            return "indexer<%i>pp[%s]" % (
-                self.voc_limit, "" if self.preprocessor is None else str(self.preprocessor))
+            return "indexer<%i>pp[%s]" % (self.voc_limit, "" if self.preprocessor is None else str(self.preprocessor))
         else:
-            return "indexer<%i - %i>pp[%s]" % (self.voc_limit, len(
-                self.indexer), "" if self.preprocessor is None else str(self.preprocessor))
+            return "indexer<%i - %i>pp[%s]" % (self.voc_limit, len(self.indexer), "" if self.preprocessor is None else str(self.preprocessor))
 
     def __len__(self):
         if not self.is_initialized():
@@ -976,14 +919,8 @@ class IndexingPrePostProcessor(IndexingPrePostProcessorBase):
     def apply_to_iterable(self, iterable, stats=None):
         raise AssertionError()
 
-    def deconvert_swallow(
-            self,
-            seq,
-            unk_tag="#UNK#",
-            no_oov=True,
-            eos_idx=None):
-        return self.indexer.deconvert(
-            seq, unk_tag=unk_tag, no_oov=no_oov, eos_idx=eos_idx)
+    def deconvert_swallow(self, seq, unk_tag="#UNK#", no_oov=True, eos_idx=None):
+        return self.indexer.deconvert(seq, unk_tag=unk_tag, no_oov=no_oov, eos_idx=eos_idx)
 
     def deconvert_post(self, seq):
         if self.preprocessor is not None:
@@ -1064,7 +1001,7 @@ def izip_must_equal(it1, it2):
 
 def build_dataset_pp(src_fn, tgt_fn, bi_idx, max_nb_ex=None):
     #                   src_voc_limit=None, tgt_voc_limit=None, max_nb_ex=None, dic_src=None, dic_tgt=None,
-    # tgt_segmentation_type="word", src_segmentation_type="word"):
+    #                   tgt_segmentation_type="word", src_segmentation_type="word"):
 
     src = FileMultiIterator(src_fn, max_nb_ex=max_nb_ex)
     tgt = FileMultiIterator(tgt_fn, max_nb_ex=max_nb_ex)
@@ -1094,8 +1031,7 @@ def build_dataset_pp(src_fn, tgt_fn, bi_idx, max_nb_ex=None):
 
     for sentence_src, sentence_tgt in izip_must_equal(src, tgt):
         #         print len(sentence_tgt), len(sentence_src)
-        seq_src, seq_tgt = bi_idx.convert(
-            sentence_src, sentence_tgt, stats_src, stats_tgt)
+        seq_src, seq_tgt = bi_idx.convert(sentence_src, sentence_tgt, stats_src, stats_tgt)
         res.append((seq_src, seq_tgt))
 
     return res, stats_src, stats_tgt
@@ -1146,7 +1082,4 @@ def load_pp_pair_from_file(filename):
 
 
 def save_pp_pair_to_file(bi_idx, filename):
-    json.dump(
-        bi_idx.to_serializable(), open(
-            filename, "w"), indent=2, separators=(
-            ',', ': '))
+    json.dump(bi_idx.to_serializable(), open(filename, "w"), indent=2, separators=(',', ': '))

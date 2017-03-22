@@ -56,12 +56,7 @@ def read_one_align_info_from_file_object(f):
     return id_, score, alignment
 
 
-def load_aligned_corpus(
-        src_fn,
-        tgt_fn,
-        align_fn,
-        skip_empty_align=True,
-        invert_alignment_links=False):
+def load_aligned_corpus(src_fn, tgt_fn, align_fn, skip_empty_align=True, invert_alignment_links=False):
     src = codecs.open(src_fn, encoding="utf8")
     tgt = codecs.open(tgt_fn, encoding="utf8")
     align_f = codecs.open(align_fn, encoding="utf8")
@@ -76,14 +71,10 @@ def load_aligned_corpus(
         except exceptions.EOFError:
             return
         if skip_empty_align and len(alignment) == 0:
-            log.warn(
-                "skipping empty alignment %i %s" %
-                (num_sentence, id_align))
+            log.warn("skipping empty alignment %i %s" % (num_sentence, id_align))
             continue
-        assert id_src == id_tgt, "%s != %s @%i" % (
-            id_src, id_tgt, num_sentence)
-        assert id_src == id_align, "%s != %s @%i" % (
-            id_src, id_align, num_sentence)
+        assert id_src == id_tgt, "%s != %s @%i" % (id_src, id_tgt, num_sentence)
+        assert id_src == id_align, "%s != %s @%i" % (id_src, id_align, num_sentence)
 
         if invert_alignment_links:
             inverted_alignment = [(right, left) for (left, right) in alignment]

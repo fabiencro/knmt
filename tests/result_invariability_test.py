@@ -27,10 +27,7 @@ class TestResultInvariability:
         If not, it means that a recent commit have changed the behavior of the system.
         """
 
-        test_data_dir = os.path.join(
-            os.path.dirname(
-                os.path.abspath(__file__)),
-            "tests_data")
+        test_data_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "tests_data")
         data_src_file = os.path.join(test_data_dir, "src2.txt")
         data_tgt_file = os.path.join(test_data_dir, "tgt2.txt")
         train_dir = os.path.join(test_data_dir, "models")
@@ -44,11 +41,8 @@ class TestResultInvariability:
         if search_type == 'greedy_search':
             search_mode = 'translate'
             other_params = ''
-        args_eval_search = [train_prefix + '.train.config',
-                            train_prefix + '.model.best.npz',
-                            data_src_file,
-                            search_file] + '--mode {0}{1}'.format(search_mode,
-                                                                  other_params).split(' ')
+        args_eval_search = [train_prefix + '.train.config', train_prefix + '.model.best.npz', data_src_file, search_file] + \
+            '--mode {0}{1}'.format(search_mode, other_params).split(' ')
         if gpu is not None:
             args_eval_search += ['--gpu', gpu]
         main(arguments=["eval"] + args_eval_search)

@@ -58,8 +58,7 @@ def process_eval_config(config_fn, dest_dir):
     f.write("<html><body>")
     f.write("Config Filename: %s <p>" % config_fn)
     f.write("eval prefix: %s <p>" % eval_prefix)
-    f.write("config file created/modified:%s <p>" %
-            time.ctime(time_config_created))
+    f.write("config file created/modified:%s <p>" % time.ctime(time_config_created))
     f.write("BLEU: %s <p>" % bc_with_unk)
     f.write("BLEU with unk replaced: %s <p>" % bc_unk_replaced)
     for line in open(config_fn):
@@ -91,12 +90,9 @@ def process_data_config(config_fn, dest_dir, data_to_train):
     f.write("<html><body>")
     f.write("Config Filename: %s <p>" % config_fn)
     f.write("data prefix: %s <p>" % data_prefix)
-    f.write("config file created/modified:%s <p>" %
-            time.ctime(time_config_created))
+    f.write("config file created/modified:%s <p>" % time.ctime(time_config_created))
     for train_urlname in data_to_train[data_prefix]:
-        f.write(
-            "train: <a href = '../train/%s'>%s</a><p>" %
-            (train_urlname, train_urlname))
+        f.write("train: <a href = '../train/%s'>%s</a><p>" % (train_urlname, train_urlname))
 
     f.write("<pre><code>")
     for line in open(config_fn):
@@ -104,8 +100,7 @@ def process_data_config(config_fn, dest_dir, data_to_train):
     f.write("</code></pre>")
     f.write("</body></html>")
 
-    return urlname, data_prefix, (config["src_fn"], config["tgt_fn"]
-                                  ), time_config_created, config["src_voc_size"], config["tgt_voc_size"]
+    return urlname, data_prefix, (config["src_fn"], config["tgt_fn"]), time_config_created, config["src_voc_size"], config["tgt_voc_size"]
 
 
 def process_train_config(config_fn, dest_dir):
@@ -141,10 +136,8 @@ def process_train_config(config_fn, dest_dir):
         db = sqlite3.connect(train_prefix + ".result.sqlite")
         c = db.cursor()
 
-        c.execute(
-            "SELECT date, bleu_info, iteration, loss, bleu, dev_loss, dev_bleu, avg_time, avg_training_loss FROM exp_data")
-        date, bleu_info, iteration, test_loss, test_bleu, dev_loss, dev_bleu, avg_time, avg_training_loss = zip(
-            *list(c.fetchall()))
+        c.execute("SELECT date, bleu_info, iteration, loss, bleu, dev_loss, dev_bleu, avg_time, avg_training_loss FROM exp_data")
+        date, bleu_info, iteration, test_loss, test_bleu, dev_loss, dev_bleu, avg_time, avg_training_loss = zip(*list(c.fetchall()))
 
         infos = dict(
             last_nb_iterations=iteration[-1],
@@ -170,8 +163,7 @@ def process_train_config(config_fn, dest_dir):
     try:
         graph_training.generate_graph(sqldb=train_prefix + ".result.sqlite",
                                       #                                   lib = "plotly",
-                                      dest=os.path.join(
-                                          dest_dir, filenamize(train_prefix) + ".graph.html"),
+                                      dest=os.path.join(dest_dir, filenamize(train_prefix) + ".graph.html"),
                                       title=train_prefix)
         has_graph = True
     except sqlite3.OperationalError as e:
@@ -183,18 +175,14 @@ def process_train_config(config_fn, dest_dir):
     f.write("Config Filename: %s <p>" % config_fn)
     f.write("train prefix: %s <p>" % train_prefix)
 
-    f.write("data: <a href = '../data/%s'>%s</a><p>" %
-            (filenamize(data_prefix) + ".html", filenamize(data_prefix)))
+    f.write("data: <a href = '../data/%s'>%s</a><p>" % (filenamize(data_prefix) + ".html", filenamize(data_prefix)))
     if has_graph:
-        f.write("<a href = '%s'>graph</a><p>" %
-                (filenamize(train_prefix) + ".graph.html"))
+        f.write("<a href = '%s'>graph</a><p>" % (filenamize(train_prefix) + ".graph.html"))
 
-    f.write("config file created/modified:%s <p>" %
-            time.ctime(time_config_created))
+    f.write("config file created/modified:%s <p>" % time.ctime(time_config_created))
     f.write("last exp:%s <p>" % time.ctime(time_last_exp))
     time_file_modif_new = os.path.getmtime(dest_filename)
-    f.write("this file created/modified:%s <p>" %
-            time.ctime(time_file_modif_new))
+    f.write("this file created/modified:%s <p>" % time.ctime(time_file_modif_new))
 
     if infos is not None:
         for key in sorted(infos.keys()):
@@ -210,12 +198,8 @@ def process_train_config(config_fn, dest_dir):
 
 
 def define_parser(parser):
-    parser.add_argument(
-        "source_dir",
-        help="directory containing experiments results (also look into subdirectories)")
-    parser.add_argument(
-        "target_dir",
-        help="directory where html files will be generated")
+    parser.add_argument("source_dir", help="directory containing experiments results (also look into subdirectories)")
+    parser.add_argument("target_dir", help="directory where html files will be generated")
 
 
 def do_recap(args):
@@ -262,10 +246,8 @@ def do_recap(args):
 
     data_to_srctgt = {}
     for fn_full in data_config_fn_list:
-        urlname, data_prefix, src_tgt_fn, time_config_created, src_voc_size, tgt_voc_size = process_data_config(
-            fn_full, data_dir, data_to_train)
-        data_urlname_list[src_tgt_fn].append(
-            (time_config_created, urlname, data_prefix, src_voc_size, tgt_voc_size))
+        urlname, data_prefix, src_tgt_fn, time_config_created, src_voc_size, tgt_voc_size = process_data_config(fn_full, data_dir, data_to_train)
+        data_urlname_list[src_tgt_fn].append((time_config_created, urlname, data_prefix, src_voc_size, tgt_voc_size))
         data_to_srctgt[data_prefix] = src_tgt_fn
 
     index.write("<h1>DATA</h1><p>")
@@ -273,13 +255,8 @@ def do_recap(args):
         index.write("<h3>** src: %s | tgt: %s **</h3>" % src_tgt_fn)
         urlname_list.sort(reverse=True)
         for time_config_created, urlname, data_prefix, src_voc_size, tgt_voc_size in urlname_list:
-            index.write(
-                '%s s:%i t:%i \t<a href = "data/%s">%s</a><p/>' %
-                (time.ctime(time_config_created),
-                 src_voc_size,
-                 tgt_voc_size,
-                 urlname,
-                 data_prefix))
+            index.write('%s s:%i t:%i \t<a href = "data/%s">%s</a><p/>' % (time.ctime(time_config_created),
+                                                                           src_voc_size, tgt_voc_size, urlname, data_prefix))
     train_urlname_list_src_tgt = defaultdict(list)
     for data_path, urlname_list in train_urlname_list.iteritems():
         if data_path in data_to_srctgt:
@@ -290,13 +267,7 @@ def do_recap(args):
 
     current_time = time.time()
     index.write("<h1>TRAIN</h1><p>")
-    for src_tgt_fn in sorted(
-            train_urlname_list_src_tgt.keys(),
-            key=lambda x: max(
-                train_urlname_list_src_tgt[x][i][0] for i in xrange(
-                    len(
-                        train_urlname_list_src_tgt[x]))),
-            reverse=True):
+    for src_tgt_fn in sorted(train_urlname_list_src_tgt.keys(), key=lambda x: max(train_urlname_list_src_tgt[x][i][0] for i in xrange(len(train_urlname_list_src_tgt[x]))), reverse=True):
         urlname_list = train_urlname_list_src_tgt[src_tgt_fn]
         index.write("<h3>** src: %s | tgt: %s **</h3>" % src_tgt_fn)
         urlname_list.sort(reverse=True)
@@ -309,8 +280,7 @@ def do_recap(args):
                 timestring = "<b>%s [RCT]</b>" % time.ctime(time_last_exp)
             else:
                 timestring = "%s" % time.ctime(time_last_exp)
-            index.write('%s <a href = "train/%s">%s</a><p/>' %
-                        (timestring, urlname, urlname.split("xDIRx")[-1]))
+            index.write('%s <a href = "train/%s">%s</a><p/>' % (timestring, urlname, urlname.split("xDIRx")[-1]))
             if infos is not None:
                 for key in sorted(infos.keys()):
                     index.write("%s : %r  ||| " % (key, infos[key]))
@@ -319,8 +289,7 @@ def do_recap(args):
     index.write("<h1>EVAL</h1><p>")
     for fn_full in eval_config_fn_list:
         urlname, bleu = process_eval_config(fn_full, eval_dir)
-        index.write('<a href = "eval/%s">%s</a> %f <p/>' %
-                    (urlname, urlname.split("xDIRx")[-1], bleu))
+        index.write('<a href = "eval/%s">%s</a> %f <p/>' % (urlname, urlname.split("xDIRx")[-1], bleu))
 
     index.write("</body></html>")
 

@@ -54,8 +54,7 @@ def commandline():
             if(prob_f_b > float(prob[fr])):
                 prob[fr] = prob_f_b
                 dic[fr] = en
-    # print "%s, %s, %s, %s, %s" % (fr, en, dic_e2f[fr][en], dic_f2e[fr][en],
-    # prob_f_b)
+    #         print "%s, %s, %s, %s, %s" % (fr, en, dic_e2f[fr][en], dic_f2e[fr][en], prob_f_b)
 
     # print "======"
     # for fr in dic:

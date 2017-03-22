@@ -209,16 +209,8 @@ class GRUBase(link.Chain):
         if n_inputs is None:
             n_inputs = n_units
         super(GRUBase, self).__init__(
-            W_r_z_h=linear.Linear(
-                n_inputs,
-                n_units * 3,
-                initialW=init,
-                initial_bias=bias_init),
-            U_r_z=linear.Linear(
-                n_units,
-                n_units * 2,
-                initialW=init,
-                initial_bias=bias_init),
+            W_r_z_h=linear.Linear(n_inputs, n_units * 3, initialW=init, initial_bias=bias_init),
+            U_r_z=linear.Linear(n_units, n_units * 2, initialW=init, initial_bias=bias_init),
             #             W_r=linear.Linear(n_inputs, n_units),
             #             U_r = linear.Linear(n_units, n_units),
             #             W_z=linear.Linear(n_inputs, n_units),
@@ -320,8 +312,7 @@ class GRU(GRUBase):
 
     def faster_call(self, h, x):
         r_z_h_x = self.W_r_z_h(x)
-        r_x, z_x, h_x = split_axis(
-            r_z_h_x, (self.n_units, self.n_units * 2), axis=1)
+        r_x, z_x, h_x = split_axis(r_z_h_x, (self.n_units, self.n_units * 2), axis=1)
         assert r_x.data.shape[1] == self.n_units
         assert z_x.data.shape[1] == self.n_units
         assert h_x.data.shape[1] == self.n_units
@@ -340,8 +331,7 @@ class GRU(GRUBase):
 
         r_z_h = self.U_r_z(h)
 
-        r_x, z_x, h_x = split_axis(
-            r_z_h_x, (self.n_units, self.n_units * 2), axis=1)
+        r_x, z_x, h_x = split_axis(r_z_h_x, (self.n_units, self.n_units * 2), axis=1)
         assert r_x.data.shape[1] == self.n_units
         assert z_x.data.shape[1] == self.n_units
         assert h_x.data.shape[1] == self.n_units
@@ -353,10 +343,7 @@ class GRU(GRUBase):
 #         h_new = (1 - z) * h + z * h_bar
 #         return h_new
 
-        return compute_output_GRU(
-            z_x, z_h, h_x, h, self.U(
-                sigm_a_plus_b_by_h_fast(
-                    r_x, r_h, h)))
+        return compute_output_GRU(z_x, z_h, h_x, h, self.U(sigm_a_plus_b_by_h_fast(r_x, r_h, h)))
 
     def faster_call3(self, h, x):
         device = chainer.cuda.get_device(h.data)
@@ -373,8 +360,7 @@ class GRU(GRUBase):
             stream1.synchronize()
             stream2.synchronize()
 
-            r_x, z_x, h_x = split_axis(
-                r_z_h_x, (self.n_units, self.n_units * 2), axis=1)
+            r_x, z_x, h_x = split_axis(r_z_h_x, (self.n_units, self.n_units * 2), axis=1)
             assert r_x.data.shape[1] == self.n_units
             assert z_x.data.shape[1] == self.n_units
             assert h_x.data.shape[1] == self.n_units
@@ -386,10 +372,7 @@ class GRU(GRUBase):
     #         h_new = (1 - z) * h + z * h_bar
     #         return h_new
 
-            return compute_output_GRU(
-                z_x, z_h, h_x, h, self.U(
-                    sigm_a_plus_b_by_h_fast(
-                        r_x, r_h, h)))
+            return compute_output_GRU(z_x, z_h, h_x, h, self.U(sigm_a_plus_b_by_h_fast(r_x, r_h, h)))
 
     __call__ = faster_call2
 
@@ -427,10 +410,7 @@ def commandline():
     parser.add_argument("--fast", type=int)
     parser.add_argument("--fast2", type=int)
     parser.add_argument("--test_perf", default=False, action="store_true")
-    parser.add_argument(
-        "--test_correctness",
-        default=False,
-        action="store_true")
+    parser.add_argument("--test_correctness", default=False, action="store_true")
     parser.add_argument("--mb_size", type=int, default=64)
     parser.add_argument("--h_size", type=int, default=512)
     parser.add_argument("--i_size", type=int, default=512)
@@ -596,9 +576,10 @@ def test2():
     r3.grad = np.random.randn(mb_size, no).astype(np.float32)
     r3.backward()
 
-    def f(): return (gru_model.faster_call(st_v, x_v).data,)
-    g_st, g_x = gradient_check.numerical_grad(
-        f, (st_v.data, x_v.data), (r3.grad,))
+    def f():
+        return (gru_model.faster_call(st_v, x_v).data,)
+
+    g_st, g_x = gradient_check.numerical_grad(f, (st_v.data, x_v.data), (r3.grad,))
     print np.max(np.abs(g_st - st_v.grad))
     print np.max(np.abs(g_x - x_v.grad))
     gradient_check.assert_allclose(g_st, st_v.grad, atol=1e-3)
