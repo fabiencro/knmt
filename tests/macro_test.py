@@ -16,11 +16,12 @@ from nmt_chainer.__main__ import main
 import os.path
 import pytest
 
+
 class TestMacro:
-    
+
     def test_overfitting(self, tmpdir, gpu):
         """
-        Test whether the translation results are equal to the target translations or not 
+        Test whether the translation results are equal to the target translations or not
         when the model is overtrained.
         """
         test_data_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "tests_data")
@@ -31,19 +32,19 @@ class TestMacro:
         data_tgt_file = os.path.join(test_data_dir, "tgt2.txt")
         args = 'make_data {0} {1} {2} --dev_src {0} --dev_tgt {1}'.format(
             data_src_file, data_tgt_file, data_prefix).split(' ')
-        main(arguments = args)
-        
+        main(arguments=args)
+
         args_train = ["train", data_prefix, train_prefix] + "--max_nb_iters 1000 --mb_size 2 --Ei 10 --Eo 12 --Hi 30 --Ha 70 --Ho 15 --Hl 23".split(" ")
         if gpu is not None:
             args_train += ['--gpu', gpu]
-        main(arguments = args_train)
+        main(arguments=args_train)
 
         eval_dir = tmpdir.mkdir("eval")
         translation_file = os.path.join(str(eval_dir), 'translations.txt')
-        args_eval = ["eval", train_prefix + '.train.config', train_prefix + '.model.best.npz', data_src_file, translation_file] + '--mode beam_search --beam_width 30'.split(' ') 
+        args_eval = ["eval", train_prefix + '.train.config', train_prefix + '.model.best.npz', data_src_file, translation_file] + '--mode beam_search --beam_width 30'.split(' ')
         if gpu is not None:
             args_eval += ['--gpu', gpu]
-        main(arguments = args_eval)
+        main(arguments=args_eval)
 
         with open(data_tgt_file) as f:
             expected_translations = f.readlines()
@@ -63,8 +64,8 @@ class TestMacro:
         Compare a beam search using a width of 1 with a greedy search and check
         whether the translation results are equal or not.
         """
-        # At this moment, this test fails once in a while. 
-        # To increase the chance of finding a case where this test fails, I execute several times. 
+        # At this moment, this test fails once in a while.
+        # To increase the chance of finding a case where this test fails, I execute several times.
         for i in range(0, 10):
             test_data_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "tests_data")
             train_dir = tmpdir.mkdir("train_{0}".format(i))
@@ -74,26 +75,26 @@ class TestMacro:
             data_tgt_file = os.path.join(test_data_dir, "tgt2.txt")
             args = 'make_data {0} {1} {2} --dev_src {0} --dev_tgt {1}'.format(
                 data_src_file, data_tgt_file, data_prefix).split(' ')
-            main(arguments = args)
-            
+            main(arguments=args)
+
             args_train = ["train", data_prefix, train_prefix] + "--max_nb_iters 200 --mb_size 2 --Ei 10 --Eo 12 --Hi 30 --Ha 70 --Ho 15 --Hl 23".split(" ")
             if gpu is not None:
                 args_train += ['--gpu', gpu]
-            main(arguments = args_train)
+            main(arguments=args_train)
 
             beam_search_eval_dir = tmpdir.mkdir("eval_beam_search_{0}".format(i))
             beam_search_file = os.path.join(str(beam_search_eval_dir), 'translations.txt')
-            args_eval = ["eval", train_prefix + '.train.config', train_prefix + '.model.best.npz', data_src_file, beam_search_file] + '--mode beam_search --beam_width 1'.split(' ') 
+            args_eval = ["eval", train_prefix + '.train.config', train_prefix + '.model.best.npz', data_src_file, beam_search_file] + '--mode beam_search --beam_width 1'.split(' ')
             if gpu is not None:
                 args_eval += ['--gpu', gpu]
-            main(arguments = args_eval)
+            main(arguments=args_eval)
 
             greedy_search_eval_dir = tmpdir.mkdir("eval_greedy_search_{0}".format(i))
             greedy_search_file = os.path.join(str(greedy_search_eval_dir), 'translations.txt')
-            args_eval = ["eval", train_prefix + '.train.config', train_prefix + '.model.best.npz', data_src_file, greedy_search_file] + '--mode translate'.split(' ') 
+            args_eval = ["eval", train_prefix + '.train.config', train_prefix + '.model.best.npz', data_src_file, greedy_search_file] + '--mode translate'.split(' ')
             if gpu is not None:
                 args_eval += ['--gpu', gpu]
-            main(arguments = args_eval)
+            main(arguments=args_eval)
 
             with open(beam_search_file) as f:
                 beam_search_translations = f.readlines()
@@ -121,27 +122,27 @@ class TestMacro:
         data_tgt_file = os.path.join(test_data_dir, "tgt2.txt")
         args = 'make_data {0} {1} {2} --dev_src {0} --dev_tgt {1}'.format(
             data_src_file, data_tgt_file, data_prefix).split(' ')
-        main(arguments = args)
-        
+        main(arguments=args)
+
         args_train = ["train", data_prefix, train_prefix] + "--max_nb_iters 200 --mb_size 2 --Ei 10 --Eo 12 --Hi 30 --Ha 70 --Ho 15 --Hl 23".split(" ")
         if gpu is not None:
             args_train += ['--gpu', gpu]
-        main(arguments = args_train)
+        main(arguments=args_train)
 
         beam_search_eval_dir = tmpdir.mkdir("eval_beam_search")
         beam_search_file = os.path.join(str(beam_search_eval_dir), 'translations.txt')
-        args_eval = ["eval", train_prefix + '.train.config', train_prefix + '.model.best.npz', data_src_file, beam_search_file] + '--mode beam_search --beam_width 30'.split(' ') 
+        args_eval = ["eval", train_prefix + '.train.config', train_prefix + '.model.best.npz', data_src_file, beam_search_file] + '--mode beam_search --beam_width 30'.split(' ')
         if gpu is not None:
             args_eval += ['--gpu', gpu]
-        main(arguments = args_eval)
+        main(arguments=args_eval)
 
         ensemble_search_eval_dir = tmpdir.mkdir("eval_ensemble_search")
         ensemble_search_file = os.path.join(str(ensemble_search_eval_dir), 'translations.txt')
         args_eval = ["eval", train_prefix + '.train.config', train_prefix + '.model.best.npz', data_src_file, ensemble_search_file] + \
-            '--mode beam_search --beam_width 30 --additional_training_config {0} {0} --additional_trained_model {1} {1}'.format(train_prefix + '.train.config', train_prefix + '.model.best.npz').split(' ') 
+            '--mode beam_search --beam_width 30 --additional_training_config {0} {0} --additional_trained_model {1} {1}'.format(train_prefix + '.train.config', train_prefix + '.model.best.npz').split(' ')
         if gpu is not None:
             args_eval += ['--gpu', gpu]
-        main(arguments = args_eval)
+        main(arguments=args_eval)
 
         with open(beam_search_file) as f:
             beam_search_translations = f.readlines()
@@ -172,21 +173,21 @@ class TestMacro:
             data_tgt_file = os.path.join(test_data_dir, "tgt2.txt")
             args = 'make_data {0} {1} {2} --dev_src {0} --dev_tgt {1}'.format(
                 data_src_file, data_tgt_file, data_prefix).split(' ')
-            main(arguments = args)
-            
+            main(arguments=args)
+
             args_train = ["train", data_prefix, train_prefix] + "--max_nb_iters 200 --mb_size 2 --Ei 10 --Eo 12 --Hi 30 --Ha 70 --Ho 15 --Hl 23".split(" ")
             if gpu is not None:
                 args_train += ['--gpu', gpu]
-            main(arguments = args_train)
+            main(arguments=args_train)
 
         train_dir = str(tmpdir.join("train_0"))
         train_prefix = os.path.join(train_dir, "test1.train")
         beam_search_eval_dir = tmpdir.mkdir("eval_beam_search")
         beam_search_file = os.path.join(str(beam_search_eval_dir), 'translations.txt')
-        args_eval_beam_search = ["eval", train_prefix + '.train.config', train_prefix + '.model.best.npz', data_src_file, beam_search_file] + '--mode beam_search --beam_width 30'.split(' ') 
+        args_eval_beam_search = ["eval", train_prefix + '.train.config', train_prefix + '.model.best.npz', data_src_file, beam_search_file] + '--mode beam_search --beam_width 30'.split(' ')
         if gpu is not None:
             args_eval_beam_search += ['--gpu', gpu]
-        main(arguments = args_eval_beam_search)
+        main(arguments=args_eval_beam_search)
 
         ensemble_search_eval_dir = tmpdir.mkdir("eval_ensemble_search")
         ensemble_search_file = os.path.join(str(ensemble_search_eval_dir), 'translations.txt')
@@ -198,10 +199,10 @@ class TestMacro:
         train_prefix_3 = os.path.join(train_dir_3, "test1.train")
         args_eval_ensemble_search = ["eval", train_prefix_1 + '.train.config', train_prefix_1 + '.model.best.npz', data_src_file, ensemble_search_file] + \
             '--mode beam_search --beam_width 30 --additional_training_config {0} {1} --additional_trained_model {2} {3}'.format(
-                train_prefix_2 + '.train.config', train_prefix_3 + '.train.config', train_prefix_2 + '.model.best.npz', train_prefix_3 + '.model.best.npz').split(' ') 
+                train_prefix_2 + '.train.config', train_prefix_3 + '.train.config', train_prefix_2 + '.model.best.npz', train_prefix_3 + '.model.best.npz').split(' ')
         if gpu is not None:
             args_eval_ensemble_search += ['--gpu', gpu]
-        main(arguments = args_eval_ensemble_search)
+        main(arguments=args_eval_ensemble_search)
 
         with open(beam_search_file) as f:
             beam_search_translations = f.readlines()
@@ -215,4 +216,3 @@ class TestMacro:
             print p
 
         assert(beam_search_translations != ensemble_search_translations)
-

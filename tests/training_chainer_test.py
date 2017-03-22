@@ -20,6 +20,7 @@ from nmt_chainer.utilities.utils import de_batch
 import nmt_chainer.training_module.training_chainer as iterators
 from numpy.random import RandomState
 
+
 def generate_random_dataset(dataset_size, sequence_avg_size):
     """
     Build a dummy data structure with random numbers similar to our
@@ -29,20 +30,21 @@ def generate_random_dataset(dataset_size, sequence_avg_size):
       ... ]
     """
     random_generator = RandomState(42)
-    
+
     dataset = []
     for i in range(0, dataset_size):
-        item = [] 
-        # Each item contains 2 sequences. 
+        item = []
+        # Each item contains 2 sequences.
         for j in range(0, 2):
             sequence_length = random_generator.randint(sequence_avg_size - 5, sequence_avg_size + 5)
             #sequence_length = random_generator.randint(1, 5)
-            sequence = random_generator.randint(0, 100, size = sequence_length)
+            sequence = random_generator.randint(0, 100, size=sequence_length)
             item.append(sequence)
         item = tuple(item)
         dataset.append(item)
 
     return dataset
+
 
 class TestSerialIterator:
 
@@ -58,10 +60,10 @@ class TestSerialIterator:
 
         random_generator = RandomState(0)
 
-        iter = iterators.SerialIteratorWithPeek(dataset, batch_size, shuffle = False, repeat = True)
+        iter = iterators.SerialIteratorWithPeek(dataset, batch_size, shuffle=False, repeat=True)
         m = 0
         L = len(dataset)
-        #for i in range(0, len(dataset) * random_generator.randint(5, 20)):
+        # for i in range(0, len(dataset) * random_generator.randint(5, 20)):
         for i in range(0, 1):
             batch = iter.next()
             if m >= L:
@@ -69,33 +71,33 @@ class TestSerialIterator:
                 items = dataset[m:m + batch_size]
             elif m < L and m + batch_size >= L:
                 items = dataset[m:L] + dataset[0:m + batch_size - L]
-                m = batch_size - (L - m) 
+                m = batch_size - (L - m)
             else:
                 items = dataset[m:m + batch_size]
                 m += batch_size
             assert batch == items
-        
+
     # The test where shuffle, repeat, and check_peek fails because the peek() method
     # cannot foresee how the elements will be shuffled by the next() method at the end of an epoch. - FB
-    @pytest.mark.parametrize("dataset_size, batch_size, sequence_avg_size, shuffle, repeat, check_peek", 
-        [
-         (64, 20, 16, True, True, False), 
-         (64, 20, 16, False, True, False), 
-         (64, 20, 16, True, False, False), 
-         (64, 20, 16, False, False, False),
-         #(64, 20, 16, True, True, True),
-         (64, 20, 16, False, True, True), 
-         (64, 20, 16, True, False, True), 
-         (64, 20, 16, False, False, True),
-         (200, 20, 20, True, True, False), 
-         (200, 20, 20, False, True, False), 
-         (200, 20, 20, True, False, False), 
-         (200, 20, 20, False, False, False),
-         #(200, 20, 20, True, True, True),
-         (200, 20, 20, False, True, True), 
-         (200, 20, 20, True, False, True), 
-         (200, 20, 20, False, False, True),
-         ])
+    @pytest.mark.parametrize("dataset_size, batch_size, sequence_avg_size, shuffle, repeat, check_peek",
+                             [
+                                 (64, 20, 16, True, True, False),
+                                 (64, 20, 16, False, True, False),
+                                 (64, 20, 16, True, False, False),
+                                 (64, 20, 16, False, False, False),
+                                 #(64, 20, 16, True, True, True),
+                                 (64, 20, 16, False, True, True),
+                                 (64, 20, 16, True, False, True),
+                                 (64, 20, 16, False, False, True),
+                                 (200, 20, 20, True, True, False),
+                                 (200, 20, 20, False, True, False),
+                                 (200, 20, 20, True, False, False),
+                                 (200, 20, 20, False, False, False),
+                                 #(200, 20, 20, True, True, True),
+                                 (200, 20, 20, False, True, True),
+                                 (200, 20, 20, True, False, True),
+                                 (200, 20, 20, False, False, True),
+                             ])
     def test_retrieve_all_items(self, dataset_size, batch_size, sequence_avg_size, shuffle, repeat, check_peek):
         """
         Test if we can retrieve all the items of the dataset from the iterator,
@@ -104,10 +106,10 @@ class TestSerialIterator:
         iter.peek() == iter.next() right before calling iter.next().
         """
         dataset = generate_random_dataset(dataset_size, sequence_avg_size)
-        
+
         random_generator = RandomState(0)
 
-        iter = iterators.SerialIteratorWithPeek(dataset, batch_size, shuffle = shuffle, repeat = repeat)
+        iter = iterators.SerialIteratorWithPeek(dataset, batch_size, shuffle=shuffle, repeat=repeat)
         first_iter_items = None
         work_dataset = []
         batch = []
@@ -129,7 +131,7 @@ class TestSerialIterator:
                     assert batch == peek_item
                 item_count = 0
             first_item = batch.pop(0)
-            #work_dataset.remove(first_item)
+            # work_dataset.remove(first_item)
             first_item_index = -1
             for item_idx, item in enumerate(work_dataset):
                 if np.array_equal(item, first_item):
@@ -140,9 +142,10 @@ class TestSerialIterator:
             item_count += 1
         assert len(work_dataset) == 0
         if repeat:
-            assert len(batch) == 0 or len(batch) == batch_size - ((len(dataset) * dataset_count) % batch_size) 
+            assert len(batch) == 0 or len(batch) == batch_size - ((len(dataset) * dataset_count) % batch_size)
         else:
             assert len(batch) == 0
+
 
 class TestLengthBasedSerialIterator():
 
@@ -157,12 +160,12 @@ class TestLengthBasedSerialIterator():
         """
         dataset = generate_random_dataset(dataset_size, sequence_avg_size)
 
-        iter = iterators.LengthBasedSerialIterator(dataset, batch_size, shuffle = False, repeat = False)
+        iter = iterators.LengthBasedSerialIterator(dataset, batch_size, shuffle=False, repeat=False)
         while True:
             try:
                 peek_value = iter.peek()
                 next_value = iter.next()
-                #print "{0} vs {1}".format(peek_value, next_value)
+                # print "{0} vs {1}".format(peek_value, next_value)
                 assert peek_value == next_value
             except StopIteration:
                 break
@@ -184,9 +187,9 @@ class TestLengthBasedSerialIterator():
         """
         dataset = generate_random_dataset(dataset_size, sequence_avg_size)
 
-        iter = iterators.LengthBasedSerialIterator(dataset, batch_size, shuffle = False, repeat = False)
+        iter = iterators.LengthBasedSerialIterator(dataset, batch_size, shuffle=False, repeat=False)
 
-        # Compute the average sequence length. 
+        # Compute the average sequence length.
         total = 0
         count = 0
         for batch in iter:
@@ -196,19 +199,19 @@ class TestLengthBasedSerialIterator():
                 if seq_length > 0:
                     count += 1
                     total += seq_length
-        avg_seq_length = total/count
-        #print "avg={0}".format(avg_seq_length)
+        avg_seq_length = total / count
+        # print "avg={0}".format(avg_seq_length)
 
         prev_seq_length = None
         for batch in iter:
-            #print "batch size={0}".format(len(batch))
+            # print "batch size={0}".format(len(batch))
             for pairs in batch:
-                #print "seq1.length={0} seq.length={1}".format(len(pairs[0]),len(pairs[1]))
+                # print "seq1.length={0} seq.length={1}".format(len(pairs[0]),len(pairs[1]))
                 # Consider the second sequence because the default sort_key uses this sequence.
                 seq_length = len(pairs[1])
                 if seq_length > 0:
                     count += 1
                     total += seq_length
-                if prev_seq_length != None:
-                    assert abs(prev_seq_length - seq_length) <= 5 
+                if prev_seq_length is not None:
+                    assert abs(prev_seq_length - seq_length) <= 5
                     assert abs(seq_length - avg_seq_length) <= 10
