@@ -49,9 +49,9 @@ class SpacedRepetitor(object):
     def add_dataset(self, dataset):
         self.boxes[0] = sorted(range(len(dataset)), key = lambda i:example_complexity(dataset[i]))
     
-    def get_n_examples(self, n, just_peek = False):
+    def get_n_examples(self, nb_ex, just_peek = False):
         boxes_sizes = numpy.array([float(len(box)) for box in self.boxes])
-        assert numpy.sum(boxes_sizes) >= n
+        assert numpy.sum(boxes_sizes) >= nb_ex
         
         boxes_ratios = boxes_sizes * self.ratios
         
@@ -61,11 +61,11 @@ class SpacedRepetitor(object):
         boxes_ratios /= sum(boxes_ratios)
         
         
-        fractional_nb = n * boxes_ratios + self.ratio_remainders
+        fractional_nb = nb_ex * boxes_ratios + self.ratio_remainders
         rounded_nb = numpy.maximum(numpy.round(fractional_nb), 0) * (boxes_sizes > 0)
         rounded_nb = rounded_nb.astype(numpy.int)
         
-        over_value = numpy.sum(rounded_nb) - n
+        over_value = numpy.sum(rounded_nb) - nb_ex
         
         if over_value < 0:
             rounded_nb[rounded_nb.argmax()] += -over_value
@@ -102,7 +102,7 @@ class SpacedRepetitor(object):
                         self.being_evaluated[ex] = num_box
                     self.boxes[num_box] = box[expected_nb:]
         
-        assert len(res) == n
+        assert len(res) == nb_ex
         return res
         
         
