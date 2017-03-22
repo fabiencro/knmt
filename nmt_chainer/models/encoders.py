@@ -23,19 +23,12 @@ log.setLevel(logging.INFO)
 
 
 def make_encoder(Vi, Ei, Hi, init_orth, use_bn_length, cell_type):
-    if hasattr(
-            cell_type,
-            "meta_data_cell_type") and cell_type.meta_data_cell_type == rnn_cells.NStepsCell:
+    if hasattr(cell_type, "meta_data_cell_type") and cell_type.meta_data_cell_type == rnn_cells.NStepsCell:
         return EncoderNSteps(Vi, Ei, Hi,
                              cell_type=cell_type)
     else:
-        return Encoder(
-            Vi,
-            Ei,
-            Hi,
-            init_orth=init_orth,
-            use_bn_length=use_bn_length,
-            cell_type=cell_type)
+        return Encoder(Vi, Ei, Hi, init_orth=init_orth, use_bn_length=use_bn_length,
+                       cell_type=cell_type)
 
 
 class EncoderNSteps(Chain):
@@ -77,14 +70,11 @@ class EncoderNSteps(Chain):
 
         seq_length = [None] * mb_size
         for num_seq in range(mb_size):
-            seq_length[num_seq] = len(
-                sequence) - sum(not mask[i][num_seq] for i in range(len(mask)))
+            seq_length[num_seq] = len(sequence) - sum(not mask[i][num_seq] for i in range(len(mask)))
 
         de_batched_seq = []
         for num_seq in range(mb_size):
-            de_batched_seq.append(
-                self.xp.empty(
-                    (seq_length[num_seq],), dtype=self.xp.int32))
+            de_batched_seq.append(self.xp.empty((seq_length[num_seq],), dtype=self.xp.int32))
             for i in xrange(seq_length[num_seq]):
                 de_batched_seq[-1][i] = sequence[i].data[num_seq]
             de_batched_seq[-1] = Variable(de_batched_seq[-1], volatile="auto")
@@ -99,8 +89,7 @@ class EncoderNSteps(Chain):
         for elem in de_batched_seq:
             reversed_embedded_seq.append(self.emb(elem[::-1]))
 
-        hxb, cxb, backward_seq = self.gru_b.apply_to_seq(
-            reversed_embedded_seq, mode=mode)
+        hxb, cxb, backward_seq = self.gru_b.apply_to_seq(reversed_embedded_seq, mode=mode)
 
         assert len(backward_seq) == len(forward_seq) == mb_size
 
@@ -110,17 +99,12 @@ class EncoderNSteps(Chain):
             fb_concatenated = F.concat(
                 (forward_seq[num_seq], backward_seq[num_seq][::-1]), 1)
             if forward_seq[num_seq].data.shape[0] < max_length_size:
-                pad_length = max_length_size - \
-                    forward_seq[num_seq].data.shape[0]
-                fb_concatenated = F.concat((fb_concatenated, self.xp.zeros(
-                    (pad_length, self.Hi * 2), dtype=self.xp.float32)), axis=0)
+                pad_length = max_length_size - forward_seq[num_seq].data.shape[0]
+                fb_concatenated = F.concat((fb_concatenated,
+                                            self.xp.zeros((pad_length, self.Hi * 2), dtype=self.xp.float32)),
+                                           axis=0)
 
-            res.append(
-                F.reshape(
-                    fb_concatenated,
-                    (1,
-                     max_length_size,
-                     self.Hi * 2)))
+            res.append(F.reshape(fb_concatenated, (1, max_length_size, self.Hi * 2)))
         return F.concat(res, axis=0)
 
 
@@ -140,14 +124,7 @@ class Encoder(Chain):
         Return a chainer variable of shape (mb_size, #length, 2*Hi) and type float32
     """
 
-    def __init__(
-            self,
-            Vi,
-            Ei,
-            Hi,
-            init_orth=False,
-            use_bn_length=0,
-            cell_type=rnn_cells.LSTMCell):
+    def __init__(self, Vi, Ei, Hi, init_orth=False, use_bn_length=0, cell_type=rnn_cells.LSTMCell):
         gru_f = cell_type(Ei, Hi)
         gru_b = cell_type(Ei, Hi)
 
@@ -203,18 +180,17 @@ class Encoder(Chain):
                 prev_states = self.gru_b(prev_states, x, mode=mode)
                 output = prev_states[-1]
             else:
-                reshaped_mask = F.broadcast_to(Variable(self.xp.reshape(
-                    mask[pos - mask_offset], (mb_size, 1)), volatile="auto"), (mb_size, self.Hi))
+                reshaped_mask = F.broadcast_to(
+                    Variable(self.xp.reshape(mask[pos - mask_offset],
+                                             (mb_size, 1)), volatile="auto"), (mb_size, self.Hi))
 
                 prev_states = self.gru_b(prev_states, x, mode=mode)
                 output = prev_states[-1]
 
                 masked_prev_states = [None] * len(prev_states)
                 for num_state in xrange(len(prev_states)):
-                    masked_prev_states[num_state] = F.where(
-                        reshaped_mask,
-                        prev_states[num_state],
-                        mb_initial_states_b[num_state])  # TODO: optimize?
+                    masked_prev_states[num_state] = F.where(reshaped_mask,
+                                                            prev_states[num_state], mb_initial_states_b[num_state])  # TODO: optimize?
                 prev_states = tuple(masked_prev_states)
                 output = prev_states[-1]
 

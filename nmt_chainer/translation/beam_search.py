@@ -58,25 +58,10 @@ def iterate_eos_scores(new_scores, eos_idx):
         yield num_case, idx_in_case, cuda.to_cpu(new_scores[num_case, eos_idx])
 
 
-def update_next_lists(
-        num_case,
-        idx_in_case,
-        new_cost,
-        eos_idx,
-        new_state_ensemble,
-        finished_translations,
-        current_translations,
-        current_attentions,
-        next_states_list,
-        next_words_list,
-        next_score_list,
-        next_normalized_score_list,
-        next_translations_list,
-        attn_ensemble,
-        next_attentions_list,
-        beam_score_coverage_penalty,
-        beam_score_coverage_penalty_strength,
-        need_attention=False):
+def update_next_lists(num_case, idx_in_case, new_cost, eos_idx, new_state_ensemble, finished_translations, current_translations,
+                      current_attentions,
+                      next_states_list, next_words_list, next_score_list, next_normalized_score_list, next_translations_list,
+                      attn_ensemble, next_attentions_list, beam_score_coverage_penalty, beam_score_coverage_penalty_strength, need_attention=False):
     """
     Updates the lists containing the infos on translations in current beam
 
@@ -144,32 +129,23 @@ def update_next_lists(
             current_translations[num_case] + [idx_in_case])
         if need_attention:
             xp = cuda.get_array_module(attn_ensemble[0].data)
-            attn_summed = xp.zeros(
-                (attn_ensemble[0].data[0].shape),
-                dtype=xp.float32)
+            attn_summed = xp.zeros((attn_ensemble[0].data[0].shape), dtype=xp.float32)
             for attn in attn_ensemble:
                 attn_summed += attn.data[num_case]
             attn_summed /= len(attn_ensemble)
-            next_attentions_list.append(
-                current_attentions[num_case] + [attn_summed])
+            next_attentions_list.append(current_attentions[num_case] + [attn_summed])
 
 
-def compute_next_lists(
-        new_state_ensemble,
-        new_scores,
-        beam_width,
-        beam_pruning_margin,
-        beam_score_length_normalization,
-        beam_score_length_normalization_strength,
-        beam_score_coverage_penalty,
-        beam_score_coverage_penalty_strength,
-        eos_idx,
-        current_translations,
-        finished_translations,
-        current_attentions,
-        attn_ensemble,
-        force_finish=False,
-        need_attention=False):
+def compute_next_lists(new_state_ensemble, new_scores, beam_width, beam_pruning_margin,
+                       beam_score_length_normalization, beam_score_length_normalization_strength,
+                       beam_score_coverage_penalty, beam_score_coverage_penalty_strength,
+                       eos_idx,
+                       current_translations,
+                       finished_translations,
+                       current_attentions,
+                       attn_ensemble,
+                       force_finish=False,
+                       need_attention=False):
     """
         Compute the informations for the next beam.
 
@@ -214,28 +190,11 @@ def compute_next_lists(
             if beam_score_length_normalization == 'simple':
                 new_cost /= len(current_translations[num_case])
             elif beam_score_length_normalization == 'google':
-                new_cost /= (pow((len(current_translations[num_case]) +
-                                  5), beam_score_length_normalization_strength) /
-                             pow(6, beam_score_length_normalization_strength))
-        update_next_lists(
-            num_case,
-            idx_in_case,
-            new_cost,
-            eos_idx,
-            new_state_ensemble,
-            finished_translations,
-            current_translations,
-            current_attentions,
-            next_states_list,
-            next_words_list,
-            next_score_list,
-            next_normalized_score_list,
-            next_translations_list,
-            attn_ensemble,
-            next_attentions_list,
-            beam_score_coverage_penalty,
-            beam_score_coverage_penalty_strength,
-            need_attention=need_attention)
+                new_cost /= (pow((len(current_translations[num_case]) + 5), beam_score_length_normalization_strength) / pow(6, beam_score_length_normalization_strength))
+        update_next_lists(num_case, idx_in_case, new_cost, eos_idx, new_state_ensemble,
+                          finished_translations, current_translations, current_attentions,
+                          next_states_list, next_words_list, next_score_list, next_normalized_score_list, next_translations_list,
+                          attn_ensemble, next_attentions_list, beam_score_coverage_penalty, beam_score_coverage_penalty_strength, need_attention=need_attention)
         assert len(next_states_list) <= beam_width
 #             if len(next_states_list) >= beam_width:
 #                 break
@@ -281,11 +240,8 @@ def compute_next_lists(
     return next_states_list, next_words_list, next_score_list, next_translations_list, next_attentions_list
 
 
-def compute_next_states_and_scores(
-        dec_cell_ensemble,
-        current_states_ensemble,
-        current_words,
-        prob_space_combination=False):
+def compute_next_states_and_scores(dec_cell_ensemble, current_states_ensemble, current_words,
+                                   prob_space_combination=False):
     """
         Compute the next states and scores when giving current_words as input to the decoding cells in dec_cell_ensemble.
 
@@ -311,26 +267,16 @@ def compute_next_states_and_scores(
     xp = dec_cell_ensemble[0].xp
 
     if current_words is not None:
-        states_logits_attn_ensemble = [
-            dec_cell(
-                states,
-                current_words) for (
-                dec_cell,
-                states) in zip(
-                dec_cell_ensemble,
-                current_states_ensemble)]
+        states_logits_attn_ensemble = [dec_cell(states, current_words) for (dec_cell, states) in zip(
+            dec_cell_ensemble, current_states_ensemble)]
     else:
         assert all(x is None for x in current_states_ensemble)
-        states_logits_attn_ensemble = [
-            dec_cell.get_initial_logits(1) for dec_cell in dec_cell_ensemble]
+        states_logits_attn_ensemble = [dec_cell.get_initial_logits(1) for dec_cell in dec_cell_ensemble]
 
-    new_state_ensemble, logits_ensemble, attn_ensemble = zip(
-        *states_logits_attn_ensemble)
+    new_state_ensemble, logits_ensemble, attn_ensemble = zip(*states_logits_attn_ensemble)
 
     # Combine the scores of the ensembled models
-    combined_scores = xp.zeros(
-        (logits_ensemble[0].data.shape),
-        dtype=xp.float32)
+    combined_scores = xp.zeros((logits_ensemble[0].data.shape), dtype=xp.float32)
 
     if not prob_space_combination:
         for logits in logits_ensemble:
@@ -345,20 +291,14 @@ def compute_next_states_and_scores(
     return combined_scores, new_state_ensemble, attn_ensemble
 
 
-def advance_one_step(
-        dec_cell_ensemble,
-        eos_idx,
-        current_translations_states,
-        beam_width,
-        beam_pruning_margin,
-        beam_score_length_normalization,
-        beam_score_length_normalization_strength,
-        beam_score_coverage_penalty,
-        beam_score_coverage_penalty_strength,
-        finished_translations,
-        force_finish=False,
-        need_attention=False,
-        prob_space_combination=False):
+def advance_one_step(dec_cell_ensemble, eos_idx, current_translations_states, beam_width, beam_pruning_margin,
+                     beam_score_length_normalization,
+                     beam_score_length_normalization_strength,
+                     beam_score_coverage_penalty,
+                     beam_score_coverage_penalty_strength,
+                     finished_translations,
+                     force_finish=False, need_attention=False,
+                     prob_space_combination=False):
     """
         Generate the partial translations / decoder states in the next beam
 
@@ -424,8 +364,9 @@ def advance_one_step(
 
     concatenated_next_states_list = []
     for next_states_list_one_model in zip(*next_states_list):
-        concatenated_next_states_list.append(tuple(
-            [F.concat(substates, axis=0) for substates in zip(*next_states_list_one_model)]))
+        concatenated_next_states_list.append(
+            tuple([F.concat(substates, axis=0) for substates in zip(*next_states_list_one_model)])
+        )
 
     next_translations_states = (next_translations_list,
                                 xp.array(next_score_list),
@@ -437,22 +378,15 @@ def advance_one_step(
     return next_translations_states
 
 
-def ensemble_beam_search(
-        model_ensemble,
-        src_batch,
-        src_mask,
-        nb_steps,
-        eos_idx,
-        beam_width=20,
-        beam_pruning_margin=None,
-        beam_score_length_normalization=None,
-        beam_score_length_normalization_strength=0.2,
-        beam_score_coverage_penalty=None,
-        beam_score_coverage_penalty_strength=0.2,
-        need_attention=False,
-        force_finish=False,
-        prob_space_combination=False,
-        use_unfinished_translation_if_none_found=False):
+def ensemble_beam_search(model_ensemble, src_batch, src_mask, nb_steps, eos_idx,
+                         beam_width=20, beam_pruning_margin=None,
+                         beam_score_length_normalization=None,
+                         beam_score_length_normalization_strength=0.2,
+                         beam_score_coverage_penalty=None,
+                         beam_score_coverage_penalty_strength=0.2,
+                         need_attention=False,
+                         force_finish=False,
+                         prob_space_combination=False, use_unfinished_translation_if_none_found=False):
     """
     Compute translations using a beam-search algorithm.
 
@@ -480,13 +414,8 @@ def ensemble_beam_search(
     assert len(model_ensemble) >= 1
     xp = model_ensemble[0].xp
 
-    dec_cell_ensemble = [
-        model.give_conditionalized_cell(
-            src_batch,
-            src_mask,
-            noise_on_prev_word=False,
-            mode="test",
-            demux=True) for model in model_ensemble]
+    dec_cell_ensemble = [model.give_conditionalized_cell(src_batch, src_mask, noise_on_prev_word=False,
+                                                         mode="test", demux=True) for model in model_ensemble]
 
     assert mb_size == 1
     # TODO: if mb_size == 1 then src_mask value unnecessary -> remove?
@@ -496,8 +425,7 @@ def ensemble_beam_search(
     # Create the initial Translation state
     previous_states_ensemble = [None] * len(model_ensemble)
 
-    # Current_translations_states will hold the information for the current
-    # beam
+    # Current_translations_states will hold the information for the current beam
     current_translations_states = (
         [[]],  # translations
         xp.array([0]),  # scores

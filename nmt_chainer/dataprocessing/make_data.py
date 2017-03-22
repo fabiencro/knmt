@@ -68,47 +68,29 @@ def do_make_data(config):
         bi_idx = processors.load_pp_pair_from_file(config.processing.use_voc)
     else:
 
-        bi_idx = processors.BiIndexingPrePostProcessor(
-            voc_limit1=config.processing.src_voc_size,
-            voc_limit2=config.processing.tgt_voc_size)
+        bi_idx = processors.BiIndexingPrePostProcessor(voc_limit1=config.processing.src_voc_size,
+                                                       voc_limit2=config.processing.tgt_voc_size)
         pp = processors.BiProcessorChain()
 
         if config.processing.latin_tgt:
-            pp.add_tgt_processor(
-                processors.LatinScriptProcess(
-                    config.processing.latin_type))
+            pp.add_tgt_processor(processors.LatinScriptProcess(config.processing.latin_type))
 
         if config.processing.latin_src:
-            pp.add_src_processor(
-                processors.LatinScriptProcess(
-                    config.processing.latin_type))
+            pp.add_src_processor(processors.LatinScriptProcess(config.processing.latin_type))
 
-        pp.add_src_processor(
-            processors.SimpleSegmenter(
-                config.processing.src_segmentation_type))
+        pp.add_src_processor(processors.SimpleSegmenter(config.processing.src_segmentation_type))
         if config.processing.bpe_src is not None:
             pp.add_src_processor(
-                processors.BPEProcessing(
-                    bpe_data_file=bpe_data_file_src,
-                    symbols=config.processing.bpe_src,
-                    separator="._@@@"))
+                processors.BPEProcessing(bpe_data_file=bpe_data_file_src, symbols=config.processing.bpe_src, separator="._@@@"))
 
-        pp.add_tgt_processor(
-            processors.SimpleSegmenter(
-                config.processing.tgt_segmentation_type))
+        pp.add_tgt_processor(processors.SimpleSegmenter(config.processing.tgt_segmentation_type))
         if config.processing.bpe_tgt is not None:
             pp.add_tgt_processor(
-                processors.BPEProcessing(
-                    bpe_data_file=bpe_data_file_tgt,
-                    symbols=config.processing.bpe_tgt,
-                    separator="._@@@"))
+                processors.BPEProcessing(bpe_data_file=bpe_data_file_tgt, symbols=config.processing.bpe_tgt, separator="._@@@"))
 
         if config.processing.joint_bpe is not None:
-            pp.add_biprocessor(
-                processors.JointBPEBiProcessor(
-                    bpe_data_file=bpe_data_file_joint,
-                    symbols=config.processing.joint_bpe,
-                    separator="._@@@"))
+            pp.add_biprocessor(processors.JointBPEBiProcessor(bpe_data_file=bpe_data_file_joint,
+                                                              symbols=config.processing.joint_bpe, separator="._@@@"))
 
         bi_idx.add_preprocessor(pp)
 
@@ -132,11 +114,7 @@ def do_make_data(config):
 
     log.info("loading training data from %s and %s" %
              (config.data.src_fn, config.data.tgt_fn))
-    training_data = load_data(
-        config.data.src_fn,
-        config.data.tgt_fn,
-        max_nb_ex=config.data.max_nb_ex,
-        infos_dict=infos["train"])
+    training_data = load_data(config.data.src_fn, config.data.tgt_fn, max_nb_ex=config.data.max_nb_ex, infos_dict=infos["train"])
 
     dev_data = None
     if config.data.dev_src is not None:
@@ -152,16 +130,9 @@ def do_make_data(config):
                  (config.data.test_src, config.data.test_tgt))
         infos["test"] = collections.OrderedDict()
         test_data = load_data(
-            config.data.test_src,
-            config.data.test_tgt,
-            infos_dict=infos["test"])
+            config.data.test_src, config.data.test_tgt, infos_dict=infos["test"])
 
-    config.insert_section(
-        "infos",
-        infos,
-        even_if_readonly=True,
-        keep_at_bottom="metadata",
-        overwrite=False)
+    config.insert_section("infos", infos, even_if_readonly=True, keep_at_bottom="metadata", overwrite=False)
 
 #     if config.shuffle:
 #         log.info("shuffling data")

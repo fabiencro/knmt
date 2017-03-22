@@ -109,8 +109,7 @@ def update_pair_statistics(pair, changed, stats, indices):
                     indices[prev][j] -= 1
                 if i < len(old_word) - 2:
                     # don't double-count consecutive pairs
-                    if old_word[i + 2] != first or i >= len(
-                            old_word) - 3 or old_word[i + 3] != second:
+                    if old_word[i + 2] != first or i >= len(old_word) - 3 or old_word[i + 3] != second:
                         nex = old_word[i + 1:i + 3]
                         stats[nex] -= freq
                         indices[nex][j] -= 1
@@ -213,12 +212,7 @@ def get_vocabulary_from_iterable(iterable):
     return vocab
 
 
-def learn_bpe_from_sentence_iterable(
-        iterable,
-        output,
-        symbols=10000,
-        min_frequency=2,
-        verbose=True):
+def learn_bpe_from_sentence_iterable(iterable, output, symbols=10000, min_frequency=2, verbose=True):
     vocab = get_vocabulary_from_iterable(iterable)
     vocab = dict([(tuple(x) + ('</w>',), y) for (x, y) in vocab.items()])
     sorted_vocab = sorted(vocab.items(), key=lambda x: x[1], reverse=True)
@@ -237,8 +231,7 @@ def learn_bpe_from_sentence_iterable(
             prune_stats(stats, big_stats, threshold)
             stats = copy.deepcopy(big_stats)
             most_frequent = max(stats, key=stats.get)
-            # threshold is inspired by Zipfian assumption, but should only
-            # affect speed
+            # threshold is inspired by Zipfian assumption, but should only affect speed
             threshold = stats[most_frequent] * i / (i + 10000.0)
             prune_stats(stats, big_stats, threshold)
 
@@ -281,8 +274,7 @@ if __name__ == '__main__':
             prune_stats(stats, big_stats, threshold)
             stats = copy.deepcopy(big_stats)
             most_frequent = max(stats, key=stats.get)
-            # threshold is inspired by Zipfian assumption, but should only
-            # affect speed
+            # threshold is inspired by Zipfian assumption, but should only affect speed
             threshold = stats[most_frequent] * i / (i + 10000.0)
             prune_stats(stats, big_stats, threshold)
 

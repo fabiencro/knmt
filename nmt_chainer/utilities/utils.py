@@ -32,10 +32,8 @@ def make_batch_src(src_data, padding_idx=0, gpu=None, volatile="off"):
     min_src_size = min(len(x) for x in src_data)
     mb_size = len(src_data)
 
-    src_batch = [np.empty((mb_size,), dtype=np.int32)
-                 for _ in xrange(max_src_size)]
-    src_mask = [np.empty((mb_size,), dtype=np.bool)
-                for _ in xrange(max_src_size - min_src_size)]
+    src_batch = [np.empty((mb_size,), dtype=np.int32) for _ in xrange(max_src_size)]
+    src_mask = [np.empty((mb_size,), dtype=np.bool) for _ in xrange(max_src_size - min_src_size)]
 
     for num_ex in xrange(mb_size):
         this_src_len = len(src_data[num_ex])
@@ -50,29 +48,19 @@ def make_batch_src(src_data, padding_idx=0, gpu=None, volatile="off"):
                 src_mask[i - min_src_size][num_ex] = False
 
     if gpu is not None:
-        return ([Variable(cuda.to_gpu(x, gpu), volatile=volatile)
-                 for x in src_batch], [cuda.to_gpu(x, gpu) for x in src_mask])
+        return ([Variable(cuda.to_gpu(x, gpu), volatile=volatile) for x in src_batch],
+                [cuda.to_gpu(x, gpu) for x in src_mask])
     else:
         return [Variable(x, volatile=volatile) for x in src_batch], src_mask
 
 
-def make_batch_src_tgt(
-        training_data,
-        eos_idx=1,
-        padding_idx=0,
-        gpu=None,
-        volatile="off",
-        need_arg_sort=False):
+def make_batch_src_tgt(training_data, eos_idx=1, padding_idx=0, gpu=None, volatile="off", need_arg_sort=False):
     if need_arg_sort:
-        training_data_with_argsort = zip(
-            training_data, range(len(training_data)))
-        training_data_with_argsort.sort(
-            key=lambda x: len(x[0][1]), reverse=True)
+        training_data_with_argsort = zip(training_data, range(len(training_data)))
+        training_data_with_argsort.sort(key=lambda x: len(x[0][1]), reverse=True)
         training_data, argsort = zip(*training_data_with_argsort)
     else:
-        training_data = sorted(
-            training_data, key=lambda x: len(
-                x[1]), reverse=True)
+        training_data = sorted(training_data, key=lambda x: len(x[1]), reverse=True)
 #     max_src_size = max(len(x) for x, y  in training_data)
     max_tgt_size = max(len(y) for _, y in training_data)
     mb_size = len(training_data)
@@ -104,12 +92,7 @@ def make_batch_src_tgt(
                 tgt_batch[-1][num_ex] = training_data[num_ex][1][i]
 
     if gpu is not None:
-        tgt_batch_v = [
-            Variable(
-                cuda.to_gpu(
-                    x,
-                    gpu),
-                volatile=volatile) for x in tgt_batch]
+        tgt_batch_v = [Variable(cuda.to_gpu(x, gpu), volatile=volatile) for x in tgt_batch]
     else:
         tgt_batch_v = [Variable(x, volatile=volatile) for x in tgt_batch]
 
@@ -119,22 +102,13 @@ def make_batch_src_tgt(
         return src_batch, tgt_batch_v, src_mask
 
 
-def make_batch_tgt(
-        training_data,
-        eos_idx=1,
-        gpu=None,
-        volatile="off",
-        need_arg_sort=False):
+def make_batch_tgt(training_data, eos_idx=1, gpu=None, volatile="off", need_arg_sort=False):
     if need_arg_sort:
-        training_data_with_argsort = zip(
-            training_data, range(len(training_data)))
+        training_data_with_argsort = zip(training_data, range(len(training_data)))
         training_data_with_argsort.sort(key=lambda x: len(x[0]), reverse=True)
         training_data, argsort = zip(*training_data_with_argsort)
     else:
-        training_data = sorted(
-            training_data,
-            key=lambda x: len(x),
-            reverse=True)
+        training_data = sorted(training_data, key=lambda x: len(x), reverse=True)
 #     max_src_size = max(len(x) for x, y  in training_data)
     max_tgt_size = max(len(y) for y in training_data)
     mb_size = len(training_data)
@@ -163,12 +137,7 @@ def make_batch_tgt(
                 tgt_batch[-1][num_ex] = training_data[num_ex][i]
 
     if gpu is not None:
-        tgt_batch_v = [
-            Variable(
-                cuda.to_gpu(
-                    x,
-                    gpu),
-                volatile=volatile) for x in tgt_batch]
+        tgt_batch_v = [Variable(cuda.to_gpu(x, gpu), volatile=volatile) for x in tgt_batch]
     else:
         tgt_batch_v = [Variable(x, volatile=volatile) for x in tgt_batch]
 
@@ -216,17 +185,11 @@ def minibatch_looper(data, mb_size, loop=True, avoid_copy=False):
         yield training_data_sampled
 
 
-def batch_sort_and_split(
-        batch,
-        size_parts,
-        sort_key=lambda x: len(
-            x[1]),
-        inplace=False):
+def batch_sort_and_split(batch, size_parts, sort_key=lambda x: len(x[1]), inplace=False):
     if not inplace:
         batch = list(batch)
     batch.sort(key=sort_key)
-    nb_mb_for_sorting = len(batch) / size_parts + \
-        (1 if len(batch) % size_parts != 0 else 0)
+    nb_mb_for_sorting = len(batch) / size_parts + (1 if len(batch) % size_parts != 0 else 0)
     for num_batch in xrange(nb_mb_for_sorting):
         mb_raw = batch[num_batch * size_parts: (num_batch + 1) * size_parts]
         yield mb_raw
@@ -246,37 +209,18 @@ def mb_reverser(mb_raw, reverse_src=False, reverse_tgt=False):
         return mb_raw
 
 
-def minibatch_provider_curiculum(
-        data,
-        eos_idx,
-        mb_size,
-        nb_mb_for_sorting=1,
-        inplace_sorting=False,
-        gpu=None,
-        randomized=False,
-        volatile="off",
-        sort_key=lambda x: len(
-            x[1]),
-    reverse_src=False,
-    reverse_tgt=False,
-        starting_size=200):
+def minibatch_provider_curiculum(data, eos_idx, mb_size, nb_mb_for_sorting=1, inplace_sorting=False, gpu=None,
+                                 randomized=False, volatile="off", sort_key=lambda x: len(x[1]),
+                                 reverse_src=False, reverse_tgt=False, starting_size=200
+                                 ):
     current_size = starting_size
     while True:
         used_data = list(data[:current_size])
         random.shuffle(used_data)
-        sub_mb_provider = minibatch_provider(
-            used_data,
-            eos_idx,
-            mb_size,
-            nb_mb_for_sorting,
-            gpu=gpu,
-            loop=False,
-            randomized=randomized,
-            sort_key=sort_key,
-            volatile=volatile,
-            inplace_sorting=inplace_sorting,
-            reverse_src=reverse_src,
-            reverse_tgt=reverse_tgt)
+        sub_mb_provider = minibatch_provider(used_data, eos_idx, mb_size, nb_mb_for_sorting, gpu=gpu, loop=False,
+                                             randomized=randomized, sort_key=sort_key, volatile=volatile,
+                                             inplace_sorting=inplace_sorting,
+                                             reverse_src=reverse_src, reverse_tgt=reverse_tgt)
 
         for x in sub_mb_provider:
             yield x
@@ -285,35 +229,16 @@ def minibatch_provider_curiculum(
             current_size *= 2
 
 
-def minibatch_provider(
-        data,
-        eos_idx,
-        mb_size,
-        nb_mb_for_sorting=1,
-        loop=True,
-        inplace_sorting=False,
-        gpu=None,
-        randomized=False,
-        volatile="off",
-        sort_key=lambda x: len(
-            x[1]),
-    reverse_src=False,
-    reverse_tgt=False,
-        give_raw_batch=False):
+def minibatch_provider(data, eos_idx, mb_size, nb_mb_for_sorting=1, loop=True, inplace_sorting=False, gpu=None,
+                       randomized=False, volatile="off", sort_key=lambda x: len(x[1]),
+                       reverse_src=False, reverse_tgt=False, give_raw_batch=False
+                       ):
     if nb_mb_for_sorting == -1:
         assert not randomized
-        assert loop == False
-        for mb_raw in batch_sort_and_split(
-                data,
-                mb_size,
-                inplace=inplace_sorting,
-                sort_key=sort_key):
-            mb_raw = mb_reverser(
-                mb_raw,
-                reverse_src=reverse_src,
-                reverse_tgt=reverse_tgt)
-            src_batch, tgt_batch, src_mask = make_batch_src_tgt(
-                mb_raw, eos_idx=eos_idx, gpu=gpu, volatile=volatile)
+        assert not loop
+        for mb_raw in batch_sort_and_split(data, mb_size, inplace=inplace_sorting, sort_key=sort_key):
+            mb_raw = mb_reverser(mb_raw, reverse_src=reverse_src, reverse_tgt=reverse_tgt)
+            src_batch, tgt_batch, src_mask = make_batch_src_tgt(mb_raw, eos_idx=eos_idx, gpu=gpu, volatile=volatile)
 
             if give_raw_batch:
                 yield src_batch, tgt_batch, src_mask, mb_raw
@@ -326,30 +251,19 @@ def minibatch_provider(
             #             assert not loop
             looper = minibatch_looper_random(data, required_data)
         else:
-            looper = minibatch_looper(
-                data, required_data, loop=loop, avoid_copy=False)
+            looper = minibatch_looper(data, required_data, loop=loop, avoid_copy=False)
         for large_batch in looper:
             # ok to sort in place since minibatch_looper will return copies
-            for mb_raw in batch_sort_and_split(
-                    large_batch, mb_size, inplace=True, sort_key=sort_key):
-                mb_raw = mb_reverser(
-                    mb_raw,
-                    reverse_src=reverse_src,
-                    reverse_tgt=reverse_tgt)
-                src_batch, tgt_batch, src_mask = make_batch_src_tgt(
-                    mb_raw, eos_idx=eos_idx, gpu=gpu, volatile=volatile)
+            for mb_raw in batch_sort_and_split(large_batch, mb_size, inplace=True, sort_key=sort_key):
+                mb_raw = mb_reverser(mb_raw, reverse_src=reverse_src, reverse_tgt=reverse_tgt)
+                src_batch, tgt_batch, src_mask = make_batch_src_tgt(mb_raw, eos_idx=eos_idx, gpu=gpu, volatile=volatile)
                 if give_raw_batch:
                     yield src_batch, tgt_batch, src_mask, mb_raw
                 else:
                     yield src_batch, tgt_batch, src_mask
 
 
-def compute_bleu_with_unk_as_wrong(
-        references,
-        candidates,
-        is_unk_id,
-        new_unk_id_ref,
-        new_unk_id_cand):
+def compute_bleu_with_unk_as_wrong(references, candidates, is_unk_id, new_unk_id_ref, new_unk_id_cand):
     import bleu_computer
     assert new_unk_id_ref != new_unk_id_cand
     bc = bleu_computer.BleuComputer()
@@ -378,8 +292,8 @@ def de_batch(batch, mask=None, eos_idx=None, is_variable=False, raw=False):
         res.append([])
         for src_pos in range(len(batch)):
             current_batch_size = batch[src_pos].data.shape[0] if is_variable else batch[src_pos].shape[0]
-            if (mask is None or (
-                    src_pos < mask_offset or mask[src_pos - mask_offset][sent_num])) and current_batch_size > sent_num:
+            if (mask is None or
+                    (src_pos < mask_offset or mask[src_pos - mask_offset][sent_num])) and current_batch_size > sent_num:
                 #                 print sent_num, src_pos, batch[src_pos].data
                 idx = batch[src_pos].data[sent_num] if is_variable else batch[src_pos][sent_num]
                 if not raw:
@@ -419,8 +333,7 @@ def ortho_init(link):
 def compute_lexicon_matrix(src_batch, lexical_probability_dictionary, V_tgt):
     real_mb_size = src_batch[0].data.shape[0]
     max_source_size = len(src_batch)
-    lexicon_matrix = np.zeros(
-        (real_mb_size, max_source_size, V_tgt), dtype=np.float32)
+    lexicon_matrix = np.zeros((real_mb_size, max_source_size, V_tgt), dtype=np.float32)
     for src_pos in xrange(max_source_size):
         # TODO: check if this is too slow
         src_batch_cpu = cuda.to_cpu(src_batch[src_pos].data)

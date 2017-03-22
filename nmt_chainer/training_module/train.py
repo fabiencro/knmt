@@ -39,8 +39,7 @@ log = logging.getLogger("rnns:train")
 log.setLevel(logging.INFO)
 
 
-def generate_lexical_probability_dictionary_indexed(
-        lexical_probability_dictionary_all, src_indexer, tgt_indexer):
+def generate_lexical_probability_dictionary_indexed(lexical_probability_dictionary_all, src_indexer, tgt_indexer):
     log.info("computing lexical_probability_dictionary_indexed")
     lexical_probability_dictionary_indexed = {}
     for ws in lexical_probability_dictionary_all:
@@ -85,12 +84,9 @@ def create_encdec_from_config_dict(config_dict, src_indexer, tgt_indexer):
 
     init_orth = config_dict.get("init_orth", False)
 
-    if "lexical_probability_dictionary" in config_dict and config_dict[
-            "lexical_probability_dictionary"] is not None:
-        log.info("opening lexical_probability_dictionary %s" %
-                 config_dict["lexical_probability_dictionary"])
-        lexical_probability_dictionary_all = json.load(
-            gzip.open(config_dict["lexical_probability_dictionary"], "rb"))
+    if "lexical_probability_dictionary" in config_dict and config_dict["lexical_probability_dictionary"] is not None:
+        log.info("opening lexical_probability_dictionary %s" % config_dict["lexical_probability_dictionary"])
+        lexical_probability_dictionary_all = json.load(gzip.open(config_dict["lexical_probability_dictionary"], "rb"))
 
         lexical_probability_dictionary = generate_lexical_probability_dictionary_indexed(
             lexical_probability_dictionary_all, src_indexer, tgt_indexer)
@@ -99,31 +95,18 @@ def create_encdec_from_config_dict(config_dict, src_indexer, tgt_indexer):
     lex_epsilon = config_dict.get("lexicon_prob_epsilon", 0.001)
 
     # Creating encoder/decoder
-    encdec = nmt_chainer.models.encoder_decoder.EncoderDecoder(
-        Vi,
-        Ei,
-        Hi,
-        Vo + 1,
-        Eo,
-        Ho,
-        Ha,
-        Hl,
-        use_bn_length=use_bn_length,
-        attn_cls=attn_cls,
-        init_orth=init_orth,
-        encoder_cell_type=rnn_cells.create_cell_model_from_config(encoder_cell_type),
-        decoder_cell_type=rnn_cells.create_cell_model_from_config(decoder_cell_type),
-        lexical_probability_dictionary=lexical_probability_dictionary,
-        lex_epsilon=lex_epsilon)
+    encdec = nmt_chainer.models.encoder_decoder.EncoderDecoder(Vi, Ei, Hi, Vo + 1, Eo, Ho, Ha, Hl, use_bn_length=use_bn_length,
+                                                               attn_cls=attn_cls,
+                                                               init_orth=init_orth,
+                                                               encoder_cell_type=rnn_cells.create_cell_model_from_config(encoder_cell_type),
+                                                               decoder_cell_type=rnn_cells.create_cell_model_from_config(decoder_cell_type),
+                                                               lexical_probability_dictionary=lexical_probability_dictionary,
+                                                               lex_epsilon=lex_epsilon)
 
     return encdec
 
 
-def create_encdec_and_indexers_from_config_dict(
-        config_dict,
-        src_indexer=None,
-        tgt_indexer=None,
-        load_config_model="no"):
+def create_encdec_and_indexers_from_config_dict(config_dict, src_indexer=None, tgt_indexer=None, load_config_model="no"):
     assert load_config_model in "yes no if_exists".split()
 
     if src_indexer is None or tgt_indexer is None:
@@ -142,8 +125,7 @@ def create_encdec_and_indexers_from_config_dict(
 #     tgt_voc = None
 #     src_voc = None
 
-    encdec = create_encdec_from_config_dict(
-        config_dict["model"], src_indexer, tgt_indexer)
+    encdec = create_encdec_from_config_dict(config_dict["model"], src_indexer, tgt_indexer)
 
     eos_idx = len(tgt_indexer)
 
@@ -191,10 +173,7 @@ def load_voc_and_update_training_config(config_training):
     Vi = len(src_indexer)  # + UNK
     Vo = len(tgt_indexer)  # + UNK
 
-    config_training.add_section(
-        "data",
-        keep_at_bottom="metadata",
-        overwrite=False)
+    config_training.add_section("data", keep_at_bottom="metadata", overwrite=False)
     config_training["data"]["data_fn"] = data_fn
     config_training["data"]["Vi"] = Vi
     config_training["data"]["Vo"] = Vo
@@ -207,8 +186,7 @@ def load_voc_and_update_training_config(config_training):
 
 def do_train(config_training):
 
-    src_indexer, tgt_indexer = load_voc_and_update_training_config(
-        config_training)
+    src_indexer, tgt_indexer = load_voc_and_update_training_config(config_training)
 
     save_prefix = config_training.training_management.save_prefix
 
@@ -218,8 +196,7 @@ def do_train(config_training):
     output_files_dict["model_final"] = save_prefix + \
         ".model." + "final" + ".npz"
     output_files_dict["model_best"] = save_prefix + ".model." + "best" + ".npz"
-    output_files_dict["model_best_loss"] = save_prefix + \
-        ".model." + "best_loss" + ".npz"
+    output_files_dict["model_best_loss"] = save_prefix + ".model." + "best_loss" + ".npz"
 
 #     output_files_dict["model_ckpt_config"] = save_prefix + ".model." + "ckpt" + ".config"
 #     output_files_dict["model_final_config"] = save_prefix + ".model." + "final" + ".config"
@@ -233,10 +210,8 @@ def do_train(config_training):
     output_files_dict["valid_translation_output"] = save_prefix + ".valid.out"
     output_files_dict["valid_src_output"] = save_prefix + ".valid.src.out"
     output_files_dict["sqlite_db"] = save_prefix + ".result.sqlite"
-    output_files_dict["optimizer_ckpt"] = save_prefix + \
-        ".optimizer." + "ckpt" + ".npz"
-    output_files_dict["optimizer_final"] = save_prefix + \
-        ".optimizer." + "final" + ".npz"
+    output_files_dict["optimizer_ckpt"] = save_prefix + ".optimizer." + "ckpt" + ".npz"
+    output_files_dict["optimizer_final"] = save_prefix + ".optimizer." + "final" + ".npz"
 
     save_prefix_dir, save_prefix_fn = os.path.split(save_prefix)
     ensure_path(save_prefix_dir)
@@ -292,9 +267,7 @@ def do_train(config_training):
 
     max_src_tgt_length = config_training.training_management.max_src_tgt_length
     if max_src_tgt_length is not None:
-        log.info(
-            "filtering sentences of length larger than %i" %
-            (max_src_tgt_length))
+        log.info("filtering sentences of length larger than %i" % (max_src_tgt_length))
         filtered_training_data = []
         nb_filtered = 0
         for src, tgt in training_data:
@@ -303,9 +276,7 @@ def do_train(config_training):
                 filtered_training_data.append((src, tgt))
             else:
                 nb_filtered += 1
-        log.info(
-            "filtered %i sentences of length larger than %i" %
-            (nb_filtered, max_src_tgt_length))
+        log.info("filtered %i sentences of length larger than %i" % (nb_filtered, max_src_tgt_length))
         training_data = filtered_training_data
 
     if not config_training.training.no_shuffle_of_training_data:
@@ -318,8 +289,7 @@ def do_train(config_training):
                                                                   src_indexer=src_indexer, tgt_indexer=tgt_indexer,
                                                                   load_config_model="if_exists" if config_training.training_management.resume else "no")
 #     create_encdec_from_config_dict(config_training.model, src_indexer, tgt_indexer,
-# load_config_model = "if_exists" if
-# config_training.training_management.resume else "no")
+#                             load_config_model = "if_exists" if config_training.training_management.resume else "no")
 
 #     if config_training.training_management.resume:
 #         if "model_parameters" not in config_training:
@@ -330,10 +300,8 @@ def do_train(config_training):
 #             serializers.load_npz(model_filename, encdec)
 
     if config_training.training_management.load_model is not None:
-        log.info("loading model parameters from %s",
-                 config_training.training_management.load_model)
-        serializers.load_npz(
-            config_training.training_management.load_model, encdec)
+        log.info("loading model parameters from %s", config_training.training_management.load_model)
+        serializers.load_npz(config_training.training_management.load_model, encdec)
 
     gpu = config_training.training_management.gpu
     if gpu is not None:
@@ -344,25 +312,20 @@ def do_train(config_training):
     elif config_training.training.optimizer == "adam":
         optimizer = optimizers.Adam()
     elif config_training.training.optimizer == "adagrad":
-        optimizer = optimizers.AdaGrad(
-            lr=config_training.training.learning_rate)
+        optimizer = optimizers.AdaGrad(lr=config_training.training.learning_rate)
     elif config_training.training.optimizer == "sgd":
         optimizer = optimizers.SGD(lr=config_training.training.learning_rate)
     elif config_training.training.optimizer == "momentum":
-        optimizer = optimizers.MomentumSGD(
-            lr=config_training.training.learning_rate,
-            momentum=config_training.training.momentum)
+        optimizer = optimizers.MomentumSGD(lr=config_training.training.learning_rate,
+                                           momentum=config_training.training.momentum)
     elif config_training.training.optimizer == "nesterov":
-        optimizer = optimizers.NesterovAG(
-            lr=config_training.training.learning_rate,
-            momentum=config_training.training.momentum)
+        optimizer = optimizers.NesterovAG(lr=config_training.training.learning_rate,
+                                          momentum=config_training.training.momentum)
     elif config_training.training.optimizer == "rmsprop":
-        optimizer = optimizers.RMSprop(
-            lr=config_training.training.learning_rate)
+        optimizer = optimizers.RMSprop(lr=config_training.training.learning_rate)
     elif config_training.training.optimizer == "rmspropgraves":
-        optimizer = optimizers.RMSpropGraves(
-            lr=config_training.training.learning_rate,
-            momentum=config_training.training.momentum)
+        optimizer = optimizers.RMSpropGraves(lr=config_training.training.learning_rate,
+                                             momentum=config_training.training.momentum)
     else:
         raise NotImplemented
 
@@ -384,11 +347,8 @@ def do_train(config_training):
 
     if config_training.training_management.load_optimizer_state is not None:
         with cuda.get_device(gpu):
-            log.info("loading optimizer parameters from %s",
-                     config_training.training_management.load_optimizer_state)
-            serializers.load_npz(
-                config_training.training_management.load_optimizer_state,
-                optimizer)
+            log.info("loading optimizer parameters from %s", config_training.training_management.load_optimizer_state)
+            serializers.load_npz(config_training.training_management.load_optimizer_state, optimizer)
 
     if config_training.training_management.timer_hook:
         timer_hook = profiling_tools.MyTimerHook
@@ -415,19 +375,12 @@ def do_train(config_training):
                     config_training.training_management.max_nb_epochs, "epoch")
             else:
                 stop_trigger = None
-            training_chainer.train_on_data_chainer(
-                encdec,
-                optimizer,
-                training_data,
-                output_files_dict,
-                src_indexer,
-                tgt_indexer,
-                eos_idx=eos_idx,
-                config_training=config_training,
-                stop_trigger=stop_trigger,
-                test_data=test_data,
-                dev_data=dev_data,
-                valid_data=valid_data)
+            training_chainer.train_on_data_chainer(encdec, optimizer, training_data, output_files_dict,
+                                                   src_indexer, tgt_indexer, eos_idx=eos_idx,
+                                                   config_training=config_training,
+                                                   stop_trigger=stop_trigger,
+                                                   test_data=test_data, dev_data=dev_data, valid_data=valid_data
+                                                   )
 
 
 #

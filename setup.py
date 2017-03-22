@@ -39,11 +39,7 @@ def write_build_info():
 
     try:
         DEVNULL = open(os.devnull, 'wb')
-        returncode = subprocess.call(['git',
-                                      'diff-index',
-                                      '--quiet',
-                                      'HEAD',
-                                      '--'],
+        returncode = subprocess.call(['git', 'diff-index', '--quiet', 'HEAD', '--'],
                                      cwd=module_dir,
                                      stdout=DEVNULL,
                                      stderr=DEVNULL)

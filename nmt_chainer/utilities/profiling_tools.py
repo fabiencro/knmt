@@ -42,8 +42,7 @@ class TimerElem(object):
         self.nb_bwd += 1
 
     def __repr__(self):
-        return "<T:%f F[%i]:%f B[%i]:%f>" % (
-            self.total, self.nb_fwd, self.fwd, self.nb_bwd, self.bwd)
+        return "<T:%f F[%i]:%f B[%i]:%f>" % (self.total, self.nb_fwd, self.fwd, self.nb_bwd, self.bwd)
     __str__ = __repr__
 
 
@@ -118,6 +117,5 @@ class MyTimerHook(function.FunctionHook):
                 t) in self.call_times_per_classes.iteritems())
 
     def print_sorted(self):
-        for name, time in sorted(
-                self.call_times_per_classes.items(), key=lambda x: x[1].total):
+        for name, time in sorted(self.call_times_per_classes.items(), key=lambda x: x[1].total):
             print name, time

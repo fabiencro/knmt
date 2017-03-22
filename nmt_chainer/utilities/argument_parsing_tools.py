@@ -110,13 +110,7 @@ class OrderedNamespace(OrderedDict):
             del self[keep_at_bottom]
             self[keep_at_bottom] = metadata
 
-    def insert_section(
-            self,
-            name,
-            content,
-            even_if_readonly=False,
-            keep_at_bottom=None,
-            overwrite=False):
+    def insert_section(self, name, content, even_if_readonly=False, keep_at_bottom=None, overwrite=False):
         if self.readonly and not even_if_readonly:
             raise ValueError()
         if name in self and not overwrite:
@@ -139,27 +133,21 @@ class OrderedNamespace(OrderedDict):
         self["metadata"]["config_version_num"] = version_num
         self["metadata"]["command_line"] = " ".join(sys.argv)
         self["metadata"]["knmt_version"] = versioning_tools.get_version_dict()
-        self["metadata"]["creation_time"] = datetime.datetime.now(
-        ).strftime("%I:%M%p %B %d, %Y")
+        self["metadata"]["creation_time"] = datetime.datetime.now().strftime("%I:%M%p %B %d, %Y")
 
     def set_metadata_modified_time(self):
         if self.readonly:
             raise ValueError()
         if "metadata" not in self:
             self["metadata"] = OrderedNamespace()
-        self["metadata"]["modified_time"] = datetime.datetime.now(
-        ).strftime("%I:%M%p %B %d, %Y")
+        self["metadata"]["modified_time"] = datetime.datetime.now().strftime("%I:%M%p %B %d, %Y")
 
 
 class ParseOptionRecorder(object):
     """ A class whose main role is to remember the order in which argparse options have been defined, and to which subparser they belong.
     """
 
-    def __init__(
-            self,
-            name=None,
-            group_title_to_section=None,
-            ignore_positional_arguments=set()):
+    def __init__(self, name=None, group_title_to_section=None, ignore_positional_arguments=set()):
         self.name = name
         self.argument_list = []
         self.group_title_to_section = group_title_to_section
@@ -193,8 +181,7 @@ class ParseOptionRecorder(object):
             if isinstance(arg, ParseOptionRecorder):
                 if arg.name in result:
                     raise AssertionError
-                result[arg.name] = arg.convert_args_to_ordered_dict(
-                    args, args_is_namespace=args_is_namespace)
+                result[arg.name] = arg.convert_args_to_ordered_dict(args, args_is_namespace=args_is_namespace)
             else:
                 if arg in result:
                     raise AssertionError

@@ -113,11 +113,7 @@ class Indexer(object):
         return len(self.lst)
 
     def to_serializable(self):
-        return {
-            "type": "simple_indexer",
-            "rev": 1,
-            "voc_lst": self.lst,
-            "unk_label_dic": self.unk_label_dictionary}
+        return {"type": "simple_indexer", "rev": 1, "voc_lst": self.lst, "unk_label_dic": self.unk_label_dictionary}
 
     @staticmethod
     def make_from_serializable(datas):

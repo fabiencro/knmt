@@ -49,55 +49,30 @@ def run_in_pdb(func, args):
 
 def main(arguments=None):
     # create the top-level parser
-    parser = argparse.ArgumentParser(
-        description="Kyoto-NMT: an Implementation of the RNNSearch model",
-        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
-        prog="knmt")
+    parser = argparse.ArgumentParser(description="Kyoto-NMT: an Implementation of the RNNSearch model",
+                                     formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+                                     prog="knmt")
 
-    parser.add_argument(
-        "--run_in_pdb",
-        default=False,
-        action="store_true",
-        help="run knmt in pdb (python debugger)")
+    parser.add_argument("--run_in_pdb", default=False, action="store_true", help="run knmt in pdb (python debugger)")
 
     subparsers = parser.add_subparsers(dest="__subcommand_name")
 
     # create the parser for the "make_data" command
-    parser_make_data = subparsers.add_parser(
-        'make_data',
-        description="Prepare data for training.",
-        help="Prepare data for training",
-        formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+    parser_make_data = subparsers.add_parser('make_data', description="Prepare data for training.", help="Prepare data for training", formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     make_data.define_parser(parser_make_data)
 
     # create the parser for the "train" command
-    parser_train = subparsers.add_parser(
-        'train',
-        description="Train a model.",
-        help="Train a model",
-        formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+    parser_train = subparsers.add_parser('train', description="Train a model.", help="Train a model", formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     train.define_parser(parser_train)
 
     # create the parser for the "eval" command
-    parser_eval = subparsers.add_parser(
-        'eval',
-        description="Use a model.",
-        help="Use a model",
-        formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+    parser_eval = subparsers.add_parser('eval', description="Use a model.", help="Use a model", formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     eval_module.define_parser(parser_eval)
 
     # create the parser for the "version" command
-    parser_version = subparsers.add_parser(
-        'version',
-        description="Get version infos.",
-        help="Get version infos",
-        formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+    parser_version = subparsers.add_parser('version', description="Get version infos.", help="Get version infos", formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 
-    parser_utils = subparsers.add_parser(
-        'utils',
-        description="Call a utility script.",
-        help="Call a utility script",
-        formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+    parser_utils = subparsers.add_parser('utils', description="Call a utility script.", help="Call a utility script", formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     utils_command.define_parser(parser_utils)
 
 #     import argcomplete
