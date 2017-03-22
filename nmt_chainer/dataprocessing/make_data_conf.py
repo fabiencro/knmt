@@ -110,7 +110,8 @@ def make_data_config(args):
         raise CommandLineValuesException("src_fn, tgt_fn and save_prefix need to be set either on the command line or in a config file")
 
     if not ((config.data.test_src is None) == (config.data.test_tgt is None)):
-        raise CommandLineValuesException("Command Line Error: either specify both --test_src and --test_tgt or neither")
+        raise CommandLineValuesException(
+            "Command Line Error: either specify both --test_src and --test_tgt or neither")
 
     if not ((config.data.dev_src is None) == (config.data.dev_tgt is None)):
         raise CommandLineValuesException("Command Line Error: either specify both --dev_src and --dev_tgt or neither")

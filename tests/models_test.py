@@ -151,8 +151,10 @@ class AttentionModuleNaive(nmt_chainer.models.attention.AttentionModule):
             current_mb_size = previous_state.data.shape[0]
             if current_mb_size < mb_size:
                 assert False
-                al_factor, _ = F.split_axis(precomputed_al_factor, (current_mb_size,), 0)
-                used_fb_concat, _ = F.split_axis(fb_concat, (current_mb_size,), 0)
+                al_factor, _ = F.split_axis(
+                    precomputed_al_factor, (current_mb_size,), 0)
+                used_fb_concat, _ = F.split_axis(
+                    fb_concat, (current_mb_size,), 0)
 #                 used_concatenated_mask, _ = F.split_axis(concatenated_mask, (current_mb_size,), 0)
             else:
                 al_factor = precomputed_al_factor
@@ -176,7 +178,8 @@ class AttentionModuleNaive(nmt_chainer.models.attention.AttentionModule):
             splitted_attn = F.split_axis(attn, len(fb_concat), 1)
             ci = None
             for i in xrange(nb_elems):
-                contrib = F.broadcast_to(splitted_attn[i], (mb_size, Hi)) * used_fb_concat[i]
+                contrib = F.broadcast_to(
+                    splitted_attn[i], (mb_size, Hi)) * used_fb_concat[i]
                 ci = ci + contrib if ci is not None else contrib
 #             ci = F.reshape(F.batch_matmul(attn, used_fb_concat, transa = True), (current_mb_size, self.Hi))
 
@@ -290,7 +293,17 @@ class DecoderNaive(decoder_cells.Decoder):
 
 class EncoderDecoderNaive(nmt_chainer.models.encoder_decoder.EncoderDecoder):
     def __init__(self, Vi, Ei, Hi, Vo, Eo, Ho, Ha, Hl):
-        super(EncoderDecoderNaive, self).__init__(Vi, Ei, Hi, Vo, Eo, Ho, Ha, Hl)
+        super(
+            EncoderDecoderNaive,
+            self).__init__(
+            Vi,
+            Ei,
+            Hi,
+            Vo,
+            Eo,
+            Ho,
+            Ha,
+            Hl)
         self.enc = EncoderNaive(Vi, Ei, Hi)
         self.dec = DecoderNaive(Vo, Eo, Ho, Ha, 2 * Hi, Hl)
 
@@ -349,7 +362,8 @@ class TestBeamSearch:
     def test_1(self):
         import nmt_chainer.translation.evaluation as evaluation
         Vi, Ei, Hi, Vo, Eo, Ho, Ha, Hl = 29, 37, 13, 53, 7, 12, 19, 33
-        encdec = nmt_chainer.models.encoder_decoder.EncoderDecoder(Vi, Ei, Hi, Vo, Eo, Ho, Ha, Hl)
+        encdec = nmt_chainer.models.encoder_decoder.EncoderDecoder(
+            Vi, Ei, Hi, Vo, Eo, Ho, Ha, Hl)
         eos_idx = Vo - 1
         src_data = [[2, 3, 3, 4, 4, 5], [1, 3, 8, 9, 2]]
 #         best1_gen = evaluation.beam_search_translate(encdec, eos_idx, src_data, beam_width = 10, nb_steps = 15, gpu = None, beam_opt = False,

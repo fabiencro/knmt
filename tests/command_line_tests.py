@@ -10,7 +10,10 @@ class TestCommandLine:
     """
 
     def test_make_data(self, tmpdir, gpu):
-        test_data_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "tests_data")
+        test_data_dir = os.path.join(
+            os.path.dirname(
+                os.path.abspath(__file__)),
+            "tests_data")
         train_dir = tmpdir.mkdir("train")
         data_prefix = str(train_dir.join("test1.data"))
         data_src_file = os.path.join(test_data_dir, "src2.txt")
@@ -20,7 +23,10 @@ class TestCommandLine:
         main(arguments=args)
 
     def test_train(self, tmpdir, gpu):
-        test_data_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "tests_data")
+        test_data_dir = os.path.join(
+            os.path.dirname(
+                os.path.abspath(__file__)),
+            "tests_data")
         train_dir = tmpdir.mkdir("train")
         data_prefix = str(train_dir.join("test1.data"))
         train_prefix = str(train_dir.join("test1.train"))
@@ -42,7 +48,10 @@ class TestCommandLine:
         main(arguments=args_train)
 
     def test_eval(self, tmpdir, gpu):
-        test_data_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "tests_data")
+        test_data_dir = os.path.join(
+            os.path.dirname(
+                os.path.abspath(__file__)),
+            "tests_data")
         train_dir = tmpdir.mkdir("train")
         data_prefix = str(train_dir.join("test1.data"))
         train_prefix = str(train_dir.join("test1.train"))

@@ -75,7 +75,8 @@ def make_batch_src_tgt(training_data, eos_idx=1, padding_idx=0, gpu=None, volati
             lowest_non_finished -= 1
             assert lowest_non_finished >= 0
         mb_length_at_this_pos = lowest_non_finished + 1
-        assert len(lengths_list) == 0 or mb_length_at_this_pos <= lengths_list[-1]
+        assert len(
+            lengths_list) == 0 or mb_length_at_this_pos <= lengths_list[-1]
         lengths_list.append(mb_length_at_this_pos)
 
     tgt_batch = []
@@ -119,7 +120,8 @@ def make_batch_tgt(training_data, eos_idx=1, gpu=None, volatile="off", need_arg_
             lowest_non_finished -= 1
             assert lowest_non_finished >= 0
         mb_length_at_this_pos = lowest_non_finished + 1
-        assert len(lengths_list) == 0 or mb_length_at_this_pos <= lengths_list[-1]
+        assert len(
+            lengths_list) == 0 or mb_length_at_this_pos <= lengths_list[-1]
         lengths_list.append(mb_length_at_this_pos)
 
     tgt_batch = []
@@ -266,8 +268,10 @@ def compute_bleu_with_unk_as_wrong(references, candidates, is_unk_id, new_unk_id
     assert new_unk_id_ref != new_unk_id_cand
     bc = bleu_computer.BleuComputer()
     for ref, cand in zip(references, candidates):
-        ref_mod = tuple((x if not is_unk_id(x) else new_unk_id_ref) for x in ref)
-        cand_mod = tuple((int(x) if not is_unk_id(int(x)) else new_unk_id_cand) for x in cand)
+        ref_mod = tuple((x if not is_unk_id(x) else new_unk_id_ref)
+                        for x in ref)
+        cand_mod = tuple((int(x) if not is_unk_id(int(x))
+                          else new_unk_id_cand) for x in cand)
         bc.update(ref_mod, cand_mod)
     return bc
 
@@ -336,7 +340,8 @@ def compute_lexicon_matrix(src_batch, lexical_probability_dictionary, V_tgt):
         for num_mb in xrange(real_mb_size):
             src_idx = int(src_batch_cpu[num_mb])
             if src_idx in lexical_probability_dictionary:
-                for tgt_idx, lex_prob in lexical_probability_dictionary[src_idx].iteritems():
+                for tgt_idx, lex_prob in lexical_probability_dictionary[src_idx].iteritems(
+                ):
                     lexicon_matrix[num_mb][src_pos][tgt_idx] = lex_prob
     return lexicon_matrix
 

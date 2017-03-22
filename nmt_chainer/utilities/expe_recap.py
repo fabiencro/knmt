@@ -47,7 +47,8 @@ def process_eval_config(config_fn, dest_dir):
     ref_fn = config.output.ref
     if ref_fn is not None:
         bc_with_unk = bleu_computer.get_bc_from_files(ref_fn, eval_prefix)
-        bc_unk_replaced = bleu_computer.get_bc_from_files(ref_fn, eval_prefix + ".unk_replaced")
+        bc_unk_replaced = bleu_computer.get_bc_from_files(
+            ref_fn, eval_prefix + ".unk_replaced")
         bleu_unk_replaced = bc_unk_replaced.bleu()
     else:
         bc_with_unk = "#No Ref#"
@@ -228,10 +229,12 @@ def do_recap(args):
         for fn in files:
             if fn.endswith(train_config_suffix):
                 fn_full = os.path.join(current_dir, fn)
-                urlname, data_prefix, time_last_exp, infos = process_train_config(fn_full, train_dir)
+                urlname, data_prefix, time_last_exp, infos = process_train_config(
+                    fn_full, train_dir)
                 data_to_train[data_prefix].append(urlname)
                 train_to_data[urlname] = data_prefix
-                train_urlname_list[data_prefix].append((time_last_exp, urlname, infos))
+                train_urlname_list[data_prefix].append(
+                    (time_last_exp, urlname, infos))
             elif fn.endswith(data_config_suffix):
                 fn_full = os.path.join(current_dir, fn)
                 data_config_fn_list.append(fn_full)
@@ -257,7 +260,8 @@ def do_recap(args):
     train_urlname_list_src_tgt = defaultdict(list)
     for data_path, urlname_list in train_urlname_list.iteritems():
         if data_path in data_to_srctgt:
-            train_urlname_list_src_tgt[data_to_srctgt[data_path]] += urlname_list
+            train_urlname_list_src_tgt[data_to_srctgt[data_path]
+                                       ] += urlname_list
         else:
             train_urlname_list_src_tgt[("unk", "unk")] += urlname_list
 
@@ -292,7 +296,8 @@ def do_recap(args):
 
 def commandline():
     import argparse
-    parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+    parser = argparse.ArgumentParser(
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     define_parser(parser)
     args = parser.parse_args()
     do_recap(args)

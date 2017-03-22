@@ -12,7 +12,8 @@ from bokeh.plotting import figure, output_file, show
 from bokeh.models.layouts import Column
 from bokeh.models import HoverTool, ColumnDataSource
 
-# adapted from http://bokeh.pydata.org/en/0.7.1/tutorial/solutions/gallery/les_mis.html
+# adapted from
+# http://bokeh.pydata.org/en/0.7.1/tutorial/solutions/gallery/les_mis.html
 
 
 def make_alignment_figure(src, tgt, alignment, title="Attention Model", toolbar_location='right', plot_width=800, plot_height=800):

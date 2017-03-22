@@ -627,7 +627,8 @@ class Node(object):
                     for w, sub_node in next_result.iteritems():
                         res[w][id(self)] += sub_node.count_unique_leaves()  # res.get(w, 0) + sub_node.count_unique_leaves() #count_paths(global_count_memoizer)
                 else:
-                    sub_res = pos_elem.child_node.get_next_w(lattice_map, global_memoizer, global_count_memoizer, local_memoizer)
+                    sub_res = pos_elem.child_node.get_next_w(
+                        lattice_map, global_memoizer, global_count_memoizer, local_memoizer)
                     for w in sub_res:
                         #                         res[w] = res.get(w, 0) + sub_res[w]
                         res[w].update(sub_res[w])
@@ -671,7 +672,8 @@ class Node(object):
 
         for pos_elem in list(self.pos_iter()):
             if not pos_elem.is_leaf():
-                pos_elem.child_node.update_with_global_replace_list(global_replace_list, local_memoizer)
+                pos_elem.child_node.update_with_global_replace_list(
+                    global_replace_list, local_memoizer)
         self.replace_all_at_once(global_replace_list[id(self)])
 
     def update_better(self, w, lattice_map, global_memoizer):
@@ -701,7 +703,8 @@ class Node(object):
                 else:
                     self.remove(pos_elem)
             else:
-                pos_elem.child_node.update(w, lattice_map, global_memoizer, local_memoizer)
+                pos_elem.child_node.update(
+                    w, lattice_map, global_memoizer, local_memoizer)
         replace_list = copy.deepcopy(replace_list)
         self.replace_all_at_once(replace_list)
 #         for pos_elem, next_result in replace_list:
@@ -916,7 +919,8 @@ def remove_all_epsilons(lattice_map):
     epsilonpotent_lattices = set()
     empty_lattices = set()
     for num_lattice, lattice in enumerate(lattice_map):
-        is_epsilonpotent = remove_epsilon(lattice, epsilonpotent_lattices, empty_lattices)
+        is_epsilonpotent = remove_epsilon(
+            lattice, epsilonpotent_lattices, empty_lattices)
         if is_epsilonpotent:
             epsilonpotent_lattices.add(num_lattice)
         if len(lattice.outgoing[Lattice.kInitial]) == 0:
@@ -1019,11 +1023,13 @@ def command_line2():
     while True:
         print "#node current_path", current_path.count_distincts_subnodes()
         current_path.assert_is_reduced_and_consistent()
-        next_words_set = current_path.get_next_w(lattice_map, global_memoizer, global_count_memoizer)
+        next_words_set = current_path.get_next_w(
+            lattice_map, global_memoizer, global_count_memoizer)
         for w in next_words_set:
             next_words_set[w] = sum(next_words_set[w].itervalues())
         has_eos = Lattice.EOS in next_words_set
-        next_words_list = sorted(list(w for w in next_words_set if w != Lattice.EOS))
+        next_words_list = sorted(
+            list(w for w in next_words_set if w != Lattice.EOS))
         print "next_words_set", next_words_set
         voc_choice = tgt_indexer.convert(next_words_list)
         if has_eos:
@@ -1071,12 +1077,14 @@ def build_word_tree(lattice_map, top_lattice_id):
     def build_word_tree_rec(current_path):
         print "bwt", repr(current_path), str(current_path), current_path.count_distincts_subnodes()
         current_path.assert_is_reduced_and_consistent()
-        next_words_set = current_path.get_next_w(lattice_map, global_count_memoizer, global_memoizer)
+        next_words_set = current_path.get_next_w(
+            lattice_map, global_count_memoizer, global_memoizer)
         print next_words_set
         res = []
         for w in next_words_set:
             current_path_copy = copy.deepcopy(current_path)
-#             print str(current_path_copy), current_path_copy.count_distincts_subnodes()
+# print str(current_path_copy),
+# current_path_copy.count_distincts_subnodes()
             current_path_copy.update_better(w, lattice_map, global_memoizer)
 #             print " -> ", w, " ->", str(current_path_copy),
             current_path_copy.reduce()
@@ -1136,7 +1144,8 @@ def commandline():
         selected_seq = []
         while True:
             current_path.assert_is_reduced_and_consistent()
-            next_words_set = current_path.get_next_w(lattice_map, global_memoizer)
+            next_words_set = current_path.get_next_w(
+                lattice_map, global_memoizer)
             next_words_list = sorted(list(next_words_set))
             for num_word, word in enumerate(next_words_list):
                 print num_word, word

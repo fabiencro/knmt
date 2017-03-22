@@ -187,10 +187,13 @@ def beam_search_translate(encdec, eos_idx, src_data, beam_width=20, beam_pruning
 
         if reverse_encdec is not None and len(translations) > 1:
             rescored_translations = []
-            reverse_scores = reverse_rescore(reverse_encdec, src_batch, src_mask, eos_idx, [t[0] for t in translations], gpu)
+            reverse_scores = reverse_rescore(
+                reverse_encdec, src_batch, src_mask, eos_idx, [
+                    t[0] for t in translations], gpu)
             for num_t in xrange(len(translations)):
                 tr, sc, attn = translations[num_t]
-                rescored_translations.append((tr, sc + reverse_scores[num_t], attn))
+                rescored_translations.append(
+                    (tr, sc + reverse_scores[num_t], attn))
             translations = rescored_translations
 
         xp = encdec[0].xp

@@ -111,7 +111,10 @@ class MyTimerHook(function.FunctionHook):
 
     def total_time(self):
         """Returns total elapsed time in seconds."""
-        return sum(t.total for (_, t) in self.call_times_per_classes.iteritems())
+        return sum(
+            t.total for (
+                _,
+                t) in self.call_times_per_classes.iteritems())
 
     def print_sorted(self):
         for name, time in sorted(self.call_times_per_classes.items(), key=lambda x: x[1].total):

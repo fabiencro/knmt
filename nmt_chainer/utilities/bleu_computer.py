@@ -213,7 +213,8 @@ def compute_confidence_interval_from_sampler(bleu_sampler, nb_resampling, confid
 def compute_pairwise_superiority_from_sampler_pair(bleu_sampler, other_bleu_sampler, nb_resampling):
     this = 0.0
     other = 0.0
-    for num_sample, (bc, bc_other) in enumerate(izip(bleu_sampler, other_bleu_sampler)):
+    for num_sample, (bc, bc_other) in enumerate(
+            izip(bleu_sampler, other_bleu_sampler)):
         if num_sample >= nb_resampling:
             break
         this_bleu = bc.bleu()

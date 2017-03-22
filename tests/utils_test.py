@@ -78,7 +78,10 @@ import os.path
 
 class TestMakeData:
     def test_data_creation(self, tmpdir, gpu):
-        test_data_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "tests_data")
+        test_data_dir = os.path.join(
+            os.path.dirname(
+                os.path.abspath(__file__)),
+            "tests_data")
         train_dir = tmpdir.mkdir("train")
         data_prefix = str(train_dir.join("test1.data"))
         train_prefix = str(train_dir.join("test1.train"))

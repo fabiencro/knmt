@@ -4,7 +4,8 @@
 from setuptools import setup, find_packages
 
 # getting the version string
-# as suggested in http://stackoverflow.com/questions/458550/standard-way-to-embed-version-into-python-package
+# as suggested in
+# http://stackoverflow.com/questions/458550/standard-way-to-embed-version-into-python-package
 import re
 VERSIONFILE = "nmt_chainer/_version.py"
 verstrline = open(VERSIONFILE, "rt").read()

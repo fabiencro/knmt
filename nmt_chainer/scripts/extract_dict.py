@@ -75,7 +75,8 @@ def load_aligned_corpus(src_fn, tgt_fn, align_fn, skip_empty_align=True, invert_
         try:
             id_src, sentence_src = read_one_parse_info_from_file_object(src)
             id_tgt, sentence_tgt = read_one_parse_info_from_file_object(tgt)
-            id_align, score_align, alignment = read_one_align_info_from_file_object(align_f)
+            id_align, score_align, alignment = read_one_align_info_from_file_object(
+                align_f)
         except exceptions.EOFError:
             return
         if skip_empty_align and len(alignment) == 0:

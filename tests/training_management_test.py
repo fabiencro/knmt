@@ -20,7 +20,10 @@ class TestTrainingManagement:
         """
         Test no error happens during checkpoint saving.
         """
-        test_data_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "tests_data")
+        test_data_dir = os.path.join(
+            os.path.dirname(
+                os.path.abspath(__file__)),
+            "tests_data")
         train_dir = tmpdir.mkdir("train")
         data_prefix = str(train_dir.join("test1.data"))
         train_prefix = str(train_dir.join("test1.train"))
@@ -39,7 +42,10 @@ class TestTrainingManagement:
         """
         Test no error happens during checkpoint saving.
         """
-        test_data_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "tests_data")
+        test_data_dir = os.path.join(
+            os.path.dirname(
+                os.path.abspath(__file__)),
+            "tests_data")
         train_dir = tmpdir.mkdir("train")
         data_prefix = str(train_dir.join("test1.data"))
         train_prefix = str(train_dir.join("test1.train"))
@@ -83,7 +89,8 @@ class TestTrainingManagement:
                     if not compare_result:
                         return False
                 else:
-                    if v1 != d2[k] and (except_fields is None or k not in except_fields):
+                    if v1 != d2[k] and (
+                            except_fields is None or k not in except_fields):
                         return False
             return True
 

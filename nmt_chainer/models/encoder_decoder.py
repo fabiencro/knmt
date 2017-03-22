@@ -506,9 +506,12 @@ class EncoderDecoder(Chain):
 
     def compute_lexicon_probability_matrix(self, src_batch):
         if self.lexical_probability_dictionary is not None:
-            lexicon_probability_matrix = compute_lexicon_matrix(src_batch, self.lexical_probability_dictionary, self.Vo)
+            lexicon_probability_matrix = compute_lexicon_matrix(
+                src_batch, self.lexical_probability_dictionary, self.Vo)
             if self.xp != np:
-                lexicon_probability_matrix = cuda.to_gpu(lexicon_probability_matrix, cuda.get_device(self.dec.lin_o.W.data))
+                lexicon_probability_matrix = cuda.to_gpu(
+                    lexicon_probability_matrix, cuda.get_device(
+                        self.dec.lin_o.W.data))
         else:
             lexicon_probability_matrix = None
         return lexicon_probability_matrix
@@ -542,9 +545,12 @@ class EncoderDecoder(Chain):
                                   mode="test", demux=False):
 
         if self.lexical_probability_dictionary is not None:
-            lexicon_probability_matrix = compute_lexicon_matrix(src_batch, self.lexical_probability_dictionary, self.Vo)
+            lexicon_probability_matrix = compute_lexicon_matrix(
+                src_batch, self.lexical_probability_dictionary, self.Vo)
             if self.xp != np:
-                lexicon_probability_matrix = cuda.to_gpu(lexicon_probability_matrix, cuda.get_device(self.dec.lin_o.W.data))
+                lexicon_probability_matrix = cuda.to_gpu(
+                    lexicon_probability_matrix, cuda.get_device(
+                        self.dec.lin_o.W.data))
         else:
             lexicon_probability_matrix = None
 

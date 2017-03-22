@@ -160,7 +160,13 @@ def replace_pair(pair, vocab, indices):
     pair_str = ''.join(pair)
     pair_str = pair_str.replace('\\', '\\\\')
     changes = []
-    pattern = re.compile(r'(?<!\S)' + re.escape(first + ' ' + second) + r'(?!\S)')
+    pattern = re.compile(
+        r'(?<!\S)' +
+        re.escape(
+            first +
+            ' ' +
+            second) +
+        r'(?!\S)')
     if sys.version_info < (3, 0):
         iterator = indices[pair].iteritems()
     else:
@@ -219,7 +225,8 @@ def learn_bpe_from_sentence_iterable(iterable, output, symbols=10000, min_freque
         if stats:
             most_frequent = max(stats, key=stats.get)
 
-        # we probably missed the best pair because of pruning; go back to full statistics
+        # we probably missed the best pair because of pruning; go back to full
+        # statistics
         if not stats or (i and stats[most_frequent] < threshold):
             prune_stats(stats, big_stats, threshold)
             stats = copy.deepcopy(big_stats)
@@ -229,11 +236,13 @@ def learn_bpe_from_sentence_iterable(iterable, output, symbols=10000, min_freque
             prune_stats(stats, big_stats, threshold)
 
         if stats[most_frequent] < min_frequency:
-            sys.stderr.write('no pair has frequency >= {0}. Stopping\n'.format(min_frequency))
+            sys.stderr.write(
+                'no pair has frequency >= {0}. Stopping\n'.format(min_frequency))
             break
 
         if verbose:
-            sys.stderr.write('pair {0}: {1} {2} -> {1}{2} (frequency {3})\n'.format(i, most_frequent[0], most_frequent[1], stats[most_frequent]))
+            sys.stderr.write('pair {0}: {1} {2} -> {1}{2} (frequency {3})\n'.format(
+                i, most_frequent[0], most_frequent[1], stats[most_frequent]))
         output.write('{0} {1}\n'.format(*most_frequent))
         changes = replace_pair(most_frequent, sorted_vocab, indices)
         update_pair_statistics(most_frequent, changes, stats, indices)
@@ -259,7 +268,8 @@ if __name__ == '__main__':
         if stats:
             most_frequent = max(stats, key=stats.get)
 
-        # we probably missed the best pair because of pruning; go back to full statistics
+        # we probably missed the best pair because of pruning; go back to full
+        # statistics
         if not stats or (i and stats[most_frequent] < threshold):
             prune_stats(stats, big_stats, threshold)
             stats = copy.deepcopy(big_stats)
@@ -269,11 +279,14 @@ if __name__ == '__main__':
             prune_stats(stats, big_stats, threshold)
 
         if stats[most_frequent] < args.min_frequency:
-            sys.stderr.write('no pair has frequency >= {0}. Stopping\n'.format(args.min_frequency))
+            sys.stderr.write(
+                'no pair has frequency >= {0}. Stopping\n'.format(
+                    args.min_frequency))
             break
 
         if args.verbose:
-            sys.stderr.write('pair {0}: {1} {2} -> {1}{2} (frequency {3})\n'.format(i, most_frequent[0], most_frequent[1], stats[most_frequent]))
+            sys.stderr.write('pair {0}: {1} {2} -> {1}{2} (frequency {3})\n'.format(
+                i, most_frequent[0], most_frequent[1], stats[most_frequent]))
         args.output.write('{0} {1}\n'.format(*most_frequent))
         changes = replace_pair(most_frequent, sorted_vocab, indices)
         update_pair_statistics(most_frequent, changes, stats, indices)

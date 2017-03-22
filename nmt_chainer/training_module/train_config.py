@@ -177,7 +177,8 @@ def make_config_from_args(args, readonly=True):
     convert_cell_string(config_training)
 
     if config_base is not None:
-        args_given_set = find_which_command_line_arguments_were_given(args.__original_argument_list)
+        args_given_set = find_which_command_line_arguments_were_given(
+            args.__original_argument_list)
         for argname in set(args_given_set):
             if getattr(args, argname) is None:
                 args_given_set.remove(argname)

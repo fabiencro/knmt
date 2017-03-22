@@ -35,7 +35,8 @@ class GRUCell(Chain):
         self.in_size = in_size
 
     def get_initial_states(self, mb_size):
-        mb_initial_state = F.broadcast_to(F.reshape(self.initial_state, (1, self.out_size)), (mb_size, self.out_size))
+        mb_initial_state = F.broadcast_to(F.reshape(
+            self.initial_state, (1, self.out_size)), (mb_size, self.out_size))
         return (mb_initial_state,)
 
     def __call__(self, prev_states, x_in, mode="test"):
@@ -61,7 +62,8 @@ class FastGRUCell(Chain):
         self.in_size = in_size
 
     def get_initial_states(self, mb_size):
-        mb_initial_state = F.broadcast_to(F.reshape(self.initial_state, (1, self.out_size)), (mb_size, self.out_size))
+        mb_initial_state = F.broadcast_to(F.reshape(
+            self.initial_state, (1, self.out_size)), (mb_size, self.out_size))
         return (mb_initial_state,)
 
     def __call__(self, prev_states, x_in, mode="test"):
@@ -335,15 +337,20 @@ def create_initializer(init_type, scale=None, fillvalue=None):
     if init_type == 'heNormal':
         return initializers.HeNormal() if scale is None else initializers.HeNormal(scale)
     if init_type == 'orthogonal':
-        return initializers.Orthogonal(scale) if scale is None else initializers.Orthogonal(scale)
+        return initializers.Orthogonal(
+            scale) if scale is None else initializers.Orthogonal(scale)
     if init_type == 'uniform':
-        return initializers.Uniform(scale) if scale is None else initializers.Uniform(scale)
+        return initializers.Uniform(
+            scale) if scale is None else initializers.Uniform(scale)
     if init_type == 'leCunUniform':
-        return initializers.LeCunUniform(scale) if scale is None else initializers.LeCunUniform(scale)
+        return initializers.LeCunUniform(
+            scale) if scale is None else initializers.LeCunUniform(scale)
     if init_type == 'glorotUniform':
-        return initializers.GlorotUniform(scale) if scale is None else initializers.GlorotUniform(scale)
+        return initializers.GlorotUniform(
+            scale) if scale is None else initializers.GlorotUniform(scale)
     if init_type == 'heUniform':
-        return initializers.HeUniform(scale) if scale is None else initializers.HeUniform(scale)
+        return initializers.HeUniform(
+            scale) if scale is None else initializers.HeUniform(scale)
     raise ValueError("Unknown initializer type: {0}".format(init_type))
 
 

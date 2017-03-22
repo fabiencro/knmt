@@ -53,7 +53,8 @@ class ConditionalizedDecoderCell(object):
         if current_mb_size < len(previous_states[0].data):
             truncated_states = [None] * len(previous_states)
             for num_state in xrange(len(previous_states)):
-                truncated_states[num_state], _ = F.split_axis(previous_states[num_state], (current_mb_size,), 0)
+                truncated_states[num_state], _ = F.split_axis(
+                    previous_states[num_state], (current_mb_size,), 0)
             previous_states = tuple(truncated_states)
 
         output_state = previous_states[-1]
