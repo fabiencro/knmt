@@ -32,17 +32,15 @@ argparse.open = open
 
 import codecs
 
-
 class BPE(object):
 
-    def __init__(self, codes, separator='__'):
-
+    def __init__(self, codes, separator='__'):            
+        
         with codecs.open(codes.name, encoding='utf-8') as codes:
             self.bpe_codes = [tuple(item.split()) for item in codes]
-
+         
         # some hacking to deal with duplicates (only consider first instance)
-        self.bpe_codes = dict(
-            [(code, i) for (i, code) in reversed(list(enumerate(self.bpe_codes)))])
+        self.bpe_codes = dict([(code,i) for (i,code) in reversed(list(enumerate(self.bpe_codes)))])
 
         self.separator = separator
         self.cache = {}
@@ -56,9 +54,9 @@ class BPE(object):
             for item in new_word[:-1]:
                 output.append(item + self.separator)
             output.append(new_word[-1])
-        # print output
+        #print output
         return ' '.join(output)
-
+    
     def segment_splitted(self, sentence):
         """segment single sentence (as a sequence of words) with BPE encoding"""
 
@@ -68,9 +66,8 @@ class BPE(object):
             for item in new_word[:-1]:
                 output.append(item + self.separator)
             output.append(new_word[-1])
-        # print output
+        #print output
         return output
-
 
 def create_parser():
     parser = argparse.ArgumentParser(
@@ -90,15 +87,10 @@ def create_parser():
         metavar='PATH',
         help="Output file (default: standard output)")
     parser.add_argument(
-        '--separator',
-        '-s',
-        type=str,
-        default='@@',
-        metavar='STR',
+        '--separator', '-s', type=str, default='@@', metavar='STR',
         help="Separator between non-final subword units (default: '%(default)s'))")
 
     return parser
-
 
 def get_pairs(word):
     """Return set of symbol pairs in a word.
@@ -112,7 +104,6 @@ def get_pairs(word):
         prev_char = char
     return pairs
 
-
 def encode(orig, bpe_codes, cache):
     """Encode word based on list of BPE merge operations, which are applied consecutively
     """
@@ -123,7 +114,7 @@ def encode(orig, bpe_codes, cache):
     pairs = get_pairs(word)
 
     while True:
-        bigram = min(pairs, key=lambda pair: bpe_codes.get(pair, float('inf')))
+        bigram = min(pairs, key = lambda pair: bpe_codes.get(pair, float('inf')))
         if bigram not in bpe_codes:
             break
         first, second = bigram
@@ -134,13 +125,12 @@ def encode(orig, bpe_codes, cache):
                 j = word.index(first, i)
                 new_word.extend(word[i:j])
                 i = j
-            except BaseException:
+            except:
                 new_word.extend(word[i:])
                 break
 
-            if word[i] == first and i < len(
-                    word) - 1 and word[i + 1] == second:
-                new_word.append(first + second)
+            if word[i] == first and i < len(word)-1 and word[i+1] == second:
+                new_word.append(first+second)
                 i += 2
             else:
                 new_word.append(word[i])
@@ -156,11 +146,10 @@ def encode(orig, bpe_codes, cache):
     if word[-1] == '</w>':
         word = word[:-1]
     elif word[-1].endswith('</w>'):
-        word = word[:-1] + (word[-1].replace('</w>', ''),)
+        word = word[:-1] + (word[-1].replace('</w>',''),)
 
     cache[orig] = word
     return word
-
 
 if __name__ == '__main__':
     parser = create_parser()
