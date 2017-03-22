@@ -14,8 +14,9 @@ logging.basicConfig()
 log = logging.getLogger("aparse")
 log.setLevel(logging.INFO)
 
-def load_lex(lex_file, inverse = False):
-    lex = codecs.open(lex_file, encoding = "utf8")
+
+def load_lex(lex_file, inverse=False):
+    lex = codecs.open(lex_file, encoding="utf8")
 
     dic = defaultdict(lambda: defaultdict(lambda: 0))
     for line in lex:
@@ -27,13 +28,16 @@ def load_lex(lex_file, inverse = False):
             dic[fr][en] = prob
     return dic
 
+
 def commandline():
-    import argparse, operator, json
+    import argparse
+    import operator
+    import json
     parser = argparse.ArgumentParser()
     parser.add_argument("lex_e2f")
     parser.add_argument("lex_f2e")
     parser.add_argument("dest_dic")
-    
+
     args = parser.parse_args()
     dic_e2f = load_lex(args.lex_e2f, False)
     dic_f2e = load_lex(args.lex_f2e, True)
@@ -51,13 +55,13 @@ def commandline():
                 prob[fr] = prob_f_b
                 dic[fr] = en
     #         print "%s, %s, %s, %s, %s" % (fr, en, dic_e2f[fr][en], dic_f2e[fr][en], prob_f_b)
-    
+
     # print "======"
     # for fr in dic:
     #     print fr, dic[fr], prob[fr]
     log.info("saving")
     json.dump(dic, open(args.dest_dic, "w"))
-   
-         
+
+
 if __name__ == '__main__':
     commandline()

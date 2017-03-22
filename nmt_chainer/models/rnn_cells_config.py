@@ -28,12 +28,13 @@ cell_description_keywords = OrderedDict([
     ("upward_init_fillvalue", float),
     ("bias_init_fillvalue", float),
     ("forget_bias_init_fillvalue", float)
-    ])
+])
+
 
 def create_cell_config_from_string(model_str):
     components = model_str.split(",")
     if ":" not in components[0]:
-        components = ["cell_type:%s"%components[0]] + components[1:]
+        components = ["cell_type:%s" % components[0]] + components[1:]
     keywords = {}
     for comp in components:
         assert ":" in comp
@@ -41,9 +42,9 @@ def create_cell_config_from_string(model_str):
         if key in cell_description_keywords:
             keywords[key] = cell_description_keywords[key](val)
         else:
-            raise ValueError("bad cell parameter: %s (possible parameters: %s)"%
+            raise ValueError("bad cell parameter: %s (possible parameters: %s)" %
                              (comp, " ".join(cell_description_keywords.keys())))
-            
+
     ordered_keywords = OrderedDict()
     for key in cell_description_keywords.keys():
         if key in keywords:
@@ -51,4 +52,3 @@ def create_cell_config_from_string(model_str):
     nmt_chainer.utilities.argument_parsing_tools.OrderedNamespace.convert_to_ordered_namespace(ordered_keywords)
 #     ordered_keywords.set_readonly()
     return ordered_keywords
-
