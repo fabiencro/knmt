@@ -42,7 +42,7 @@ import copy
 # import hypothesis
 # from __builtin__ import list, False
 # reload(hypothesis)
-#from hypothesis import Hypothesis, AugmentedPattern, AdditionalsList, Additional
+# from hypothesis import Hypothesis, AugmentedPattern, AdditionalsList, Additional
 
 # logger = logging.getLogger()#"Decoder")
 

@@ -210,12 +210,12 @@ def beam_search_translate(encdec, eos_idx, src_data, beam_width=20, beam_pruning
                     assert len(src_data[num_ex]) == x[2][0].shape[0]
 
                     # log.info("sum={0}".format(sum(x[2])))
-                    #log.info("min={0}".format(xp.minimum(sum(x[2]), xp.array(1.0))))
-                    #log.info("log={0}".format(xp.log(xp.minimum(sum(x[2]), xp.array(1.0)))))
+                    # log.info("min={0}".format(xp.minimum(sum(x[2]), xp.array(1.0))))
+                    # log.info("log={0}".format(xp.log(xp.minimum(sum(x[2]), xp.array(1.0)))))
                     log_of_min_of_sum_over_j = xp.log(xp.minimum(sum(x[2]), xp.array(1.0)))
                     coverage_penalty = post_score_coverage_penalty_strength * xp.sum(log_of_min_of_sum_over_j)
                     # log.info("cp={0}".format(coverage_penalty))
-                    #cp = 0
+                    # cp = 0
                     # for i in xrange(len(src_data[num_ex])):
                     #    attn_sum = 0
                     #    for j in xrange(len(x[0])):
@@ -225,16 +225,16 @@ def beam_search_translate(encdec, eos_idx, src_data, beam_width=20, beam_pruning
                     #    #log.info("log={0}".format(math.log(min(attn_sum, 1.0))))
                     #    cp += math.log(min(attn_sum, 1.0))
                     # log.info("cp={0}".format(cp))
-                    #cp *= post_score_coverage_penalty_strength
+                    # cp *= post_score_coverage_penalty_strength
 
-                    #slow = x[1]/length_normalization + cp
-                    #opti = x[1]/length_normalization + coverage_penalty
-                    #log.info("type={0}....{1}".format(type(slow), type(opti)))
-                    #log.info("shape={0} size={1} dim={2} data={3} elem={4}".format(opti.shape, opti.size, opti.ndim, opti.data, opti.item(0)))
-                    #test = '!!!'
+                    # slow = x[1]/length_normalization + cp
+                    # opti = x[1]/length_normalization + coverage_penalty
+                    # log.info("type={0}....{1}".format(type(slow), type(opti)))
+                    # log.info("shape={0} size={1} dim={2} data={3} elem={4}".format(opti.shape, opti.size, opti.ndim, opti.data, opti.item(0)))
+                    # test = '!!!'
                     # if "{0}".format(slow) == "{0}".format(opti):
                     #    test = ''
-                    #log.info("score slow <=> optimized: {0} <=> {1} {2}".format(slow, opti, test))
+                    # log.info("score slow <=> optimized: {0} <=> {1} {2}".format(slow, opti, test))
 
                 return x[1] / length_normalization + coverage_penalty
 

@@ -72,9 +72,11 @@ def train_on_data(encdec, optimizer, training_data, output_files_dict,
 #     mb_provider = minibatch_provider(training_data, eos_idx, mb_size, nb_of_batch_to_sort, gpu = gpu,
 #                                      randomized = randomized, sort_key = lambda x:len(x[1]))
 
-    def s_unk_tag(num, utag): return "S_UNK_%i" % utag
+    def s_unk_tag(num, utag):
+        return "S_UNK_%i" % utag
 
-    def t_unk_tag(num, utag): return "T_UNK_%i" % utag
+    def t_unk_tag(num, utag):
+        return "T_UNK_%i" % utag
 
     def save_model(suffix):
         if suffix == "final":

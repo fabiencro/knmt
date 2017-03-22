@@ -37,7 +37,7 @@ def generate_random_dataset(dataset_size, sequence_avg_size):
         # Each item contains 2 sequences.
         for j in range(0, 2):
             sequence_length = random_generator.randint(sequence_avg_size - 5, sequence_avg_size + 5)
-            #sequence_length = random_generator.randint(1, 5)
+            # sequence_length = random_generator.randint(1, 5)
             sequence = random_generator.randint(0, 100, size=sequence_length)
             item.append(sequence)
         item = tuple(item)
@@ -85,7 +85,7 @@ class TestSerialIterator:
                                  (64, 20, 16, False, True, False),
                                  (64, 20, 16, True, False, False),
                                  (64, 20, 16, False, False, False),
-                                 #(64, 20, 16, True, True, True),
+                                 # (64, 20, 16, True, True, True),
                                  (64, 20, 16, False, True, True),
                                  (64, 20, 16, True, False, True),
                                  (64, 20, 16, False, False, True),
@@ -93,7 +93,7 @@ class TestSerialIterator:
                                  (200, 20, 20, False, True, False),
                                  (200, 20, 20, True, False, False),
                                  (200, 20, 20, False, False, False),
-                                 #(200, 20, 20, True, True, True),
+                                 # (200, 20, 20, True, True, True),
                                  (200, 20, 20, False, True, True),
                                  (200, 20, 20, True, False, True),
                                  (200, 20, 20, False, False, True),
