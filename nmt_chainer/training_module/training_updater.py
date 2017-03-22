@@ -71,7 +71,7 @@ class SpacedRepetitor(object):
             rounded_nb[rounded_nb.argmax()] += -over_value
         elif over_value > 0:
             for _ in xrange(over_value):
-                rounded_nb[rounded_nb.argmax()] -= over_value
+                rounded_nb[rounded_nb.argmax()] -= 1
 
         if not just_peek:
             self.ratio_remainders = fractional_nb - rounded_nb
