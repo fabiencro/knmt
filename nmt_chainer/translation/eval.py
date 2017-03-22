@@ -56,7 +56,8 @@ class AttentionVisualizer(object):
         if include_sum:
             src += ["SUM_ATTN"]
         if visual_attribs is not None:
-            p1 = visualisation.make_alignment_figure(src, tgt_w, alignment, **visual_attribs)
+            p1 = visualisation.make_alignment_figure(
+                src, tgt_w, alignment, **visual_attribs)
         else:
             p1 = visualisation.make_alignment_figure(src, tgt_w, alignment)
 
@@ -94,7 +95,8 @@ class RichOutputWriter(object):
         self.output.write("{\"tr\": ")
         self.output.write(json.dumps(translated))
         self.output.write(",\n\"attn\": ")
-        self.output.write(json.dumps([[float(a) for a in a_list] for a_list in attn]))
+        self.output.write(json.dumps(
+            [[float(a) for a in a_list] for a_list in attn]))
         if unk_mapping is not None:
             self.output.write(",\n\"unk_mapping\": ")
             self.output.write(json.dumps(unk_mapping))
@@ -229,7 +231,12 @@ def translate_to_file_with_beam_search(dest_fn, gpu, encdec, eos_idx, src_data, 
         if rich_output is not None:
             rich_output.add_info(src, translated, t, score, attn, unk_mapping=unk_mapping)
         if attn_vis is not None:
-            attn_vis.add_plot(src_indexer.deconvert_swallow(src), translated, attn, attn_graph_with_sum, attn_graph_attribs)
+            attn_vis.add_plot(
+                src_indexer.deconvert_swallow(src),
+                translated,
+                attn,
+                attn_graph_with_sum,
+                attn_graph_attribs)
         ct = tgt_indexer.deconvert_post(translated)
         out.write(ct + "\n")
 
@@ -274,7 +281,9 @@ def create_encdec(config_eval):
 
     if 'load_model_config' in config_eval.process and config_eval.process.load_model_config is not None:
         for config_filename in config_eval.process.load_model_config:
-            log.info("loading model and parameters from config %s" % config_filename)
+            log.info(
+                "loading model and parameters from config %s" %
+                config_filename)
             config_training = train_config.load_config_train(config_filename)
             encdec, this_eos_idx, this_src_indexer, this_tgt_indexer = train.create_encdec_and_indexers_from_config_dict(config_training, load_config_model="yes")
 

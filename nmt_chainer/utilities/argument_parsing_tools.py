@@ -230,6 +230,7 @@ class ArgumentActionNotOverwriteWithNone(argparse.Action):
     Useful for options that are set by multiple arguments"""
 
     def __call__(self, parser, namespace, values, option_string=None):
-        if self.dest in namespace and getattr(namespace, self.dest) is not None and values is None:
+        if self.dest in namespace and getattr(
+                namespace, self.dest) is not None and values is None:
             return
         setattr(namespace, self.dest, values)

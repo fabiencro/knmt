@@ -73,8 +73,10 @@ class AttentionModule(Chain):
         def compute_ctxt(previous_state):
             current_mb_size = previous_state.data.shape[0]
             if current_mb_size < mb_size:
-                al_factor, _ = F.split_axis(precomputed_al_factor, (current_mb_size,), 0)
-                used_fb_concat, _ = F.split_axis(fb_concat, (current_mb_size,), 0)
+                al_factor, _ = F.split_axis(
+                    precomputed_al_factor, (current_mb_size,), 0)
+                used_fb_concat, _ = F.split_axis(
+                    fb_concat, (current_mb_size,), 0)
                 if mask_length > 0:
                     used_concatenated_penalties = concatenated_penalties[:current_mb_size]
             else:

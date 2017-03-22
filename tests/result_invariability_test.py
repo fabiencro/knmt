@@ -33,7 +33,9 @@ class TestResultInvariability:
         train_dir = os.path.join(test_data_dir, "models")
         train_prefix = os.path.join(train_dir, "{0}.train".format(model_name))
         search_eval_dir = tmpdir.mkdir("eval_{0}".format(search_type))
-        search_file = os.path.join(str(search_eval_dir), 'translations_using_{0}.txt'.format(search_type))
+        search_file = os.path.join(
+            str(search_eval_dir),
+            'translations_using_{0}.txt'.format(search_type))
         search_mode = 'beam_search'
         other_params = ' --beam_width 30'
         if search_type == 'greedy_search':

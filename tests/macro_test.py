@@ -24,7 +24,10 @@ class TestMacro:
         Test whether the translation results are equal to the target translations or not
         when the model is overtrained.
         """
-        test_data_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "tests_data")
+        test_data_dir = os.path.join(
+            os.path.dirname(
+                os.path.abspath(__file__)),
+            "tests_data")
         train_dir = tmpdir.mkdir("train")
         data_prefix = str(train_dir.join("test1.data"))
         train_prefix = str(train_dir.join("test1.train"))
@@ -67,7 +70,10 @@ class TestMacro:
         # At this moment, this test fails once in a while.
         # To increase the chance of finding a case where this test fails, I execute several times.
         for i in range(0, 10):
-            test_data_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "tests_data")
+            test_data_dir = os.path.join(
+                os.path.dirname(
+                    os.path.abspath(__file__)),
+                "tests_data")
             train_dir = tmpdir.mkdir("train_{0}".format(i))
             data_prefix = str(train_dir.join("test1.data"))
             train_prefix = str(train_dir.join("test1.train"))
@@ -114,7 +120,10 @@ class TestMacro:
         Compare beam_search and a ensemble_beam_search using 3 identical models and
         check whether the translation results are equal or not.
         """
-        test_data_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "tests_data")
+        test_data_dir = os.path.join(
+            os.path.dirname(
+                os.path.abspath(__file__)),
+            "tests_data")
         train_dir = tmpdir.mkdir("train")
         data_prefix = str(train_dir.join("test1.data"))
         train_prefix = str(train_dir.join("test1.train"))
@@ -165,7 +174,10 @@ class TestMacro:
         """
         for i in range(0, 4):
             print i
-            test_data_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "tests_data")
+            test_data_dir = os.path.join(
+                os.path.dirname(
+                    os.path.abspath(__file__)),
+                "tests_data")
             train_dir = tmpdir.mkdir("train_{0}".format(i))
             data_prefix = str(train_dir.join("test1.data"))
             train_prefix = str(train_dir.join("test1.train"))
@@ -190,7 +202,8 @@ class TestMacro:
         main(arguments=args_eval_beam_search)
 
         ensemble_search_eval_dir = tmpdir.mkdir("eval_ensemble_search")
-        ensemble_search_file = os.path.join(str(ensemble_search_eval_dir), 'translations.txt')
+        ensemble_search_file = os.path.join(
+            str(ensemble_search_eval_dir), 'translations.txt')
         train_dir_1 = str(tmpdir.join("train_1"))
         train_prefix_1 = os.path.join(train_dir_1, "test1.train")
         train_dir_2 = str(tmpdir.join("train_2"))

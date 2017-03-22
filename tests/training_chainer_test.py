@@ -194,7 +194,8 @@ class TestLengthBasedSerialIterator():
         count = 0
         for batch in iter:
             for pairs in batch:
-                # Consider the second sequence because the default sort_key uses this sequence.
+                # Consider the second sequence because the default sort_key
+                # uses this sequence.
                 seq_length = len(pairs[1])
                 if seq_length > 0:
                     count += 1

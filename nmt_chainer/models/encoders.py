@@ -96,7 +96,8 @@ class EncoderNSteps(Chain):
         res = []
         for num_seq in xrange(mb_size):
             assert backward_seq[num_seq].data.shape[0] == forward_seq[num_seq].data.shape[0]
-            fb_concatenated = F.concat((forward_seq[num_seq], backward_seq[num_seq][::-1]), 1)
+            fb_concatenated = F.concat(
+                (forward_seq[num_seq], backward_seq[num_seq][::-1]), 1)
             if forward_seq[num_seq].data.shape[0] < max_length_size:
                 pad_length = max_length_size - forward_seq[num_seq].data.shape[0]
                 fb_concatenated = F.concat((fb_concatenated,

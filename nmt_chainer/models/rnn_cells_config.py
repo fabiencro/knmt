@@ -49,6 +49,7 @@ def create_cell_config_from_string(model_str):
     for key in cell_description_keywords.keys():
         if key in keywords:
             ordered_keywords[key] = keywords[key]
-    nmt_chainer.utilities.argument_parsing_tools.OrderedNamespace.convert_to_ordered_namespace(ordered_keywords)
+    nmt_chainer.utilities.argument_parsing_tools.OrderedNamespace.convert_to_ordered_namespace(
+        ordered_keywords)
 #     ordered_keywords.set_readonly()
     return ordered_keywords

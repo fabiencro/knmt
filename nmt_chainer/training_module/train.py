@@ -51,7 +51,8 @@ def generate_lexical_probability_dictionary_indexed(lexical_probability_dictiona
         for wt in lexical_probability_dictionary_all[ws]:
             wt_idx = tgt_indexer.convert([wt])[0]
             if wt_idx in lexical_probability_dictionary_indexed[ws_idx]:
-                assert src_indexer.is_unk_idx(ws_idx) or tgt_indexer.is_unk_idx(wt_idx)
+                assert src_indexer.is_unk_idx(
+                    ws_idx) or tgt_indexer.is_unk_idx(wt_idx)
                 lexical_probability_dictionary_indexed[ws_idx][wt_idx] += lexical_probability_dictionary_all[ws][wt]
             else:
                 lexical_probability_dictionary_indexed[ws_idx][wt_idx] = lexical_probability_dictionary_all[ws][wt]
@@ -132,15 +133,19 @@ def create_encdec_and_indexers_from_config_dict(config_dict, src_indexer=None, t
         if "model_parameters" not in config_dict:
             if load_config_model == "yes":
                 log.error("cannot find model parameters in config file")
-                raise ValueError("Config file do not contain model_parameters section")
+                raise ValueError(
+                    "Config file do not contain model_parameters section")
         else:
             if config_dict.model_parameters.type == "model":
                 model_filename = config_dict.model_parameters.filename
-                log.info("loading model parameters from file specified by config file:%s" % model_filename)
+                log.info(
+                    "loading model parameters from file specified by config file:%s" %
+                    model_filename)
                 serializers.load_npz(model_filename, encdec)
             else:
                 if load_config_model == "yes":
-                    log.error("model parameters in config file is of type snapshot, not model")
+                    log.error(
+                        "model parameters in config file is of type snapshot, not model")
                     raise ValueError("Config file model is not of type model")
 
     return encdec, eos_idx, src_indexer, tgt_indexer
@@ -188,7 +193,8 @@ def do_train(config_training):
     output_files_dict = {}
     output_files_dict["train_config"] = save_prefix + ".train.config"
     output_files_dict["model_ckpt"] = save_prefix + ".model." + "ckpt" + ".npz"
-    output_files_dict["model_final"] = save_prefix + ".model." + "final" + ".npz"
+    output_files_dict["model_final"] = save_prefix + \
+        ".model." + "final" + ".npz"
     output_files_dict["model_best"] = save_prefix + ".model." + "best" + ".npz"
     output_files_dict["model_best_loss"] = save_prefix + ".model." + "best_loss" + ".npz"
 
@@ -265,7 +271,8 @@ def do_train(config_training):
         filtered_training_data = []
         nb_filtered = 0
         for src, tgt in training_data:
-            if len(src) <= max_src_tgt_length and len(tgt) <= max_src_tgt_length:
+            if len(src) <= max_src_tgt_length and len(
+                    tgt) <= max_src_tgt_length:
                 filtered_training_data.append((src, tgt))
             else:
                 nb_filtered += 1
@@ -326,13 +333,17 @@ def do_train(config_training):
         optimizer.setup(encdec)
 
     if config_training.training.l2_gradient_clipping is not None and config_training.training.l2_gradient_clipping > 0:
-        optimizer.add_hook(chainer.optimizer.GradientClipping(config_training.training.l2_gradient_clipping))
+        optimizer.add_hook(chainer.optimizer.GradientClipping(
+            config_training.training.l2_gradient_clipping))
 
     if config_training.training.hard_gradient_clipping is not None and config_training.training.hard_gradient_clipping > 0:
-        optimizer.add_hook(chainer.optimizer.GradientHardClipping(*config_training.training.hard_gradient_clipping))
+        optimizer.add_hook(chainer.optimizer.GradientHardClipping(
+            *config_training.training.hard_gradient_clipping))
 
     if config_training.training.weight_decay is not None:
-        optimizer.add_hook(chainer.optimizer.WeightDecay(config_training.training.weight_decay))
+        optimizer.add_hook(
+            chainer.optimizer.WeightDecay(
+                config_training.training.weight_decay))
 
     if config_training.training_management.load_optimizer_state is not None:
         with cuda.get_device(gpu):
@@ -353,11 +364,15 @@ def do_train(config_training):
         with timer_hook() as timer_infos:
 
             if config_training.training_management.max_nb_iters is not None:
-                stop_trigger = (config_training.training_management.max_nb_iters, "iteration")
+                stop_trigger = (
+                    config_training.training_management.max_nb_iters,
+                    "iteration")
                 if config_training.training_management.max_nb_epochs is not None:
-                    log.warn("max_nb_iters and max_nb_epochs both specified. Only max_nb_iters will be considered.")
+                    log.warn(
+                        "max_nb_iters and max_nb_epochs both specified. Only max_nb_iters will be considered.")
             elif config_training.training_management.max_nb_epochs is not None:
-                stop_trigger = (config_training.training_management.max_nb_epochs, "epoch")
+                stop_trigger = (
+                    config_training.training_management.max_nb_epochs, "epoch")
             else:
                 stop_trigger = None
             training_chainer.train_on_data_chainer(encdec, optimizer, training_data, output_files_dict,

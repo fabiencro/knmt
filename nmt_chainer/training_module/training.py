@@ -117,7 +117,8 @@ def train_on_data(encdec, optimizer, training_data, output_files_dict,
         t0 = time.clock()
         encdec.zerograds()
         t1 = time.clock()
-        loss, total_nb_predictions = encdec.compute_loss_and_backward(src_batch, tgt_batch, src_mask)
+        loss, total_nb_predictions = encdec.compute_loss_and_backward(
+            src_batch, tgt_batch, src_mask)
         t2 = time.clock()
         print "loss:", loss,
         t3 = time.clock()
@@ -328,7 +329,9 @@ def train_on_data(encdec, optimizer, training_data, output_files_dict,
                 if i % save_ckpt_every == 0:
                     save_model("ckpt")
                     fn_save_optimizer = output_files_dict["optimizer_ckpt"]
-                    log.info("saving optimizer parameters to %s" % fn_save_optimizer)
+                    log.info(
+                        "saving optimizer parameters to %s" %
+                        fn_save_optimizer)
                     serializers.save_npz(fn_save_optimizer, optimizer)
 
             if use_memory_optimization:

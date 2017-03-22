@@ -89,7 +89,11 @@ def create_parser():
         metavar='PATH',
         help="Output file (default: standard output)")
     parser.add_argument(
-        '--separator', '-s', type=str, default='@@', metavar='STR',
+        '--separator',
+        '-s',
+        type=str,
+        default='@@',
+        metavar='STR',
         help="Separator between non-final subword units (default: '%(default)s'))")
 
     return parser

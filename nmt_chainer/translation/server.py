@@ -40,7 +40,8 @@ class Translator:
     def __init__(self, config_server):
         self.config_server = config_server
         from nmt_chainer.translation.eval import create_encdec
-        self.encdec, self.eos_idx, self.src_indexer, self.tgt_indexer, self.reverse_encdec = create_encdec(config_server)
+        self.encdec, self.eos_idx, self.src_indexer, self.tgt_indexer, self.reverse_encdec = create_encdec(
+            config_server)
         if 'gpu' in config_server.process and config_server.process.gpu is not None:
             self.encdec = self.encdec.to_gpu(config_server.process.gpu)
 
@@ -148,7 +149,8 @@ class RequestHandler(SocketServer.BaseRequestHandler):
                     beam_pruning_margin = float(root.get('beam_pruning_margin'))
                 except BaseException:
                     pass
-                beam_score_coverage_penalty = root.get('beam_score_coverage_penalty', 'none')
+                beam_score_coverage_penalty = root.get(
+                    'beam_score_coverage_penalty', 'none')
                 beam_score_coverage_penalty_strength = None
                 try:
                     beam_score_coverage_penalty_strength = float(root.get('beam_score_coverage_penalty_strength', 0.2))
@@ -161,29 +163,37 @@ class RequestHandler(SocketServer.BaseRequestHandler):
                     pass
                 groundhog = ('true' == root.get('groundhog', 'false'))
                 force_finish = ('true' == root.get('force_finish', 'false'))
-                beam_score_length_normalization = root.get('beam_score_length_normalization', 'none')
+                beam_score_length_normalization = root.get(
+                    'beam_score_length_normalization', 'none')
                 beam_score_length_normalization_strength = None
                 try:
                     beam_score_length_normalization_strength = float(root.get('beam_score_length_normalization_strength', 0.2))
                 except BaseException:
                     pass
-                post_score_length_normalization = root.get('post_score_length_normalization', 'simple')
+                post_score_length_normalization = root.get(
+                    'post_score_length_normalization', 'simple')
                 post_score_length_normalization_strength = None
                 try:
                     post_score_length_normalization_strength = float(root.get('post_score_length_normalization_strength', 0.2))
                 except BaseException:
                     pass
-                post_score_coverage_penalty = root.get('post_score_coverage_penalty', 'none')
+                post_score_coverage_penalty = root.get(
+                    'post_score_coverage_penalty', 'none')
                 post_score_coverage_penalty_strength = None
                 try:
                     post_score_coverage_penalty_strength = float(root.get('post_score_coverage_penalty_strength', 0.2))
                 except BaseException:
                     pass
-                prob_space_combination = ('true' == root.get('prob_space_combination', 'false'))
+                prob_space_combination = (
+                    'true' == root.get(
+                        'prob_space_combination', 'false'))
                 remove_unk = ('true' == root.get('remove_unk', 'false'))
-                normalize_unicode_unk = ('true' == root.get('normalize_unicode_unk', 'true'))
+                normalize_unicode_unk = (
+                    'true' == root.get(
+                        'normalize_unicode_unk', 'true'))
                 log.info('normalize_unicode_unk=' + str(normalize_unicode_unk))
-                attempt_to_relocate_unk_source = ('true' == root.get('attempt_to_relocate_unk_source', 'false'))
+                attempt_to_relocate_unk_source = ('true' == root.get(
+                    'attempt_to_relocate_unk_source', 'false'))
                 log.info("Article id: %s" % article_id)
                 out = ""
                 graph_data = []
@@ -202,7 +212,9 @@ class RequestHandler(SocketServer.BaseRequestHandler):
 
                     parser_output = subprocess.check_output(cmd, shell=True)
 
-                    log.info("Segmenter request processed in {} s.".format(timeit.default_timer() - start_cmd))
+                    log.info(
+                        "Segmenter request processed in {} s.".format(
+                            timeit.default_timer() - start_cmd))
                     log.info("parser_output=%s" % parser_output)
 
                     words = []
@@ -238,7 +250,8 @@ class RequestHandler(SocketServer.BaseRequestHandler):
                     segmented_input.append(splitted_sentence)
                     segmented_output.append(translation)
                     mapping.append(unk_mapping)
-                    graph_data.append((script.encode('utf-8'), div.encode('utf-8')))
+                    graph_data.append(
+                        (script.encode('utf-8'), div.encode('utf-8')))
 
                     # There should always be only one sentence for now. - FB
                     break
@@ -260,7 +273,11 @@ class RequestHandler(SocketServer.BaseRequestHandler):
                 response['error'] = error_lines[-1]
                 response['stacktrace'] = error_lines
 
-        log.info("Request processed in {0} s. by {1}".format(timeit.default_timer() - start_request, cur_thread.name))
+        log.info(
+            "Request processed in {0} s. by {1}".format(
+                timeit.default_timer() -
+                start_request,
+                cur_thread.name))
 
         response = json.dumps(response)
         self.request.sendall(response)
@@ -271,7 +288,13 @@ class Server(SocketServer.ThreadingMixIn, SocketServer.TCPServer):
     daemon_threads = True
     allow_reuse_address = True
 
-    def __init__(self, server_address, handler_class, segmenter_command, segmenter_format, translator):
+    def __init__(
+            self,
+            server_address,
+            handler_class,
+            segmenter_command,
+            segmenter_format,
+            translator):
         SocketServer.TCPServer.__init__(self, server_address, handler_class)
         self.segmenter_command = segmenter_command
         self.segmenter_format = segmenter_format
@@ -286,9 +309,19 @@ def timestamped_msg(msg):
 def do_start_server(config_server):
     translator = Translator(config_server)
     server_host, server_port = config_server.process.server.split(":")
-    server = Server((server_host, int(server_port)), RequestHandler, config_server.process.segmenter_command, config_server.process.segmenter_format, translator)
+    server = Server(
+        (server_host,
+         int(server_port)),
+        RequestHandler,
+        config_server.process.segmenter_command,
+        config_server.process.segmenter_format,
+        translator)
     ip, port = server.server_address
-    log.info(timestamped_msg("Start listening for requests on {0}:{1}...".format(socket.gethostname(), port)))
+    log.info(
+        timestamped_msg(
+            "Start listening for requests on {0}:{1}...".format(
+                socket.gethostname(),
+                port)))
 
     try:
         server.serve_forever()

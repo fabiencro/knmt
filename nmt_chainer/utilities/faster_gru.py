@@ -118,15 +118,14 @@ class ComputeOutputGRU(function.Function):
     def backward_gpu(self, x, gy):
         z_x, z_h, h_x, h, hh = x
         g_z_x, g_z_h, g_h_x, g_h, g_hh = cuda.elementwise(
-            'T z, T h_bar, T h, T gy', 'T g_z_x, T g_z_h, T g_h_x, T g_h, T g_hh',
-            '''
+            'T z, T h_bar, T h, T gy', 'T g_z_x, T g_z_h, T g_h_x, T g_h, T g_hh', '''
             g_h = (1 - z) * gy;
             g_hh = z * (1 - h_bar * h_bar) * gy;
             g_h_x = g_hh;
             g_z_x = g_h * z * (h_bar - h);
             g_z_h = g_z_x;
-            ''',
-            'compute_output_gru_bwd')(self.z, self.h_bar, h, gy[0])
+            ''', 'compute_output_gru_bwd')(
+            self.z, self.h_bar, h, gy[0])
         return g_z_x, g_z_h, g_h_x, g_h, g_hh,
 
 
@@ -405,7 +404,8 @@ import operator
 
 def commandline():
     import argparse
-    parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+    parser = argparse.ArgumentParser(
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument("--gpu")
     parser.add_argument("--fast", type=int)
     parser.add_argument("--fast2", type=int)
@@ -537,7 +537,8 @@ def test_perf(args):
 
 def test2():
     import argparse
-    parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+    parser = argparse.ArgumentParser(
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument("--gpu")
     args = parser.parse_args()
 

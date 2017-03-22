@@ -118,12 +118,15 @@ def update_next_lists(num_case, idx_in_case, new_cost, eos_idx, new_state_ensemb
             coverage_penalty = 0
             if len(current_attentions[num_case]) > 0:
                 xp = cuda.get_array_module(attn_ensemble[0].data)
-                log_of_min_of_sum_over_j = xp.log(xp.minimum(sum(current_attentions[num_case]), xp.array(1.0)))
-                coverage_penalty = beam_score_coverage_penalty_strength * xp.sum(log_of_min_of_sum_over_j)
+                log_of_min_of_sum_over_j = xp.log(xp.minimum(
+                    sum(current_attentions[num_case]), xp.array(1.0)))
+                coverage_penalty = beam_score_coverage_penalty_strength * \
+                    xp.sum(log_of_min_of_sum_over_j)
             normalized_score = -new_cost + coverage_penalty
             next_normalized_score_list.append(normalized_score)
 
-        next_translations_list.append(current_translations[num_case] + [idx_in_case])
+        next_translations_list.append(
+            current_translations[num_case] + [idx_in_case])
         if need_attention:
             xp = cuda.get_array_module(attn_ensemble[0].data)
             attn_summed = xp.zeros((attn_ensemble[0].data[0].shape), dtype=xp.float32)
@@ -196,10 +199,15 @@ def compute_next_lists(new_state_ensemble, new_scores, beam_width, beam_pruning_
 #             if len(next_states_list) >= beam_width:
 #                 break
 
-    # Prune items that have a score worse than beam_pruning_margin below the best score.
+    # Prune items that have a score worse than beam_pruning_margin below the
+    # best score.
     if (beam_pruning_margin is not None and next_score_list):
         best_next_score = max(next_score_list)
-        bad_score_indices = [idx for idx, elem in enumerate(next_score_list) if (best_next_score - elem > beam_pruning_margin)]
+        bad_score_indices = [
+            idx for idx,
+            elem in enumerate(next_score_list) if (
+                best_next_score -
+                elem > beam_pruning_margin)]
 
         for i in bad_score_indices[::-1]:
             del next_states_list[i]
@@ -210,10 +218,16 @@ def compute_next_lists(new_state_ensemble, new_scores, beam_width, beam_pruning_
             if beam_score_coverage_penalty == "google":
                 del next_normalized_score_list[i]
 
-    # Prune items that have a normalized score worse than beam_pruning_margin below the best normalized score.
-    if (beam_score_coverage_penalty == "google" and beam_pruning_margin is not None and next_normalized_score_list):
+    # Prune items that have a normalized score worse than beam_pruning_margin
+    # below the best normalized score.
+    if (beam_score_coverage_penalty ==
+            "google" and beam_pruning_margin is not None and next_normalized_score_list):
         best_next_normalized_score = max(next_normalized_score_list)
-        bad_score_indices = [idx for idx, elem in enumerate(next_normalized_score_list) if (best_next_normalized_score - elem > beam_pruning_margin)]
+        bad_score_indices = [
+            idx for idx,
+            elem in enumerate(next_normalized_score_list) if (
+                best_next_normalized_score -
+                elem > beam_pruning_margin)]
 
         for i in bad_score_indices[::-1]:
             del next_states_list[i]
@@ -448,7 +462,8 @@ def ensemble_beam_search(model_ensemble, src_batch, src_mask, nb_steps, eos_idx,
             assert current_translations_states is not None
             if need_attention:
                 translations, scores, _, _, attentions = current_translations_states
-                finished_translations.append((translations[0], scores[0], attentions[0]))
+                finished_translations.append(
+                    (translations[0], scores[0], attentions[0]))
             else:
                 finished_translations.append((translations[0], scores[0]))
         else:

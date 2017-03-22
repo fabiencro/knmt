@@ -25,7 +25,10 @@ class TestServer:
         """
         Test if the server can start and answers a simple translation query.
         """
-        test_data_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "tests_data")
+        test_data_dir = os.path.join(
+            os.path.dirname(
+                os.path.abspath(__file__)),
+            "tests_data")
         segmenter_command = "echo '%s' | bin/z2h.pl | bin/tokenizer.perl"
         segmenter_format = "plain"
         config_file = os.path.join(str(test_data_dir), "models/result_invariability.train.train.config")
@@ -35,7 +38,8 @@ class TestServer:
         if gpu is not None:
             args_server += '--gpu {0}'.format(gpu)
 
-        server_process = subprocess.Popen(["python -m nmt_chainer eval {0}".format(args_server)], shell=True)
+        server_process = subprocess.Popen(
+            ["python -m nmt_chainer eval {0}".format(args_server)], shell=True)
         try:
             print "Server PID={0}".format(server_process.pid)
 
