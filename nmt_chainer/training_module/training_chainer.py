@@ -498,10 +498,10 @@ def train_on_data_chainer(encdec, optimizer, training_data, output_files_dict,
         src_batch, tgt_batch, src_mask = make_batch_src_tgt(mb_raw, eos_idx=eos_idx, padding_idx=0, gpu=gpu, volatile="on", need_arg_sort=False)
 
         def s_unk_tag(num, utag):
-            "S_UNK_%i" % utag
+            return "S_UNK_%i" % utag
 
         def t_unk_tag(num, utag):
-            "T_UNK_%i" % utag
+            return "T_UNK_%i" % utag
 
         sample_once(encdec, src_batch, tgt_batch, src_mask, src_indexer, tgt_indexer, eos_idx,
                     max_nb=20,
