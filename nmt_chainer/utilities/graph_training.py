@@ -66,10 +66,7 @@ def generate_graph(sqldb, dest, title="Training Evolution"):
     #         random_y2 = np.random.randn(N)-5
     #
     # Create traces
-    text_trg = [
-        "i:%i\n%s\nt:%r" %
-        (i, d, t) for i, d, t in zip(
-            iteration, date, avg_time)]
+    text_trg = ["i:%i\n%s\nt:%r" % (i, d, t) for i, d, t in zip(iteration, date, avg_time)]
     text_bleu = []
     for bli in bleu_info:
         if bli is None:
@@ -194,16 +191,7 @@ def generate_graph(sqldb, dest, title="Training Evolution"):
         )
     )
 
-    data = [
-        trace0,
-        trace1,
-        trace2,
-        trace3,
-        trace4,
-        trace0min,
-        trace1max,
-        trace2min,
-        trace3max]
+    data = [trace0, trace1, trace2, trace3, trace4, trace0min, trace1max, trace2min, trace3max]
     #         data = [trace2, trace3, trace4, trace2min, trace3max]
     fig = go.Figure(data=data, layout=layout)
     # Plot and embed in ipython notebook!

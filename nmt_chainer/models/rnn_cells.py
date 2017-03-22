@@ -24,23 +24,10 @@ import nmt_chainer.utilities.faster_gru as faster_gru
 
 
 class GRUCell(Chain):
-    def __init__(
-            self,
-            in_size,
-            out_size,
-            init=None,
-            inner_init=None,
-            bias_init=None):
+    def __init__(self, in_size, out_size, init=None, inner_init=None, bias_init=None):
         log.info("Creating GRUCell(%i, %i)" % (in_size, out_size))
-        super(
-            GRUCell,
-            self).__init__(
-            gru=L.GRU(
-                out_size,
-                in_size,
-                init=init,
-                inner_init=inner_init,
-                bias_init=bias_init),
+        super(GRUCell, self).__init__(
+            gru=L.GRU(out_size, in_size, init=init, inner_init=inner_init, bias_init=bias_init),
         )
         self.add_param("initial_state", (1, out_size))
         self.initial_state.data[...] = self.xp.random.randn(out_size)
@@ -66,14 +53,8 @@ class GRUCell(Chain):
 class FastGRUCell(Chain):
     def __init__(self, in_size, out_size, init=None, bias_init=None):
         log.info("Creating GRUCell(%i, %i)" % (in_size, out_size))
-        super(
-            FastGRUCell,
-            self).__init__(
-            gru=faster_gru.GRU(
-                out_size,
-                in_size,
-                init=init,
-                bias_init=bias_init),
+        super(FastGRUCell, self).__init__(
+            gru=faster_gru.GRU(out_size, in_size, init=init, bias_init=bias_init),
         )
         self.add_param("initial_state", (1, out_size))
         self.initial_state.data[...] = self.xp.random.randn(out_size)
@@ -97,42 +78,22 @@ class FastGRUCell(Chain):
 
 
 class LSTMCell(Chain):
-    def __init__(
-            self,
-            in_size,
-            out_size,
-            lateral_init=None,
-            upward_init=None,
-            bias_init=None,
-            forget_bias_init=None):
+    def __init__(self, in_size, out_size, lateral_init=None, upward_init=None, bias_init=None, forget_bias_init=None):
         log.info("Creating LSTMCell(%i, %i)" % (in_size, out_size))
-        super(
-            LSTMCell,
-            self).__init__(
-            lstm=L.StatelessLSTM(
-                in_size,
-                out_size,
-                lateral_init=lateral_init,
-                upward_init=upward_init,
-                bias_init=bias_init,
-                forget_bias_init=forget_bias_init))
+        super(LSTMCell, self).__init__(
+            lstm=L.StatelessLSTM(in_size, out_size,
+                                 lateral_init=lateral_init, upward_init=upward_init,
+                                 bias_init=bias_init, forget_bias_init=forget_bias_init)
+        )
         self.add_param("initial_state", (1, out_size))
         self.initial_state.data[...] = self.xp.random.randn(out_size)
-        self.add_persistent(
-            "initial_cell", self.xp.zeros(
-                (1, out_size), dtype=self.xp.float32))
+        self.add_persistent("initial_cell", self.xp.zeros((1, out_size), dtype=self.xp.float32))
         self.out_size = out_size
         self.in_size = in_size
 
     def get_initial_states(self, mb_size):
-        mb_initial_state = F.broadcast_to(F.reshape(
-            self.initial_state, (1, self.out_size)), (mb_size, self.out_size))
-        mb_initial_cell = Variable(
-            self.xp.broadcast_to(
-                self.initial_cell,
-                (mb_size,
-                 self.out_size)),
-            volatile="auto")
+        mb_initial_state = F.broadcast_to(F.reshape(self.initial_state, (1, self.out_size)), (mb_size, self.out_size))
+        mb_initial_cell = Variable(self.xp.broadcast_to(self.initial_cell, (mb_size, self.out_size)), volatile="auto")
         return (mb_initial_cell, mb_initial_state)
 
     def __call__(self, prev_states, x_in, mode="test"):
@@ -146,56 +107,25 @@ class LSTMCell(Chain):
 
 
 class GatedLSTMCell(Chain):
-    def __init__(
-            self,
-            in_size,
-            out_size,
-            lateral_init=None,
-            upward_init=None,
-            bias_init=None,
-            forget_bias_init=None):
+    def __init__(self, in_size, out_size, lateral_init=None, upward_init=None, bias_init=None, forget_bias_init=None):
         log.info("Creating GatedLSTMCell(%i, %i)" % (in_size, out_size))
         assert in_size == out_size
 
-        super(
-            GatedLSTMCell,
-            self).__init__(
-            lstm=L.StatelessLSTM(
-                in_size,
-                out_size,
-                lateral_init=lateral_init,
-                upward_init=upward_init,
-                bias_init=bias_init,
-                forget_bias_init=forget_bias_init),
-            gate_w=L.Linear(
-                in_size,
-                in_size))
+        super(GatedLSTMCell, self).__init__(
+            lstm=L.StatelessLSTM(in_size, out_size, lateral_init=lateral_init, upward_init=upward_init, bias_init=bias_init, forget_bias_init=forget_bias_init),
+            gate_w=L.Linear(in_size, in_size)
+        )
         self.add_param("initial_state", (1, out_size))
         self.initial_state.data[...] = self.xp.random.randn(out_size)
-        self.add_persistent(
-            "initial_cell", self.xp.zeros(
-                (1, out_size), dtype=self.xp.float32))
-        self.add_persistent(
-            "initial_output", self.xp.zeros(
-                (1, out_size), dtype=self.xp.float32))
+        self.add_persistent("initial_cell", self.xp.zeros((1, out_size), dtype=self.xp.float32))
+        self.add_persistent("initial_output", self.xp.zeros((1, out_size), dtype=self.xp.float32))
         self.out_size = out_size
         self.in_size = in_size
 
     def get_initial_states(self, mb_size):
-        mb_initial_state = F.broadcast_to(F.reshape(
-            self.initial_state, (1, self.out_size)), (mb_size, self.out_size))
-        mb_initial_cell = Variable(
-            self.xp.broadcast_to(
-                self.initial_cell,
-                (mb_size,
-                 self.out_size)),
-            volatile="auto")
-        mb_initial_output = Variable(
-            self.xp.broadcast_to(
-                self.initial_output,
-                (mb_size,
-                 self.out_size)),
-            volatile="auto")
+        mb_initial_state = F.broadcast_to(F.reshape(self.initial_state, (1, self.out_size)), (mb_size, self.out_size))
+        mb_initial_cell = Variable(self.xp.broadcast_to(self.initial_cell, (mb_size, self.out_size)), volatile="auto")
+        mb_initial_output = Variable(self.xp.broadcast_to(self.initial_output, (mb_size, self.out_size)), volatile="auto")
         return (mb_initial_cell, mb_initial_state, mb_initial_output)
 
     def __call__(self, prev_states, x_in, mode="test"):
@@ -204,8 +134,7 @@ class GatedLSTMCell(Chain):
         new_cell, new_state = self.lstm(prev_cell, prev_state, x_in)
 
         passthrough_gate_state = F.sigmoid(self.gate_w(x_in))
-        output = passthrough_gate_state * x_in + \
-            (1 - passthrough_gate_state) * new_state
+        output = passthrough_gate_state * x_in + (1 - passthrough_gate_state) * new_state
 
         return new_cell, new_state, output
 
@@ -214,53 +143,23 @@ class GatedLSTMCell(Chain):
 
 
 class StackedCell(ChainList):
-    def __init__(
-            self,
-            in_size,
-            out_size,
-            cell_type=LSTMCell,
-            nb_stacks=2,
-            dropout=0.5,
-            residual_connection=False,
-            no_dropout_on_input=False,
-            no_residual_connection_on_output=False,
-            no_residual_connection_on_input=False,
-            init=None,
-            inner_init=None,
-            lateral_init=None,
-            upward_init=None,
-            bias_init=None,
-            forget_bias_init=None):
+    def __init__(self, in_size, out_size, cell_type=LSTMCell, nb_stacks=2,
+                 dropout=0.5, residual_connection=False, no_dropout_on_input=False,
+                 no_residual_connection_on_output=False, no_residual_connection_on_input=False,
+                 init=None, inner_init=None, lateral_init=None, upward_init=None, bias_init=None, forget_bias_init=None):
         nb_stacks = nb_stacks or 2
         cell_type = cell_type or LSTMCell
 
-        log.info(
-            "Creating StackedCell(%i, %i) X %i" %
-            (in_size, out_size, nb_stacks))
+        log.info("Creating StackedCell(%i, %i) X %i" % (in_size, out_size, nb_stacks))
         super(StackedCell, self).__init__()
         self.nb_of_states = []
 
         if cell_type in (LSTMCell, GatedLSTMCell):
-            cell0 = cell_type(
-                in_size,
-                out_size,
-                lateral_init=lateral_init,
-                upward_init=upward_init,
-                bias_init=bias_init,
-                forget_bias_init=forget_bias_init)
+            cell0 = cell_type(in_size, out_size, lateral_init=lateral_init, upward_init=upward_init, bias_init=bias_init, forget_bias_init=forget_bias_init)
         elif cell_type == GRUCell:
-            cell0 = cell_type(
-                in_size,
-                out_size,
-                init=init,
-                inner_init=inner_init,
-                bias_init=bias_init)
+            cell0 = cell_type(in_size, out_size, init=init, inner_init=inner_init, bias_init=bias_init)
         elif cell_type == FastGRUCell:
-            cell0 = cell_type(
-                in_size,
-                out_size,
-                init=init,
-                bias_init=bias_init)
+            cell0 = cell_type(in_size, out_size, init=init, bias_init=bias_init)
         else:
             raise ValueError("Unsupported cell_type={0}".format(cell_type))
         self.add_link(cell0)
@@ -268,26 +167,11 @@ class StackedCell(ChainList):
 
         for i in xrange(1, nb_stacks):
             if cell_type in (LSTMCell, GatedLSTMCell):
-                cell = cell_type(
-                    out_size,
-                    out_size,
-                    lateral_init=lateral_init,
-                    upward_init=upward_init,
-                    bias_init=bias_init,
-                    forget_bias_init=forget_bias_init)
+                cell = cell_type(out_size, out_size, lateral_init=lateral_init, upward_init=upward_init, bias_init=bias_init, forget_bias_init=forget_bias_init)
             elif cell_type == GRUCell:
-                cell = cell_type(
-                    out_size,
-                    out_size,
-                    init=init,
-                    inner_init=inner_init,
-                    bias_init=bias_init)
+                cell = cell_type(out_size, out_size, init=init, inner_init=inner_init, bias_init=bias_init)
             elif cell_type == FastGRUCell:
-                cell = cell_type(
-                    out_size,
-                    out_size,
-                    init=init,
-                    bias_init=bias_init)
+                cell = cell_type(out_size, out_size, init=init, bias_init=bias_init)
             else:
                 raise ValueError("Unsupported cell_type={0}".format(cell_type))
             self.add_link(cell)
@@ -312,13 +196,10 @@ class StackedCell(ChainList):
         states_cursor = 0
         res = []
         for i in xrange(len(self)):
-            if self.dropout is not None and not (
-                    self.no_dropout_on_input and i == 0):
-                input_below = F.dropout(
-                    input_below, ratio=self.dropout, train=(
-                        mode == "train"))
-            new_states = self[i](
-                prev_states[states_cursor:states_cursor + self.nb_of_states[i]], input_below, mode=mode)
+            if self.dropout is not None and not (self.no_dropout_on_input and i == 0):
+                input_below = F.dropout(input_below, ratio=self.dropout, train=(mode == "train"))
+            new_states = self[i](prev_states[states_cursor:states_cursor + self.nb_of_states[i]], input_below,
+                                 mode=mode)
             states_cursor += self.nb_of_states[i]
 
             if (self.residual_connection and
@@ -338,36 +219,23 @@ class NStepsCell(Chain):
             nstep_lstm=L.NStepLSTM(nb_stacks, in_size, out_size, dropout)
         )
         self.add_param("initial_state", (nb_stacks, 1, out_size))
-        self.initial_state.data[...] = self.xp.random.randn(
-            nb_stacks, 1, out_size)
-        self.add_persistent("initial_cell", self.xp.zeros(
-            (nb_stacks, 1, out_size), dtype=self.xp.float32))
+        self.initial_state.data[...] = self.xp.random.randn(nb_stacks, 1, out_size)
+        self.add_persistent("initial_cell", self.xp.zeros((nb_stacks, 1, out_size), dtype=self.xp.float32))
 
         self.nb_stacks = nb_stacks
         self.out_size = out_size
         self.in_size = in_size
 
     def get_initial_states(self, mb_size):
-        mb_initial_state = F.broadcast_to(
-            self.initial_state, (self.nb_stacks, mb_size, self.out_size))
-        mb_initial_cell = Variable(
-            self.xp.broadcast_to(
-                self.initial_cell,
-                (self.nb_stacks,
-                 mb_size,
-                 self.out_size)),
-            volatile="auto")
+        mb_initial_state = F.broadcast_to(self.initial_state, (self.nb_stacks, mb_size, self.out_size))
+        mb_initial_cell = Variable(self.xp.broadcast_to(self.initial_cell, (self.nb_stacks, mb_size, self.out_size)), volatile="auto")
         return (mb_initial_cell, mb_initial_state)
 
     def apply_to_seq(self, seq_list, mode="test"):
         assert mode in "test train".split()
         mb_size = len(seq_list)
         mb_initial_cell, mb_initial_state = self.get_initial_states(mb_size)
-        return self.nstep_lstm(
-            mb_initial_cell,
-            mb_initial_state,
-            seq_list,
-            train=mode == "train")
+        return self.nstep_lstm(mb_initial_cell, mb_initial_state, seq_list, train=mode == "train")
 
 
 # class DoubleGRU(Chain):
@@ -441,10 +309,8 @@ def create_cell_model_from_string(model_str):
         if key in cell_description_keywords:
             keywords[key] = cell_description_keywords[key](val)
         else:
-            raise ValueError(
-                "bad cell parameter: %s (possible parameters: %s)" %
-                (comp, " ".join(
-                    cell_description_keywords.keys())))
+            raise ValueError("bad cell parameter: %s (possible parameters: %s)" %
+                             (comp, " ".join(cell_description_keywords.keys())))
 
     return create_cell_model(type_str, **keywords)
 
@@ -491,8 +357,7 @@ def create_initializer(init_type, scale=None, fillvalue=None):
 def create_initializer_table(keywords):
     initializers = {}
     init_params = [k for k in keywords if 'init_' in k]
-    init_kind = Counter(
-        map((lambda str: str[:str.index('init') + 4]), init_params))
+    init_kind = Counter(map((lambda str: str[:str.index('init') + 4]), init_params))
     for prefix in init_kind:
         init_type = None
         key = "{0}_type".format(prefix)
@@ -557,26 +422,11 @@ def create_cell_model(type_str, **cell_parameters):
     else:
         def instantiate(in_size, out_size):
             if type_str in ("lstm", "glstm"):
-                return cell_type(
-                    in_size,
-                    out_size,
-                    lateral_init=lateral_init,
-                    upward_init=upward_init,
-                    bias_init=bias_init,
-                    forget_bias_init=forget_bias_init)
+                return cell_type(in_size, out_size, lateral_init=lateral_init, upward_init=upward_init, bias_init=bias_init, forget_bias_init=forget_bias_init)
             elif type_str == "slow_gru":
-                return cell_type(
-                    in_size,
-                    out_size,
-                    init=init,
-                    inner_init=inner_init,
-                    bias_init=bias_init)
+                return cell_type(in_size, out_size, init=init, inner_init=inner_init, bias_init=bias_init)
             elif type_str == "gru":
-                return cell_type(
-                    in_size,
-                    out_size,
-                    init=init,
-                    bias_init=bias_init)
+                return cell_type(in_size, out_size, init=init, bias_init=bias_init)
             else:
                 raise ValueError("Unsupported cell_type={0}".format(cell_type))
     instantiate.meta_data_cell_type = cell_type

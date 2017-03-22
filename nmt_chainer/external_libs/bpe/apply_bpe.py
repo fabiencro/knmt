@@ -41,8 +41,7 @@ class BPE(object):
             self.bpe_codes = [tuple(item.split()) for item in codes]
 
         # some hacking to deal with duplicates (only consider first instance)
-        self.bpe_codes = dict(
-            [(code, i) for (i, code) in reversed(list(enumerate(self.bpe_codes)))])
+        self.bpe_codes = dict([(code, i) for (i, code) in reversed(list(enumerate(self.bpe_codes)))])
 
         self.separator = separator
         self.cache = {}
@@ -138,8 +137,7 @@ def encode(orig, bpe_codes, cache):
                 new_word.extend(word[i:])
                 break
 
-            if word[i] == first and i < len(
-                    word) - 1 and word[i + 1] == second:
+            if word[i] == first and i < len(word) - 1 and word[i + 1] == second:
                 new_word.append(first + second)
                 i += 2
             else:

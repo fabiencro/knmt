@@ -18,18 +18,9 @@ class Client:
         self.ip = server_ip
         self.port = server_port
 
-    def query(
-            self,
-            sentence,
-            article_id=1,
-            beam_width=30,
-            nb_steps=50,
-            nb_steps_ratio=1.5,
-            prob_space_combination=False,
-            normalize_unicode_unk=True,
-            remove_unk=False,
-            attempt_to_relocate_unk_source=False,
-            sentence_id=1):
+    def query(self, sentence, article_id=1, beam_width=30, nb_steps=50, nb_steps_ratio=1.5,
+              prob_space_combination=False, normalize_unicode_unk=True, remove_unk=False, attempt_to_relocate_unk_source=False,
+              sentence_id=1):
 
         query = """<?xml version="1.0" encoding="utf-8"?>
 <article id="{0}"
@@ -45,17 +36,8 @@ class Client:
     </sentence>
 </article>"""
 
-        query = query.format(
-            article_id,
-            beam_width,
-            nb_steps,
-            nb_steps_ratio,
-            prob_space_combination,
-            normalize_unicode_unk,
-            remove_unk,
-            attempt_to_relocate_unk_source,
-            sentence_id,
-            escape(sentence))
+        query = query.format(article_id, beam_width, nb_steps, nb_steps_ratio, prob_space_combination,
+                             normalize_unicode_unk, remove_unk, attempt_to_relocate_unk_source, sentence_id, escape(sentence))
         s = socket.socket()
         s.connect((self.ip, self.port))
         s.send(query)

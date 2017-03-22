@@ -46,10 +46,8 @@ class AttentionModule(Chain):
     def __call__(self, fb_concat, mask):
         mb_size, nb_elems, Hi = fb_concat.data.shape
         assert Hi == self.Hi
-        precomputed_al_factor = F.reshape(
-            self.al_lin_h(
-                F.reshape(
-                    fb_concat, (mb_size * nb_elems, self.Hi))), (mb_size, nb_elems, self.Ha))
+        precomputed_al_factor = F.reshape(self.al_lin_h(
+            F.reshape(fb_concat, (mb_size * nb_elems, self.Hi))), (mb_size, nb_elems, self.Ha))
 
         mask_length = len(mask)
         seq_length = nb_elems
@@ -69,8 +67,8 @@ class AttentionModule(Chain):
                         ], 1
                     )
                 else:
-                    concatenated_penalties = -10000 * (1 - self.xp.concatenate([self.xp.reshape(
-                        mask_elem, (mb_size, 1)).astype(self.xp.float32) for mask_elem in mask], 1))
+                    concatenated_penalties = -10000 * (1 - self.xp.concatenate([
+                        self.xp.reshape(mask_elem, (mb_size, 1)).astype(self.xp.float32) for mask_elem in mask], 1))
 
         def compute_ctxt(previous_state):
             current_mb_size = previous_state.data.shape[0]
@@ -88,41 +86,17 @@ class AttentionModule(Chain):
                     used_concatenated_penalties = concatenated_penalties
 
             state_al_factor = self.al_lin_s(previous_state)
-            state_al_factor_bc = F.broadcast_to(
-                F.reshape(
-                    state_al_factor,
-                    (current_mb_size,
-                     1,
-                     self.Ha)),
-                (current_mb_size,
-                 nb_elems,
-                 self.Ha))
-            a_coeffs = F.reshape(
-                self.al_lin_o(
-                    F.reshape(
-                        F.tanh(
-                            state_al_factor_bc +
-                            al_factor),
-                        (current_mb_size *
-                         nb_elems,
-                         self.Ha))),
-                (current_mb_size,
-                 nb_elems))
+            state_al_factor_bc = F.broadcast_to(F.reshape(state_al_factor, (current_mb_size, 1, self.Ha)), (current_mb_size, nb_elems, self.Ha))
+            a_coeffs = F.reshape(self.al_lin_o(F.reshape(F.tanh(state_al_factor_bc + al_factor),
+                                                         (current_mb_size * nb_elems, self.Ha))), (current_mb_size, nb_elems))
 
             if mask_length > 0:
                 with cuda.get_device(used_concatenated_penalties):
-                    # - 10000 * (1-used_concatenated_mask.data)
-                    a_coeffs = a_coeffs + used_concatenated_penalties
+                    a_coeffs = a_coeffs + used_concatenated_penalties  # - 10000 * (1-used_concatenated_mask.data)
 
             attn = F.softmax(a_coeffs)
 
-            ci = F.reshape(
-                F.batch_matmul(
-                    attn,
-                    used_fb_concat,
-                    transa=True),
-                (current_mb_size,
-                 self.Hi))
+            ci = F.reshape(F.batch_matmul(attn, used_fb_concat, transa=True), (current_mb_size, self.Hi))
 
             return ci, attn
 
@@ -134,42 +108,22 @@ class AttentionModule(Chain):
         assert mb_size == 1
         assert len(mask) == 0
 
-        precomputed_al_factor = F.reshape(
-            self.al_lin_h(
-                F.reshape(
-                    fb_concat, (mb_size * nb_elems, self.Hi))), (mb_size, nb_elems, self.Ha))
+        precomputed_al_factor = F.reshape(self.al_lin_h(
+            F.reshape(fb_concat, (mb_size * nb_elems, self.Hi))), (mb_size, nb_elems, self.Ha))
 
 #         concatenated_mask = F.concat([F.reshape(mask_elem, (mb_size, 1)) for mask_elem in mask], 1)
 
         def compute_ctxt(previous_state):
             current_mb_size = previous_state.data.shape[0]
 
-            al_factor = F.broadcast_to(
-                precomputed_al_factor, (current_mb_size, nb_elems, self.Ha))
+            al_factor = F.broadcast_to(precomputed_al_factor, (current_mb_size, nb_elems, self.Ha))
 #             used_fb_concat = F.broadcast_to(fb_concat, (current_mb_size, nb_elems, Hi))
 #             used_concatenated_mask = F.broadcast_to(concatenated_mask, (current_mb_size, nb_elems))
 
             state_al_factor = self.al_lin_s(previous_state)
-            state_al_factor_bc = F.broadcast_to(
-                F.reshape(
-                    state_al_factor,
-                    (current_mb_size,
-                     1,
-                     self.Ha)),
-                (current_mb_size,
-                 nb_elems,
-                 self.Ha))
-            a_coeffs = F.reshape(
-                self.al_lin_o(
-                    F.reshape(
-                        F.tanh(
-                            state_al_factor_bc +
-                            al_factor),
-                        (current_mb_size *
-                         nb_elems,
-                         self.Ha))),
-                (current_mb_size,
-                 nb_elems))
+            state_al_factor_bc = F.broadcast_to(F.reshape(state_al_factor, (current_mb_size, 1, self.Ha)), (current_mb_size, nb_elems, self.Ha))
+            a_coeffs = F.reshape(self.al_lin_o(F.reshape(F.tanh(state_al_factor_bc + al_factor),
+                                                         (current_mb_size * nb_elems, self.Ha))), (current_mb_size, nb_elems))
 
 
 #             with cuda.get_device(used_concatenated_mask.data):
@@ -179,10 +133,7 @@ class AttentionModule(Chain):
 
 #             ci = F.reshape(F.batch_matmul(attn, used_fb_concat, transa = True), (current_mb_size, self.Hi))
 
-            ci = F.reshape(
-                F.matmul(
-                    attn, F.reshape(
-                        fb_concat, (nb_elems, Hi))), (current_mb_size, self.Hi))
+            ci = F.reshape(F.matmul(attn, F.reshape(fb_concat, (nb_elems, Hi))), (current_mb_size, self.Hi))
 
             return ci, attn
 
@@ -235,11 +186,7 @@ class CopyMechanism(Chain):
         mb_size = inpt.data.shape[0]
         max_length = inpt.data.shape[1]
 
-        precomp = F.reshape(
-            F.tanh(
-                self.lin(
-                    F.reshape(
-                        inpt, (-1, self.Hi)))), (mb_size, -1, self.Ho))
+        precomp = F.reshape(F.tanh(self.lin(F.reshape(inpt, (-1, self.Hi)))), (mb_size, -1, self.Ho))
 
         mask_offset = max_length - len(mask)
 

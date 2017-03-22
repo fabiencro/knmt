@@ -61,8 +61,7 @@ class TestCommandLine:
             data_src_file, data_tgt_file, data_prefix).split(' ')
         main(arguments=args)
 
-        args_train = ["train"] + [data_prefix, train_prefix] + \
-            "--max_nb_iters 6 --report_every 2 --mb_size 2 --Ei 10 --Eo 12 --Hi 30 --Ha 70 --Ho 15 --Hl 23".split(" ")
+        args_train = ["train"] + [data_prefix, train_prefix] + "--max_nb_iters 6 --report_every 2 --mb_size 2 --Ei 10 --Eo 12 --Hi 30 --Ha 70 --Ho 15 --Hl 23".split(" ")
         if gpu is not None:
             args_train += ['--gpu', gpu]
         main(arguments=args_train)

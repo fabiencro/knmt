@@ -34,34 +34,17 @@ def example_complexity(ex):
     return sent_complexity(ex[0]) + sent_complexity(ex[1])
 
 
-def train_on_data(
-        encdec,
-        optimizer,
-        training_data,
-        output_files_dict,
-        src_indexer,
-        tgt_indexer,
-        eos_idx,
-        mb_size=80,
-        nb_of_batch_to_sort=20,
-        test_data=None,
-        dev_data=None,
-        valid_data=None,
-        gpu=None,
-        report_every=200,
-        randomized=False,
-        reverse_src=False,
-        reverse_tgt=False,
-        max_nb_iters=None,
-        do_not_save_data_for_resuming=False,
-        noise_on_prev_word=False,
-        curiculum_training=False,
-        use_previous_prediction=0,
-        no_report_or_save=False,
-        use_memory_optimization=False,
-        sample_every=200,
-        use_reinf=False,
-        save_ckpt_every=2000):
+def train_on_data(encdec, optimizer, training_data, output_files_dict,
+                  src_indexer, tgt_indexer, eos_idx, mb_size=80,
+                  nb_of_batch_to_sort=20,
+                  test_data=None, dev_data=None, valid_data=None,
+                  gpu=None, report_every=200, randomized=False,
+                  reverse_src=False, reverse_tgt=False, max_nb_iters=None, do_not_save_data_for_resuming=False,
+                  noise_on_prev_word=False, curiculum_training=False,
+                  use_previous_prediction=0, no_report_or_save=False,
+                  use_memory_optimization=False, sample_every=200,
+                  use_reinf=False,
+                  save_ckpt_every=2000):
     #     ,
     #                   lexical_probability_dictionary = None,
     #                   V_tgt = None,
@@ -69,8 +52,7 @@ def train_on_data(
 
     if curiculum_training:
         log.info("Sorting training data by complexity")
-        training_data_sorted_by_complexity = sorted(
-            training_data, key=example_complexity)
+        training_data_sorted_by_complexity = sorted(training_data, key=example_complexity)
         log.info("done")
 
         for s, t in training_data_sorted_by_complexity[:400]:
@@ -79,36 +61,22 @@ def train_on_data(
             print tgt_indexer.deconvert(t)
             print
 
-        mb_provider = minibatch_provider_curiculum(
-            training_data_sorted_by_complexity,
-            eos_idx,
-            mb_size,
-            nb_of_batch_to_sort,
-            gpu=gpu,
-            randomized=randomized,
-            sort_key=lambda x: len(
-                x[0]),
-            reverse_src=reverse_src,
-            reverse_tgt=reverse_tgt)
+        mb_provider = minibatch_provider_curiculum(training_data_sorted_by_complexity, eos_idx, mb_size, nb_of_batch_to_sort, gpu=gpu,
+                                                   randomized=randomized, sort_key=lambda x: len(x[0]),
+                                                   reverse_src=reverse_src, reverse_tgt=reverse_tgt)
     else:
-        mb_provider = minibatch_provider(
-            training_data,
-            eos_idx,
-            mb_size,
-            nb_of_batch_to_sort,
-            gpu=gpu,
-            randomized=randomized,
-            sort_key=lambda x: len(
-                x[0]),
-            reverse_src=reverse_src,
-            reverse_tgt=reverse_tgt)
+        mb_provider = minibatch_provider(training_data, eos_idx, mb_size, nb_of_batch_to_sort, gpu=gpu,
+                                         randomized=randomized, sort_key=lambda x: len(x[0]),
+                                         reverse_src=reverse_src, reverse_tgt=reverse_tgt)
 
 #     mb_provider = minibatch_provider(training_data, eos_idx, mb_size, nb_of_batch_to_sort, gpu = gpu,
-# randomized = randomized, sort_key = lambda x:len(x[1]))
+#                                      randomized = randomized, sort_key = lambda x:len(x[1]))
 
-    def s_unk_tag(num, utag): return "S_UNK_%i" % utag
+    def s_unk_tag(num, utag):
+        return "S_UNK_%i" % utag
 
-    def t_unk_tag(num, utag): return "T_UNK_%i" % utag
+    def t_unk_tag(num, utag):
+        return "T_UNK_%i" % utag
 
     def save_model(suffix):
         if suffix == "final":
@@ -124,8 +92,7 @@ def train_on_data(
         log.info("saving model to %s" % fn_save)
         serializers.save_npz(fn_save, encdec)
 
-    # , lexicon_matrix = None):
-    def train_once(src_batch, tgt_batch, src_mask):
+    def train_once(src_batch, tgt_batch, src_mask):  # , lexicon_matrix = None):
         t0 = time.clock()
         encdec.zerograds()
         t1 = time.clock()
@@ -135,7 +102,7 @@ def train_on_data(
                                                           mode="train")
 #         ,
 #                                                           lexicon_probability_matrix = lexicon_matrix,
-# lex_epsilon = lexicon_prob_epsilon)
+#                                                           lex_epsilon = lexicon_prob_epsilon)
         loss = total_loss / total_nb_predictions
         t2 = time.clock()
         loss.backward()
@@ -160,8 +127,7 @@ def train_on_data(
         print " time %f zgrad:%f fwd:%f bwd:%f upd:%f" % (t4 - t0, t1 - t0, t2 - t1, t3 - t2, t4 - t3)
         return float(loss) * total_nb_predictions, total_nb_predictions
 
-    # , lexicon_matrix = None):
-    def train_once_reinf(src_batch, tgt_batch, src_mask):
+    def train_once_reinf(src_batch, tgt_batch, src_mask):  # , lexicon_matrix = None):
         t0 = time.clock()
         encdec.zerograds()
         t1 = time.clock()
@@ -189,37 +155,17 @@ def train_on_data(
         test_references = [y for x, y in test_data]
 
         def translate_test():
-            # save_prefix + ".test.out"
-            translations_fn = output_files_dict["test_translation_output"]
-            # save_prefix + ".test.src.out"
-            control_src_fn = output_files_dict["test_src_output"]
-            return translate_to_file(
-                encdec,
-                eos_idx,
-                test_src_data,
-                mb_size,
-                tgt_indexer,
-                translations_fn,
-                test_references=test_references,
-                control_src_fn=control_src_fn,
-                src_indexer=src_indexer,
-                gpu=gpu,
-                nb_steps=50,
-                reverse_src=reverse_src,
-                reverse_tgt=reverse_tgt,
-                s_unk_tag=s_unk_tag,
-                t_unk_tag=t_unk_tag)
+            translations_fn = output_files_dict["test_translation_output"]  # save_prefix + ".test.out"
+            control_src_fn = output_files_dict["test_src_output"]  # save_prefix + ".test.src.out"
+            return translate_to_file(encdec, eos_idx, test_src_data, mb_size, tgt_indexer,
+                                     translations_fn, test_references=test_references, control_src_fn=control_src_fn,
+                                     src_indexer=src_indexer, gpu=gpu, nb_steps=50, reverse_src=reverse_src, reverse_tgt=reverse_tgt,
+                                     s_unk_tag=s_unk_tag, t_unk_tag=t_unk_tag)
 
         def compute_test_loss():
             log.info("computing test loss")
-            test_loss = compute_loss_all(
-                encdec,
-                test_data,
-                eos_idx,
-                mb_size,
-                gpu=gpu,
-                reverse_src=reverse_src,
-                reverse_tgt=reverse_tgt)
+            test_loss = compute_loss_all(encdec, test_data, eos_idx, mb_size, gpu=gpu,
+                                         reverse_src=reverse_src, reverse_tgt=reverse_tgt)
             log.info("test loss: %f" % test_loss)
             return test_loss
     else:
@@ -236,37 +182,17 @@ def train_on_data(
         dev_references = [y for x, y in dev_data]
 
         def translate_dev():
-            # save_prefix + ".test.out"
-            translations_fn = output_files_dict["dev_translation_output"]
-            # save_prefix + ".test.src.out"
-            control_src_fn = output_files_dict["dev_src_output"]
-            return translate_to_file(
-                encdec,
-                eos_idx,
-                dev_src_data,
-                mb_size,
-                tgt_indexer,
-                translations_fn,
-                test_references=dev_references,
-                control_src_fn=control_src_fn,
-                src_indexer=src_indexer,
-                gpu=gpu,
-                nb_steps=50,
-                reverse_src=reverse_src,
-                reverse_tgt=reverse_tgt,
-                s_unk_tag=s_unk_tag,
-                t_unk_tag=t_unk_tag)
+            translations_fn = output_files_dict["dev_translation_output"]  # save_prefix + ".test.out"
+            control_src_fn = output_files_dict["dev_src_output"]  # save_prefix + ".test.src.out"
+            return translate_to_file(encdec, eos_idx, dev_src_data, mb_size, tgt_indexer,
+                                     translations_fn, test_references=dev_references, control_src_fn=control_src_fn,
+                                     src_indexer=src_indexer, gpu=gpu, nb_steps=50, reverse_src=reverse_src, reverse_tgt=reverse_tgt,
+                                     s_unk_tag=s_unk_tag, t_unk_tag=t_unk_tag)
 
         def compute_dev_loss():
             log.info("computing dev loss")
-            dev_loss = compute_loss_all(
-                encdec,
-                dev_data,
-                eos_idx,
-                mb_size,
-                gpu=gpu,
-                reverse_src=reverse_src,
-                reverse_tgt=reverse_tgt)
+            dev_loss = compute_loss_all(encdec, dev_data, eos_idx, mb_size, gpu=gpu,
+                                        reverse_src=reverse_src, reverse_tgt=reverse_tgt)
             log.info("dev loss: %f" % dev_loss)
             return dev_loss
     else:
@@ -283,37 +209,17 @@ def train_on_data(
         valid_references = [y for x, y in valid_data]
 
         def translate_valid():
-            # save_prefix + ".test.out"
-            translations_fn = output_files_dict["valid_translation_output"]
-            # save_prefix + ".test.src.out"
-            control_src_fn = output_files_dict["valid_src_output"]
-            return translate_to_file(
-                encdec,
-                eos_idx,
-                valid_src_data,
-                mb_size,
-                tgt_indexer,
-                translations_fn,
-                test_references=valid_references,
-                control_src_fn=control_src_fn,
-                src_indexer=src_indexer,
-                gpu=gpu,
-                nb_steps=50,
-                reverse_src=reverse_src,
-                reverse_tgt=reverse_tgt,
-                s_unk_tag=s_unk_tag,
-                t_unk_tag=t_unk_tag)
+            translations_fn = output_files_dict["valid_translation_output"]  # save_prefix + ".test.out"
+            control_src_fn = output_files_dict["valid_src_output"]  # save_prefix + ".test.src.out"
+            return translate_to_file(encdec, eos_idx, valid_src_data, mb_size, tgt_indexer,
+                                     translations_fn, test_references=valid_references, control_src_fn=control_src_fn,
+                                     src_indexer=src_indexer, gpu=gpu, nb_steps=50, reverse_src=reverse_src, reverse_tgt=reverse_tgt,
+                                     s_unk_tag=s_unk_tag, t_unk_tag=t_unk_tag)
 
         def compute_valid_loss():
             log.info("computing valid loss")
-            dev_loss = compute_loss_all(
-                encdec,
-                valid_data,
-                eos_idx,
-                mb_size,
-                gpu=gpu,
-                reverse_src=reverse_src,
-                reverse_tgt=reverse_tgt)
+            dev_loss = compute_loss_all(encdec, valid_data, eos_idx, mb_size, gpu=gpu,
+                                        reverse_src=reverse_src, reverse_tgt=reverse_tgt)
             log.info("valid loss: %f" % dev_loss)
             return dev_loss
     else:
@@ -338,9 +244,7 @@ def train_on_data(
             print i,
             src_batch, tgt_batch, src_mask = mb_provider.next()
             if src_batch[0].data.shape[0] != mb_size:
-                log.warn(
-                    "got minibatch of size %i instead of %i" %
-                    (src_batch[0].data.shape[0], mb_size))
+                log.warn("got minibatch of size %i instead of %i" % (src_batch[0].data.shape[0], mb_size))
 
 #             if lexical_probability_dictionary is not None:
 #                 lexicon_matrix = utils.compute_lexicon_matrix(src_batch, lexical_probability_dictionary)
@@ -356,28 +260,18 @@ def train_on_data(
                 if i % sample_every == 0:
                     for v in src_batch + tgt_batch:
                         v.volatile = "on"
-                    sample_once(
-                        encdec,
-                        src_batch,
-                        tgt_batch,
-                        src_mask,
-                        src_indexer,
-                        tgt_indexer,
-                        eos_idx,
-                        max_nb=20,
-                        s_unk_tag=s_unk_tag,
-                        t_unk_tag=t_unk_tag)
+                    sample_once(encdec, src_batch, tgt_batch, src_mask, src_indexer, tgt_indexer, eos_idx,
+                                max_nb=20,
+                                s_unk_tag=s_unk_tag, t_unk_tag=t_unk_tag)
                     for v in src_batch + tgt_batch:
                         v.volatile = "off"
                 if i % report_every == 0:
                     current_time = time.clock()
                     if prev_i is not None:
                         iteration_interval = i - prev_i
-                        avg_time = (current_time - prev_time) / \
-                            (iteration_interval)
+                        avg_time = (current_time - prev_time) / (iteration_interval)
                         avg_training_loss = total_loss_this_interval / total_nb_predictions_this_interval
-                        avg_sentence_size = float(
-                            total_nb_predictions_this_interval) / (iteration_interval * mb_size)
+                        avg_sentence_size = float(total_nb_predictions_this_interval) / (iteration_interval * mb_size)
 
                     else:
                         avg_time = 0
@@ -398,8 +292,7 @@ def train_on_data(
                     bc_valid = translate_valid()
                     valid_loss = compute_valid_loss()
 
-                    if dev_loss is not None and (
-                            best_dev_loss is None or dev_loss <= best_dev_loss):
+                    if dev_loss is not None and (best_dev_loss is None or dev_loss <= best_dev_loss):
                         best_dev_loss = dev_loss
                         log.info("saving best loss model %f" % best_dev_loss)
                         save_model("best_loss")
@@ -419,20 +312,12 @@ def train_on_data(
         dev_loss real, dev_bleu real,
         valid_loss real, valid_bleu real,
         avg_time real, avg_training_loss real)''')
-                        infos = (
-                            datetime.datetime.now().strftime("%I:%M%p %B %d, %Y"),
-                            repr(bc_test),
-                            i,
-                            float(test_loss),
-                            bc_test.bleu(),
-                            float(dev_loss),
-                            bc_dev.bleu(),
-                            float(valid_loss) if valid_loss is not None else None,
-                            bc_valid.bleu() if bc_valid is not None else None,
-                            avg_time,
-                            avg_training_loss)
-                        db_cursor.execute(
-                            "INSERT INTO exp_data VALUES (?,?,?,?,?,?,?,?,?,?,?)", infos)
+                        infos = (datetime.datetime.now().strftime("%I:%M%p %B %d, %Y"),
+                                 repr(bc_test), i, float(test_loss), bc_test.bleu(),
+                                 float(dev_loss), bc_dev.bleu(),
+                                 float(valid_loss) if valid_loss is not None else None, bc_valid.bleu() if bc_valid is not None else None,
+                                 avg_time, avg_training_loss)
+                        db_cursor.execute("INSERT INTO exp_data VALUES (?,?,?,?,?,?,?,?,?,?,?)", infos)
                         db_connection.commit()
                         db_connection.close()
 
@@ -452,16 +337,13 @@ def train_on_data(
             if use_memory_optimization:
                 #                 if lexicon_matrix is not None:
                 #                     raise NotImplemented
-                total_loss, total_nb_predictions = train_once_optim(
-                    src_batch, tgt_batch, src_mask)
+                total_loss, total_nb_predictions = train_once_optim(src_batch, tgt_batch, src_mask)
             elif use_reinf:
-                total_loss, total_nb_predictions = train_once_reinf(
-                    src_batch, tgt_batch, src_mask)
+                total_loss, total_nb_predictions = train_once_reinf(src_batch, tgt_batch, src_mask)
             else:
-                total_loss, total_nb_predictions = train_once(
-                    src_batch, tgt_batch, src_mask)
+                total_loss, total_nb_predictions = train_once(src_batch, tgt_batch, src_mask)
 #                 ,
-# lexicon_matrix = lexicon_matrix)
+#                                                               lexicon_matrix = lexicon_matrix)
 
             total_loss_this_interval += total_loss
             total_nb_predictions_this_interval += total_nb_predictions

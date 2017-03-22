@@ -42,7 +42,7 @@ import copy
 # import hypothesis
 # from __builtin__ import list, False
 # reload(hypothesis)
-#from hypothesis import Hypothesis, AugmentedPattern, AdditionalsList, Additional
+# from hypothesis import Hypothesis, AugmentedPattern, AdditionalsList, Additional
 
 # logger = logging.getLogger()#"Decoder")
 
@@ -81,12 +81,7 @@ class Edge(object):
 #         self.features = {}
 
     def __hash__(self):
-        return hash(
-            self.type,
-            self.v_start,
-            self.v_end,
-            self.word,
-            self.sublattice_id)
+        return hash(self.type, self.v_start, self.v_end, self.word, self.sublattice_id)
 
     def __eq__(self, other):
         assert isinstance(other, Edge)
@@ -103,8 +98,7 @@ class Edge(object):
             desc = "%i" % self.sublattice_id
         else:
             desc = ""
-        return "<%i -> %i [%s %s]>" % (self.v_start,
-                                       self.v_end, self.type, desc)
+        return "<%i -> %i [%s %s]>" % (self.v_start, self.v_end, self.type, desc)
 
     def copy(self):
         return copy.deepcopy(self)
@@ -440,8 +434,7 @@ class PosElem(object):
             return hash(self.p)
 
     def __eq__(self, other):
-        return isinstance(
-            other, PosElem) and self.p == other.p and self.child_node == other.child_node
+        return isinstance(other, PosElem) and self.p == other.p and self.child_node == other.child_node
 
     def __str__(self):
         res = "P%i" % self.p
@@ -596,8 +589,7 @@ class Node(object):
                 assert elem.p not in seen_p
                 seen_p.add(elem.p)
             else:
-                elem.child_node.assert_is_reduced_and_consistent(
-                    local_memoizer)
+                elem.child_node.assert_is_reduced_and_consistent(local_memoizer)
 
     def remove(self, elem):
         assert elem.is_leaf() or elem.is_empty()
@@ -621,12 +613,7 @@ class Node(object):
                         break
             assert found
 
-    def get_next_w(
-            self,
-            lattice_map,
-            global_memoizer,
-            global_count_memoizer,
-            local_memoizer=None):
+    def get_next_w(self, lattice_map, global_memoizer, global_count_memoizer, local_memoizer=None):
         if local_memoizer is None:
             local_memoizer = {}
         if id(self) in local_memoizer:
@@ -636,12 +623,9 @@ class Node(object):
             for pos_elem in self.pos_iter():
                 if pos_elem.is_leaf():
                     position = (self.lattice_id, pos_elem.p)
-                    next_result = next_words_simple_pos3(
-                        position, global_memoizer, lattice_map)
+                    next_result = next_words_simple_pos3(position, global_memoizer, lattice_map)
                     for w, sub_node in next_result.iteritems():
-                        # res.get(w, 0) + sub_node.count_unique_leaves()
-                        # #count_paths(global_count_memoizer)
-                        res[w][id(self)] += sub_node.count_unique_leaves()
+                        res[w][id(self)] += sub_node.count_unique_leaves()  # res.get(w, 0) + sub_node.count_unique_leaves() #count_paths(global_count_memoizer)
                 else:
                     sub_res = pos_elem.child_node.get_next_w(
                         lattice_map, global_memoizer, global_count_memoizer, local_memoizer)
@@ -652,12 +636,7 @@ class Node(object):
             local_memoizer[id(self)] = res
             return res
 
-    def make_global_replace_list(
-            self,
-            w,
-            lattice_map,
-            global_memoizer,
-            local_memoizer=None):
+    def make_global_replace_list(self, w, lattice_map, global_memoizer, local_memoizer=None):
         if local_memoizer is None:
             local_memoizer = {}
         if id(self) in local_memoizer:
@@ -668,30 +647,22 @@ class Node(object):
         for pos_elem in list(self.pos_iter()):
             if pos_elem.is_leaf():
                 position = (self.lattice_id, pos_elem.p)
-                next_result = next_words_simple_pos3(
-                    position,
-                    global_memoizer,
-                    lattice_map).get(
-                    w,
-                    None)
+                next_result = next_words_simple_pos3(position, global_memoizer, lattice_map).get(w, None)
 #                 print "next_result", self, pos_elem, w, str(next_result)
                 if next_result is not None:
                     #                     next_result = copy.deepcopy(next_result)
                     #                     self.replace(pos_elem, next_result)
                     assert pos_elem not in replace_list
-                    # .append((pos_elem, next_result))
-                    replace_list[pos_elem] = next_result
+                    replace_list[pos_elem] = next_result  # .append((pos_elem, next_result))
                 else:
                     self.remove(pos_elem)
             else:
-                pos_elem.child_node.make_global_replace_list(
-                    w, lattice_map, global_memoizer, local_memoizer)
+                pos_elem.child_node.make_global_replace_list(w, lattice_map, global_memoizer, local_memoizer)
 
         local_memoizer[id(self)] = replace_list
         return local_memoizer
 
-    def update_with_global_replace_list(
-            self, global_replace_list, local_memoizer=None):
+    def update_with_global_replace_list(self, global_replace_list, local_memoizer=None):
         if local_memoizer is None:
             local_memoizer = set()
         if id(self) in local_memoizer:
@@ -706,8 +677,7 @@ class Node(object):
         self.replace_all_at_once(global_replace_list[id(self)])
 
     def update_better(self, w, lattice_map, global_memoizer):
-        global_replace_list = self.make_global_replace_list(
-            w, lattice_map, global_memoizer)
+        global_replace_list = self.make_global_replace_list(w, lattice_map, global_memoizer)
         global_replace_list = copy.deepcopy(global_replace_list)
         self.update_with_global_replace_list(global_replace_list)
 
@@ -723,19 +693,13 @@ class Node(object):
         for pos_elem in list(self.pos_iter()):
             if pos_elem.is_leaf():
                 position = (self.lattice_id, pos_elem.p)
-                next_result = next_words_simple_pos3(
-                    position,
-                    global_memoizer,
-                    lattice_map).get(
-                    w,
-                    None)
+                next_result = next_words_simple_pos3(position, global_memoizer, lattice_map).get(w, None)
 #                 print "next_result", self, pos_elem, w, str(next_result)
                 if next_result is not None:
                     #                     next_result = copy.deepcopy(next_result)
                     #                     self.replace(pos_elem, next_result)
                     assert pos_elem not in replace_list
-                    # .append((pos_elem, next_result))
-                    replace_list[pos_elem] = next_result
+                    replace_list[pos_elem] = next_result  # .append((pos_elem, next_result))
                 else:
                     self.remove(pos_elem)
             else:
@@ -803,8 +767,7 @@ def next_words_simple_pos3(position, memoizer, lattice_map):
 #                 treat_epsilon(res, current_lattice, edge.v_end, memoizer, lattice_map)
             elif edge.type == "B":
                 pos_sublattice = (edge.sublattice_id, Lattice.kInitial)
-                sub_result = next_words_simple_pos3(
-                    pos_sublattice, memoizer, lattice_map)  # new_pos.next_words_simple(memoizer)
+                sub_result = next_words_simple_pos3(pos_sublattice, memoizer, lattice_map)  # new_pos.next_words_simple(memoizer)
 #                 merge_sub(current_lattice, res, sub_result, edge.v_end, memoizer, lattice_map)
                 for w, next_node in sub_result.iteritems():
                     pos_elem = PosElem(edge.v_end, next_node)
@@ -927,8 +890,7 @@ def remove_epsilon(lattice, epsilonpotent_lattices=None, empty_lattices=None):
                     duplicated_edge.v_start = Lattice.kInitial
                     lattice.outgoing[Lattice.kInitial].append(duplicated_edge)
 
-        if len(lattice.outgoing[current_v]
-               ) == 0 and current_v != Lattice.kFinal:
+        if len(lattice.outgoing[current_v]) == 0 and current_v != Lattice.kFinal:
             previous_v = set()
             for edge in incoming[current_v]:
                 previous_v.add(edge.v_start)
@@ -969,18 +931,14 @@ def remove_all_epsilons(lattice_map):
 
 def command_line2():
     import argparse
-    parser = argparse.ArgumentParser(
-        description="Use a RNNSearch model",
-        formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+    parser = argparse.ArgumentParser(description="Use a RNNSearch model",
+                                     formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument("lattice_fn")
     parser.add_argument("source_sentence_fn")
     parser.add_argument("training_config", help="prefix of the trained model")
     parser.add_argument("trained_model", help="prefix of the trained model")
 
-    parser.add_argument(
-        "--gpu",
-        type=int,
-        help="specify gpu number to use, if any")
+    parser.add_argument("--gpu", type=int, help="specify gpu number to use, if any")
     parser.add_argument("--skip_in_src", type=int, default=0)
     args = parser.parse_args()
 
@@ -1044,28 +1002,16 @@ def command_line2():
     log.info("built lattices")
 
     log.info("removing epsilons")
-    log.info("nb edges before %i" % sum(len(edge_list)
-                                        for lattice in lattice_map for edge_list in lattice.outgoing.itervalues()))
+    log.info("nb edges before %i" % sum(
+        len(edge_list) for lattice in lattice_map for edge_list in lattice.outgoing.itervalues()))
     remove_all_epsilons(lattice_map)
-    log.info("nb edges before %i" % sum(len(edge_list)
-                                        for lattice in lattice_map for edge_list in lattice.outgoing.itervalues()))
+    log.info("nb edges before %i" % sum(
+        len(edge_list) for lattice in lattice_map for edge_list in lattice.outgoing.itervalues()))
 
     if args.gpu is not None:
-        seq_as_batch = [
-            Variable(
-                cuda.to_gpu(
-                    np.array(
-                        [x],
-                        dtype=np.int32),
-                    args.gpu),
-                volatile="on") for x in src_seq]
+        seq_as_batch = [Variable(cuda.to_gpu(np.array([x], dtype=np.int32), args.gpu), volatile="on") for x in src_seq]
     else:
-        seq_as_batch = [
-            Variable(
-                np.array(
-                    [x],
-                    dtype=np.int32),
-                volatile="on") for x in src_seq]
+        seq_as_batch = [Variable(np.array([x], dtype=np.int32), volatile="on") for x in src_seq]
     predictor = encdec.get_predictor(seq_as_batch, [])
 
     global_memoizer = {}
@@ -1095,14 +1041,12 @@ def command_line2():
             unk_list = []
             for ix, t_idx in enumerate(voc_choice):
                 if tgt_indexer.is_unk_idx(t_idx):
-                    unk_list.append(
-                        (next_words_set[next_words_list[ix]], next_words_list[ix]))
+                    unk_list.append((next_words_set[next_words_list[ix]], next_words_list[ix]))
             unk_list.sort(reverse=True)
             print "UNK:", unk_list
             selected_w = unk_list[0][1]
         else:
-            # TODO: better handling when several tgt candidates map to UNK
-            idx_chosen = voc_choice.index(chosen)
+            idx_chosen = voc_choice.index(chosen)  # TODO: better handling when several tgt candidates map to UNK
 
             selected_w = (next_words_list + [Lattice.EOS])[idx_chosen]
 

@@ -15,13 +15,8 @@ log = logging.getLogger("rnns:replace_tgt")
 log.setLevel(logging.INFO)
 
 
-def replace_unk_from_string(
-        translation_str,
-        src_str,
-        dic_fn,
-        remove_unk,
-        normalize_unicode_unk,
-        attempt_to_relocate_unk_source):
+def replace_unk_from_string(translation_str, src_str, dic_fn, remove_unk, normalize_unicode_unk,
+                            attempt_to_relocate_unk_source):
 
     dic = None
     if dic_fn is not None:
@@ -34,9 +29,7 @@ def replace_unk_from_string(
         if w.startswith("#T_UNK_"):
             src_pos = int(w[7:-1])
             if src_pos >= len(splitted_s):
-                log.warn(
-                    "link to source out of bound (%i/%i line %i)" %
-                    (src_pos, len(splitted_s), num_line + 1))
+                log.warn("link to source out of bound (%i/%i line %i)" % (src_pos, len(splitted_s), num_line + 1))
                 src_pos = len(splitted_s) - 1
             src_w = splitted_s[src_pos]
 
@@ -44,11 +37,8 @@ def replace_unk_from_string(
                 if dic is not None and src_w in dic:
                     prec_w = splitted_t[p_w - 1] if p_w != 0 else None
 #                     post_w = splitted_t[p_w  +1] if (p_w + 1) < len(splitted_t) else None
-                    if prec_w is not None and dic[src_w] == prec_w and (
-                            src_pos + 1) < len(splitted_s):
-                        log.info(
-                            "retargeting unk  (%i/%i line %i)" %
-                            (src_pos, len(splitted_s), num_line + 1))
+                    if prec_w is not None and dic[src_w] == prec_w and (src_pos + 1) < len(splitted_s):
+                        log.info("retargeting unk  (%i/%i line %i)" % (src_pos, len(splitted_s), num_line + 1))
                         src_w = splitted_s[src_pos + 1]
 
 #                 log.info("replacing %s %i"%(src_w, len(dic)))
@@ -65,14 +55,8 @@ def replace_unk_from_string(
     return " ".join(new_t) + "\n"
 
 
-def replace_unk(
-        translations,
-        src_file,
-        dest,
-        dic_fn,
-        remove_unk,
-        normalize_unicode_unk,
-        attempt_to_relocate_unk_source):
+def replace_unk(translations, src_file, dest, dic_fn, remove_unk, normalize_unicode_unk,
+                attempt_to_relocate_unk_source):
 
     ft = codecs.open(translations, encoding="utf8")
     fs = codecs.open(src_file, encoding="utf8")
@@ -91,9 +75,7 @@ def replace_unk(
             if w.startswith("#T_UNK_"):
                 src_pos = int(w[7:-1])
                 if src_pos >= len(splitted_s):
-                    log.warn(
-                        "link to source out of bound (%i/%i line %i)" %
-                        (src_pos, len(splitted_s), num_line + 1))
+                    log.warn("link to source out of bound (%i/%i line %i)" % (src_pos, len(splitted_s), num_line + 1))
                     src_pos = len(splitted_s) - 1
                 src_w = splitted_s[src_pos]
 
@@ -101,11 +83,8 @@ def replace_unk(
                     if dic is not None and src_w in dic:
                         prec_w = splitted_t[p_w - 1] if p_w != 0 else None
     #                     post_w = splitted_t[p_w  +1] if (p_w + 1) < len(splitted_t) else None
-                        if prec_w is not None and dic[src_w] == prec_w and (
-                                src_pos + 1) < len(splitted_s):
-                            log.info(
-                                "retargeting unk  (%i/%i line %i)" %
-                                (src_pos, len(splitted_s), num_line + 1))
+                        if prec_w is not None and dic[src_w] == prec_w and (src_pos + 1) < len(splitted_s):
+                            log.info("retargeting unk  (%i/%i line %i)" % (src_pos, len(splitted_s), num_line + 1))
                             src_w = splitted_s[src_pos + 1]
 
 #                 log.info("replacing %s %i"%(src_w, len(dic)))
@@ -128,25 +107,14 @@ def define_parser(parser):
     parser.add_argument("dest")
     parser.add_argument("--dic")
     parser.add_argument("--remove_unk", default=False, action="store_true")
-    parser.add_argument(
-        "--normalize_unicode_unk",
-        default=False,
-        action="store_true")
-    parser.add_argument(
-        "--attempt_to_relocate_unk_source",
-        default=False,
-        action="store_true")
+    parser.add_argument("--normalize_unicode_unk", default=False, action="store_true")
+    parser.add_argument("--attempt_to_relocate_unk_source", default=False, action="store_true")
 
 
 def do_replace(args):
-    replace_unk(
-        args.translations,
-        args.src_file,
-        args.dest,
-        args.dic,
-        args.remove_unk,
-        args.normalize_unicode_unk,
-        args.attempt_to_relocate_unk_source)
+    replace_unk(args.translations, args.src_file, args.dest, args.dic, args.remove_unk,
+                args.normalize_unicode_unk,
+                args.attempt_to_relocate_unk_source)
 
 
 def commandline():

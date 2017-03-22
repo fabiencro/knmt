@@ -28,11 +28,7 @@ def get_current_git_diff():
 def is_current_git_dirty():
     try:
         DEVNULL = open(os.devnull, 'wb')
-        returncode = subprocess.call(['git',
-                                      'diff-index',
-                                      '--quiet',
-                                      'HEAD',
-                                      '--'],
+        returncode = subprocess.call(['git', 'diff-index', '--quiet', 'HEAD', '--'],
                                      cwd=get_installed_path(),
                                      stdout=DEVNULL,
                                      stderr=DEVNULL)

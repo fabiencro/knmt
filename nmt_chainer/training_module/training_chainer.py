@@ -73,15 +73,18 @@ def train_on_data_chainer(encdec, optimizer, training_data, output_files_dict,
         if scheduled:
             mb_raw = mb_raw[1]
 
-        src_batch, tgt_batch, src_mask = make_batch_src_tgt(
-    mb_raw, eos_idx=eos_idx, padding_idx=0, gpu=gpu, volatile="on", need_arg_sort=False)
-        s_unk_tag = lambda num, utag: "S_UNK_%i" % utag
-        t_unk_tag = lambda num, utag: "T_UNK_%i" % utag
+        src_batch, tgt_batch, src_mask = make_batch_src_tgt(mb_raw, eos_idx=eos_idx, padding_idx=0, gpu=gpu, volatile="on", need_arg_sort=False)
+
+        def s_unk_tag(num, utag):
+            "S_UNK_%i" % utag
+
+        def t_unk_tag(num, utag):
+            "T_UNK_%i" % utag
+
         sample_once(encdec, src_batch, tgt_batch, src_mask, src_indexer, tgt_indexer, eos_idx,
                     max_nb=20,
                     s_unk_tag=s_unk_tag, t_unk_tag=t_unk_tag)
 
-    
     
     if scheduled:
         iterator_training_data = LengthBasedSerialIterator(training_data, mb_size,
@@ -139,22 +142,11 @@ def train_on_data_chainer(encdec, optimizer, training_data, output_files_dict,
 
     if scheduled:
         def convert_mb(mb_raw, device):
-            return make_batch_src_tgt(
-        mb_raw,
-        eos_idx=eos_idx,
-        padding_idx=0,
-        gpu=device,
-        volatile="off",
-         need_arg_sort=True)
+            return make_batch_src_tgt(mb_raw, eos_idx=eos_idx, padding_idx=0, gpu=device, volatile="off", need_arg_sort=True)
     else:
         def convert_mb(mb_raw, device):
-            return make_batch_src_tgt(
-        mb_raw,
-        eos_idx=eos_idx,
-        padding_idx=0,
-        gpu=device,
-        volatile="off",
-         need_arg_sort=False)
+            return make_batch_src_tgt(mb_raw, eos_idx=eos_idx, padding_idx=0, gpu=device, volatile="off", need_arg_sort=False)
+
 
     if scheduled:
         updater = UpdaterScheduledLearning(iterator_training_data, optimizer,
@@ -167,6 +159,7 @@ def train_on_data_chainer(encdec, optimizer, training_data, output_files_dict,
         updater = Updater(iterator_training_data, optimizer,
                 converter=convert_mb,
                 device=gpu,
+
                       loss_func=loss_func,
                       need_to_convert_to_variables=False)
 
@@ -178,16 +171,16 @@ def train_on_data_chainer(encdec, optimizer, training_data, output_files_dict,
     if dev_data is not None and not no_report_or_save:
         dev_loss_extension = ComputeLossExtension(dev_data, eos_idx,
                                                   mb_size, gpu, reverse_src, reverse_tgt,
-                     save_best_model_to=output_files_dict["model_best_loss"],
+                                                  save_best_model_to=output_files_dict["model_best_loss"],
                                                   observation_name="dev_loss", config_training=config_training)
         trainer.extend(dev_loss_extension, trigger=(report_every, "iteration"))
 
         dev_bleu_extension = ComputeBleuExtension(dev_data, eos_idx, src_indexer, tgt_indexer,
                                                   output_files_dict["dev_translation_output"],
-            output_files_dict["dev_src_output"],
-            mb_size, gpu, reverse_src, reverse_tgt,
-            save_best_model_to=output_files_dict["model_best"],
-            observation_name="dev_bleu", config_training=config_training)
+                                                  output_files_dict["dev_src_output"],
+                                                  mb_size, gpu, reverse_src, reverse_tgt,
+                                                  save_best_model_to=output_files_dict["model_best"],
+                                                  observation_name="dev_bleu", config_training=config_training)
 
         trainer.extend(dev_bleu_extension, trigger=(report_every, "iteration"))
 
@@ -195,44 +188,26 @@ def train_on_data_chainer(encdec, optimizer, training_data, output_files_dict,
         test_loss_extension = ComputeLossExtension(test_data, eos_idx,
                                                    mb_size, gpu, reverse_src, reverse_tgt,
                                                    observation_name="test_loss")
-        trainer.extend(
-    test_loss_extension,
-    trigger=(
-        report_every,
-         "iteration"))
+        trainer.extend(test_loss_extension, trigger=(report_every, "iteration"))
 
         test_bleu_extension = ComputeBleuExtension(test_data, eos_idx, src_indexer, tgt_indexer,
                                                    output_files_dict["test_translation_output"],
-            output_files_dict["test_src_output"],
-            mb_size, gpu, reverse_src, reverse_tgt,
-            observation_name="test_bleu")
+                                                   output_files_dict["test_src_output"],
+                                                   mb_size, gpu, reverse_src, reverse_tgt,
+                                                   observation_name="test_bleu")
 
-        trainer.extend(
-    test_bleu_extension,
-    trigger=(
-        report_every,
-         "iteration"))
+        trainer.extend(test_bleu_extension, trigger=(report_every, "iteration"))
 
     if not no_report_or_save:
         trainer.extend(sample_extension, trigger=(sample_every, "iteration"))
 
-        # trainer.extend(chainer.training.extensions.snapshot(), trigger =
-        # (save_ckpt_every, "iteration"))
+        # trainer.extend(chainer.training.extensions.snapshot(), trigger = (save_ckpt_every, "iteration"))
 
-        trainer.extend(
-    CheckpontSavingExtension(
-        output_files_dict["model_ckpt"], config_training), trigger=(
-            save_ckpt_every, "iteration"))
+        trainer.extend(CheckpontSavingExtension(output_files_dict["model_ckpt"], config_training), trigger=(save_ckpt_every, "iteration"))
 
-        trainer.extend(
-    SqliteLogExtension(
-        db_path=output_files_dict["sqlite_db"]))
+        trainer.extend(SqliteLogExtension(db_path=output_files_dict["sqlite_db"]))
 
-    trainer.extend(
-    TrainingLossSummaryExtension(
-        trigger=(
-            report_every,
-             "iteration")))
+    trainer.extend(TrainingLossSummaryExtension(trigger=(report_every, "iteration")))
 
     if config_training.training_management.resume:
         if "model_parameters" not in config_training:
@@ -255,23 +230,18 @@ def train_on_data_chainer(encdec, optimizer, training_data, output_files_dict,
             serializers.save_npz(save_initial_model_to, encdec)
 
         trainer.run()
-    except BaseException: 
+    except BaseException:
         if not no_report_or_save:
             final_snapshot_fn = output_files_dict["model_final"]
-            log.info(
-    "Exception met. Trying to save current trainer state to file %s" %
-     final_snapshot_fn)
+            log.info("Exception met. Trying to save current trainer state to file %s" % final_snapshot_fn)
             serializers.save_npz(final_snapshot_fn, trainer)
-# chainer.training.extensions.snapshot(filename =
-# final_snapshot_fn)(trainer)
+#             chainer.training.extensions.snapshot(filename = final_snapshot_fn)(trainer)
             config_session = config_training.copy(readonly=False)
-            config_session.add_section(
-    "model_parameters", keep_at_bottom="metadata")
+            config_session.add_section("model_parameters", keep_at_bottom="metadata")
             config_session["model_parameters"]["filename"] = final_snapshot_fn
             config_session["model_parameters"]["type"] = "snapshot"
             config_session["model_parameters"]["description"] = "final"
-            config_session["model_parameters"]["infos"] = argument_parsing_tools.OrderedNamespace(
-                )
+            config_session["model_parameters"]["infos"] = argument_parsing_tools.OrderedNamespace()
             config_session["model_parameters"]["infos"]["iteration"] = trainer.updater.iteration
             config_session.set_metadata_modified_time()
             config_session.save_to(final_snapshot_fn + ".config")

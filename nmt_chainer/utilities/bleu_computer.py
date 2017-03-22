@@ -39,19 +39,8 @@ class BleuComputer(object):
                 ratio_n = 1
             else:
                 ratio_n = float(self.ngrams_corrects[n]) / self.ngrams_total[n]
-            res.append(
-                "%i/%i[%f%%]" %
-                (self.ngrams_corrects[n],
-                 self.ngrams_total[n],
-                 100.0 *
-                 ratio_n))
-        res.append(
-            "size of cand/ref: %i/%i[%f]" %
-            (self.total_length,
-             self.ref_length,
-             float(
-                 self.total_length) /
-                self.ref_length))
+            res.append("%i/%i[%f%%]" % (self.ngrams_corrects[n], self.ngrams_total[n], 100.0 * ratio_n))
+        res.append("size of cand/ref: %i/%i[%f]" % (self.total_length, self.ref_length, float(self.total_length) / self.ref_length))
         return " ".join(res)
 
     __str__ = __repr__
@@ -60,16 +49,9 @@ class BleuComputer(object):
         if min(self.ngrams_corrects.values()) <= 0:
             return 0
         assert min(self.ngrams_total.values()) >= 0
-        assert min(
-            self.ngrams_total.values()) >= min(
-            self.ngrams_corrects.values())
+        assert min(self.ngrams_total.values()) >= min(self.ngrams_corrects.values())
 
-        log_brevity_penalty = min(
-            0,
-            1.0 -
-            float(
-                self.ref_length) /
-            self.total_length)
+        log_brevity_penalty = min(0, 1.0 - float(self.ref_length) / self.total_length)
         log_average_precision = 0.25 * (
             sum(math.log(v) for v in self.ngrams_corrects.values()) -
             sum(math.log(v) for v in self.ngrams_total.values())
@@ -78,12 +60,7 @@ class BleuComputer(object):
         return res
 
     def bleu_plus_alpha(self, alpha=1.0):
-        log_brevity_penalty = min(
-            0,
-            1.0 -
-            float(
-                self.ref_length) /
-            self.total_length)
+        log_brevity_penalty = min(0, 1.0 - float(self.ref_length) / self.total_length)
         log_average_precision = 0.25 * (
             sum(math.log(v + alpha) for v in self.ngrams_corrects.values()) -
             sum(math.log(v + alpha) for v in self.ngrams_total.values())
@@ -218,8 +195,7 @@ def get_bc_from_files(ref_fn, trans_fn):
     return bc
 
 
-def compute_confidence_interval_from_sampler(
-        bleu_sampler, nb_resampling, confidence_interval=0.95):
+def compute_confidence_interval_from_sampler(bleu_sampler, nb_resampling, confidence_interval=0.95):
     bleu_list = []
     for num_sample, bc in enumerate(bleu_sampler):
         if num_sample >= nb_resampling:
@@ -234,8 +210,7 @@ def compute_confidence_interval_from_sampler(
     return lower, higher, sampled_mean
 
 
-def compute_pairwise_superiority_from_sampler_pair(
-        bleu_sampler, other_bleu_sampler, nb_resampling):
+def compute_pairwise_superiority_from_sampler_pair(bleu_sampler, other_bleu_sampler, nb_resampling):
     this = 0.0
     other = 0.0
     for num_sample, (bc, bc_other) in enumerate(
@@ -254,13 +229,8 @@ def compute_pairwise_superiority_from_sampler_pair(
 def define_parser(parser):
     parser.add_argument("ref", help="reference file")
     parser.add_argument("translations", help="translations to be evaluated")
-    parser.add_argument(
-        "--bootstrap",
-        type=int,
-        help="Do bootstrap resampling with that many resample")
-    parser.add_argument(
-        "--other_translation",
-        help="Another translation file for which we want to compare translation quality")
+    parser.add_argument("--bootstrap", type=int, help="Do bootstrap resampling with that many resample")
+    parser.add_argument("--other_translation", help="Another translation file for which we want to compare translation quality")
 
 
 def do_bleu(args):
@@ -269,8 +239,9 @@ def do_bleu(args):
         print bc
     else:
         bleu_sampler = sample_bleu(args.ref, args.translations)
-        lower, higher, sampled_mean = compute_confidence_interval_from_sampler(
-            bleu_sampler, nb_resampling=args.bootstrap, confidence_interval=0.95)
+        lower, higher, sampled_mean = compute_confidence_interval_from_sampler(bleu_sampler,
+                                                                               nb_resampling=args.bootstrap,
+                                                                               confidence_interval=0.95)
 
         bc = get_bc_from_files(args.ref, args.translations)
         print bc
@@ -278,8 +249,9 @@ def do_bleu(args):
 
         if args.other_translation is not None:
             other_bleu_sampler = sample_bleu(args.ref, args.other_translation)
-            lower, higher, sampled_mean = compute_confidence_interval_from_sampler(
-                other_bleu_sampler, nb_resampling=args.bootstrap, confidence_interval=0.95)
+            lower, higher, sampled_mean = compute_confidence_interval_from_sampler(other_bleu_sampler,
+                                                                                   nb_resampling=args.bootstrap,
+                                                                                   confidence_interval=0.95)
             bc = get_bc_from_files(args.ref, args.other_translation)
             print "\nOther translation:"
             print bc

@@ -47,29 +47,10 @@ class Translator:
 
         self.encdec_list = [self.encdec]
 
-    def translate(
-            self,
-            sentence,
-            beam_width,
-            beam_pruning_margin,
-            beam_score_coverage_penalty,
-            beam_score_coverage_penalty_strength,
-            nb_steps,
-            nb_steps_ratio,
-            remove_unk,
-            normalize_unicode_unk,
-            attempt_to_relocate_unk_source,
-            beam_score_length_normalization,
-            beam_score_length_normalization_strength,
-            post_score_length_normalization,
-            post_score_length_normalization_strength,
-            post_score_coverage_penalty,
-            post_score_coverage_penalty_strength,
-            groundhog,
-            force_finish,
-            prob_space_combination,
-            attn_graph_width,
-            attn_graph_height):
+    def translate(self, sentence, beam_width, beam_pruning_margin, beam_score_coverage_penalty, beam_score_coverage_penalty_strength, nb_steps, nb_steps_ratio,
+                  remove_unk, normalize_unicode_unk, attempt_to_relocate_unk_source, beam_score_length_normalization, beam_score_length_normalization_strength, post_score_length_normalization, post_score_length_normalization_strength,
+                  post_score_coverage_penalty, post_score_coverage_penalty_strength,
+                  groundhog, force_finish, prob_space_combination, attn_graph_width, attn_graph_height):
         from nmt_chainer.utilities import visualisation
         log.info("processing source string %s" % sentence)
 
@@ -88,52 +69,32 @@ class Translator:
             div = '<div/>'
             unk_mapping = []
 
-            src_data, stats_src_pp = build_dataset_one_side_pp(
-                src_file.name, self.src_indexer, max_nb_ex=self.config_server.process.max_nb_ex)
+            src_data, stats_src_pp = build_dataset_one_side_pp(src_file.name, self.src_indexer, max_nb_ex=self.config_server.process.max_nb_ex)
 
             from nmt_chainer.translation.eval import translate_to_file_with_beam_search
-            translate_to_file_with_beam_search(
-                dest_file.name,
-                self.config_server.process.gpu,
-                self.encdec,
-                self.eos_idx,
-                src_data,
-                beam_width,
-                beam_pruning_margin,
-                beam_score_coverage_penalty=beam_score_coverage_penalty,
-                beam_score_coverage_penalty_strength=beam_score_coverage_penalty_strength,
-                nb_steps=nb_steps,
-                nb_steps_ratio=nb_steps_ratio,
-                beam_score_length_normalization=beam_score_length_normalization,
-                beam_score_length_normalization_strength=beam_score_length_normalization_strength,
-                post_score_length_normalization=post_score_length_normalization,
-                post_score_length_normalization_strength=post_score_length_normalization_strength,
-                post_score_coverage_penalty=post_score_coverage_penalty,
-                post_score_coverage_penalty_strength=post_score_coverage_penalty_strength,
-                groundhog=groundhog,
-                tgt_unk_id=self.config_server.output.tgt_unk_id,
-                tgt_indexer=self.tgt_indexer,
-                force_finish=force_finish,
-                prob_space_combination=prob_space_combination,
-                reverse_encdec=self.reverse_encdec,
-                generate_attention_html=(
-                    attn_graph_script_file.name,
-                    attn_graph_div_file.name),
-                attn_graph_with_sum=False,
-                attn_graph_attribs={
-                    'title': '',
-                    'toolbar_location': 'below',
-                    'plot_width': attn_graph_width,
-                    'plot_height': attn_graph_height},
-                src_indexer=self.src_indexer,
-                rich_output_filename=rich_output_file.name,
-                use_unfinished_translation_if_none_found=False,
-                replace_unk=True,
-                src=sentence,
-                dic=self.config_server.output.dic,
-                remove_unk=remove_unk,
-                normalize_unicode_unk=normalize_unicode_unk,
-                attempt_to_relocate_unk_source=attempt_to_relocate_unk_source)
+            translate_to_file_with_beam_search(dest_file.name, self.config_server.process.gpu, self.encdec, self.eos_idx, src_data, beam_width, beam_pruning_margin,
+                                               beam_score_coverage_penalty=beam_score_coverage_penalty,
+                                               beam_score_coverage_penalty_strength=beam_score_coverage_penalty_strength,
+                                               nb_steps=nb_steps,
+                                               nb_steps_ratio=nb_steps_ratio,
+                                               beam_score_length_normalization=beam_score_length_normalization,
+                                               beam_score_length_normalization_strength=beam_score_length_normalization_strength,
+                                               post_score_length_normalization=post_score_length_normalization,
+                                               post_score_length_normalization_strength=post_score_length_normalization_strength,
+                                               post_score_coverage_penalty=post_score_coverage_penalty,
+                                               post_score_coverage_penalty_strength=post_score_coverage_penalty_strength,
+                                               groundhog=groundhog,
+                                               tgt_unk_id=self.config_server.output.tgt_unk_id,
+                                               tgt_indexer=self.tgt_indexer,
+                                               force_finish=force_finish,
+                                               prob_space_combination=prob_space_combination, reverse_encdec=self.reverse_encdec,
+                                               generate_attention_html=(attn_graph_script_file.name, attn_graph_div_file.name),
+                                               attn_graph_with_sum=False,
+                                               attn_graph_attribs={'title': '', 'toolbar_location': 'below', 'plot_width': attn_graph_width, 'plot_height': attn_graph_height}, src_indexer=self.src_indexer,
+                                               rich_output_filename=rich_output_file.name,
+                                               use_unfinished_translation_if_none_found=False,
+                                               replace_unk=True, src=sentence, dic=self.config_server.output.dic,
+                                               remove_unk=remove_unk, normalize_unicode_unk=normalize_unicode_unk, attempt_to_relocate_unk_source=attempt_to_relocate_unk_source)
 
             dest_file.seek(0)
             out = dest_file.read()
@@ -185,16 +146,14 @@ class RequestHandler(SocketServer.BaseRequestHandler):
                 nb_steps = int(root.get('nb_steps', 50))
                 beam_pruning_margin = None
                 try:
-                    beam_pruning_margin = float(
-                        root.get('beam_pruning_margin'))
+                    beam_pruning_margin = float(root.get('beam_pruning_margin'))
                 except BaseException:
                     pass
                 beam_score_coverage_penalty = root.get(
                     'beam_score_coverage_penalty', 'none')
                 beam_score_coverage_penalty_strength = None
                 try:
-                    beam_score_coverage_penalty_strength = float(
-                        root.get('beam_score_coverage_penalty_strength', 0.2))
+                    beam_score_coverage_penalty_strength = float(root.get('beam_score_coverage_penalty_strength', 0.2))
                 except BaseException:
                     pass
                 nb_steps_ratio = None
@@ -208,24 +167,21 @@ class RequestHandler(SocketServer.BaseRequestHandler):
                     'beam_score_length_normalization', 'none')
                 beam_score_length_normalization_strength = None
                 try:
-                    beam_score_length_normalization_strength = float(
-                        root.get('beam_score_length_normalization_strength', 0.2))
+                    beam_score_length_normalization_strength = float(root.get('beam_score_length_normalization_strength', 0.2))
                 except BaseException:
                     pass
                 post_score_length_normalization = root.get(
                     'post_score_length_normalization', 'simple')
                 post_score_length_normalization_strength = None
                 try:
-                    post_score_length_normalization_strength = float(
-                        root.get('post_score_length_normalization_strength', 0.2))
+                    post_score_length_normalization_strength = float(root.get('post_score_length_normalization_strength', 0.2))
                 except BaseException:
                     pass
                 post_score_coverage_penalty = root.get(
                     'post_score_coverage_penalty', 'none')
                 post_score_coverage_penalty_strength = None
                 try:
-                    post_score_coverage_penalty_strength = float(
-                        root.get('post_score_coverage_penalty_strength', 0.2))
+                    post_score_coverage_penalty_strength = float(root.get('post_score_coverage_penalty_strength', 0.2))
                 except BaseException:
                     pass
                 prob_space_combination = (
@@ -346,8 +302,7 @@ class Server(SocketServer.ThreadingMixIn, SocketServer.TCPServer):
 
 
 def timestamped_msg(msg):
-    timestamp = datetime.datetime.fromtimestamp(
-        time.time()).strftime('%Y-%m-%d %H:%M:%S')
+    timestamp = datetime.datetime.fromtimestamp(time.time()).strftime('%Y-%m-%d %H:%M:%S')
     return "{0}: {1}".format(timestamp, msg)
 
 

@@ -42,10 +42,8 @@ def create_cell_config_from_string(model_str):
         if key in cell_description_keywords:
             keywords[key] = cell_description_keywords[key](val)
         else:
-            raise ValueError(
-                "bad cell parameter: %s (possible parameters: %s)" %
-                (comp, " ".join(
-                    cell_description_keywords.keys())))
+            raise ValueError("bad cell parameter: %s (possible parameters: %s)" %
+                             (comp, " ".join(cell_description_keywords.keys())))
 
     ordered_keywords = OrderedDict()
     for key in cell_description_keywords.keys():

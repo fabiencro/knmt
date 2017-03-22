@@ -487,46 +487,19 @@ class EncoderDecoder(Chain):
         return loss and attention values
     """
 
-    def __init__(
-            self,
-            Vi,
-            Ei,
-            Hi,
-            Vo,
-            Eo,
-            Ho,
-            Ha,
-            Hl,
-            attn_cls=attention.AttentionModule,
-            init_orth=False,
-            use_bn_length=0,
-            encoder_cell_type=rnn_cells.LSTMCell,
-            decoder_cell_type=rnn_cells.LSTMCell,
-            lexical_probability_dictionary=None,
-            lex_epsilon=1e-3):
-        log.info(
-            "constructing encoder decoder with Vi:%i Ei:%i Hi:%i Vo:%i Eo:%i Ho:%i Ha:%i Hl:%i" %
-            (Vi, Ei, Hi, Vo, Eo, Ho, Ha, Hl))
-        super(
-            EncoderDecoder,
-            self).__init__(
-            enc=encoders.make_encoder(
-                Vi,
-                Ei,
-                Hi,
-                init_orth=init_orth,
-                use_bn_length=use_bn_length,
-                cell_type=encoder_cell_type),
-            dec=decoder_cells.Decoder(
-                Vo,
-                Eo,
-                Ho,
-                Ha,
-                2 * Hi,
-                Hl,
-                attn_cls=attn_cls,
-                init_orth=init_orth,
-                cell_type=decoder_cell_type))
+    def __init__(self, Vi, Ei, Hi, Vo, Eo, Ho, Ha, Hl, attn_cls=attention.AttentionModule, init_orth=False, use_bn_length=0,
+                 encoder_cell_type=rnn_cells.LSTMCell,
+                 decoder_cell_type=rnn_cells.LSTMCell,
+                 lexical_probability_dictionary=None, lex_epsilon=1e-3
+                 ):
+        log.info("constructing encoder decoder with Vi:%i Ei:%i Hi:%i Vo:%i Eo:%i Ho:%i Ha:%i Hl:%i" %
+                 (Vi, Ei, Hi, Vo, Eo, Ho, Ha, Hl))
+        super(EncoderDecoder, self).__init__(
+            enc=encoders.make_encoder(Vi, Ei, Hi, init_orth=init_orth, use_bn_length=use_bn_length,
+                                      cell_type=encoder_cell_type),
+            dec=decoder_cells.Decoder(Vo, Eo, Ho, Ha, 2 * Hi, Hl, attn_cls=attn_cls, init_orth=init_orth,
+                                      cell_type=decoder_cell_type)
+        )
         self.Vo = Vo
         self.lexical_probability_dictionary = lexical_probability_dictionary
         self.lex_epsilon = lex_epsilon
@@ -543,62 +516,33 @@ class EncoderDecoder(Chain):
             lexicon_probability_matrix = None
         return lexicon_probability_matrix
 
-    def __call__(
-            self,
-            src_batch,
-            tgt_batch,
-            src_mask,
-            use_best_for_sample=False,
-            display_attn=False,
-            raw_loss_info=False,
-            keep_attn_values=False,
-            need_score=False,
-            noise_on_prev_word=False,
-            use_previous_prediction=0,
-            mode="test",
-            per_sentence = False):
+    def __call__(self, src_batch, tgt_batch, src_mask, use_best_for_sample=False, display_attn=False,
+                 raw_loss_info=False, keep_attn_values=False, need_score=False, noise_on_prev_word=False,
+                 use_previous_prediction=0, mode="test", per_sentence = False
+                 ):
         assert mode in "test train".split()
 
-        lexicon_probability_matrix = self.compute_lexicon_probability_matrix(
-            src_batch)
+        lexicon_probability_matrix = self.compute_lexicon_probability_matrix(src_batch)
 
         fb_concat = self.enc(src_batch, src_mask, mode=mode)
 
         mb_size, nb_elems, Hi = fb_concat.data.shape
 
         if isinstance(tgt_batch, int):
-            return self.dec.sample(
-                fb_concat,
-                src_mask,
-                tgt_batch,
-                mb_size,
-                lexicon_probability_matrix=lexicon_probability_matrix,
-                lex_epsilon=self.lex_epsilon,
-                best=use_best_for_sample,
-                keep_attn_values=keep_attn_values,
-                need_score=need_score)
+            return self.dec.sample(fb_concat, src_mask, tgt_batch, mb_size,
+                                   lexicon_probability_matrix=lexicon_probability_matrix,
+                                   lex_epsilon=self.lex_epsilon, best=use_best_for_sample,
+                                   keep_attn_values=keep_attn_values, need_score=need_score)
 
         else:
-            return self.dec.compute_loss(
-                fb_concat,
-                src_mask,
-                tgt_batch,
-                raw_loss_info=raw_loss_info,
-                keep_attn_values=keep_attn_values,
-                noise_on_prev_word=noise_on_prev_word,
-                use_previous_prediction=use_previous_prediction,
-                mode="test",
-                per_sentence=per_sentence,
-                lexicon_probability_matrix=lexicon_probability_matrix,
-                lex_epsilon=self.lex_epsilon)
+            return self.dec.compute_loss(fb_concat, src_mask, tgt_batch, raw_loss_info=raw_loss_info,
+                                         keep_attn_values=keep_attn_values, noise_on_prev_word=noise_on_prev_word,
+                                         use_previous_prediction=use_previous_prediction, mode="test",
+                                         per_sentence=per_sentence, lexicon_probability_matrix=lexicon_probability_matrix,
+                                         lex_epsilon=self.lex_epsilon)
 
-    def give_conditionalized_cell(
-            self,
-            src_batch,
-            src_mask,
-            noise_on_prev_word=False,
-            mode="test",
-            demux=False):
+    def give_conditionalized_cell(self, src_batch, src_mask, noise_on_prev_word=False,
+                                  mode="test", demux=False):
 
         if self.lexical_probability_dictionary is not None:
             lexicon_probability_matrix = compute_lexicon_matrix(
@@ -614,30 +558,20 @@ class EncoderDecoder(Chain):
 
         mb_size, nb_elems, Hi = fb_concat.data.shape
 
-        return self.dec.give_conditionalized_cell(
-            fb_concat,
-            src_mask,
-            noise_on_prev_word=noise_on_prev_word,
-            mode=mode,
-            lexicon_probability_matrix=lexicon_probability_matrix,
-            lex_epsilon=self.lex_epsilon,
-            demux=demux)
+        return self.dec.give_conditionalized_cell(fb_concat, src_mask,
+                                                  noise_on_prev_word=noise_on_prev_word,
+                                                  mode=mode, lexicon_probability_matrix=lexicon_probability_matrix,
+                                                  lex_epsilon=self.lex_epsilon, demux=demux)
 
     def nbest_scorer(self, src_batch, src_mask, keep_attn=False):
         assert len(src_batch[0].data) == 1
 
-        lexicon_probability_matrix = self.compute_lexicon_probability_matrix(
-            src_batch)
+        lexicon_probability_matrix = self.compute_lexicon_probability_matrix(src_batch)
         fb_concat = self.enc(src_batch, src_mask)
 
-        decoding_cell = self.dec.give_conditionalized_cell(
-            fb_concat,
-            src_mask,
-            noise_on_prev_word=False,
-            mode="test",
-            lexicon_probability_matrix=lexicon_probability_matrix,
-            lex_epsilon=self.lex_epsilon,
-            demux=True)
+        decoding_cell = self.dec.give_conditionalized_cell(fb_concat, src_mask, noise_on_prev_word=False,
+                                                           mode="test", lexicon_probability_matrix=lexicon_probability_matrix, lex_epsilon=self.lex_epsilon,
+                                                           demux=True)
 
         def scorer(tgt_batch):
 
