@@ -79,7 +79,7 @@ class CommandLineValuesException(Exception):
 def get_parse_option_orderer():
     description_to_config_section = dict((v, k) for (k, v) in _CONFIG_SECTION_TO_DESCRIPTION.iteritems())
     por = argument_parsing_tools.ParseOptionRecorder(group_title_to_section=description_to_config_section,
-                                                     #ignore_positional_arguments = set(["src_fn", "dest_fn"])
+                                                     # ignore_positional_arguments = set(["src_fn", "dest_fn"])
                                                      )
     define_parser(por)
     return por

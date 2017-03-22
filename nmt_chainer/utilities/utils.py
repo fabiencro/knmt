@@ -233,7 +233,7 @@ def minibatch_provider(data, eos_idx, mb_size, nb_mb_for_sorting=1, loop=True, i
                        ):
     if nb_mb_for_sorting == -1:
         assert not randomized
-        assert loop == False
+        assert not loop
         for mb_raw in batch_sort_and_split(data, mb_size, inplace=inplace_sorting, sort_key=sort_key):
             mb_raw = mb_reverser(mb_raw, reverse_src=reverse_src, reverse_tgt=reverse_tgt)
             src_batch, tgt_batch, src_mask = make_batch_src_tgt(mb_raw, eos_idx=eos_idx, gpu=gpu, volatile=volatile)

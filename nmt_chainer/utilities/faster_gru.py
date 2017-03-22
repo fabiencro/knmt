@@ -575,7 +575,9 @@ def test2():
     r3.grad = np.random.randn(mb_size, no).astype(np.float32)
     r3.backward()
 
-    def f(): return (gru_model.faster_call(st_v, x_v).data,)
+    def f():
+        return (gru_model.faster_call(st_v, x_v).data,)
+
     g_st, g_x = gradient_check.numerical_grad(f, (st_v.data, x_v.data), (r3.grad,))
     print np.max(np.abs(g_st - st_v.grad))
     print np.max(np.abs(g_x - x_v.grad))
