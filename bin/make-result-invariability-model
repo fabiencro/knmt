@@ -28,14 +28,16 @@ rm -rf tests/tests_data/models/result_invariability_untrained.train.model.best_l
 rm -rf tests/tests_data/models/result_invariability_untrained.train.result.sqlite
 
 
-# Create translations with the models using beam search and greedy search.
+# Create translations with the models using beam search.
 knmt eval tests/tests_data/models/result_invariability.train.train.config tests/tests_data/models/result_invariability.train.model.best.npz tests/tests_data/src2.txt tests/tests_data/models/result_invariability.translations_using_beam_search.txt --mode beam_search --beam_width 30
-
-knmt eval tests/tests_data/models/result_invariability.train.train.config tests/tests_data/models/result_invariability.train.model.best.npz tests/tests_data/src2.txt tests/tests_data/models/result_invariability.translations_using_greedy_search.txt --mode translate
 
 knmt eval tests/tests_data/models/result_invariability_untrained.train.train.config tests/tests_data/models/result_invariability_untrained.train.model.best.npz tests/tests_data/src2.txt tests/tests_data/models/result_invariability_untrained.translations_using_beam_search.txt --mode beam_search --beam_width 30
 
-knmt eval tests/tests_data/models/result_invariability_untrained.train.train.config tests/tests_data/models/result_invariability_untrained.train.model.best.npz tests/tests_data/src2.txt tests/tests_data/models/result_invariability_untrained.translations_using_greedy_search.txt --mode translate
+knmt eval tests/tests_data/models/result_invariability.train.train.config tests/tests_data/models/result_invariability.train.model.best.npz tests/tests_data/src2.txt tests/tests_data/models/result_invariability.translations_using_beam_search_and_prob_space_combination.txt --mode beam_search --beam_width 30 --prob_space_combination
+
+knmt eval tests/tests_data/models/result_invariability_untrained.train.train.config tests/tests_data/models/result_invariability_untrained.train.model.best.npz tests/tests_data/src2.txt tests/tests_data/models/result_invariability_untrained.translations_using_beam_search_and_prob_space_combination.txt --mode beam_search --beam_width 30 --prob_space_combination
+
+
 
 
 # Create translations with the models using greedy search.
