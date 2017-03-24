@@ -20,11 +20,15 @@ knmt train tests/tests_data/models/result_invariability.data tests/tests_data/mo
 
 # Remove unneeded large files.
 rm -rf tests/tests_data/models/result_invariability.train
+rm -rf tests/tests_data/models/result_invariability.train.model.best.npz.config
 rm -rf tests/tests_data/models/result_invariability.train.model.best_loss.npz
+rm -rf tests/tests_data/models/result_invariability.train.model.best_loss.npz.config
 rm -rf tests/tests_data/models/result_invariability.train.result.sqlite
 
 rm -rf tests/tests_data/models/result_invariability_untrained.train
+rm -rf tests/tests_data/models/result_invariability_untrained.train.model.best.npz.config
 rm -rf tests/tests_data/models/result_invariability_untrained.train.model.best_loss.npz
+rm -rf tests/tests_data/models/result_invariability_untrained.train.model.best_loss.npz.config
 rm -rf tests/tests_data/models/result_invariability_untrained.train.result.sqlite
 
 
