@@ -60,14 +60,18 @@ class TestResultInvariability:
 
         assert(actual_translations == expected_translations)
 
-    @pytest.mark.parametrize("model_name", [
-        ("result_invariability"),
-        ("result_invariability_untrained")
+    @pytest.mark.parametrize("model_name, variant_name, variant_options", [
+        ("result_invariability", "prob_space_combination", "--prob_space_combination"),
+        ("result_invariability_untrained", "prob_space_combination", "--prob_space_combination"),
+        ("result_invariability", "google_options_1", "--beam_pruning_margin 1.5 --beam_score_coverage_penalty google --beam_score_coverage_penalty_strength 0.3 --beam_score_length_normalization simple --post_score_coverage_penalty google --post_score_coverage_penalty_strength 0.4 --post_score_length_normalization simple"),
+        ("result_invariability_untrained", "google_options_1", "--beam_pruning_margin 1.5 --beam_score_coverage_penalty google --beam_score_coverage_penalty_strength 0.3 --beam_score_length_normalization simple --post_score_coverage_penalty google --post_score_coverage_penalty_strength 0.4 --post_score_length_normalization simple"),
+        ("result_invariability", "google_options_2", "--beam_pruning_margin 1.5 --beam_score_coverage_penalty google --beam_score_coverage_penalty_strength 0.3 --beam_score_length_normalization google --beam_score_length_normalization_strength 0.25 --post_score_coverage_penalty google --post_score_coverage_penalty_strength 0.4 --post_score_length_normalization google --post_score_length_normalization_strength 0.33"),
+        ("result_invariability_untrained", "google_options_2", "--beam_pruning_margin 1.5 --beam_score_coverage_penalty google --beam_score_coverage_penalty_strength 0.3 --beam_score_length_normalization google --beam_score_length_normalization_strength 0.25 --post_score_coverage_penalty google --post_score_coverage_penalty_strength 0.4 --post_score_length_normalization google --post_score_length_normalization_strength 0.33")
     ])
-    def test_result_invariability_using_prob_space_combination(self, tmpdir, gpu, model_name):
+    def test_result_invariability_using_prob_space_combination(self, tmpdir, gpu, model_name, variant_name, variant_options):
         """
         Performs some translations with a preexisting models and compare the results
-        using beam_search with prob_space_combination option enabled with previous results of the same experiment.
+        using beam_search using different variants with previous results of the same experiment.
         The results should be identical.
         If not, it means that a recent commit have changed the behavior of the system.
         """
@@ -80,16 +84,16 @@ class TestResultInvariability:
         search_eval_dir = tmpdir.mkdir("eval_beam_search")
         search_file = os.path.join(
             str(search_eval_dir),
-            'translations_using_beam_search_and_prob_space_combination.txt')
+            'translations_using_beam_search_and_{0}.txt'.format(variant_name))
         search_mode = 'beam_search'
-        other_params = ' --beam_width 30 --prob_space_combination'
+        other_params = ' --beam_width 30 {0}'.format(variant_options)
         args_eval_search = [train_prefix + '.train.config', train_prefix + '.model.best.npz', data_src_file, search_file] + \
             '--mode {0}{1}'.format(search_mode, other_params).split(' ')
         if gpu is not None:
             args_eval_search += ['--gpu', gpu]
         main(arguments=["eval"] + args_eval_search)
 
-        with open(os.path.join(str(test_data_dir), "models/{0}.translations_using_beam_search_and_prob_space_combination.txt".format(model_name))) as f:
+        with open(os.path.join(str(test_data_dir), "models/{0}.translations_using_beam_search_and_{1}.txt".format(model_name, variant_name))) as f:
             expected_translations = f.readlines()
         with open(search_file) as f:
             actual_translations = f.readlines()
