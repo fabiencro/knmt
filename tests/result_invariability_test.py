@@ -63,10 +63,30 @@ class TestResultInvariability:
     @pytest.mark.parametrize("model_name, variant_name, variant_options", [
         ("result_invariability", "prob_space_combination", "--prob_space_combination"),
         ("result_invariability_untrained", "prob_space_combination", "--prob_space_combination"),
-        ("result_invariability", "google_options_1", "--beam_pruning_margin 1.5 --beam_score_coverage_penalty google --beam_score_coverage_penalty_strength 0.3 --beam_score_length_normalization simple --post_score_coverage_penalty google --post_score_coverage_penalty_strength 0.4 --post_score_length_normalization simple"),
-        ("result_invariability_untrained", "google_options_1", "--beam_pruning_margin 1.5 --beam_score_coverage_penalty google --beam_score_coverage_penalty_strength 0.3 --beam_score_length_normalization simple --post_score_coverage_penalty google --post_score_coverage_penalty_strength 0.4 --post_score_length_normalization simple"),
-        ("result_invariability", "google_options_2", "--beam_pruning_margin 1.5 --beam_score_coverage_penalty google --beam_score_coverage_penalty_strength 0.3 --beam_score_length_normalization google --beam_score_length_normalization_strength 0.25 --post_score_coverage_penalty google --post_score_coverage_penalty_strength 0.4 --post_score_length_normalization google --post_score_length_normalization_strength 0.33"),
-        ("result_invariability_untrained", "google_options_2", "--beam_pruning_margin 1.5 --beam_score_coverage_penalty google --beam_score_coverage_penalty_strength 0.3 --beam_score_length_normalization google --beam_score_length_normalization_strength 0.25 --post_score_coverage_penalty google --post_score_coverage_penalty_strength 0.4 --post_score_length_normalization google --post_score_length_normalization_strength 0.33")
+        ("result_invariability", "google_options_1",
+            "--beam_pruning_margin 1.5 "
+            "--beam_score_coverage_penalty google --beam_score_coverage_penalty_strength 0.3 "
+            "--beam_score_length_normalization simple "
+            "--post_score_coverage_penalty google --post_score_coverage_penalty_strength 0.4 "
+            "--post_score_length_normalization simple"),
+        ("result_invariability_untrained", "google_options_1",
+            "--beam_pruning_margin 1.5 "
+            "--beam_score_coverage_penalty google --beam_score_coverage_penalty_strength 0.3 "
+            "--beam_score_length_normalization simple "
+            "--post_score_coverage_penalty google --post_score_coverage_penalty_strength 0.4 "
+            "--post_score_length_normalization simple"),
+        ("result_invariability", "google_options_2",
+            "--beam_pruning_margin 1.5 "
+            "--beam_score_coverage_penalty google --beam_score_coverage_penalty_strength 0.3 "
+            "--beam_score_length_normalization google --beam_score_length_normalization_strength 0.25 "
+            "--post_score_coverage_penalty google --post_score_coverage_penalty_strength 0.4 "
+            "--post_score_length_normalization google --post_score_length_normalization_strength 0.33"),
+        ("result_invariability_untrained", "google_options_2",
+            "--beam_pruning_margin 1.5 "
+            "--beam_score_coverage_penalty google --beam_score_coverage_penalty_strength 0.3 "
+            "--beam_score_length_normalization google --beam_score_length_normalization_strength 0.25 "
+            "--post_score_coverage_penalty google --post_score_coverage_penalty_strength 0.4 "
+            "--post_score_length_normalization google --post_score_length_normalization_strength 0.33")
     ])
     def test_result_invariability_using_prob_space_combination(self, tmpdir, gpu, model_name, variant_name, variant_options):
         """
