@@ -56,7 +56,7 @@ def do_make_data(config):
     for filename in files_that_will_be_created:  # , valid_data_fn]:
         if os.path.exists(filename):
             already_existing_files.append(filename)
-    if len(already_existing_files) > 0:
+    if len(already_existing_files) > 0 and not config.processing.force_overwrite:
         print "Warning: existing files are going to be replaced: ", already_existing_files
         raw_input("Press Enter to Continue")
 
