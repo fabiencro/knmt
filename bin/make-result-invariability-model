@@ -6,9 +6,9 @@
 
 # Prepare the data for 2 models, one well trained and one not so well trained.
 
-knmt make_data tests/tests_data/src2.txt tests/tests_data/tgt2.txt tests/tests_data/models/result_invariability.data --dev_src tests/tests_data/src2.txt --dev_tgt tests/tests_data/tgt2.txt
+knmt make_data tests/tests_data/src2.txt tests/tests_data/tgt2.txt tests/tests_data/models/result_invariability.data --dev_src tests/tests_data/src2.txt --dev_tgt tests/tests_data/tgt2.txt --force_overwrite
 
-knmt make_data tests/tests_data/src2.txt tests/tests_data/tgt2.txt tests/tests_data/models/result_invariability_untrained.data --dev_src tests/tests_data/src2.txt --dev_tgt tests/tests_data/tgt2.txt
+knmt make_data tests/tests_data/src2.txt tests/tests_data/tgt2.txt tests/tests_data/models/result_invariability_untrained.data --dev_src tests/tests_data/src2.txt --dev_tgt tests/tests_data/tgt2.txt --force_overwrite
 
 
 # Train the models.
