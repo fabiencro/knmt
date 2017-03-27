@@ -13,9 +13,9 @@ knmt make_data tests/tests_data/src2.txt tests/tests_data/tgt2.txt tests/tests_d
 
 # Train the models.
 
-knmt train tests/tests_data/models/result_invariability.data tests/tests_data/models/result_invariability.train --max_nb_iters 2000 --mb_size 2 --Ei 5 --Eo 12 --Hi 6 --Ha 70 --Ho 15 --Hl 12
+knmt train tests/tests_data/models/result_invariability.data tests/tests_data/models/result_invariability.train --max_nb_iters 2000 --mb_size 2 --Ei 5 --Eo 12 --Hi 6 --Ha 70 --Ho 15 --Hl 12 --force_overwrite
 
-knmt train tests/tests_data/models/result_invariability.data tests/tests_data/models/result_invariability_untrained.train --max_nb_iters 800 --mb_size 2 --Ei 5 --Eo 12 --Hi 6 --Ha 70 --Ho 15 --Hl 12
+knmt train tests/tests_data/models/result_invariability.data tests/tests_data/models/result_invariability_untrained.train --max_nb_iters 800 --mb_size 2 --Ei 5 --Eo 12 --Hi 6 --Ha 70 --Ho 15 --Hl 12 --force_overwrite
 
 
 # Remove unneeded large files.
