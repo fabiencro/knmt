@@ -55,7 +55,15 @@ class TestResultInvariability:
             "--beam_score_coverage_penalty google --beam_score_coverage_penalty_strength 0.3 "
             "--beam_score_length_normalization google --beam_score_length_normalization_strength 0.25 "
             "--post_score_coverage_penalty google --post_score_coverage_penalty_strength 0.4 "
-            "--post_score_length_normalization google --post_score_length_normalization_strength 0.33")
+            "--post_score_length_normalization google --post_score_length_normalization_strength 0.33"),
+        ("result_invariability", "ensemble_search",
+            "--mode beam_search --beam_width 30 "
+            "--additional_training_config tests/tests_data/models/result_invariability.train.train.config "
+            "--additional_trained_model tests/tests_data/models/result_invariability.train.model.best_loss.npz"),
+        ("result_invariability_untrained", "ensemble_search",
+            "--mode beam_search --beam_width 30 "
+            "--additional_training_config tests/tests_data/models/result_invariability_untrained.train.train.config "
+            "--additional_trained_model tests/tests_data/models/result_invariability_untrained.train.model.best_loss.npz")
     ])
     def test_result_invariability(self, tmpdir, gpu, model_name, variant_name, variant_options):
         """

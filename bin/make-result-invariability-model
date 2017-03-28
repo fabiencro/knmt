@@ -18,18 +18,12 @@ knmt train tests/tests_data/models/result_invariability.data tests/tests_data/mo
 knmt train tests/tests_data/models/result_invariability.data tests/tests_data/models/result_invariability_untrained.train --max_nb_iters 800 --mb_size 2 --Ei 5 --Eo 12 --Hi 6 --Ha 70 --Ho 15 --Hl 12 --force_overwrite
 
 
-# Remove unneeded large files.
-rm -rf tests/tests_data/models/result_invariability.train
-rm -rf tests/tests_data/models/result_invariability.train.model.best.npz.config
-rm -rf tests/tests_data/models/result_invariability.train.model.best_loss.npz
-rm -rf tests/tests_data/models/result_invariability.train.model.best_loss.npz.config
-rm -rf tests/tests_data/models/result_invariability.train.result.sqlite
+# Reduce config file sizes.
 
-rm -rf tests/tests_data/models/result_invariability_untrained.train
-rm -rf tests/tests_data/models/result_invariability_untrained.train.model.best.npz.config
-rm -rf tests/tests_data/models/result_invariability_untrained.train.model.best_loss.npz
-rm -rf tests/tests_data/models/result_invariability_untrained.train.model.best_loss.npz.config
-rm -rf tests/tests_data/models/result_invariability_untrained.train.result.sqlite
+for config_file in tests/tests_data/models/*.config
+do
+    sed -i '/"diff":/ d' $config_file
+done
 
 
 # Create translations with the models using beam search.
@@ -72,9 +66,45 @@ knmt eval tests/tests_data/models/result_invariability_untrained.train.train.con
     --post_score_coverage_penalty "google" --post_score_coverage_penalty_strength 0.4 \
     --post_score_length_normalization "google" --post_score_length_normalization_strength 0.33
 
+knmt eval tests/tests_data/models/result_invariability.train.train.config tests/tests_data/models/result_invariability.train.model.best.npz tests/tests_data/src2.txt tests/tests_data/models/result_invariability.translations_using_ensemble_search.txt --mode beam_search --beam_width 30 --additional_training_config tests/tests_data/models/result_invariability.train.train.config --additional_trained_model tests/tests_data/models/result_invariability.train.model.best_loss.npz
+
+knmt eval tests/tests_data/models/result_invariability_untrained.train.train.config tests/tests_data/models/result_invariability_untrained.train.model.best.npz tests/tests_data/src2.txt tests/tests_data/models/result_invariability_untrained.translations_using_ensemble_search.txt --mode beam_search --beam_width 30 --additional_training_config tests/tests_data/models/result_invariability_untrained.train.train.config --additional_trained_model tests/tests_data/models/result_invariability_untrained.train.model.best_loss.npz
+
 
 # Create translations with the models using greedy search.
 knmt eval tests/tests_data/models/result_invariability.train.train.config tests/tests_data/models/result_invariability.train.model.best.npz tests/tests_data/src2.txt tests/tests_data/models/result_invariability.translations_using_greedy_search.txt --mode translate
 
 knmt eval tests/tests_data/models/result_invariability_untrained.train.train.config tests/tests_data/models/result_invariability_untrained.train.model.best.npz tests/tests_data/src2.txt tests/tests_data/models/result_invariability_untrained.translations_using_greedy_search.txt --mode translate
+
+
+# Remove unneeded large files.
+rm -rf tests/tests_data/models/result_invariability.train
+rm -rf tests/tests_data/models/result_invariability.train.model.best.npz.config
+rm -rf tests/tests_data/models/result_invariability.train.model.best_loss.npz.config
+rm -rf tests/tests_data/models/result_invariability.train.result.sqlite
+rm -rf tests/tests_data/models/result_invariability.train.model.final.npz
+rm -rf tests/tests_data/models/result_invariability.train.model.final.npz.config
+
+rm -rf tests/tests_data/models/result_invariability_untrained.train
+rm -rf tests/tests_data/models/result_invariability_untrained.train.model.best.npz.config
+rm -rf tests/tests_data/models/result_invariability_untrained.train.model.best_loss.npz.config
+rm -rf tests/tests_data/models/result_invariability_untrained.train.result.sqlite
+rm -rf tests/tests_data/models/result_invariability_untrained.train.model.final.npz
+rm -rf tests/tests_data/models/result_invariability_untrained.train.model.final.npz.config
+
+rm -rf tests/tests_data/models/result_invariability.translations.txt.eval.config.json
+rm -rf tests/tests_data/models/result_invariability.translations_using_beam_search.txt.eval.config.json
+
+rm -rf tests/tests_data/models/result_invariability.translations_using_beam_search_and_google_options_1.txt.eval.config.json
+rm -rf tests/tests_data/models/result_invariability.translations_using_beam_search_and_google_options_2.txt.eval.config.json
+rm -rf tests/tests_data/models/result_invariability.translations_using_beam_search_and_prob_space_combination.txt.eval.config.json
+rm -rf tests/tests_data/models/result_invariability.translations_using_ensemble_search.txt.eval.config.json
+rm -rf tests/tests_data/models/result_invariability.translations_using_greedy_search.txt.eval.config.json
+rm -rf tests/tests_data/models/result_invariability_untrained.translations_using_beam_search.txt.eval.config.json
+rm -rf tests/tests_data/models/result_invariability_untrained.translations_using_beam_search_and_google_options_1.txt.eval.config.json
+rm -rf tests/tests_data/models/result_invariability_untrained.translations_using_beam_search_and_google_options_2.txt.eval.config.json
+rm -rf tests/tests_data/models/result_invariability_untrained.translations_using_beam_search_and_prob_space_combination.txt.eval.config.json
+rm -rf tests/tests_data/models/result_invariability_untrained.translations_using_ensemble_search.txt.eval.config.json
+rm -rf tests/tests_data/models/result_invariability_untrained.translations_using_greedy_search.txt.eval.config.json
+
 
