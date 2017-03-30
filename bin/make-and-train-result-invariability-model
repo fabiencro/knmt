@@ -1,0 +1,32 @@
+#!/usr/bin/env python
+
+from nmt_chainer.__main__ import main
+import numpy as np
+import random
+import sys
+
+seed = int(sys.argv[1])
+src_file = sys.argv[2]
+tgt_file = sys.argv[3]
+save_prefix = sys.argv[4]
+training_opts = sys.argv[5]
+gpu = None
+if len(sys.argv) > 6:
+    gpu = sys.argv[6]
+
+random.seed(seed)
+np.random.seed(seed)
+
+args_make_data = [src_file, tgt_file, save_prefix + ".data"] + '--dev_src {0} --dev_tgt {1}'.format(src_file, tgt_file).split(' ')
+main(arguments=["make_data"] + args_make_data)
+
+args_train = [save_prefix + ".data", save_prefix + ".train"] + training_opts.split(' ')
+if gpu is not None:
+    args_train += ['--gpu', gpu]
+main(arguments=["train"] + args_train)
+
+args_eval = [save_prefix + ".train.train.config", save_prefix + ".train.model.best.npz", src_file, "/tmp/trad.txt"] + "--mb_size 1 --mode eval_bleu --beam_width 30 --nb_steps_ratio 1.5 --normal --ref {0}".format(tgt_file).split(' ')
+if gpu is not None:
+    args_train += ['--gpu', gpu]
+main(arguments=["eval"] + args_eval)
+
