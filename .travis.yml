@@ -2,12 +2,9 @@ language: python
 python:
   - "2.7"
 # command to install dependencies
-env:
-  - TEST_SUITE: tests/conftest.py tests/models_test.py tests/server_test.py tests/training_chainer.py  tests/utils_test.py tests/training_management.py tests/result_invariability.py tests/other_tests.py tests/command_line_tests.py
-  - TEST_SUITE: tests/macro_test.py
 install:
   - pip install .
   - pip install psutil
 #  - pip install -r requirements.txt
 # command to run tests
-script: py.test $TEST_SUITE
+script: py.test tests/
