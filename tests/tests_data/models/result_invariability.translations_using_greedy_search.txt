@@ -1,8 +1,8 @@
 a b c d e f
-big and small
-1 1 d e 2 0 None 4 UNK
+ab de ef gh
+ich möchte 200 Meter
 a b c d e f
-this is a long text
+mein Sohn ist groß
 i need more sentences
 does it work
 it is enough
@@ -13,9 +13,9 @@ es ist heiß
 ich will ein Bier trinken
 das Tastatur ist schwarz
 mein Sohn ist krank
-ich möchte 200 Meter
-ich möchte 200 Meter
-darf ich einen Punkt stehlen
+das Tastatur ist schwarz
+mann muss jede Tag die Zähne putzen
+eins zwei drei vier fünf
 ich bin nicht sicher
 es ist Weihnachten früh
 ich mache viele Fehlen
@@ -27,12 +27,12 @@ ich möchte 200 Meter rennen
 es regnet
 die Brille sind rot
 der Tisch ist groß
-er liehst die Zeitung
-wir essen Äpfel
+es regnet
+ich möchte
 er hat deine Tasche gestohlen
-1 1 2 3 4 5 6
+eins zwei drei vier fünf sechs
 1 2 3 4 5 6
-es ist Weihnachten früh
+null
 ich habe am Eingang meinen Name auf ein Papier geschrieben
 dieses Bett ist nicht sehr bequem
 kannst du den Fernseher ausmachen
