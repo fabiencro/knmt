@@ -136,4 +136,4 @@ class TestResultInvariability:
             with np.load(ref_prefix + '.train.model.best.npz') as ref_model_data:
                 assert(len(test_model_data.keys()) == len(ref_model_data.keys()))
                 for test_key, test_value in test_model_data.iteritems():
-                    assert((test_value == ref_model_data[test_key]).all())
+                    np.testing.assert_array_almost_equal(test_value, ref_model_data[test_key], 5)
