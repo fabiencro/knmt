@@ -92,8 +92,8 @@ def make_config_eval(args):
     config_eval.set_readonly()
 
     if config_eval.process.server is None:
-        if config_eval.process.src_fn is None or config_eval.process.dest_fn is None:
-            raise CommandLineValuesException("src_fn and dest_fn need to be set either on the command line or in a config file")
+        if config_eval.process.dest_fn is None:
+            raise CommandLineValuesException("dest_fn need to be set either on the command line or in a config file")
 
     return config_eval
 
