@@ -1,28 +1,28 @@
 a b c d e f
-big and small
+ab de ef gh
 1 1 d e 2 0 None 4 UNK
 a b c d e f
 this is a long text
 i need more sentences
-u8 i78 o0 u7 i98
+does it work
 it is enough
 should i use capital letters
 ax bx
 der wagen ist neu
 es ist heiß
-ich bin nicht sicher
-der wagen ist neu
-should i use capital letters
-a b c d e f
+ich will ein Bier trinken
+das Tastatur ist schwarz
+mein Sohn ist krank
+das Tastatur ist schwarz
 mann muss jede Tag die Zähne putzen
 darf ich einen Punkt stehlen
 ich bin nicht sicher
 es ist Weihnachten früh
 ich mache viele Fehlen
 ab de ef gh
-u8 i78 o0 u7 i98
+a b c d e f
 me gustaría comer un pastél
-ich möchte nach Deutschland fahren
+te quiero
 ich möchte 200 Meter rennen
 es regnet
 die Brille sind rot
