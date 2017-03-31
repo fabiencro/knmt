@@ -19,7 +19,8 @@ import re
 from nmt_chainer.utilities.file_infos import create_filename_infos
 from nmt_chainer.utilities.argument_parsing_tools import OrderedNamespace
 import time
-
+import os.path
+from nmt_chainer.utilities.utils import ensure_path
 # from utils import make_batch_src, make_batch_src_tgt, minibatch_provider, compute_bleu_with_unk_as_wrong, de_batch
 from nmt_chainer.translation.evaluation import (greedy_batch_translate,
                                                 #                         convert_idx_to_string,
@@ -249,7 +250,7 @@ def translate_to_file_with_beam_search(dest_fn, gpu, encdec, eos_idx, src_data, 
         ct = tgt_indexer.deconvert_post(translated)
         out.write(ct + "\n")
         if unprocessed_output is not None:
-            unprocessed_output.write(" ".join(translated))
+            unprocessed_output.write(" ".join(translated) + "\n")
 
     if rich_output is not None:
         rich_output.finish()
@@ -411,6 +412,20 @@ def do_eval(config_eval):
     encdec_list, eos_idx, src_indexer, tgt_indexer, reverse_encdec, model_infos_list = create_encdec(config_eval)
 
 
+    eval_dir_placeholder = "@eval@/"
+    if dest_fn.startswith(eval_dir_placeholder):
+        if config_eval.trained_model is not None:
+            training_model_filename = config_eval.trained_model
+        else:
+            if len(config_eval.process.load_model_config) == 0:
+                log.error("Cannot detect value for $eval$ placeholder")
+                sys.exit(1)
+            training_model_filename = config_eval.process.load_model_config[0]
+            
+        eval_dir = os.path.join(os.path.dirname(training_model_filename), "eval")
+        dest_fn = os.path.join(eval_dir, dest_fn[len(eval_dir_placeholder):])
+        log.info("$eval$ detected. dest_fn is: %s ", dest_fn)
+        ensure_path(eval_dir)
 
     if config_eval.process.server is None:
         if src_fn is None:
