@@ -14,6 +14,7 @@ from nmt_chainer.dataprocessing.processors import build_dataset_one_side_pp
 import nmt_chainer.dataprocessing.make_data as make_data
 import nmt_chainer.training_module.train as train
 import nmt_chainer.training_module.train_config as train_config
+import nmt_chainer.dataprocessing.make_data_conf as make_data_conf
 import re
 
 # from utils import make_batch_src, make_batch_src_tgt, minibatch_provider, compute_bleu_with_unk_as_wrong, de_batch
@@ -268,6 +269,22 @@ def check_if_vocabulary_info_compatible(this_eos_idx, this_src_indexer, this_tgt
         raise Exception("incompatible models")
 
 
+def get_src_tgt_dev_from_config_eval(config_eval):
+    if config_eval.training_config is not None:
+        training_config_file = config_eval.training_config
+    elif 'load_model_config' in config_eval.process and config_eval.process.load_model_config is not None:
+        training_config_file = config_eval.process.load_model_config[0]
+    log.info("attempting to retrieve dev/test files from %s", training_config_file)
+    training_config = train_config.load_config_train(training_config_file)
+    data_prefix = training_config.training_management.data_prefix
+    data_config_filename = data_prefix + ".data.config"
+    data_config = make_data_conf.load_config(data_config_filename)
+    return (data_config["data"]["dev_src"],
+            data_config["data"]["dev_tgt"],
+            data_config["data"]["test_src"],
+            data_config["data"]["test_tgt"])
+
+
 def create_encdec(config_eval):
     encdec_list = []
     eos_idx, src_indexer, tgt_indexer = None, None, None
@@ -382,7 +399,18 @@ def do_eval(config_eval):
 
     encdec_list, eos_idx, src_indexer, tgt_indexer, reverse_encdec = create_encdec(config_eval)
 
-    if src_fn is not None:
+    if config_eval.process.server is None:
+        if src_fn is None:
+            (dev_src_from_config, dev_tgt_from_config, test_src_from_config, test_tgt_from_config) = get_src_tgt_dev_from_config_eval(config_eval)
+            if test_src_from_config is None:
+                log.error("Could not find value for source text, either on command line or in config files")
+                sys.exit(1)
+            log.info("using files from config as src:%s", test_src_from_config)
+            src_fn = test_src_from_config
+            if ref is None:
+                log.info("using files from config as ref:%s", test_tgt_from_config)
+                ref = test_tgt_from_config
+
         log.info("opening source file %s" % src_fn)
         src_data, stats_src_pp = build_dataset_one_side_pp(src_fn, src_pp=src_indexer,
                                                            max_nb_ex=max_nb_ex)
@@ -423,7 +451,7 @@ def do_eval(config_eval):
 #             ct = convert_idx_to_string(t, tgt_voc + ["#T_UNK#"])
             out.write(ct + "\n")
 
-    elif mode == "beam_search":
+    elif mode == "beam_search" or mode == "eval_bleu":
         if config_eval.process.server is not None:
             from nmt_chainer.translation.server import do_start_server
             do_start_server(config_eval)
@@ -452,48 +480,23 @@ def do_eval(config_eval):
                                                rich_output_filename=rich_output_filename,
                                                use_unfinished_translation_if_none_found=True)
 
-    elif mode == "eval_bleu":
-        #         assert args.ref is not None
-        translate_to_file_with_beam_search(dest_fn, gpu, encdec_list, eos_idx, src_data,
-                                           beam_width=beam_width,
-                                           beam_pruning_margin=beam_pruning_margin,
-                                           beam_score_coverage_penalty=beam_score_coverage_penalty,
-                                           beam_score_coverage_penalty_strength=beam_score_coverage_penalty_strength,
-                                           nb_steps=nb_steps,
-                                           nb_steps_ratio=nb_steps_ratio,
-                                           beam_score_length_normalization=beam_score_length_normalization,
-                                           beam_score_length_normalization_strength=beam_score_length_normalization_strength,
-                                           post_score_length_normalization=post_score_length_normalization,
-                                           post_score_length_normalization_strength=post_score_length_normalization_strength,
-                                           post_score_coverage_penalty=post_score_coverage_penalty,
-                                           post_score_coverage_penalty_strength=post_score_coverage_penalty_strength,
-                                           groundhog=groundhog,
-                                           tgt_unk_id=tgt_unk_id,
-                                           tgt_indexer=tgt_indexer,
-                                           force_finish=force_finish,
-                                           prob_space_combination=prob_space_combination,
-                                           reverse_encdec=reverse_encdec,
-                                           generate_attention_html=generate_attention_html,
-                                           src_indexer=src_indexer,
-                                           rich_output_filename=rich_output_filename,
-                                           use_unfinished_translation_if_none_found=True)
+            if mode == "eval_bleu":
+                if ref is not None:
+                    bc = bleu_computer.get_bc_from_files(ref, dest_fn)
+                    print "bleu before unk replace:", bc
+                else:
+                    print "bleu before unk replace: No Ref Provided"
 
-        if ref is not None:
-            bc = bleu_computer.get_bc_from_files(ref, dest_fn)
-            print "bleu before unk replace:", bc
-        else:
-            print "bleu before unk replace: No Ref Provided"
+                from nmt_chainer.utilities import replace_tgt_unk
+                replace_tgt_unk.replace_unk(dest_fn, src_fn, dest_fn + ".unk_replaced", dic, remove_unk,
+                                            normalize_unicode_unk,
+                                            attempt_to_relocate_unk_source)
 
-        from nmt_chainer.utilities import replace_tgt_unk
-        replace_tgt_unk.replace_unk(dest_fn, src_fn, dest_fn + ".unk_replaced", dic, remove_unk,
-                                    normalize_unicode_unk,
-                                    attempt_to_relocate_unk_source)
-
-        if ref is not None:
-            bc = bleu_computer.get_bc_from_files(ref, dest_fn + ".unk_replaced")
-            print "bleu after unk replace:", bc
-        else:
-            print "bleu before unk replace: No Ref Provided"
+                if ref is not None:
+                    bc = bleu_computer.get_bc_from_files(ref, dest_fn + ".unk_replaced")
+                    print "bleu after unk replace:", bc
+                else:
+                    print "bleu before unk replace: No Ref Provided"
 
     elif mode == "translate_attn":
         log.info("writing translation + attention as html to %s" % dest_fn)

@@ -8,6 +8,8 @@ from nmt_chainer.utilities import bleu_computer
 from nmt_chainer.utilities import graph_training
 from nmt_chainer.training_module.train_config import load_config_train
 from nmt_chainer.translation.eval_config import load_config_eval
+from nmt_chainer.dataprocessing.make_data_conf import load_config as load_config_data
+import nmt_chainer
 from collections import defaultdict
 import logging
 logging.basicConfig()
@@ -85,7 +87,7 @@ def process_data_config(config_fn, dest_dir, data_to_train):
     log.info("create file: %s" % dest_filename)
     f = open(dest_filename, "w")
 
-    config = json.load(open(config_fn))
+    config = load_config_data(config_fn)  # json.load(open(config_fn))
 
     f.write("<html><body>")
     f.write("Config Filename: %s <p>" % config_fn)
@@ -100,7 +102,7 @@ def process_data_config(config_fn, dest_dir, data_to_train):
     f.write("</code></pre>")
     f.write("</body></html>")
 
-    return urlname, data_prefix, (config["src_fn"], config["tgt_fn"]), time_config_created, config["src_voc_size"], config["tgt_voc_size"]
+    return urlname, data_prefix, (config["data"]["src_fn"], config["data"]["tgt_fn"]), time_config_created, config["processing"]["src_voc_size"], config["processing"]["tgt_voc_size"]
 
 
 def process_train_config(config_fn, dest_dir):
@@ -194,7 +196,9 @@ def process_train_config(config_fn, dest_dir):
     f.write("</code></pre>")
     f.write("</body></html>")
 
-    return urlname, data_prefix, time_last_exp, infos
+    description = config.training_management.get("description", "")
+
+    return urlname, data_prefix, time_last_exp, infos, description
 
 
 def define_parser(parser):
@@ -229,12 +233,12 @@ def do_recap(args):
         for fn in files:
             if fn.endswith(train_config_suffix):
                 fn_full = os.path.join(current_dir, fn)
-                urlname, data_prefix, time_last_exp, infos = process_train_config(
+                urlname, data_prefix, time_last_exp, infos, description = process_train_config(
                     fn_full, train_dir)
                 data_to_train[data_prefix].append(urlname)
                 train_to_data[urlname] = data_prefix
                 train_urlname_list[data_prefix].append(
-                    (time_last_exp, urlname, infos))
+                    (time_last_exp, urlname, infos, description))
             elif fn.endswith(data_config_suffix):
                 fn_full = os.path.join(current_dir, fn)
                 data_config_fn_list.append(fn_full)
@@ -271,7 +275,7 @@ def do_recap(args):
         urlname_list = train_urlname_list_src_tgt[src_tgt_fn]
         index.write("<h3>** src: %s | tgt: %s **</h3>" % src_tgt_fn)
         urlname_list.sort(reverse=True)
-        for time_last_exp, urlname, infos in urlname_list:
+        for time_last_exp, urlname, infos, description in urlname_list:
             if abs(time_last_exp - current_time) < 3000:
                 recently_updated = True
             else:
@@ -280,7 +284,7 @@ def do_recap(args):
                 timestring = "<b>%s [RCT]</b>" % time.ctime(time_last_exp)
             else:
                 timestring = "%s" % time.ctime(time_last_exp)
-            index.write('%s <a href = "train/%s">%s</a><p/>' % (timestring, urlname, urlname.split("xDIRx")[-1]))
+            index.write('%s <a href = "train/%s">%s</a> [%s]<p/>' % (timestring, urlname, urlname.split("xDIRx")[-1], description))
             if infos is not None:
                 for key in sorted(infos.keys()):
                     index.write("%s : %r  ||| " % (key, infos[key]))
