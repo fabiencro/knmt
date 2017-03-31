@@ -75,7 +75,7 @@ class TestResultInvariability:
         If not, it means that a recent commit have changed the behavior of the system.
         """
 
-        test_data_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "tests_data")
+        test_data_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "../tests_data")
         data_src_file = os.path.join(test_data_dir, "src2.txt")
         data_tgt_file = os.path.join(test_data_dir, "tgt2.txt")
         train_dir = os.path.join(test_data_dir, "models")
@@ -117,7 +117,7 @@ class TestResultInvariability:
         random.seed(seed)
         np.random.seed(seed)
 
-        test_data_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "tests_data")
+        test_data_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "../tests_data")
         data_src_file = os.path.join(test_data_dir, "src2.txt")
         data_tgt_file = os.path.join(test_data_dir, "tgt2.txt")
         work_dir = tmpdir.mkdir("work")
