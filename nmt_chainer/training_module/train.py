@@ -11,13 +11,16 @@ from chainer import cuda, optimizers, serializers
 
 from training import train_on_data
 from nmt_chainer.dataprocessing.indexer import Indexer
-
+from nmt_chainer.utilities.file_infos import create_filename_infos
+from nmt_chainer.utilities.argument_parsing_tools import OrderedNamespace
 import logging
 import json
 import os.path
 import gzip
 import sys
 import pprint
+import time
+import os.path
 # import h5py
 
 from nmt_chainer.utilities.utils import ensure_path
@@ -106,7 +109,8 @@ def create_encdec_from_config_dict(config_dict, src_indexer, tgt_indexer):
     return encdec
 
 
-def create_encdec_and_indexers_from_config_dict(config_dict, src_indexer=None, tgt_indexer=None, load_config_model="no"):
+def create_encdec_and_indexers_from_config_dict(config_dict, src_indexer=None, tgt_indexer=None, load_config_model="no",
+                                                return_model_infos = False):
     assert load_config_model in "yes no if_exists".split()
 
     if src_indexer is None or tgt_indexer is None:
@@ -129,6 +133,8 @@ def create_encdec_and_indexers_from_config_dict(config_dict, src_indexer=None, t
 
     eos_idx = len(tgt_indexer)
 
+    model_infos = None
+
     if load_config_model != "no":
         if "model_parameters" not in config_dict:
             if load_config_model == "yes":
@@ -142,14 +148,19 @@ def create_encdec_and_indexers_from_config_dict(config_dict, src_indexer=None, t
                     "loading model parameters from file specified by config file:%s" %
                     model_filename)
                 serializers.load_npz(model_filename, encdec)
+                if return_model_infos:
+                    model_infos = create_filename_infos(model_filename)
             else:
                 if load_config_model == "yes":
                     log.error(
                         "model parameters in config file is of type snapshot, not model")
                     raise ValueError("Config file model is not of type model")
 
-    return encdec, eos_idx, src_indexer, tgt_indexer
-
+    result = encdec, eos_idx, src_indexer, tgt_indexer
+    if return_model_infos:
+        return result, model_infos
+    else:
+        return result
 
 def load_voc_and_update_training_config(config_training):
     data_prefix = config_training["training_management"]["data_prefix"]

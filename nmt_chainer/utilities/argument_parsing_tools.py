@@ -5,7 +5,7 @@ import argparse
 import json
 import datetime
 import sys
-from nmt_chainer.utilities import versioning_tools
+import nmt_chainer.utilities.versioning_tools as versioning_tools
 
 
 class OrderedNamespace(OrderedDict):
