@@ -47,6 +47,9 @@ def process_eval_config(config_fn, dest_dir):
 #     ref_fn = config["ref"]
 
     ref_fn = config.output.ref
+    if ref_fn is None and "translation_infos" in config:
+        ref_fn = config["translation_infos"].ref
+        
     if ref_fn is not None:
         bc_with_unk = bleu_computer.get_bc_from_files(ref_fn, eval_prefix)
         bc_unk_replaced = bleu_computer.get_bc_from_files(
@@ -63,8 +66,11 @@ def process_eval_config(config_fn, dest_dir):
     f.write("config file created/modified:%s <p>" % time.ctime(time_config_created))
     f.write("BLEU: %s <p>" % bc_with_unk)
     f.write("BLEU with unk replaced: %s <p>" % bc_unk_replaced)
+    
+    f.write("<pre><code>\n")
     for line in open(config_fn):
         f.write(line)
+    f.write("</code></pre>\n")
     f.write("</body></html>")
 
     return urlname, bleu_unk_replaced
