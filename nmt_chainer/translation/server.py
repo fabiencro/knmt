@@ -42,8 +42,6 @@ class Translator:
         from nmt_chainer.translation.eval import create_encdec
         self.encdec, self.eos_idx, self.src_indexer, self.tgt_indexer, self.reverse_encdec = create_encdec(
             config_server)
-        if 'gpu' in config_server.process and config_server.process.gpu is not None:
-            self.encdec = self.encdec.to_gpu(config_server.process.gpu)
 
         self.encdec_list = [self.encdec]
 
