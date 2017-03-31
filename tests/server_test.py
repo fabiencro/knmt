@@ -43,8 +43,8 @@ class TestServer:
         try:
             print "Server PID={0}".format(server_process.pid)
 
-            # Wait 40 seconds to make sure that the server has started properly.
-            time.sleep(40)
+            # Wait 10 seconds to make sure that the server has started properly.
+            time.sleep(10)
 
             client = Client('127.0.0.1', 45766)
             resp = client.query("les lunettes sont rouges")
