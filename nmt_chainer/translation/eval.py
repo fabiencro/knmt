@@ -279,11 +279,12 @@ def get_src_tgt_dev_from_config_eval(config_eval):
     data_prefix = training_config.training_management.data_prefix
     data_config_filename = data_prefix + ".data.config"
     data_config = make_data_conf.load_config(data_config_filename)
-    return (data_config["data"]["dev_src"], 
-            data_config["data"]["dev_tgt"], 
-            data_config["data"]["test_src"], 
+    return (data_config["data"]["dev_src"],
+            data_config["data"]["dev_tgt"],
+            data_config["data"]["test_src"],
             data_config["data"]["test_tgt"])
-        
+
+
 def create_encdec(config_eval):
     encdec_list = []
     eos_idx, src_indexer, tgt_indexer = None, None, None
@@ -398,26 +399,23 @@ def do_eval(config_eval):
 
     encdec_list, eos_idx, src_indexer, tgt_indexer, reverse_encdec = create_encdec(config_eval)
 
-    
-    if src_fn is None:
-        (dev_src_from_config, dev_tgt_from_config, test_src_from_config, test_tgt_from_config) = get_src_tgt_dev_from_config_eval(
-        config_eval)
-        if test_src_from_config is None:
-            log.error("Could not find value for source text, either on command line or in config files")
-            sys.exit(1)
-        log.info("using files from config as src:%s", test_src_from_config)
-        src_fn = test_src_from_config
-        if ref is None:
-            log.info("using files from config as ref:%s", test_tgt_from_config)
-            ref = test_tgt_from_config
+    if config_eval.process.server is None:
+        if src_fn is None:
+            (dev_src_from_config, dev_tgt_from_config, test_src_from_config, test_tgt_from_config) = get_src_tgt_dev_from_config_eval(config_eval)
+            if test_src_from_config is None:
+                log.error("Could not find value for source text, either on command line or in config files")
+                sys.exit(1)
+            log.info("using files from config as src:%s", test_src_from_config)
+            src_fn = test_src_from_config
+            if ref is None:
+                log.info("using files from config as ref:%s", test_tgt_from_config)
+                ref = test_tgt_from_config
 
-    log.info("opening source file %s" % src_fn)
-    src_data, stats_src_pp = build_dataset_one_side_pp(src_fn, src_pp=src_indexer,
-                                                       max_nb_ex=max_nb_ex)
-    log.info("src data stats:\n%s", stats_src_pp.make_report())
+        log.info("opening source file %s" % src_fn)
+        src_data, stats_src_pp = build_dataset_one_side_pp(src_fn, src_pp=src_indexer,
+                                                           max_nb_ex=max_nb_ex)
+        log.info("src data stats:\n%s", stats_src_pp.make_report())
 
-        
-        
 #     log.info("%i sentences loaded" % make_data_infos.nb_ex)
 #     log.info("#tokens src: %i   of which %i (%f%%) are unknown"%(make_data_infos.total_token,
 #                                                                  make_data_infos.total_count_unk,
@@ -488,12 +486,12 @@ def do_eval(config_eval):
                     print "bleu before unk replace:", bc
                 else:
                     print "bleu before unk replace: No Ref Provided"
-        
+
                 from nmt_chainer.utilities import replace_tgt_unk
                 replace_tgt_unk.replace_unk(dest_fn, src_fn, dest_fn + ".unk_replaced", dic, remove_unk,
                                             normalize_unicode_unk,
                                             attempt_to_relocate_unk_source)
-        
+
                 if ref is not None:
                     bc = bleu_computer.get_bc_from_files(ref, dest_fn + ".unk_replaced")
                     print "bleu after unk replace:", bc
