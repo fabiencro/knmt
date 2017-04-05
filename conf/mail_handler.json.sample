@@ -1,0 +1,47 @@
+{
+    "languages": {
+        "zh-ja": {
+            "server": {
+                "host": "10.228.147.219", "port": 44667
+            }
+        },
+        "ja-zh": {
+            "server": {
+                "host": "jungle", "port": 12450
+            }
+        },
+        "en-ja": {
+            "server": {
+                "host": "jungle", "port": 44668
+            }
+        },
+        "ja-en": {
+            "server": {
+                "host": "jungle", "port": 45666
+            }
+        },
+        "en-fr": {
+            "server": {
+                "host": "jungle", "port": 44867
+            }
+        }
+    }, 
+    "imap": {
+        "host": "imap.gmail.com",
+        "port": 993,
+        "user": "my.translate.knmt.account@gmail.com",
+        "password": "********",
+
+        "incoming_request_mailbox": "INBOX",
+        "processed_request_mailbox": "Processed",
+        "ignored_request_mailbox": "Ignored"
+    },
+    "smtp": {
+        "host": "smtp.gmail.com",
+        "port": 587,
+        "user": "my.translate.knmt.account@gmail.com",
+        "password": "********",
+        "from": "my.translate@example.com"
+    },
+    "next_mail_handling_delay": 300
+}
