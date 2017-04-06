@@ -10,17 +10,67 @@ import daemon
 import email
 from email.MIMEMultipart import MIMEMultipart
 from email.MIMEText import MIMEText
+import httplib
 import imaplib
 import json
 import re
 import smtplib
 import time
+import urllib
 
 from nmt_chainer.translation.client import Client
 
 CONFIG_FILE = 'conf/mail_handler.json'
 
 list_resp_pattern = re.compile('(.*?) "(.*)" (.*)')
+
+
+def send_mail(to, subject, text):
+    config = json.load(open(CONFIG_FILE))
+    resp_msg = MIMEMultipart()
+    resp_msg['From'] = config['smtp']['from']
+    resp_msg['To'] = to
+    resp_msg['Subject'] = subject
+
+    resp_msg.attach(MIMEText(text, 'plain', 'utf-8'))
+
+    smtp_server = smtplib.SMTP(config['smtp']['host'], config['smtp']['port'])
+    smtp_server.starttls()
+    smtp_server.login(config['smtp']['user'], config['smtp']['password'])
+    text = resp_msg.as_string().encode('ascii')
+    smtp_server.sendmail(config['smtp']['from'], to, text)
+    smtp_server.quit()
+
+
+def split_text_into_sentences(src_lang, tgt_lang, text):
+    config = json.load(open(CONFIG_FILE))
+    sentences = None
+    params = urllib.urlencode({'lang_source': src_lang, 'lang_target': tgt_lang, 'text': text})
+    headers = {'Content-type': 'application/x-www-form-urlencoded', 'Accept': 'application/json'}
+    conn = httplib.HTTPConnection("{0}".format(config['text_splitter']['host']))
+    try:
+        conn.request('POST', config['text_splitter']['path'], params, headers)
+        resp = conn.getresponse()
+        data = resp.read()
+        json_data = json.loads(data)
+        sentences = json_data['sentences']
+    except Exception as ex:
+        print "ex={0}".format(ex)
+    finally:
+        conn.close()
+    return sentences
+
+
+def translate_sentence(src_lang, tgt_lang, sentence):
+    config = json.load(open(CONFIG_FILE))
+    server_data = config['languages']['{0}-{1}'.format(src_lang, tgt_lang)]['server']
+    client = Client(server_data['host'], server_data['port'])
+    resp = client.query(sentence)
+    json_resp = json.loads(resp)
+    translation = json_resp['out'].encode('utf-8')
+    if tgt_lang in ['ja', 'zh']:
+        translation = translation.replace(' ', '')
+    return translation
 
 
 def parse_list_response(line):
@@ -95,29 +145,16 @@ def process_mail():
                             tgt_lang = subject_match.group(2)
                             print "Request {0}_{1} from {2}:".format(src_lang, tgt_lang, email_from)
                             print 'Message: {0}\n'.format(email_body)
-                            server_data = config['languages']['{0}-{1}'.format(src_lang, tgt_lang)]['server']
 
-                            client = Client(server_data['host'], server_data['port'])
-                            resp = client.query(email_body)
-                            json_resp = json.loads(resp)
-                            translation = json_resp['out'].encode('utf-8')
-                            if tgt_lang in ['ja', 'zh']:
-                                translation = translation.replace(' ', '')
-                            print "Translation={0}".format(translation)
+                            sentences = split_text_into_sentences(src_lang, tgt_lang, email_body)
 
-                            resp_msg = MIMEMultipart()
-                            resp_msg['From'] = config['smtp']['from']
-                            resp_msg['To'] = email_from
-                            resp_msg['Subject'] = 'Translation'
+                            translation = ''
+                            for sentence in sentences:
+                                translated_sentence = translate_sentence(src_lang, tgt_lang, sentence.encode('utf-8'))
+                                translation += translated_sentence
 
-                            resp_msg.attach(MIMEText(translation, 'plain', 'utf-8'))
-
-                            smtp_server = smtplib.SMTP(config['smtp']['host'], config['smtp']['port'])
-                            smtp_server.starttls()
-                            smtp_server.login(config['smtp']['user'], config['smtp']['password'])
-                            text = resp_msg.as_string().encode('ascii')
-                            smtp_server.sendmail(config['smtp']['from'], email_from, text)
-                            smtp_server.quit()
+                            print "translation={0}".format(translation)
+                            send_mail(email_from, 'Translation', translation)
 
                             mail.copy(i, config['imap']['processed_request_mailbox'])
                             mail.store(i, '+FLAGS', '\\Deleted')
@@ -140,6 +177,7 @@ def process_mail():
                 mail.logout()
 
         time.sleep(int(config['next_mail_handling_delay']))
+        break
 
 
 def run():
