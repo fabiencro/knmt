@@ -13,12 +13,17 @@ from email.MIMEText import MIMEText
 import httplib
 import imaplib
 import json
+import logging
+import logging.config
 import re
 import smtplib
 import time
 import urllib
 
 from nmt_chainer.translation.client import Client
+
+logging.config.fileConfig('conf/mail_handler_logging.conf')
+logger = logging.getLogger('default')
 
 CONFIG_FILE = 'conf/mail_handler.json'
 
@@ -55,7 +60,7 @@ def split_text_into_sentences(src_lang, tgt_lang, text):
         json_data = json.loads(data)
         sentences = json_data['sentences']
     except Exception as ex:
-        print "ex={0}".format(ex)
+        logger.error(ex)
     finally:
         conn.close()
     return sentences
@@ -80,6 +85,7 @@ def parse_list_response(line):
 
 
 def prepare_mailboxes():
+    logger.info("Preparing mailboxes.")
     config = json.load(open(CONFIG_FILE))
     mail = None
     try:
@@ -102,8 +108,8 @@ def prepare_mailboxes():
         if not is_ignored_request_mailbox_found:
             mail.create(ignored_mailbox)
 
-    except Exception, e:
-        print str(e)
+    except Exception, ex:
+        logger.error(ex)
 
     finally:
         if mail is not None:
@@ -130,21 +136,26 @@ def process_mail():
                 for response_part in data:
                     if isinstance(response_part, tuple):
                         msg = email.message_from_string(response_part[1])
-                        email_subject = msg['subject']
+                        email_date = msg['date']
                         email_from = msg['from']
+                        email_subject = msg['subject']
                         if msg.is_multipart():
                             for child_msg in msg.get_payload():
                                 if child_msg.get_content_type() == 'text/plain':
                                     email_body = child_msg.get_payload(decode=True)
                         else:
                             email_body = msg.get_payload(decode=True)
+                        logger.info("Processing mail...")
+                        logger.info("Date: {0}".format(email_date))
+                        logger.info("From: {0}".format(email_from))
+                        logger.info("Subject: {0}".format(email_subject))
+
                         subject_pattern = re.compile('([a-z][a-z])_([a-z][a-z])')
                         subject_match = subject_pattern.match(email_subject)
                         if subject_match:
                             src_lang = subject_match.group(1)
                             tgt_lang = subject_match.group(2)
-                            print "Request {0}_{1} from {2}:".format(src_lang, tgt_lang, email_from)
-                            print 'Message: {0}\n'.format(email_body)
+                            logger.info('Text: {0}\n'.format(email_body))
 
                             sentences = split_text_into_sentences(src_lang, tgt_lang, email_body)
 
@@ -153,23 +164,21 @@ def process_mail():
                                 translated_sentence = translate_sentence(src_lang, tgt_lang, sentence.encode('utf-8'))
                                 translation += translated_sentence
 
-                            print "translation={0}".format(translation)
+                            logger.info("Translation: {0}".format(translation))
                             send_mail(email_from, 'Translation', translation)
 
+                            logger.info("Moving message to Processed mailbox.\n\n")
                             mail.copy(i, config['imap']['processed_request_mailbox'])
                             mail.store(i, '+FLAGS', '\\Deleted')
                             mail.expunge()
                         else:
-                            print "Put this message in the ignored mailbox"
-                            print 'From : ' + email_from + '\n'
-                            print 'Subject : ' + email_subject + '\n'
-
+                            logger.info("Moving message to Ignored mailbox.\n\n")
                             mail.copy(i, config['imap']['ignored_request_mailbox'])
                             mail.store(i, '+FLAGS', '\\Deleted')
                             mail.expunge()
 
-        except Exception, e:
-            print str(e)
+        except Exception, ex:
+            logger.error(ex)
 
         finally:
             if mail is not None:
@@ -181,9 +190,17 @@ def process_mail():
 
 
 def run():
-    with daemon.DaemonContext(working_directory='.'):
-        prepare_mailboxes()
-        process_mail()
+    context = daemon.DaemonContext(working_directory='.')
+    context.files_preserve = [logger.root.handlers[1].stream.fileno()]
+    with context:
+        try:
+            logger.info("Starting mail_handler daemon...")
+            prepare_mailboxes()
+            process_mail()
+        except Exception, ex:
+            logger.error(ex)
+        finally:
+            logger.info("Stopping mail_handler daemon.")
 
 if __name__ == "__main__":
     run()
