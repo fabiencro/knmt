@@ -2,27 +2,27 @@
     "languages": {
         "zh-ja": {
             "server": {
-                "host": "10.228.147.219", "port": 44667
+                "host": "knmt1", "port": 44667
             }
         },
         "ja-zh": {
             "server": {
-                "host": "jungle", "port": 12450
+                "host": "knmt2", "port": 12450
             }
         },
         "en-ja": {
             "server": {
-                "host": "jungle", "port": 44668
+                "host": "knmt3", "port": 44668
             }
         },
         "ja-en": {
             "server": {
-                "host": "jungle", "port": 45666
+                "host": "knmt4", "port": 45666
             }
         },
         "en-fr": {
             "server": {
-                "host": "jungle", "port": 44867
+                "host": "knmt5", "port": 44867
             }
         }
     }, 
