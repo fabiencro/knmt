@@ -129,8 +129,11 @@ class ConditionalizedDecoderCell(object):
 
         return new_states, logits, attn
 
-    def __call__(self, prev_states, inpt):
-        prev_y = self.decoder_chain.emb(inpt)
+    def __call__(self, prev_states, inpt, is_soft_inpt=False):
+        if is_soft_inpt:
+            prev_y = F.matmul(inpt, self.decoder_chain.emb.W)
+        else:
+            prev_y = self.decoder_chain.emb(inpt)
 
         new_states, logits, attn = self.advance_one_step(prev_states, prev_y)
 
@@ -138,7 +141,10 @@ class ConditionalizedDecoderCell(object):
 
 
 def compute_loss_from_decoder_cell(cell, targets, use_previous_prediction=0,
-                                   raw_loss_info=False, per_sentence=False, keep_attn=False):
+                                   raw_loss_info=False, per_sentence=False, keep_attn=False,
+                                   use_soft_prediction_feedback=False, 
+                                   use_gumbel_for_soft_predictions=False,
+                                   temperature_for_soft_predictions=1.0):
     loss = None
     attn_list = []
 
@@ -176,16 +182,27 @@ def compute_loss_from_decoder_cell(cell, targets, use_previous_prediction=0,
         current_mb_size = targets[i].data.shape[0]
         required_next_mb_size = targets[i + 1].data.shape[0]
 
-        if use_previous_prediction > 0 and random.random() < use_previous_prediction:
-            previous_word = Variable(cell.xp.argmax(logits.data[:required_next_mb_size], axis=1).astype(cell.xp.int32), volatile="auto")
-        else:
+        if use_soft_prediction_feedback:
+            logits_for_soft_predictions = logits
             if required_next_mb_size < current_mb_size:
-                previous_word, _ = F.split_axis(targets[i], (required_next_mb_size,), 0)
-                current_mb_size = required_next_mb_size
+                logits_for_soft_predictions, _ = F.split_axis(logits_for_soft_predictions, (required_next_mb_size,), 0)
+            if use_gumbel_for_soft_predictions:
+                logits_for_soft_predictions = logits_for_soft_predictions + cell.xp.random.gumbel(size=logits_for_soft_predictions.data.shape).astype(cell.xp.float32)
+            if temperature_for_soft_predictions != 1.0:
+                logits_for_soft_predictions = logits_for_soft_predictions/temperature_for_soft_predictions
+                
+            previous_word = F.softmax(logits_for_soft_predictions)
+        else:
+            if use_previous_prediction > 0 and random.random() < use_previous_prediction:
+                previous_word = Variable(cell.xp.argmax(logits.data[:required_next_mb_size], axis=1).astype(cell.xp.int32), volatile="auto")
             else:
-                previous_word = targets[i]
+                if required_next_mb_size < current_mb_size:
+                    previous_word, _ = F.split_axis(targets[i], (required_next_mb_size,), 0)
+                    current_mb_size = required_next_mb_size
+                else:
+                    previous_word = targets[i]
 
-        states, logits, attn = cell(states, previous_word)
+        states, logits, attn = cell(states, previous_word, is_soft_inpt=use_soft_prediction_feedback)
 
     if raw_loss_info:
         return (loss, total_nb_predictions), attn_list
@@ -320,7 +337,10 @@ class Decoder(Chain):
 
     def compute_loss(self, fb_concat, src_mask, targets, raw_loss_info=False, keep_attn_values=False,
                      noise_on_prev_word=False, use_previous_prediction=0, mode="test", per_sentence=False,
-                     lexicon_probability_matrix=None, lex_epsilon=1e-3
+                     lexicon_probability_matrix=None, lex_epsilon=1e-3,
+                     use_soft_prediction_feedback=False, 
+                    use_gumbel_for_soft_predictions=False,
+                    temperature_for_soft_predictions=1.0
                      ):
         decoding_cell = self.give_conditionalized_cell(fb_concat, src_mask, noise_on_prev_word=noise_on_prev_word,
                                                        mode=mode, lexicon_probability_matrix=lexicon_probability_matrix, lex_epsilon=lex_epsilon)
@@ -328,7 +348,10 @@ class Decoder(Chain):
                                                          use_previous_prediction=use_previous_prediction,
                                                          raw_loss_info=raw_loss_info,
                                                          per_sentence=per_sentence,
-                                                         keep_attn=keep_attn_values)
+                                                         keep_attn=keep_attn_values,
+                                                        use_soft_prediction_feedback=use_soft_prediction_feedback, 
+                                                        use_gumbel_for_soft_predictions=use_gumbel_for_soft_predictions,
+                                                        temperature_for_soft_predictions=temperature_for_soft_predictions)
         return loss, attn_list
 
     def sample(self, fb_concat, src_mask, nb_steps, mb_size, lexicon_probability_matrix=None,

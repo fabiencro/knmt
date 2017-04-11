@@ -518,7 +518,10 @@ class EncoderDecoder(Chain):
 
     def __call__(self, src_batch, tgt_batch, src_mask, use_best_for_sample=False, display_attn=False,
                  raw_loss_info=False, keep_attn_values=False, need_score=False, noise_on_prev_word=False,
-                 use_previous_prediction=0, mode="test"
+                 use_previous_prediction=0, mode="test",
+                 use_soft_prediction_feedback=False, 
+                use_gumbel_for_soft_predictions=False,
+                temperature_for_soft_predictions=1.0
                  ):
         assert mode in "test train".split()
 
@@ -539,7 +542,10 @@ class EncoderDecoder(Chain):
                                          keep_attn_values=keep_attn_values, noise_on_prev_word=noise_on_prev_word,
                                          use_previous_prediction=use_previous_prediction, mode="test",
                                          per_sentence=False, lexicon_probability_matrix=lexicon_probability_matrix,
-                                         lex_epsilon=self.lex_epsilon)
+                                         lex_epsilon=self.lex_epsilon,
+                                         use_soft_prediction_feedback=use_soft_prediction_feedback, 
+                                         use_gumbel_for_soft_predictions=use_gumbel_for_soft_predictions,
+                                         temperature_for_soft_predictions=temperature_for_soft_predictions)
 
     def give_conditionalized_cell(self, src_batch, src_mask, noise_on_prev_word=False,
                                   mode="test", demux=False):

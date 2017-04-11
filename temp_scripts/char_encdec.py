@@ -5,10 +5,87 @@ from chainer import Variable, Chain
 import chainer.serializers as serializers
 
 import numpy as np
+import json
 
 
-
-
+class SentDec(Chain):
+    def __init__(self, V, Hw, Hs):
+        super(CharDec, self).__init__(
+            lin_out = L.Linear(Hs, Hw),
+            nstep_dec = L.NStepLSTM(1, Hw, Hs, dropout = 0.5)
+        )
+#         self.start_id = V
+#         self.H = H
+#         self.eos_id = V #self.xp.array([V], dtype = self.xp.int32)
+        
+    def append_eos_id(self, a):
+        return self.xp.concatenate((a, self.xp.array([self.eos_id], dtype = self.xp.int32)), axis = 0)
+        
+    def compute_loss(self, hx, dataset_as_array_list, 
+                     need_to_append_eos = True,
+                    use_gumbel = False,
+                    temperature = None,
+                     train = True,
+                    verbose = False):
+        if need_to_append_eos:
+            dataset_as_var_with_eos = [Variable(self.append_eos_id(a)) for a in dataset_as_array_list]
+        else:
+            dataset_as_var_with_eos = [Variable(a) for a in dataset_as_array_list]
+            
+        if need_to_append_eos:
+            dataset_as_var_without_eos = [Variable(a) for a in dataset_as_array_list]
+        else:
+            dataset_as_var_without_eos = [Variable(a[:-1]) for a in dataset_as_array_list]
+            
+        nb_ex = len(dataset_as_array_list)
+        dataset_as_emb_dec = [self.c_emb_dec(v) for v in dataset_as_var_without_eos]
+        hx_dec, cx_dec, xs_dec = self.nstep_dec(hx, None, dataset_as_emb_dec, train = train)
+        hx_initial = F.split_axis(hx.reshape(nb_ex, -1), nb_ex, axis = 0, force_tuple = True)
+        logits_list = [self.lin_out(F.concat((hxi, h), axis = 0)) for hxi, h in zip(hx_initial, xs_dec)]
+    
+        if verbose:
+            print "logits:"
+            for logits in logits_list:
+                print logits.data
+            print
+            
+        if use_gumbel:
+            logits_list = [(logits + self.xp.random.gumbel(size = logits.data.shape)) for logits in logits_list]
+        
+        if temperature is not None:
+            logits_list = [logits/temperature for logits in logits_list]
+        
+        losses = [F.softmax_cross_entropy(logits, tgt) for logits,tgt in zip(logits_list, dataset_as_var_with_eos)]
+        loss = sum(losses)/nb_ex
+        return loss
+    
+    def decode(self, hx, length = 10, verbose = False, train = False):
+        hx_dec = hx
+        cx_dec = None
+#         prev_word = xp.array([self.start_id], dtype = xp.float32)
+        nb_inpt = hx.data.shape[1]
+        result = [[] for _ in xrange(nb_inpt)]
+        finished = [False] * nb_inpt
+        for i in xrange(length):
+            logits = self.lin_out(hx_dec.reshape(-1, self.H))
+            if verbose:
+                print "logits", i
+                print logits.data
+            prev_word = self.xp.argmax(logits.data, axis = 1).astype(self.xp.int32)
+            for num_inpt in xrange(nb_inpt):
+                if prev_word[num_inpt] == self.eos_id:
+                    finished[num_inpt] = True
+                if not finished[num_inpt]:
+                    result[num_inpt].append(prev_word[num_inpt])
+                if finished[num_inpt]:
+                    prev_word[num_inpt] = 0
+                    
+            if verbose:
+                print "prev_word", prev_word
+#             print prev_word
+            prev_word_emb = F.split_axis(self.c_emb_dec(prev_word), len(prev_word), axis = 0, force_tuple = True)
+            hx_dec, cx_dec, xs_dec = self.nstep_dec(hx_dec, cx_dec, prev_word_emb, train = train)
+        return result
 
 
 class CharDec(Chain):
@@ -103,7 +180,10 @@ class CharEnc(Chain):
         dataset_as_var = [Variable(a) for a in dataset_as_array]
         dataset_as_emb = [self.c_emb(v) for v in dataset_as_var]
         hx, cx, xs = self.nstep_enc(None, None, dataset_as_emb, train = train)
-        _, last_layer = F.split_axis(hx, (self.nlayers-1,), axis = 0, force_tuple = True)
+        if self.nlayers > 1:
+            _, last_layer = F.split_axis(hx, (self.nlayers-1,), axis = 0, force_tuple = True)
+        else:
+            last_layer = hx
         if use_workaround:
             zeroes = [0 * F.sum(xx) for xx in xs]
             for z in zeroes:
@@ -129,7 +209,7 @@ class CharEncDec(Chain):
                 if self.xp.any(self.xp.isnan(param.grad)):
                     print "nan in grad of", name
         
-def make_data(filename, max_nb_ex = None):
+def make_data(filename, max_nb_ex = None, frequency_threshold = 2):
     import codecs
     import itertools
     import collections
@@ -140,7 +220,7 @@ def make_data(filename, max_nb_ex = None):
         for w in line.strip().split(" "):
             words[w] += 1
             
-    words = [w for w,cnt in words.iteritems() if cnt >= 2]
+    words = [w for w,cnt in words.iteritems() if cnt >= frequency_threshold]
             
     print "collected", len(words), "words"
     
@@ -165,48 +245,39 @@ def make_data(filename, max_nb_ex = None):
     return dataset, charlist, chardict
         
 
+def do_make_data(args): 
+    dataset, charlist, chardict = make_data(args.filename, max_nb_ex = args.max_nb_ex, frequency_threshold = args.frequency_threshold)
+    json.dump(charlist, open(args.dest + "char_encdec.indexer", "w"))
+    json.dump(dataset, open(args.dest + "char_encdec.dataset", "w"))
     
-        
-def test():
-    import argparse
-    parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-    parser.add_argument("nb_iters", type = int)
-    parser.add_argument("--gpu", type = int)
-    args = parser.parse_args()    
+def create_model(config):
+    V = config["V"]
+    Ec = config["Ec"]
+    H = config["H"]
+    
+    ced = CharEncDec(V, Ec, H, nlayers_src=config["src_layers"])
+    return ced
 
-def main():
-    import argparse
-    import json
-    parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-    parser.add_argument("filename")
-    parser.add_argument("dest")
-#     parser.add_argument("nb_iters", type = int)
-    parser.add_argument("--gpu", type = int)
-    parser.add_argument("--max_nb_ex", type = int)
-    parser.add_argument("--mb_size", type = int, default = 256)
-    parser.add_argument("--Ec", type = int, default = 32)
-    parser.add_argument("--H", type = int, default = 64)
-    parser.add_argument("--print_loss_every", type = int, default = 10)
-    parser.add_argument("--max_nb_iters", type = int)
-    parser.add_argument("--debug", default = False, action = "store_true")
-    parser.add_argument("--src_layers", type = int, default = 1)
-    parser.add_argument("--mode", default="train")
-    args = parser.parse_args()
+def do_train_sentences(args):
     
+
+def do_train(args):
     if args.debug:
         chainer.set_debug(True)
     
-    dataset, charlist, chardict = make_data(args.filename, max_nb_ex = args.max_nb_ex)
+    charlist = json.load(open(args.dest + "char_encdec.indexer", "r"))
+    dataset = json.load(open(args.dest + "char_encdec.dataset", "r"))
+
+    config = args.__dict__.copy()
     
-    json.dump(charlist, open(args.dest + "char_encdec.indexer", "w"))
-    json.dump(args.__dict__, open(args.dest + "char_encdec.config", "w"))
     
-    V = len(charlist)
-    Ec = args.Ec
-    H = args.H
+    config["V"] = len(charlist)
+    config["indexer"] = args.dest + "char_encdec.indexer"
+    json.dump(config, open(args.dest + "char_encdec.config", "w"))
+    
     mb_size = args.mb_size
     
-    ced = CharEncDec(V, Ec, H, nlayers_src=args.src_layers)
+    ced = create_model(config) #CharEncDec(V, Ec, H, nlayers_src=args.src_layers)
     
     if args.gpu is not None:
         chainer.cuda.Device(args.gpu).use()
@@ -268,6 +339,70 @@ def main():
             serializers.save_npz(args.dest + "char_encdec.model", ced)
         num_iter += 1
 
+def do_eval(args):
+    import IPython
+    config=json.load(open(args.config))
+    ced = create_model(config)
+    charlist = json.load(open(config["indexer"], "r"))
+    chardict = dict((c,i) for i,c in enumerate(charlist))
+    serializers.load_npz(args.model, ced)
+    
+    if args.gpu is not None:
+        chainer.cuda.Device(args.gpu).use()
+        import cupy
+        ced = ced.to_gpu(args.gpu)
+        xp = cupy
+    else:
+        xp = np
+    
+    def enc(word):
+        w_array=xp.array([chardict[c] for c in word], dtype=xp.int32)
+        hx=ced.enc.compute_h((w_array,), train=False)
+        return hx
+    
+    def dec(hx):
+        decoded = ced.dec.decode(hx, length = 40, train = False)
+        return "".join([charlist[int(idx)] for idx in decoded[0]])
+    
+    IPython.embed()
+    
+def main():
+    import argparse
+    parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+    subparsers = parser.add_subparsers(dest="__subcommand_name")
+    parser_make_data = subparsers.add_parser('make_data', description="Prepare data for training.", help="Prepare data for training", formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+    
+    parser_make_data.add_argument("filename")
+    parser_make_data.add_argument("dest")
+    parser_make_data.add_argument("--frequency_threshold", type = int, default = 2)
+    parser_make_data.add_argument("--max_nb_ex", type = int)
+    
+    parser_train = subparsers.add_parser('train', description="Training", help="Training", formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+    parser_train.add_argument("datapath")
+    parser_train.add_argument("dest")
+#     parser.add_argument("nb_iters", type = int)
+    parser_train.add_argument("--gpu", type = int)
+    parser_train.add_argument("--max_nb_ex", type = int)
+    parser_train.add_argument("--mb_size", type = int, default = 256)
+    parser_train.add_argument("--Ec", type = int, default = 32)
+    parser_train.add_argument("--H", type = int, default = 64)
+    parser_train.add_argument("--print_loss_every", type = int, default = 10)
+    parser_train.add_argument("--max_nb_iters", type = int)
+    parser_train.add_argument("--debug", default = False, action = "store_true")
+    parser_train.add_argument("--src_layers", type = int, default = 1)
+    
+    parser_eval = subparsers.add_parser('eval', description="Eval", help="Eval", formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+    parser_eval.add_argument("config")
+    parser_eval.add_argument("model")
+    parser_eval.add_argument("--gpu", type = int)
+    args = parser.parse_args()
+    
+    func = {"make_data": do_make_data,
+            "train": do_train,
+            "eval": do_eval}[args.__subcommand_name]
+
+    func(args)
+    
 if __name__ == '__main__':
     main()
     
