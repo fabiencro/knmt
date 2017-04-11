@@ -491,6 +491,11 @@ def train_on_data_chainer(encdec, optimizer, training_data, output_files_dict,
     trainer_snapshot = config_training.training_management.load_trainer_snapshot
     save_initial_model_to = config_training.training_management.save_initial_model_to
     reshuffle_every_epoch = config_training.training_management.reshuffle_every_epoch
+    
+    use_soft_prediction_feedback=config_training.training.use_soft_prediction_feedback, 
+    use_gumbel_for_soft_predictions=config_training.training.use_gumbel_for_soft_predictions,
+    temperature_for_soft_predictions=config_training.training.temperature_for_soft_predictions
+
 
     @chainer.training.make_extension()
     def sample_extension(trainer):
@@ -522,7 +527,10 @@ def train_on_data_chainer(encdec, optimizer, training_data, output_files_dict,
         (total_loss, total_nb_predictions), attn = encdec(src_batch, tgt_batch, src_mask, raw_loss_info=True,
                                                           noise_on_prev_word=noise_on_prev_word,
                                                           use_previous_prediction=use_previous_prediction,
-                                                          mode="train")
+                                                          mode="train",
+                                                          use_soft_prediction_feedback=use_soft_prediction_feedback, 
+                                                          use_gumbel_for_soft_predictions=use_gumbel_for_soft_predictions,
+                                                          temperature_for_soft_predictions=temperature_for_soft_predictions)
         avg_loss = total_loss / total_nb_predictions
 
         t1 = time.clock()
