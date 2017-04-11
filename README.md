@@ -178,6 +178,24 @@ The file nmt_chainer/translation/mail_handler.py implements a daemon that monito
 Whenever a request is encountered, it is dispatched to the appropriate translation server and its response will be sent back by email
 to its emitter.
 
-Requirements: 
+#### Requirements and Installation: 
 
 - python-daemon
+
+Copy the sample configuration and edit it according to your environment:
+
+    cp conf/mail_handler.json.sample conf/mail_handler.json
+
+#### Useful commands
+
+To start the daemon:
+
+    python nmt_chainer/translation/mail_handler
+
+Consult the log file to make sure that the daemon is running properly:
+
+    less mail_handler.log
+
+To stop the daemon:
+
+    kill `pgrep -f mail_handler.py`
