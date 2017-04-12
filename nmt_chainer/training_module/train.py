@@ -46,13 +46,13 @@ def generate_lexical_probability_dictionary_indexed(lexical_probability_dictiona
     log.info("computing lexical_probability_dictionary_indexed")
     lexical_probability_dictionary_indexed = {}
     for ws in lexical_probability_dictionary_all:
-        ws_idx = src_indexer.convert([ws])[0]
+        ws_idx = src_indexer.convert(ws)[0]
         if ws_idx in lexical_probability_dictionary_indexed:
             assert src_indexer.is_unk_idx(ws_idx)
         else:
             lexical_probability_dictionary_indexed[ws_idx] = {}
         for wt in lexical_probability_dictionary_all[ws]:
-            wt_idx = tgt_indexer.convert([wt])[0]
+            wt_idx = tgt_indexer.convert(wt)[0]
             if wt_idx in lexical_probability_dictionary_indexed[ws_idx]:
                 assert src_indexer.is_unk_idx(
                     ws_idx) or tgt_indexer.is_unk_idx(wt_idx)
@@ -110,7 +110,7 @@ def create_encdec_from_config_dict(config_dict, src_indexer, tgt_indexer):
 
 
 def create_encdec_and_indexers_from_config_dict(config_dict, src_indexer=None, tgt_indexer=None, load_config_model="no",
-                                                return_model_infos = False):
+                                                return_model_infos=False):
     assert load_config_model in "yes no if_exists".split()
 
     if src_indexer is None or tgt_indexer is None:
@@ -161,6 +161,7 @@ def create_encdec_and_indexers_from_config_dict(config_dict, src_indexer=None, t
         return result, model_infos
     else:
         return result
+
 
 def load_voc_and_update_training_config(config_training):
     data_prefix = config_training["training_management"]["data_prefix"]
