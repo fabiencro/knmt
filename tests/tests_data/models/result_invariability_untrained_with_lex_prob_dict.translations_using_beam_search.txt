@@ -1,0 +1,40 @@
+a b c d e f
+big small
+ich will e f
+a b c d e f
+der Tisch ist ist
+der Tisch ist
+der Tisch ist
+a b c d e
+a b c d e
+ich will UNK
+der Tisch ist es
+es ist
+ich will UNK
+a b c d e
+der Tisch ist ist ist ist ist
+a b c d e
+a b c d e
+ich möchte c d e
+ich bin nicht sicher
+der Tisch ist ist
+ich möchte
+a b c d e
+a b c d e f
+ich will e f
+ich möchte UNK
+ich will e f
+es ist
+a b c d e
+der Tisch ist ist ist ist ist
+es ist
+a b c d e
+a b c d e
+der Tisch ist
+ich will e f
+der Tisch ist
+a b c d e f
+ich will UNK
+ich will e f
+a b c d e
+ich möchte e f
