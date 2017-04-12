@@ -9,6 +9,10 @@ GPU="$1"
 bin/make-and-train-result-invariability-model 1234 tests/tests_data/src2.txt tests/tests_data/tgt2.txt tests/tests_data/models/result_invariability "--max_nb_iters 2000 --mb_size 2 --Ei 5 --Eo 12 --Hi 6 --Ha 70 --Ho 15 --Hl 12" $GPU
 bin/make-and-train-result-invariability-model 1234 tests/tests_data/src2.txt tests/tests_data/tgt2.txt tests/tests_data/models/result_invariability_untrained "--max_nb_iters 800 --mb_size 2 --Ei 5 --Eo 12 --Hi 6 --Ha 70 --Ho 15 --Hl 12" $GPU
 
+bin/make-and-train-result-invariability-model 1234 tests/tests_data/src2.txt tests/tests_data/tgt2.txt tests/tests_data/models/result_invariability_with_lex_prob_dict "--max_nb_iters 2000 --mb_size 2 --Ei 5 --Eo 12 --Hi 6 --Ha 70 --Ho 15 --Hl 12 --lexical_probability_dictionary tests/tests_data/lexical_prob_dict.json.gz" $GPU
+bin/make-and-train-result-invariability-model 1234 tests/tests_data/src2.txt tests/tests_data/tgt2.txt tests/tests_data/models/result_invariability_untrained_with_lex_prob_dict "--max_nb_iters 800 --mb_size 2 --Ei 5 --Eo 12 --Hi 6 --Ha 70 --Ho 15 --Hl 12 --lexical_probability_dictionary tests/tests_data/lexical_prob_dict.json.gz" $GPU
+
+
 # Reduce config file sizes.
 for config_file in tests/tests_data/models/*.config
 do
@@ -66,7 +70,6 @@ knmt eval tests/tests_data/models/result_invariability.train.train.config tests/
 
 knmt eval tests/tests_data/models/result_invariability_untrained.train.train.config tests/tests_data/models/result_invariability_untrained.train.model.best.npz tests/tests_data/src2.txt tests/tests_data/models/result_invariability_untrained.translations_using_greedy_search.txt --mode translate
 
-
 # Remove unneeded large files.
 rm -rf tests/tests_data/models/result_invariability.train
 rm -rf tests/tests_data/models/result_invariability.train.model.best.npz.config
@@ -81,6 +84,15 @@ rm -rf tests/tests_data/models/result_invariability_untrained.train.model.best_l
 rm -rf tests/tests_data/models/result_invariability_untrained.train.result.sqlite
 rm -rf tests/tests_data/models/result_invariability_untrained.train.model.final.npz
 rm -rf tests/tests_data/models/result_invariability_untrained.train.model.final.npz.config
+
+rm -rf tests/tests_data/models/result_invariability_untrained_with_lex_prob_dict.train.model.best.npz.config
+rm -rf tests/tests_data/models/result_invariability_untrained_with_lex_prob_dict.train.model.best_loss.npz.config
+rm -rf tests/tests_data/models/result_invariability_untrained_with_lex_prob_dict.train.model.best_loss.npz
+rm -rf tests/tests_data/models/result_invariability_untrained_with_lex_prob_dict.train.result.sqlite
+rm -rf tests/tests_data/models/result_invariability_with_lex_prob_dict.train.model.best.npz.config
+rm -rf tests/tests_data/models/result_invariability_with_lex_prob_dict.train.model.best_loss.npz.config
+rm -rf tests/tests_data/models/result_invariability_with_lex_prob_dict.train.model.best_loss.npz
+rm -rf tests/tests_data/models/result_invariability_with_lex_prob_dict.train.result.sqlite
 
 rm -rf tests/tests_data/models/result_invariability.translations.txt.eval.config.json
 rm -rf tests/tests_data/models/result_invariability.translations_using_beam_search.txt.eval.config.json
