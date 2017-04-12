@@ -1,4 +1,5 @@
 import os
+import os.path
 import json
 import urllib
 import sqlite3
@@ -11,6 +12,10 @@ from nmt_chainer.translation.eval_config import load_config_eval
 from nmt_chainer.dataprocessing.make_data_conf import load_config as load_config_data
 import nmt_chainer
 from collections import defaultdict
+import codecs
+import itertools
+import cgi
+
 import logging
 logging.basicConfig()
 log = logging.getLogger("rnns:recap")
@@ -47,27 +52,91 @@ def process_eval_config(config_fn, dest_dir):
 #     ref_fn = config["ref"]
 
     ref_fn = config.output.ref
+    if ref_fn is None and "translation_infos" in config:
+        ref_fn = config["translation_infos"].ref
+        
+    src_fn = config.process.src_fn
+    if src_fn is None and "translation_infos" in config:
+        src_fn = config["translation_infos"].src
+        
+    training_config_fn = config.training_config
+    if training_config_fn is None and config.process.load_model_config is not None and len(config.process.load_model_config) > 0:
+        training_config_fn = config.process.load_model_config[0]
+        
+    config_training = load_config_train(training_config_fn, no_error=True)
+    description_training = config_training.get("training_management", {}).get("description", "")
+        
+    nb_models_used = 0
+    if config.training_config is not None:
+        nb_models_used += 1
+    if config.process.load_model_config is not None:
+        nb_models_used += len(config.process.load_model_config)
+    if config.process.additional_training_config is not None:
+        nb_models_used += len(config.process.additional_training_config)
+    
+
+        
     if ref_fn is not None:
         bc_with_unk = bleu_computer.get_bc_from_files(ref_fn, eval_prefix)
-        bc_unk_replaced = bleu_computer.get_bc_from_files(
-            ref_fn, eval_prefix + ".unk_replaced")
-        bleu_unk_replaced = bc_unk_replaced.bleu()
+        bleu_with_unk = bc_with_unk.bleu()
+        if not os.path.isfile(eval_prefix + ".unk_replaced"):
+            bc_unk_replaced = "#No unk replaced file#"
+            bleu_unk_replaced = -1
+        else:
+            bc_unk_replaced = bleu_computer.get_bc_from_files(
+                ref_fn, eval_prefix + ".unk_replaced")
+            bleu_unk_replaced = bc_unk_replaced.bleu()
     else:
         bc_with_unk = "#No Ref#"
         bc_unk_replaced = "#No Ref#"
         bleu_unk_replaced = -1
+        bleu_with_unk = -1
 
-    f.write("<html><body>")
+    desc = {"description_training": description_training, "nb_models_used": nb_models_used, 
+            "bleu": bleu_unk_replaced if bleu_unk_replaced >= 0 else bleu_with_unk}
+
+    f.write("""<html> <meta charset="UTF-8"> <style>
+table, th, td {
+    border: 1px solid black;
+}
+</style><body>""")
     f.write("Config Filename: %s <p>" % config_fn)
     f.write("eval prefix: %s <p>" % eval_prefix)
     f.write("config file created/modified:%s <p>" % time.ctime(time_config_created))
     f.write("BLEU: %s <p>" % bc_with_unk)
     f.write("BLEU with unk replaced: %s <p>" % bc_unk_replaced)
+    
+    f.write("<pre><code>\n")
     for line in open(config_fn):
         f.write(line)
+    f.write("</code></pre>\n")
+    
+    lst_outputs = []
+    if src_fn is not None:
+        lst_outputs.append(("src", codecs.open(src_fn, encoding = "utf8")))
+    
+    if ref_fn is not None:
+        lst_outputs.append(("ref", codecs.open(ref_fn, encoding = "utf8")))
+            
+    if os.path.isfile(eval_prefix + ".unprocessed"):
+        lst_outputs.append(("unprocessed", codecs.open(eval_prefix + ".unprocessed", encoding = "utf8")))
+            
+    lst_outputs.append(("out", codecs.open(eval_prefix, encoding = "utf8")))
+    
+    if os.path.isfile(eval_prefix + ".unk_replaced"):
+        lst_outputs.append(("unk_repl", codecs.open(eval_prefix + ".unk_replaced", encoding = "utf8")))
+    
+    tags_list, files_list = zip(*lst_outputs)
+    for num_line, line_list in enumerate(itertools.izip(*files_list)):
+        f.write("""<table style="width:100%">""")
+        f.write("<tr><td>%s</td><td>%i</td></tr>\n"%("NUM", num_line))
+        for tag, line in zip(tags_list, line_list):
+            f.write("<tr><td>%s</td><td>%s</td></tr>\n"%(tag, cgi.escape(line.encode("utf8"))))
+        f.write("</table>")     
+            
     f.write("</body></html>")
 
-    return urlname, bleu_unk_replaced
+    return urlname, desc 
 
 
 def process_data_config(config_fn, dest_dir, data_to_train):
@@ -87,7 +156,7 @@ def process_data_config(config_fn, dest_dir, data_to_train):
     log.info("create file: %s" % dest_filename)
     f = open(dest_filename, "w")
 
-    config = load_config_data(config_fn) # json.load(open(config_fn))
+    config = load_config_data(config_fn)  # json.load(open(config_fn))
 
     f.write("<html><body>")
     f.write("Config Filename: %s <p>" % config_fn)
@@ -292,8 +361,12 @@ def do_recap(args):
 
     index.write("<h1>EVAL</h1><p>")
     for fn_full in eval_config_fn_list:
-        urlname, bleu = process_eval_config(fn_full, eval_dir)
-        index.write('<a href = "eval/%s">%s</a> %f <p/>' % (urlname, urlname.split("xDIRx")[-1], bleu))
+        urlname, desc = process_eval_config(fn_full, eval_dir)
+        
+        index.write('<a href = "eval/%s">%s</a> <b>%f</b> %s [%i]<p/>' % (urlname, urlname.split("xDIRx")[-1], 
+                                                            desc["bleu"],
+                                                            desc["description_training"],
+                                                            desc["nb_models_used"] ))
 
     index.write("</body></html>")
 

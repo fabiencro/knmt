@@ -40,10 +40,8 @@ class Translator:
     def __init__(self, config_server):
         self.config_server = config_server
         from nmt_chainer.translation.eval import create_encdec
-        self.encdec, self.eos_idx, self.src_indexer, self.tgt_indexer, self.reverse_encdec = create_encdec(
+        self.encdec, self.eos_idx, self.src_indexer, self.tgt_indexer, self.reverse_encdec, model_infos_list = create_encdec(
             config_server)
-        if 'gpu' in config_server.process and config_server.process.gpu is not None:
-            self.encdec = self.encdec.to_gpu(config_server.process.gpu)
 
         self.encdec_list = [self.encdec]
 
@@ -92,7 +90,7 @@ class Translator:
                                                attn_graph_with_sum=False,
                                                attn_graph_attribs={'title': '', 'toolbar_location': 'below', 'plot_width': attn_graph_width, 'plot_height': attn_graph_height}, src_indexer=self.src_indexer,
                                                rich_output_filename=rich_output_file.name,
-                                               use_unfinished_translation_if_none_found=False,
+                                               use_unfinished_translation_if_none_found=True,
                                                replace_unk=True, src=sentence, dic=self.config_server.output.dic,
                                                remove_unk=remove_unk, normalize_unicode_unk=normalize_unicode_unk, attempt_to_relocate_unk_source=attempt_to_relocate_unk_source)
 

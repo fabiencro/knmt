@@ -25,6 +25,7 @@ import chainer.iterators
 import chainer.dataset.iterator
 import chainer.training
 import chainer.training.extensions
+import datetime
 
 logging.basicConfig()
 log = logging.getLogger("rnns:training")
@@ -382,8 +383,10 @@ class TrainingLossSummaryExtension(chainer.training.Extension):
 
         if self.update_trigger(trainer):
             # output the result
+            log.info("current time: %s", datetime.datetime.now().strftime("%I:%M%p %B %d, %Y"))
             avg_loss = float(self.total_loss) / self.total_nb_predictions
             avg_update_time = self.total_update_time / self.nb_observations
+            log.info("avg_training_loss: %f   avg_update_time: %f", avg_loss, avg_update_time)
             chainer.reporter.report({"avg_training_loss": avg_loss})
             chainer.reporter.report({"avg_update_time": avg_update_time})
             self.reset()
