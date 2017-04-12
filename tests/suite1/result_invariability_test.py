@@ -65,7 +65,11 @@ class TestResultInvariability:
         ("result_invariability_untrained", "ensemble_search",
             "--mode beam_search --beam_width 30 "
             "--additional_training_config tests/tests_data/models/result_invariability_untrained.train.train.config "
-            "--additional_trained_model tests/tests_data/models/result_invariability_untrained.train.model.best_loss.npz")
+            "--additional_trained_model tests/tests_data/models/result_invariability_untrained.train.model.best_loss.npz"),
+        ("result_invariability_with_lex_prob_dict", "beam_search",
+            "--mode beam_search --beam_width 30"),
+        ("result_invariability_untrained_with_lex_prob_dict", "beam_search",
+            "--mode beam_search --beam_width 30"),
     ])
     def test_eval_result_invariability(self, tmpdir, gpu, model_name, variant_name, variant_options):
         """
@@ -104,7 +108,9 @@ class TestResultInvariability:
 
     @pytest.mark.parametrize("model_name, options", [
         ("result_invariability", "--max_nb_iters 2000 --mb_size 2 --Ei 5 --Eo 12 --Hi 6 --Ha 70 --Ho 15 --Hl 12"),
-        ("result_invariability_untrained", "--max_nb_iters 800 --mb_size 2 --Ei 5 --Eo 12 --Hi 6 --Ha 70 --Ho 15 --Hl 12")
+        ("result_invariability_untrained", "--max_nb_iters 800 --mb_size 2 --Ei 5 --Eo 12 --Hi 6 --Ha 70 --Ho 15 --Hl 12"),
+        ("result_invariability_with_lex_prob_dict", "--max_nb_iters 2000 --mb_size 2 --Ei 5 --Eo 12 --Hi 6 --Ha 70 --Ho 15 --Hl 12 --lexical_probability_dictionary tests/tests_data/lexical_prob_dict.json.gz"),
+        ("result_invariability_untrained_with_lex_prob_dict", "--max_nb_iters 800 --mb_size 2 --Ei 5 --Eo 12 --Hi 6 --Ha 70 --Ho 15 --Hl 12 --lexical_probability_dictionary tests/tests_data/lexical_prob_dict.json.gz")
     ])
     def test_train_result_invariability(self, tmpdir, gpu, model_name, options):
         """
