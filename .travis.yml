@@ -2,9 +2,13 @@ language: python
 python:
   - "2.7"
 # command to install dependencies
+env:
+  - TEST_SUITE: tests/suite1
+  - TEST_SUITE: tests/suite2
 install:
   - pip install .
   - pip install psutil
+  - pip install pytest-xdist
 #  - pip install -r requirements.txt
 # command to run tests
-script: py.test tests/
+script: py.test -n 6 $TEST_SUITE
