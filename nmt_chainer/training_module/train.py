@@ -46,13 +46,23 @@ def generate_lexical_probability_dictionary_indexed(lexical_probability_dictiona
     log.info("computing lexical_probability_dictionary_indexed")
     lexical_probability_dictionary_indexed = {}
     for ws in lexical_probability_dictionary_all:
-        ws_idx = src_indexer.convert(ws)[0]
+        ws_idx_array = src_indexer.convert(ws)
+        if len(ws_idx_array) > 1:
+            log.warning("Converting an entry of the lexical probability dictionary resulted in several ids. "
+                        "Be aware that --lexical_probability_dictionary option is not fully compatible "
+                        "with fancier preprocessing options such as BPE.")
+        ws_idx = ws_idx_array[0]
         if ws_idx in lexical_probability_dictionary_indexed:
             assert src_indexer.is_unk_idx(ws_idx)
         else:
             lexical_probability_dictionary_indexed[ws_idx] = {}
         for wt in lexical_probability_dictionary_all[ws]:
-            wt_idx = tgt_indexer.convert(wt)[0]
+            wt_idx_array = tgt_indexer.convert(wt)
+            if len(wt_idx_array) > 1:
+                log.warning("Converting an entry of the lexical probability dictionary resulted in several ids. "
+                            "Be aware that --lexical_probability_dictionary option is not fully compatible "
+                            "with fancier preprocessing options such as BPE.")
+            wt_idx = wt_idx_array[0]
             if wt_idx in lexical_probability_dictionary_indexed[ws_idx]:
                 assert src_indexer.is_unk_idx(
                     ws_idx) or tgt_indexer.is_unk_idx(wt_idx)
