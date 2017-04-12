@@ -108,3 +108,10 @@ rm -rf tests/tests_data/models/result_invariability_untrained.translations_using
 rm -rf tests/tests_data/models/result_invariability_untrained.translations_using_beam_search_and_prob_space_combination.txt.eval.config.json
 rm -rf tests/tests_data/models/result_invariability_untrained.translations_using_ensemble_search.txt.eval.config.json
 rm -rf tests/tests_data/models/result_invariability_untrained.translations_using_greedy_search.txt.eval.config.json
+
+rm -rf tests/tests_data/models/result_invariability_untrained_with_lex_prob_dict.translations_using_beam_search.txt.eval.config.json
+rm -rf tests/tests_data/models/result_invariability_untrained_with_lex_prob_dict.translations_using_beam_search.txt.eval.init.config.json
+rm -rf tests/tests_data/models/result_invariability_untrained_with_lex_prob_dict.translations_using_beam_search.txt.unprocessed
+rm -rf tests/tests_data/models/result_invariability_with_lex_prob_dict.translations_using_beam_search.txt.eval.config.json
+rm -rf tests/tests_data/models/result_invariability_with_lex_prob_dict.translations_using_beam_search.txt.eval.init.config.json
+rm -rf tests/tests_data/models/result_invariability_with_lex_prob_dict.translations_using_beam_search.txt.unprocessed
