@@ -9,7 +9,6 @@ GPU="$1"
 bin/make-and-train-result-invariability-model 1234 tests/tests_data/src2.txt tests/tests_data/tgt2.txt tests/tests_data/models/result_invariability "--max_nb_iters 2000 --mb_size 2 --Ei 5 --Eo 12 --Hi 6 --Ha 70 --Ho 15 --Hl 12" $GPU
 bin/make-and-train-result-invariability-model 1234 tests/tests_data/src2.txt tests/tests_data/tgt2.txt tests/tests_data/models/result_invariability_untrained "--max_nb_iters 800 --mb_size 2 --Ei 5 --Eo 12 --Hi 6 --Ha 70 --Ho 15 --Hl 12" $GPU
 
-
 # Reduce config file sizes.
 for config_file in tests/tests_data/models/*.config
 do
@@ -97,5 +96,3 @@ rm -rf tests/tests_data/models/result_invariability_untrained.translations_using
 rm -rf tests/tests_data/models/result_invariability_untrained.translations_using_beam_search_and_prob_space_combination.txt.eval.config.json
 rm -rf tests/tests_data/models/result_invariability_untrained.translations_using_ensemble_search.txt.eval.config.json
 rm -rf tests/tests_data/models/result_invariability_untrained.translations_using_greedy_search.txt.eval.config.json
-
-
