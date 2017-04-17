@@ -155,11 +155,11 @@ def process_mail():
 
                                 is_request_ignored = True
 
-                                subject_pattern = re.compile('([a-z][a-z])_([a-z][a-z])')
+                                subject_pattern = re.compile('([a-zA-Z][a-zA-Z])_([a-zA-Z][a-zA-Z])')
                                 subject_match = subject_pattern.match(email_subject)
                                 if subject_match:
-                                    src_lang = subject_match.group(1)
-                                    tgt_lang = subject_match.group(2)
+                                    src_lang = subject_match.group(1).lower()
+                                    tgt_lang = subject_match.group(2).lower()
                                     logger.info('Text: {0}\n'.format(email_body))
 
                                     if not "{0}-{1}".format(src_lang, tgt_lang) in config['languages']:
