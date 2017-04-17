@@ -190,7 +190,7 @@ Copy the sample configuration and edit it according to your environment:
 
 To start the daemon:
 
-    python nmt_chainer/translation/mail_handler
+    python nmt_chainer/translation/mail_handler.py
 
 Consult the log file to make sure that the daemon is running properly:
 
