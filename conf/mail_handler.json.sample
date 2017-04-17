@@ -47,5 +47,8 @@
         "host": "http://www.example.com",
         "path": "/splitter/cgi-bin/split_sentences.cgi"
     },
+    "post_processing_cmd": {
+        "ja-en": "cat $FILE | /share/tool/MT/tool/SMT/mosesdecoder/scripts/recaser/detruecase.perl | /share/tool/MT/tool/SMT/mosesdecoder/scripts/tokenizer/detokenizer.perl"
+    },
     "next_mail_handling_delay": 300
 }

@@ -17,6 +17,8 @@ import logging
 import logging.config
 import re
 import smtplib
+import subprocess
+import tempfile
 import time
 import urllib
 
@@ -69,15 +71,19 @@ def split_text_into_sentences(src_lang, tgt_lang, text):
 
 def translate_sentence(src_lang, tgt_lang, sentence):
     config = json.load(open(CONFIG_FILE))
-    server_data = config['languages']['{0}-{1}'.format(src_lang, tgt_lang)]['server']
+    lang_pair = '{0}-{1}'.format(src_lang, tgt_lang)
+    server_data = config['languages'][lang_pair]['server']
     client = Client(server_data['host'], server_data['port'])
     resp = client.query(sentence)
     json_resp = json.loads(resp)
     translation = json_resp['out'].encode('utf-8')
+
     if tgt_lang in ['ja', 'zh']:
         translation = translation.replace(' ', '')
+
     translation = translation.replace('&quot;', '"')
     translation = translation.replace('&apos;', "'")
+
     return translation
 
 
@@ -162,10 +168,11 @@ def process_mail():
                                 if subject_match:
                                     src_lang = subject_match.group(1).lower()
                                     tgt_lang = subject_match.group(2).lower()
+                                    lang_pair = '{0}-{1}'.format(src_lang, tgt_lang)
                                     logger.info('Text: {0}\n'.format(email_body))
 
-                                    if not "{0}-{1}".format(src_lang, tgt_lang) in config['languages']:
-                                        raise Exception('Unsupported language pair: {0}-{1}'.format(src_lang, tgt_lang))
+                                    if lang_pair not in config['languages']:
+                                        raise Exception('Unsupported language pair: {0}'.format(lang_pair))
 
                                     sentences = split_text_into_sentences(src_lang, tgt_lang, email_body)
 
@@ -173,6 +180,17 @@ def process_mail():
                                     for sentence in sentences:
                                         translated_sentence = translate_sentence(src_lang, tgt_lang, sentence.encode('utf-8'))
                                         translation += translated_sentence
+
+                                    if 'post_processing_cmd' in config and lang_pair in config['post_processing_cmd']:
+                                        translation_file = tempfile.NamedTemporaryFile()
+                                        try:
+                                            translation_file.write(translation)
+                                            translation_file.seek(0)
+                                            cmd = config['post_processing_cmd'][lang_pair].replace("$FILE", translation_file.name)
+                                            translation = subprocess.check_output(cmd, shell=True)
+                                        finally:
+                                            translation_file.close()
+
                                     logger.info("Translation: {0}".format(translation))
 
                                     reply = """
