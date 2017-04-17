@@ -76,6 +76,8 @@ def translate_sentence(src_lang, tgt_lang, sentence):
     translation = json_resp['out'].encode('utf-8')
     if tgt_lang in ['ja', 'zh']:
         translation = translation.replace(' ', '')
+    translation = translation.replace('&quot;', '"')
+    translation = translation.replace('&apos;', "'")
     return translation
 
 
