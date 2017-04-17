@@ -129,50 +129,51 @@ def process_mail():
             type, data = mail.search(None, 'ALL')
             mail_ids = data[0]
             id_list = mail_ids.split()
-            first_email_id = int(id_list[0])
-            latest_email_id = int(id_list[-1])
-            for i in range(first_email_id, latest_email_id + 1):
-                try:
-                    type, data = mail.fetch(i, '(RFC822)')
+            if (len(id_list) > 0):
+                first_email_id = int(id_list[0])
+                latest_email_id = int(id_list[-1])
+                for i in range(first_email_id, latest_email_id + 1):
+                    try:
+                        type, data = mail.fetch(i, '(RFC822)')
 
-                    for response_part in data:
-                        if isinstance(response_part, tuple):
-                            msg = email.message_from_string(response_part[1])
-                            email_date = msg['date']
-                            email_from = msg['from']
-                            email_subject = msg['subject']
-                            if msg.is_multipart():
-                                for child_msg in msg.get_payload():
-                                    if child_msg.get_content_type() == 'text/plain':
-                                        email_body = child_msg.get_payload(decode=True)
-                            else:
-                                email_body = msg.get_payload(decode=True)
-                            logger.info("Processing mail...")
-                            logger.info("Date: {0}".format(email_date))
-                            logger.info("From: {0}".format(email_from))
-                            logger.info("Subject: {0}".format(email_subject))
+                        for response_part in data:
+                            if isinstance(response_part, tuple):
+                                msg = email.message_from_string(response_part[1])
+                                email_date = msg['date']
+                                email_from = msg['from']
+                                email_subject = msg['subject']
+                                if msg.is_multipart():
+                                    for child_msg in msg.get_payload():
+                                        if child_msg.get_content_type() == 'text/plain':
+                                            email_body = child_msg.get_payload(decode=True)
+                                else:
+                                    email_body = msg.get_payload(decode=True)
+                                logger.info("Processing mail...")
+                                logger.info("Date: {0}".format(email_date))
+                                logger.info("From: {0}".format(email_from))
+                                logger.info("Subject: {0}".format(email_subject))
 
-                            is_request_ignored = True
+                                is_request_ignored = True
 
-                            subject_pattern = re.compile('([a-z][a-z])_([a-z][a-z])')
-                            subject_match = subject_pattern.match(email_subject)
-                            if subject_match:
-                                src_lang = subject_match.group(1)
-                                tgt_lang = subject_match.group(2)
-                                logger.info('Text: {0}\n'.format(email_body))
+                                subject_pattern = re.compile('([a-z][a-z])_([a-z][a-z])')
+                                subject_match = subject_pattern.match(email_subject)
+                                if subject_match:
+                                    src_lang = subject_match.group(1)
+                                    tgt_lang = subject_match.group(2)
+                                    logger.info('Text: {0}\n'.format(email_body))
 
-                                if not "{0}-{1}".format(src_lang, tgt_lang) in config['languages']:
-                                    raise Exception('Unsupported language pair: {0}-{1}'.format(src_lang, tgt_lang))
+                                    if not "{0}-{1}".format(src_lang, tgt_lang) in config['languages']:
+                                        raise Exception('Unsupported language pair: {0}-{1}'.format(src_lang, tgt_lang))
 
-                                sentences = split_text_into_sentences(src_lang, tgt_lang, email_body)
+                                    sentences = split_text_into_sentences(src_lang, tgt_lang, email_body)
 
-                                translation = ''
-                                for sentence in sentences:
-                                    translated_sentence = translate_sentence(src_lang, tgt_lang, sentence.encode('utf-8'))
-                                    translation += translated_sentence
-                                logger.info("Translation: {0}".format(translation))
+                                    translation = ''
+                                    for sentence in sentences:
+                                        translated_sentence = translate_sentence(src_lang, tgt_lang, sentence.encode('utf-8'))
+                                        translation += translated_sentence
+                                    logger.info("Translation: {0}".format(translation))
 
-                                reply = """
+                                    reply = """
 {0}
 
 ---------- Original text submitted on {1} ----------
@@ -181,32 +182,32 @@ def process_mail():
 
 -- The content of this message has been generated by KNMT {3}. --
 """
-                                send_mail(email_from,
-                                          'Translation result for {0}_{1} request'.format(src_lang, tgt_lang),
-                                          reply.format(translation, email_date, email_body, knmt_version))
+                                    send_mail(email_from,
+                                              'Translation result for {0}_{1} request'.format(src_lang, tgt_lang),
+                                              reply.format(translation, email_date, email_body, knmt_version))
 
-                                logger.info("Moving message to Processed mailbox.\n\n")
-                                mail.copy(i, config['imap']['processed_request_mailbox'])
-                                mail.store(i, '+FLAGS', '\\Deleted')
-                                mail.expunge()
+                                    logger.info("Moving message to Processed mailbox.\n\n")
+                                    mail.copy(i, config['imap']['processed_request_mailbox'])
+                                    mail.store(i, '+FLAGS', '\\Deleted')
+                                    mail.expunge()
 
-                except Exception, ex_msg:
-                    logger.info('Error: {0}'.format(ex_msg))
-                    logger.info("Moving message to Ignored mailbox.\n\n")
-                    mail.copy(i, config['imap']['ignored_request_mailbox'])
-                    mail.store(i, '+FLAGS', '\\Deleted')
-                    mail.expunge()
+                    except Exception, ex_msg:
+                        logger.info('Error: {0}'.format(ex_msg))
+                        logger.info("Moving message to Ignored mailbox.\n\n")
+                        mail.copy(i, config['imap']['ignored_request_mailbox'])
+                        mail.store(i, '+FLAGS', '\\Deleted')
+                        mail.expunge()
 
-                    reply = """
+                        reply = """
 Error: {0}
 
 Your message has been discarded.
 
 -- The content of this message has been generated by KNMT {1}. --
 """
-                    send_mail(email_from,
-                              'Translation result for {0}_{1} request'.format(src_lang, tgt_lang),
-                              reply.format(ex_msg, knmt_version))
+                        send_mail(email_from,
+                                  'Translation result for {0}_{1} request'.format(src_lang, tgt_lang),
+                                  reply.format(ex_msg, knmt_version))
 
         except Exception, ex:
             logger.error(ex)
@@ -217,12 +218,12 @@ Your message has been discarded.
                 mail.logout()
 
         time.sleep(int(config['next_mail_handling_delay']))
-        break
 
 
 def run():
     context = daemon.DaemonContext(working_directory='.')
     context.files_preserve = [logger.root.handlers[1].stream.fileno()]
+
     with context:
         try:
             logger.info("Starting mail_handler daemon...")
