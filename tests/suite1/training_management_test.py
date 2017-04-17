@@ -23,7 +23,7 @@ class TestTrainingManagement:
         test_data_dir = os.path.join(
             os.path.dirname(
                 os.path.abspath(__file__)),
-            "tests_data")
+            "../tests_data")
         train_dir = tmpdir.mkdir("train")
         data_prefix = str(train_dir.join("test1.data"))
         train_prefix = str(train_dir.join("test1.train"))
@@ -45,7 +45,7 @@ class TestTrainingManagement:
         test_data_dir = os.path.join(
             os.path.dirname(
                 os.path.abspath(__file__)),
-            "tests_data")
+            "../tests_data")
         train_dir = tmpdir.mkdir("train")
         data_prefix = str(train_dir.join("test1.data"))
         train_prefix = str(train_dir.join("test1.train"))
