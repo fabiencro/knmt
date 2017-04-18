@@ -6,6 +6,7 @@ __version__ = "1.0"
 __email__ = "bergeron@pa.jst.jp"
 __status__ = "Development"
 
+import argparse
 from collections import namedtuple
 import daemon
 import email
@@ -26,19 +27,14 @@ import urllib
 from nmt_chainer._version import __version__ as knmt_version
 from nmt_chainer.translation.client import Client
 
-logging.config.fileConfig('conf/mail_handler_logging.conf')
-logger = logging.getLogger('default')
-
-CONFIG_FILE = 'conf/mail_handler.json'
-
 list_resp_pattern = re.compile('(.*?) "(.*)" (.*)')
 subject_pattern = re.compile('([a-zA-Z][a-zA-Z])_([a-zA-Z][a-zA-Z])')
 
 MailRequest = namedtuple('MailRequest', 'id date ffrom subject body')
 
 
-def send_mail(to, subject, text):
-    config = json.load(open(CONFIG_FILE))
+def send_mail(config_file, to, subject, text):
+    config = json.load(open(config_file))
     resp_msg = MIMEMultipart()
     resp_msg['From'] = config['smtp']['from']
     resp_msg['To'] = to
@@ -54,8 +50,8 @@ def send_mail(to, subject, text):
     smtp_server.quit()
 
 
-def split_text_into_sentences(src_lang, tgt_lang, text):
-    config = json.load(open(CONFIG_FILE))
+def split_text_into_sentences(config_file, src_lang, tgt_lang, text):
+    config = json.load(open(config_file))
     sentences = None
     params = urllib.urlencode({'lang_source': src_lang, 'lang_target': tgt_lang, 'text': text})
     headers = {'Content-type': 'application/x-www-form-urlencoded', 'Accept': 'application/json'}
@@ -73,8 +69,8 @@ def split_text_into_sentences(src_lang, tgt_lang, text):
     return sentences
 
 
-def translate_sentence(src_lang, tgt_lang, sentence):
-    config = json.load(open(CONFIG_FILE))
+def translate_sentence(config_file, src_lang, tgt_lang, sentence):
+    config = json.load(open(config_file))
     lang_pair = '{0}-{1}'.format(src_lang, tgt_lang)
     server_data = config['languages'][lang_pair]['server']
     client = Client(server_data['host'], server_data['port'])
@@ -97,9 +93,9 @@ def parse_list_response(line):
     return (flags, delimiter, mailbox_name)
 
 
-def prepare_mailboxes():
+def prepare_mailboxes(config_file, logger):
     logger.info("Preparing mailboxes.")
-    config = json.load(open(CONFIG_FILE))
+    config = json.load(open(config_file))
     mail = None
     try:
         mail = imaplib.IMAP4_SSL(config['imap']['host'], config['imap']['port'])
@@ -170,7 +166,7 @@ def get_decoded_email_body(message_body):
         return text.strip()
 
 
-def fetch_requests(config, mail):
+def fetch_requests(config, logger, mail):
     requests = []
 
     type, data = mail.search(None, 'ALL')
@@ -216,7 +212,7 @@ def fetch_requests(config, mail):
                             else:
                                 queue_msg = "Requests before you: {0}".format(len(requests) - 1)
 
-                            send_mail(email_from, 'Translation request received.',
+                            send_mail(config_file, email_from, 'Translation request received.',
                                       reply.format(queue_msg, email_date, src_lang, tgt_lang, email_body, knmt_version))
 
             except Exception, ex_msg:
@@ -226,14 +222,14 @@ def fetch_requests(config, mail):
                 mail.store(mail_id, '+FLAGS', '\\Deleted')
                 mail.expunge()
                 if email_from is not None:
-                    send_mail(email_from, 'Translation result', reply)
+                    send_mail(config_file, email_from, 'Translation result', reply)
 
     return requests
 
 
-def process_mail():
+def process_mail(config_file, logger):
     while True:
-        config = json.load(open(CONFIG_FILE))
+        config = json.load(open(config_file))
 
         mail = None
         try:
@@ -241,7 +237,7 @@ def process_mail():
             mail.login(config['imap']['user'], config['imap']['password'])
             mail.select(config['imap']['incoming_request_mailbox'])
 
-            requests = fetch_requests(config, mail)
+            requests = fetch_requests(config, logger, mail)
 
             for req in requests:
                 try:
@@ -257,11 +253,11 @@ def process_mail():
                     lang_pair = '{0}-{1}'.format(src_lang, tgt_lang)
                     logger.info('Text: {0}\n'.format(req.body))
 
-                    sentences = split_text_into_sentences(src_lang, tgt_lang, req.body)
+                    sentences = split_text_into_sentences(config_file, src_lang, tgt_lang, req.body)
 
                     translation = ''
                     for sentence in sentences:
-                        translated_sentence = translate_sentence(src_lang, tgt_lang, sentence.encode('utf-8'))
+                        translated_sentence = translate_sentence(config_file, src_lang, tgt_lang, sentence.encode('utf-8'))
                         translation += translated_sentence
 
                     if 'post_processing_cmd' in config and lang_pair in config['post_processing_cmd']:
@@ -277,7 +273,7 @@ def process_mail():
                     logger.info("Translation: {0}".format(translation))
 
                     reply = "{0}\n\n---------- Original text submitted on {1} ----------\n\n{2}\n\n-- The content of this message has been generated by KNMT {3}. --"
-                    send_mail(req.ffrom,
+                    send_mail(config_file, req.ffrom,
                               'Translation result for {0}_{1} request'.format(src_lang, tgt_lang),
                               reply.format(translation, req.date, req.body, knmt_version))
 
@@ -294,7 +290,7 @@ def process_mail():
                     mail.expunge()
 
                     reply = "Error: {0}\n\nYour message has been discarded.\n\n-- The content of this message has been generated by KNMT {1}. --"
-                    send_mail(email_from,
+                    send_mail(config_file, email_from,
                               'Translation result for {0}_{1} request'.format(src_lang, tgt_lang),
                               reply.format(ex_msg, knmt_version))
 
@@ -309,19 +305,37 @@ def process_mail():
         time.sleep(int(config['next_mail_handling_delay']))
 
 
-def run():
+def run(args):
+    logging.config.fileConfig(args.log_config)
+    logger = logging.getLogger('default')
+
+    config_file = args.config
+
     context = daemon.DaemonContext(working_directory='.')
     context.files_preserve = [logger.root.handlers[1].stream.fileno()]
 
     with context:
         try:
             logger.info("Starting mail_handler daemon...")
-            prepare_mailboxes()
-            process_mail()
+            prepare_mailboxes(config_file, logger)
+            process_mail(config_file, logger)
         except Exception, ex:
             logger.error(ex)
         finally:
             logger.info("Stopping mail_handler daemon.")
 
+
+def command_line(arguments=None):
+    parser = argparse.ArgumentParser(description="Launch a translation mail hanlder daemon.",
+                                     formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+
+    parser.add_argument("--config", nargs="?", help="Main configuration file.", default="conf/mail_handler.json")
+    parser.add_argument("--log_config", nargs="?", help="Log configuration file.", default="conf/mail_handler_logging.conf")
+
+    args = parser.parse_args(args=arguments)
+
+    run(args)
+
+
 if __name__ == "__main__":
-    run()
+    command_line()
