@@ -492,9 +492,9 @@ def train_on_data_chainer(encdec, optimizer, training_data, output_files_dict,
     save_initial_model_to = config_training.training_management.save_initial_model_to
     reshuffle_every_epoch = config_training.training_management.reshuffle_every_epoch
     
-    use_soft_prediction_feedback=config_training.training.use_soft_prediction_feedback, 
-    use_gumbel_for_soft_predictions=config_training.training.use_gumbel_for_soft_predictions,
-    temperature_for_soft_predictions=config_training.training.temperature_for_soft_predictions
+    use_soft_prediction_feedback = config_training.training.use_soft_prediction_feedback
+    use_gumbel_for_soft_predictions = config_training.training.use_gumbel_for_soft_predictions
+    temperature_for_soft_predictions = config_training.training.temperature_for_soft_predictions
 
 
     @chainer.training.make_extension()
