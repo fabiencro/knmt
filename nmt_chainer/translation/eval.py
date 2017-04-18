@@ -205,7 +205,7 @@ def translate_to_file_with_beam_search(dest_fn, gpu, encdec, eos_idx, src_data, 
                                        remove_unk=False,
                                        normalize_unicode_unk=False,
                                        attempt_to_relocate_unk_source=False,
-                                       unprocessed_output_filename = None):
+                                       unprocessed_output_filename=None):
 
     log.info("writing translation to %s " % dest_fn)
     out = codecs.open(dest_fn, "w", encoding="utf8")
@@ -235,7 +235,7 @@ def translate_to_file_with_beam_search(dest_fn, gpu, encdec, eos_idx, src_data, 
 
     unprocessed_output = None
     if unprocessed_output_filename is not None:
-        unprocessed_output = codecs.open(unprocessed_output_filename, "w", encoding = "utf8")
+        unprocessed_output = codecs.open(unprocessed_output_filename, "w", encoding="utf8")
 
     for src, translated, t, score, attn, unk_mapping in translation_iterator:
         if rich_output is not None:
@@ -300,7 +300,7 @@ def create_encdec(config_eval):
     encdec_list = []
     eos_idx, src_indexer, tgt_indexer = None, None, None
     model_infos_list = []
-    
+
     if config_eval.training_config is not None:
         assert config_eval.trained_model is not None
         encdec, eos_idx, src_indexer, tgt_indexer = create_and_load_encdec_from_files(
@@ -314,10 +314,9 @@ def create_encdec(config_eval):
                 "loading model and parameters from config %s" %
                 config_filename)
             config_training = train_config.load_config_train(config_filename)
-            (encdec, this_eos_idx, this_src_indexer, this_tgt_indexer), model_infos = train.create_encdec_and_indexers_from_config_dict(
-                            config_training, 
-                            load_config_model="yes",
-                            return_model_infos = True)
+            (encdec, this_eos_idx, this_src_indexer, this_tgt_indexer), model_infos = train.create_encdec_and_indexers_from_config_dict(config_training,
+                                                                                                                                        load_config_model="yes",
+                                                                                                                                        return_model_infos=True)
             model_infos_list.append(model_infos)
             if eos_idx is None:
                 assert len(encdec_list) == 0
@@ -406,28 +405,26 @@ def do_eval(config_eval):
     post_score_coverage_penalty = config_eval.method.post_score_coverage_penalty
     post_score_coverage_penalty_strength = config_eval.method.post_score_coverage_penalty_strength
 
-
     time_start = time.clock()
 
     encdec_list, eos_idx, src_indexer, tgt_indexer, reverse_encdec, model_infos_list = create_encdec(config_eval)
 
-
-    eval_dir_placeholder = "@eval@/"
-    if dest_fn.startswith(eval_dir_placeholder):
-        if config_eval.trained_model is not None:
-            training_model_filename = config_eval.trained_model
-        else:
-            if len(config_eval.process.load_model_config) == 0:
-                log.error("Cannot detect value for $eval$ placeholder")
-                sys.exit(1)
-            training_model_filename = config_eval.process.load_model_config[0]
-            
-        eval_dir = os.path.join(os.path.dirname(training_model_filename), "eval")
-        dest_fn = os.path.join(eval_dir, dest_fn[len(eval_dir_placeholder):])
-        log.info("$eval$ detected. dest_fn is: %s ", dest_fn)
-        ensure_path(eval_dir)
-
     if config_eval.process.server is None:
+        eval_dir_placeholder = "@eval@/"
+        if dest_fn.startswith(eval_dir_placeholder):
+            if config_eval.trained_model is not None:
+                training_model_filename = config_eval.trained_model
+            else:
+                if len(config_eval.process.load_model_config) == 0:
+                    log.error("Cannot detect value for $eval$ placeholder")
+                    sys.exit(1)
+                training_model_filename = config_eval.process.load_model_config[0]
+
+            eval_dir = os.path.join(os.path.dirname(training_model_filename), "eval")
+            dest_fn = os.path.join(eval_dir, dest_fn[len(eval_dir_placeholder):])
+            log.info("$eval$ detected. dest_fn is: %s ", dest_fn)
+            ensure_path(eval_dir)
+
         if src_fn is None:
             (dev_src_from_config, dev_tgt_from_config, test_src_from_config, test_tgt_from_config) = get_src_tgt_dev_from_config_eval(config_eval)
             if test_src_from_config is None:
@@ -448,7 +445,7 @@ def do_eval(config_eval):
         save_eval_config_fn = dest_fn + ".eval.init.config.json"
         log.info("Saving initial eval config to %s" % save_eval_config_fn)
         config_eval.save_to(save_eval_config_fn)
-    
+
     translation_infos = OrderedNamespace()
 #     log.info("%i sentences loaded" % make_data_infos.nb_ex)
 #     log.info("#tokens src: %i   of which %i (%f%%) are unknown"%(make_data_infos.total_token,
@@ -468,19 +465,17 @@ def do_eval(config_eval):
 #                                                                  float(make_data_infos.total_count_unk * 100) /
 #                                                                     make_data_infos.total_token))
 
-
-
 #     translations = greedy_batch_translate(encdec, eos_idx, src_data, batch_size = mb_size, gpu = args.gpu)
 
     translation_infos["src"] = src_fn
     translation_infos["tgt"] = tgt_fn
     translation_infos["ref"] = ref
-    
+
     for num_model, model_infos in enumerate(model_infos_list):
-        translation_infos["model%i"%num_model] = model_infos
-    
+        translation_infos["model%i" % num_model] = model_infos
+
     time_all_loaded = time.clock()
-    
+
     if mode == "translate":
         log.info("writing translation of to %s" % dest_fn)
         with cuda.get_device(gpu):
@@ -495,7 +490,6 @@ def do_eval(config_eval):
 #             ct = convert_idx_to_string(t, tgt_voc + ["#T_UNK#"])
             out.write(ct + "\n")
 
-    
     elif mode == "beam_search" or mode == "eval_bleu":
         if config_eval.process.server is not None:
             from nmt_chainer.translation.server import do_start_server
@@ -524,7 +518,7 @@ def do_eval(config_eval):
                                                src_indexer=src_indexer,
                                                rich_output_filename=rich_output_filename,
                                                use_unfinished_translation_if_none_found=True,
-                                               unprocessed_output_filename = dest_fn + ".unprocessed")
+                                               unprocessed_output_filename=dest_fn + ".unprocessed")
 
             translation_infos["dest"] = dest_fn
             translation_infos["unprocessed"] = dest_fn + ".unprocessed"
@@ -698,7 +692,7 @@ def do_eval(config_eval):
         for num in xrange(len(res)):
             for score in res[num]:
                 out.write("%i %f\n" % (num, score))
- 
+
     time_end = time.clock()
     translation_infos["loading_time"] = time_all_loaded - time_start
     translation_infos["translation_time"] = time_end - time_all_loaded
