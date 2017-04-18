@@ -90,7 +90,7 @@ class Translator:
                                                attn_graph_with_sum=False,
                                                attn_graph_attribs={'title': '', 'toolbar_location': 'below', 'plot_width': attn_graph_width, 'plot_height': attn_graph_height}, src_indexer=self.src_indexer,
                                                rich_output_filename=rich_output_file.name,
-                                               use_unfinished_translation_if_none_found=False,
+                                               use_unfinished_translation_if_none_found=True,
                                                replace_unk=True, src=sentence, dic=self.config_server.output.dic,
                                                remove_unk=remove_unk, normalize_unicode_unk=normalize_unicode_unk, attempt_to_relocate_unk_source=attempt_to_relocate_unk_source)
 

@@ -25,16 +25,21 @@ class TestServer:
         """
         Test if the server can start and answers a simple translation query.
         """
-        test_data_dir = os.path.join(
+        print "pwd={0}".format(os.path.abspath(__file__))
+        test_data_dir = os.path.abspath(os.path.join(
             os.path.dirname(
                 os.path.abspath(__file__)),
-            "tests_data")
+            "../tests_data"))
+        print "test_data_dir={0}".format(test_data_dir)
         segmenter_command = "echo '%s' | bin/z2h.pl | bin/tokenizer.perl"
         segmenter_format = "plain"
         config_file = os.path.join(str(test_data_dir), "models/result_invariability.train.train.config")
+        #config_file = "tests/tests_data/models/result_invariability.train.train.config"
         model_file = os.path.join(str(test_data_dir), "models/result_invariability.train.model.best.npz")
+        #model_file = "tests/tests_data/models/result_invariability.train.model.best.npz"
         args_server = '--server 127.0.0.1:45766 --mode beam_search --segmenter_command="{0}" --segmenter_format {1} {2} {3}'.format(segmenter_command,
                                                                                                                                     segmenter_format, config_file, model_file)
+        print "args_server={0}".format(args_server)
         if gpu is not None:
             args_server += '--gpu {0}'.format(gpu)
 

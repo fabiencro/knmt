@@ -156,7 +156,7 @@ def process_data_config(config_fn, dest_dir, data_to_train):
     log.info("create file: %s" % dest_filename)
     f = open(dest_filename, "w")
 
-    config = load_config_data(config_fn) # json.load(open(config_fn))
+    config = load_config_data(config_fn)  # json.load(open(config_fn))
 
     f.write("<html><body>")
     f.write("Config Filename: %s <p>" % config_fn)

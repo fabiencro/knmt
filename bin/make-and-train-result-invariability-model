@@ -17,10 +17,10 @@ if len(sys.argv) > 6:
 random.seed(seed)
 np.random.seed(seed)
 
-args_make_data = [src_file, tgt_file, save_prefix + ".data"] + '--dev_src {0} --dev_tgt {1}'.format(src_file, tgt_file).split(' ')
+args_make_data = [src_file, tgt_file, save_prefix + ".data"] + '--force_overwrite --dev_src {0} --dev_tgt {1}'.format(src_file, tgt_file).split(' ')
 main(arguments=["make_data"] + args_make_data)
 
-args_train = [save_prefix + ".data", save_prefix + ".train"] + training_opts.split(' ')
+args_train = [save_prefix + ".data", save_prefix + ".train", '--force_overwrite'] + training_opts.split(' ')
 if gpu is not None:
     args_train += ['--gpu', gpu]
 main(arguments=["train"] + args_train)
