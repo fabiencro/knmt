@@ -1,29 +1,19 @@
 {
-    "languages": {
+    "servers": {
         "zh-ja": {
-            "server": {
-                "host": "knmt1", "port": 44667
-            }
+            "host": "knmt1", "port": 44661
         },
         "ja-zh": {
-            "server": {
-                "host": "knmt2", "port": 12450
-            }
+            "host": "knmt2", "port": 44662
         },
         "en-ja": {
-            "server": {
-                "host": "knmt3", "port": 44668
-            }
+            "host": "knmt3", "port": 44663
         },
         "ja-en": {
-            "server": {
-                "host": "knmt4", "port": 45666
-            }
+            "host": "knmt4", "port": 44664
         },
         "en-fr": {
-            "server": {
-                "host": "knmt5", "port": 44867
-            }
+            "host": "knmt5", "port": 44665
         }
     }, 
     "imap": {
