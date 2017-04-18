@@ -72,7 +72,7 @@ def split_text_into_sentences(config_file, src_lang, tgt_lang, text):
 def translate_sentence(config_file, src_lang, tgt_lang, sentence):
     config = json.load(open(config_file))
     lang_pair = '{0}-{1}'.format(src_lang, tgt_lang)
-    server_data = config['languages'][lang_pair]['server']
+    server_data = config['servers'][lang_pair]
     client = Client(server_data['host'], server_data['port'])
     resp = client.query(sentence)
     json_resp = json.loads(resp)
@@ -166,8 +166,9 @@ def get_decoded_email_body(message_body):
         return text.strip()
 
 
-def fetch_requests(config, logger, mail):
+def fetch_requests(config_file, logger, mail):
     requests = []
+    config = json.load(open(config_file))
 
     type, data = mail.search(None, 'ALL')
     mail_ids = data[0]
@@ -195,7 +196,7 @@ def fetch_requests(config, logger, mail):
                             tgt_lang = subject_match.group(2).lower()
                             lang_pair = '{0}-{1}'.format(src_lang, tgt_lang)
 
-                            if lang_pair not in config['languages']:
+                            if lang_pair not in config['servers']:
                                 raise Exception('Unsupported language pair: {0}'.format(lang_pair))
 
                             logger.info('Queuing request...')
@@ -237,7 +238,7 @@ def process_mail(config_file, logger):
             mail.login(config['imap']['user'], config['imap']['password'])
             mail.select(config['imap']['incoming_request_mailbox'])
 
-            requests = fetch_requests(config, logger, mail)
+            requests = fetch_requests(config_file, logger, mail)
 
             for req in requests:
                 try:
