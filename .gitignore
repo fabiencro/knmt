@@ -15,3 +15,4 @@ knmt.egg-info/
 conf/mail_handler_logging.json
 conf/mail_handler.json
 mail_handler.log
+res/*.mo

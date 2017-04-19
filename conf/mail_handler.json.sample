@@ -1,4 +1,5 @@
 {
+    "ui_locale": "ja_JP.utf8",
     "servers": {
         "zh-ja": {
             "host": "knmt1", "port": 44661
