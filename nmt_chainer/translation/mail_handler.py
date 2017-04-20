@@ -52,6 +52,12 @@ def send_mail(config_file, to, subject, text):
     smtp_server.quit()
 
 
+def split_text_into_paragraphes(text):
+    paragraphes = text.split("\n")
+    paragraphes = filter(lambda p: p != '', paragraphes)
+    return paragraphes
+
+
 def split_text_into_sentences(config_file, src_lang, tgt_lang, text):
     config = json.load(open(config_file))
     sentences = None
@@ -275,12 +281,20 @@ def process_mail(config_file, logger):
                     lang_pair = '{0}-{1}'.format(src_lang, tgt_lang)
                     logger.info('Text: {0}\n'.format(req.body))
 
-                    sentences = split_text_into_sentences(config_file, src_lang, tgt_lang, req.body)
+                    paragraphes = split_text_into_paragraphes(req.body)
 
                     translation = ''
-                    for sentence in sentences:
-                        translated_sentence = translate_sentence(config_file, src_lang, tgt_lang, sentence.encode('utf-8'))
-                        translation += translated_sentence
+                    for paragraph in paragraphes:
+
+                        sentences = split_text_into_sentences(config_file, src_lang, tgt_lang, paragraph)
+
+                        if tgt_lang in ['ja', 'zh']:
+                            translation += '\xe3\x80\x80'  # Ideographic space.
+
+                        for sentence in sentences:
+                            translated_sentence = translate_sentence(config_file, src_lang, tgt_lang, sentence.encode('utf-8'))
+                            translation += translated_sentence.rstrip()
+                        translation += "\n\n"
 
                     if 'post_processing_cmd' in config and lang_pair in config['post_processing_cmd']:
                         translation_file = tempfile.NamedTemporaryFile()
