@@ -91,6 +91,7 @@ def define_parser(parser):
     training_monitoring_group.add_argument("--force_overwrite", default=False, action="store_true", help="Do not ask before overwiting existing files")
     training_monitoring_group.add_argument("--description", help="Optional message to be stored in the configuration file")
 
+    training_monitoring_group.add_argument("--set_false_in_config", nargs="*", help="Forcing some options to be false")
 
 class CommandLineValuesException(Exception):
     pass
@@ -174,6 +175,15 @@ def make_config_from_args(args, readonly=True):
     if args.config is not None:
         log.info("loading training config file %s", args.config)
         config_base = load_config_train(args.config, readonly=False)
+
+        if args.set_false_in_config is not None:
+            for option_name in args.set_false_in_config:
+                path_option = option_name.split(".")
+                last_dict = config_base
+                for level in range(len(path_option) -1):
+                    last_dict = config_base[path_option[level]]
+                last_dict[path_option[-1]] = False
+            
 
     parse_option_orderer = get_parse_option_orderer()
     config_training = parse_option_orderer.convert_args_to_ordered_dict(args)
