@@ -8,7 +8,6 @@ __status__ = "Development"
 
 import argparse
 import base64
-from collections import namedtuple
 import daemon
 import email
 from email.MIMEMultipart import MIMEMultipart
@@ -34,8 +33,6 @@ from nmt_chainer.translation.client import Client
 
 list_resp_pattern = re.compile('(.*?) "(.*)" (.*)')
 subject_pattern = re.compile('([a-zA-Z][a-zA-Z])_([a-zA-Z][a-zA-Z])')
-
-MailRequest = namedtuple('MailRequest', 'uid date ffrom subject body')
 
 
 def split_text_into_paragraphes(text, src_lang, tgt_lang):
@@ -99,21 +96,20 @@ class MailHandler:
         self._requests = []
 
     def _send_mail(self, to, subject, text):
-        pass
-        # config = json.load(open(self.config_file))
-        # resp_msg = MIMEMultipart()
-        # resp_msg['From'] = config['smtp']['from']
-        # resp_msg['To'] = to
-        # resp_msg['Subject'] = subject
+        config = json.load(open(self.config_file))
+        resp_msg = MIMEMultipart()
+        resp_msg['From'] = config['smtp']['from']
+        resp_msg['To'] = to
+        resp_msg['Subject'] = subject
 
-        # resp_msg.attach(MIMEText(text, 'plain', 'utf-8'))
+        resp_msg.attach(MIMEText(text, 'plain', 'utf-8'))
 
-        # smtp_server = smtplib.SMTP(config['smtp']['host'], config['smtp']['port'])
-        # smtp_server.starttls()
-        # smtp_server.login(config['smtp']['user'], config['smtp']['password'])
-        # text = resp_msg.as_string().encode('ascii')
-        # smtp_server.sendmail(config['smtp']['from'], to, text)
-        # smtp_server.quit()
+        smtp_server = smtplib.SMTP(config['smtp']['host'], config['smtp']['port'])
+        smtp_server.starttls()
+        smtp_server.login(config['smtp']['user'], config['smtp']['password'])
+        text = resp_msg.as_string().encode('ascii')
+        smtp_server.sendmail(config['smtp']['from'], to, text)
+        smtp_server.quit()
 
     def _split_text_into_sentences(self, src_lang, tgt_lang, text):
         config = json.load(open(self.config_file))
@@ -284,15 +280,15 @@ class MailHandler:
                                 self._send_mail(email_from, subject.decode('utf-8'),
                                                 reply.format(queue_msg, src_lang, tgt_lang, email_body, knmt_version))
 
-                                self._enqueue_request(MailRequest(mail_uid, email_date, email_from, email_subject, email_body.replace('\r', '')))
+                                self._enqueue_request({'uid': mail_uid, 'date': email_date, 'ffrom': email_from, 'subject': email_subject, 'body': email_body.replace('\r', '')})
 
                             else:
                                 raise Exception('Incorrect protocol or unknown language pair: {0}'.format(email_subject))
                 except Exception, ex_msg:
                     self.logger.info("Error: {0}\n\nMoving message to Ignored mailbox\n\n".format(ex_msg))
-                    # mail.uid('COPY', mail_uid, config['imap']['ignored_request_mailbox'])
-                    # mail.uid('STORE', mail_uid, '+FLAGS', '\\Deleted')
-                    # mail.expunge()
+                    mail.uid('COPY', mail_uid, config['imap']['ignored_request_mailbox'])
+                    mail.uid('STORE', mail_uid, '+FLAGS', '\\Deleted')
+                    mail.expunge()
                     if email_from is not None:
                         reply = _("Error: {0}\n\nMoving message to Ignored mailbox\n\n").format(ex_msg)
                         subject = _('Translation error: {0}').format(email_subject)
@@ -313,21 +309,20 @@ class MailHandler:
 
                 while self._requests:
                     req = self._requests[0]
-                    self.logger.info("req={0}".format(req))
                     try:
                         self.logger.info("Processing mail...")
-                        self.logger.info("Uid: {0}".format(req.uid))
-                        self.logger.info("Date: {0}".format(req.date))
-                        self.logger.info("From: {0}".format(req.ffrom))
-                        self.logger.info("Subject: {0}".format(req.subject))
+                        self.logger.info("Uid: {0}".format(req['uid']))
+                        self.logger.info("Date: {0}".format(req['date']))
+                        self.logger.info("From: {0}".format(req['ffrom']))
+                        self.logger.info("Subject: {0}".format(req['subject']))
 
-                        subject_match = subject_pattern.match(req.subject)
+                        subject_match = subject_pattern.match(req['subject'])
                         src_lang = subject_match.group(1).lower()
                         tgt_lang = subject_match.group(2).lower()
                         lang_pair = '{0}-{1}'.format(src_lang, tgt_lang)
-                        self.logger.info('Text: {0}\n'.format(req.body))
+                        self.logger.info('Text: {0}\n'.format(req['body']))
 
-                        paragraphes = split_text_into_paragraphes(req.body, src_lang, tgt_lang)
+                        paragraphes = split_text_into_paragraphes(req['body'], src_lang, tgt_lang)
 
                         translation = ''
                         for paragraph in paragraphes:
@@ -340,7 +335,7 @@ class MailHandler:
                                 translated_sentence = self._translate_sentence(src_lang, tgt_lang, sentence.encode('utf-8'))
                                 translation += translated_sentence.rstrip()
                                 if tgt_lang not in ['ja', 'zh']:
-                                    translated += ' '
+                                    translation += ' '
                             translation += "\n\n"
 
                         if 'post_processing_cmd' in config and lang_pair in config['post_processing_cmd']:
@@ -357,24 +352,24 @@ class MailHandler:
 
                         reply = _("{0}\n\n---------- Original text ----------\n\n{1}\n\n-- The content of this message has been generated by KNMT {2}. --")
 
-                        subject = _('Translation result: {0}').format(req.subject)
-                        self._send_mail(req.ffrom, subject.decode('utf-8'),
-                                        reply.format(translation, req.body, knmt_version))
+                        subject = _('Translation result: {0}').format(req['subject'])
+                        self._send_mail(req['ffrom'], subject.decode('utf-8'),
+                                        reply.format(translation, req['body'], knmt_version))
 
                         self.logger.info("Moving message to Processed mailbox.\n\n")
-                        # mail.uid('COPY', req.uid, config['imap']['processed_request_mailbox'])
-                        # mail.uid('STORE', req.uid, '+FLAGS', '\\Deleted')
-                        # mail.expunge()
+                        mail.uid('COPY', req['uid'], config['imap']['processed_request_mailbox'])
+                        mail.uid('STORE', req['uid'], '+FLAGS', '\\Deleted')
+                        mail.expunge()
 
                     except Exception, ex_msg:
                         self.logger.info('Error: {0}'.format(ex_msg))
                         self.logger.info("Moving message to Ignored mailbox.\n\n")
-                        # mail.uid('COPY', req.uid, config['imap']['ignored_request_mailbox'])
-                        # mail.uid('STORE', req.uid, '+FLAGS', '\\Deleted')
-                        # mail.expunge()
+                        mail.uid('COPY', req['uid'], config['imap']['ignored_request_mailbox'])
+                        mail.uid('STORE', req['uid'], '+FLAGS', '\\Deleted')
+                        mail.expunge()
 
                         reply = "Error: {0}\n\nYour message has been discarded.\n\n-- The content of this message has been generated by KNMT {1}. --"
-                        self._send_mail(self.config_file, req.ffrom,
+                        self._send_mail(req['ffrom'],
                                         'Translation result for {0}_{1} request'.format(src_lang, tgt_lang),
                                         reply.format(ex_msg, knmt_version))
 
@@ -389,8 +384,7 @@ class MailHandler:
                     mail.logout()
 
             self._first_time = False
-            # time.sleep(int(config['next_mail_handling_delay']))
-            break
+            time.sleep(int(config['next_mail_handling_delay']))
 
     def run(self):
         logging.config.fileConfig(self.log_config_file)
