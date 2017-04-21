@@ -58,9 +58,9 @@ def split_text_into_paragraphes(text):
     return paragraphes
 
 
-def split_text_into_sentences(config_file, src_lang, tgt_lang, text):
+def split_text_into_sentences(config_file, logger, src_lang, tgt_lang, text):
     config = json.load(open(config_file))
-    sentences = None
+    sentences = []
     params = urllib.urlencode({'lang_source': src_lang, 'lang_target': tgt_lang, 'text': text})
     headers = {'Content-type': 'application/x-www-form-urlencoded', 'Accept': 'application/json'}
     conn = httplib.HTTPConnection("{0}".format(config['text_splitter']['host']))
@@ -241,7 +241,7 @@ def fetch_requests(config_file, logger, mail):
                             send_mail(config_file, email_from, subject.decode('utf-8'),
                                       reply.format(queue_msg, src_lang, tgt_lang, email_body, knmt_version))
 
-                            requests.append(MailRequest(mail_uid, email_date, email_from, email_subject, email_body))
+                            requests.append(MailRequest(mail_uid, email_date, email_from, email_subject, email_body.replace('\r', '')))
             except Exception, ex_msg:
                 logger.info("Error: {0}\n\nMoving message to Ignored mailbox\n\n".format(ex_msg))
                 mail.uid('COPY', mail_uid, config['imap']['ignored_request_mailbox'])
@@ -286,7 +286,7 @@ def process_mail(config_file, logger):
                     translation = ''
                     for paragraph in paragraphes:
 
-                        sentences = split_text_into_sentences(config_file, src_lang, tgt_lang, paragraph)
+                        sentences = split_text_into_sentences(config_file, logger, src_lang, tgt_lang, paragraph)
 
                         if tgt_lang in ['ja', 'zh']:
                             translation += '\xe3\x80\x80'  # Ideographic space.
