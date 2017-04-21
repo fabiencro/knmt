@@ -302,6 +302,8 @@ def process_mail(config_file, logger):
                         for sentence in sentences:
                             translated_sentence = translate_sentence(config_file, src_lang, tgt_lang, sentence.encode('utf-8'))
                             translation += translated_sentence.rstrip()
+                            if tgt_lang not in ['ja', 'zh']:
+                                translation += ' '
                         translation += "\n\n"
 
                     if 'post_processing_cmd' in config and lang_pair in config['post_processing_cmd']:
