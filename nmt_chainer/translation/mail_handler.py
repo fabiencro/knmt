@@ -7,6 +7,7 @@ __email__ = "bergeron@pa.jst.jp"
 __status__ = "Development"
 
 import argparse
+import base64
 from collections import namedtuple
 import daemon
 import email
@@ -55,10 +56,11 @@ def send_mail(config_file, to, subject, text):
 def split_text_into_paragraphes(logger, text, src_lang, tgt_lang):
     if src_lang in ['ja', 'zh'] and '\xe3\x80\x80' in text:
         paragraphes = text.replace('\n', '').split('\xe3\x80\x80')
+        paragraphes = filter(lambda p: len(p) > 0, paragraphes)
         return paragraphes
 
     paragraphes = text.split("\n")
-    paragraphes = filter(lambda p: p != '', paragraphes)
+    paragraphes = filter(lambda p: len(p) > 0, paragraphes)
     return paragraphes
 
 
@@ -165,9 +167,6 @@ def get_decoded_email_body(message_body):
     :return: Message body as unicode string
     """
 
-    # Fix line feed problems.
-    message_body = re.sub(r'\r(?!\n)', '\r\n', message_body)
-
     msg = email.message_from_string(message_body)
 
     text = ""
@@ -177,13 +176,15 @@ def get_decoded_email_body(message_body):
 
             print "%s, %s" % (part.get_content_type(), part.get_content_charset())
 
+            if part.get_content_type() not in ['text/plain', 'text/html']:
+                continue
+
             if part.get_content_charset() is None:
                 # We cannot know the character set, so return decoded "something"
                 text = part.get_payload(decode=True)
                 continue
 
             charset = part.get_content_charset()
-
             if part.get_content_type() == 'text/plain':
                 text = unicode(part.get_payload(decode=True), str(charset), "ignore").encode('utf8', 'replace')
 
@@ -289,8 +290,6 @@ def process_mail(config_file, logger):
                     logger.info('Text: {0}\n'.format(req.body))
 
                     paragraphes = split_text_into_paragraphes(logger, req.body, src_lang, tgt_lang)
-                    for para in paragraphes:
-                        logger.info("para=@@@{0}@@@".format(para))
 
                     translation = ''
                     for paragraph in paragraphes:
