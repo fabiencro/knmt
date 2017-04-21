@@ -1,4 +1,5 @@
 {
+    "id": "prod",
     "ui_locale": "ja_JP.utf8",
     "servers": {
         "zh-ja": {
