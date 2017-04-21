@@ -250,6 +250,8 @@ def fetch_requests(config_file, logger, mail):
                                       reply.format(queue_msg, src_lang, tgt_lang, email_body, knmt_version))
 
                             requests.append(MailRequest(mail_uid, email_date, email_from, email_subject, email_body.replace('\r', '')))
+                        else:
+                            raise Exception('Incorrect protocol or unknown language pair: {0}'.format(email_subject))
             except Exception, ex_msg:
                 logger.info("Error: {0}\n\nMoving message to Ignored mailbox\n\n".format(ex_msg))
                 mail.uid('COPY', mail_uid, config['imap']['ignored_request_mailbox'])
