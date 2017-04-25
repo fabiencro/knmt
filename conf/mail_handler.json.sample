@@ -33,7 +33,8 @@
         "port": 587,
         "user": "my.translate.knmt.account@gmail.com",
         "password": "********",
-        "from": "my.translate@example.com"
+        "from": "my.translate@example.com",
+        "cc": " "supervisor@toto.com"
     },
     "text_splitter": {
         "host": "http://www.example.com",

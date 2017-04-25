@@ -104,15 +104,30 @@ class MailHandler:
         resp_msg = MIMEMultipart()
         resp_msg['From'] = config['smtp']['from']
         resp_msg['To'] = to
-        resp_msg['Subject'] = subject
+        cc = None
+        bcc = None
+        if 'cc' in config['smtp']:
+            resp_msg['Cc'] = config['smtp']['cc']
+            cc = config['smtp']['cc'].split(",")
+        if 'bcc' in config['smtp']:
+            resp_msg['Bcc'] = config['smtp']['bcc']
+            bcc = config['smtp']['bcc'].split(",")
+        dests = to
+        if cc or bcc:
+            dests = [to]
+            if cc:
+                dests += cc
+            if bcc:
+                dests += bcc
 
+        resp_msg['Subject'] = subject
         resp_msg.attach(MIMEText(text, 'plain', 'utf-8'))
 
         smtp_server = smtplib.SMTP(config['smtp']['host'], config['smtp']['port'])
         smtp_server.starttls()
         smtp_server.login(config['smtp']['user'], config['smtp']['password'])
         text = resp_msg.as_string().encode('ascii')
-        smtp_server.sendmail(config['smtp']['from'], to, text)
+        smtp_server.sendmail(config['smtp']['from'], dests, text)
         smtp_server.quit()
 
     def _split_text_into_sentences(self, src_lang, tgt_lang, text):
@@ -392,8 +407,7 @@ class MailHandler:
                     mail.logout()
 
             self._first_time = False
-            # time.sleep(int(config['next_mail_handling_delay']))
-            break
+            time.sleep(int(config['next_mail_handling_delay']))
 
     def run(self):
         logging.config.fileConfig(self.log_config_file)
