@@ -4,12 +4,12 @@
 msgid ""
 msgstr ""
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2017-04-19 14:41+0900\n"
+"POT-Creation-Date: 2017-04-25 17:21+0900\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 
-#: nmt_chainer/translation/mail_handler.py:230
+#: nmt_chainer/translation/mail_handler.py:280
 #, python-brace-format
 msgid ""
 "Translation request received.\n"
@@ -40,21 +40,21 @@ msgstr ""
 "\n"
 "-- このメッセージの内容はKNMT {4}によって生成されています。 --"
 
-#: nmt_chainer/translation/mail_handler.py:232
+#: nmt_chainer/translation/mail_handler.py:282
 msgid "It will be processed shortly."
 msgstr "まもなく処理されます。"
 
-#: nmt_chainer/translation/mail_handler.py:234
+#: nmt_chainer/translation/mail_handler.py:284
 #, python-brace-format
 msgid "Requests before you: {0}"
 msgstr "以前のリクエスト数: {0}"
 
-#: nmt_chainer/translation/mail_handler.py:236
+#: nmt_chainer/translation/mail_handler.py:286
 #, python-brace-format
 msgid "Translation request received: {0}"
 msgstr "翻訳リクエストを受け付けました: {0}"
 
-#: nmt_chainer/translation/mail_handler.py:246
+#: nmt_chainer/translation/mail_handler.py:301
 #, python-brace-format
 msgid ""
 "Error: {0}\n"
@@ -67,12 +67,12 @@ msgstr ""
 "メッセージは無視されたメールボックスに移動されました。\n"
 "\n"
 
-#: nmt_chainer/translation/mail_handler.py:247
+#: nmt_chainer/translation/mail_handler.py:302
 #, python-brace-format
 msgid "Translation error: {0}"
 msgstr "翻訳のエラー: {0}"
 
-#: nmt_chainer/translation/mail_handler.py:298
+#: nmt_chainer/translation/mail_handler.py:361
 #, python-brace-format
 msgid ""
 "{0}\n"
@@ -91,7 +91,7 @@ msgstr ""
 "\n"
 "-- このメッセージの内容はKNMT {2}によって生成されています。 --"
 
-#: nmt_chainer/translation/mail_handler.py:300
+#: nmt_chainer/translation/mail_handler.py:363
 #, python-brace-format
 msgid "Translation result: {0}"
 msgstr "翻訳の結果: {0}"
