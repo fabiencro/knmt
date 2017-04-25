@@ -53,6 +53,9 @@ def define_parser(parser):
     processing_group.add_argument("--tgt_voc_size", type=int, default=32000,
                                   help="limit target vocabulary size to the n most frequent words")
     processing_group.add_argument("--use_voc", help="specify an exisiting vocabulary file")
+    
+    processing_group.add_argument("--predefined_voc1", help="specify an exisiting vocabulary file")
+    processing_group.add_argument("--predefined_voc2", help="specify an exisiting vocabulary file")
 #     parser.add_argument("--add_to_valid_set_every", type = int)
 #     parser.add_argument("--shuffle", default = False, action = "store_true")
 #     parser.add_argument("--enable_fast_shuffle", default = False, action = "store_true")

@@ -742,7 +742,9 @@ class IndexingPrePostProcessorBase(MonoProcessor):
 
 @registered_processor
 class BiIndexingPrePostProcessor(BiProcessor):
-    def __init__(self, voc_limit1=None, voc_limit2=None):
+    def __init__(self, voc_limit1=None, voc_limit2=None, voc_fn1 = None, voc_fn2 = None):
+        self.voc_fn1 = voc_fn1
+        self.voc_fn2 = voc_fn2
         self.indexer1 = IndexingPrePostProcessor(voc_limit1)
         self.indexer2 = IndexingPrePostProcessor(voc_limit2)
         self.preprocessor = None
@@ -782,8 +784,16 @@ class BiIndexingPrePostProcessor(BiProcessor):
             iterable1 = ApplyToMultiIterator(iterable_1_2, lambda x: x[0])
             iterable2 = ApplyToMultiIterator(iterable_1_2, lambda x: x[1])
 
-        self.indexer1.initialize_swallow(iterable1)
-        self.indexer2.initialize_swallow(iterable2)
+        if self.voc_fn1 is not None:
+            self.indexer1.initialize_from_voc_fn(self.voc_fn1)
+        else:
+            self.indexer1.initialize_swallow(iterable1)
+            
+        if self.voc_fn2 is not None:
+            self.indexer2.initialize_from_voc_fn(self.voc_fn2)
+        else:
+            self.indexer2.initialize_swallow(iterable2)
+            
         self.is_initialized_ = True
 
     def add_preprocessor(self, processor, can_be_initialized=False):
@@ -874,6 +884,11 @@ class IndexingPrePostProcessor(IndexingPrePostProcessorBase):
                 ("nb_unk", self.unk_cnt),
                 ("unknown_percent", (self.unk_cnt * 100.0) / self.token if self.token != 0 else 0)
             ])
+
+    def initialize_from_voc_fn(self, voc_fn):
+        voc = json.load(open(voc_fn))
+        self.indexer = Indexer.make_from_serializable(voc, from_list=True)
+        self.is_initialized_ = True
 
     def initialize_swallow(self, iterable):
         log.info("building dic")

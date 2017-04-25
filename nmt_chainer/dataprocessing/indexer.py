@@ -116,8 +116,8 @@ class Indexer(object):
         return {"type": "simple_indexer", "rev": 1, "voc_lst": self.lst, "unk_label_dic": self.unk_label_dictionary}
 
     @staticmethod
-    def make_from_serializable(datas):
-        if isinstance(datas, list):
+    def make_from_serializable(datas, from_list = False):
+        if isinstance(datas, list) or from_list:
             # legacy mode
             log.info("loading legacy voc")
             voc_lst = datas

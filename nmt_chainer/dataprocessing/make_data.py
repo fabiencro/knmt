@@ -69,7 +69,9 @@ def do_make_data(config):
     else:
 
         bi_idx = processors.BiIndexingPrePostProcessor(voc_limit1=config.processing.src_voc_size,
-                                                       voc_limit2=config.processing.tgt_voc_size)
+                                                       voc_limit2=config.processing.tgt_voc_size,
+                                                       voc_fn1=config.processing.predefined_voc1,
+                                                       voc_fn2=config.processing.predefined_voc2)
         pp = processors.BiProcessorChain()
 
         if config.processing.latin_tgt:

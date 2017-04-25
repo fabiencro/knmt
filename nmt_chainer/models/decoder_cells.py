@@ -139,6 +139,83 @@ class ConditionalizedDecoderCell(object):
 
         return new_states, logits, attn
 
+# class ConditionalizedDecoderCellCharEnc(ConditionalizedDecoderCell):
+#     def __init__(self, decoder_chain, compute_ctxt, mb_size, noise_on_prev_word=False,
+#                  mode="test", lexicon_probability_matrix=None, lex_epsilon=1e-3, demux=False):
+#         super(ConditionalizedDecoderCellCharEnc, self).__init__(decoder_chain, compute_ctxt, mb_size, 
+#                                                                 noise_on_prev_word=noise_on_prev_word,
+#                  mode=mode, lexicon_probability_matrix=lexicon_probability_matrix, lex_epsilon=lex_epsilon, demux=demux)
+   
+class MLP(ChainList):
+    def __init__(self, layer_sizes, activ = F.relu):
+        super(MLP, self).__init__()
+        self.activ = activ
+        self.nb_layers = len(layer_sizes) - 1
+        for num_layer in range(self.nb_layers):
+            in_size = layer_sizes[num_layer]
+            out_size = layer_sizes[num_layer + 1]
+            self.add_link(L.Linear(in_size, out_size))
+            
+    def __call__(self, x):
+        for num_layer in range(self.nb_layers):
+            x = self[num_layer](x)
+            if num_layer < self.nb_layers -1:
+                x = self.activ(x)
+        return x
+        
+        
+class CharEncEmbedId(Chain):
+    def __init_(self, emb, layer_sizes):
+        emb_size = emb.W.data.shape[1]
+        super(CharEncEmbedId, self).__init_(
+            mlp = MLP( (emb_size,) + layer_sizes))
+        self.emb = emb
+        
+    def __call__(self, x):
+        x_emb = self.emb(x)
+        x_emb.unchain_backward()
+        return self.mlp(x_emb)
+
+#############################################################################
+# Computing Loss      
+
+def softmax_cross_entropy(logits, targets, per_sentence=False):
+    if per_sentence:
+        normalized_logits = F.log_softmax(logits)
+        return F.select_item(normalized_logits, targets)
+    else:
+        return F.softmax_cross_entropy(logits, targets)
+
+def make_MSE_cross_entropy(emb):
+    def MSE_cross_entropy(logits, targets, per_sentence=False):
+        if per_sentence:
+            raise NotImplemented
+        targets_emb = emb(targets)
+        targets_emb.unchain_backward()
+        return F.mean_squared_error(logits, targets_emb)
+
+def loss_updater(logits, targets, loss, total_nb_predictions, per_sentence=False,
+                 loss_computer=softmax_cross_entropy):
+    xp = chainer.cuda.get_array_module(logits.data)
+    if per_sentence:
+        total_local_loss = loss_computer(logits, targets, per_sentence=True) #F.select_item(normalized_logits, targets)
+        if loss is not None and total_local_loss.data.shape[0] != loss.data.shape[0]:
+            assert total_local_loss.data.shape[0] < loss.data.shape[0]
+            total_local_loss = F.concat(
+                (total_local_loss,
+                 Variable(xp.zeros(loss.data.shape[0] - total_local_loss.data.shape[0],
+                                        dtype=xp.float32), volatile="auto")),
+                axis=0)
+    else:
+        local_loss = loss_computer(logits, targets, per_sentence=False)
+        nb_predictions = targets.data.shape[0]
+        total_local_loss = local_loss * nb_predictions
+        total_nb_predictions += nb_predictions
+        
+    loss = total_local_loss if loss is None else loss + total_local_loss
+        
+    return loss, total_nb_predictions
+
 
 def compute_loss_from_decoder_cell(cell, targets, use_previous_prediction=0,
                                    raw_loss_info=False, per_sentence=False, keep_attn=False,
@@ -158,23 +235,7 @@ def compute_loss_from_decoder_cell(cell, targets, use_previous_prediction=0,
         if keep_attn:
             attn_list.append(attn)
 
-        if per_sentence:
-            normalized_logits = F.log_softmax(logits)
-            total_local_loss = F.select_item(normalized_logits, targets[i])
-            if loss is not None and total_local_loss.data.shape[0] != loss.data.shape[0]:
-                assert total_local_loss.data.shape[0] < loss.data.shape[0]
-                total_local_loss = F.concat(
-                    (total_local_loss,
-                     Variable(cell.xp.zeros(loss.data.shape[0] - total_local_loss.data.shape[0],
-                                            dtype=cell.xp.float32), volatile="auto")),
-                    axis=0)
-        else:
-            local_loss = F.softmax_cross_entropy(logits, targets[i])
-            nb_predictions = targets[i].data.shape[0]
-            total_local_loss = local_loss * nb_predictions
-            total_nb_predictions += nb_predictions
-
-        loss = total_local_loss if loss is None else loss + total_local_loss
+        loss, total_nb_predictions = loss_updater(logits, targets[i], loss, total_nb_predictions, per_sentence=per_sentence)
 
         if i >= len(targets) - 1:  # skipping generation of last states as unneccessary
             break
@@ -210,6 +271,8 @@ def compute_loss_from_decoder_cell(cell, targets, use_previous_prediction=0,
         loss = loss / total_nb_predictions
         return loss, attn_list
 
+#############################################################################
+# Sampling 
 
 def sample_from_decoder_cell(cell, nb_steps, best=False, keep_attn_values=False,
                              need_score=False):
@@ -272,17 +335,7 @@ class Decoder(Chain):
     """
 
     def __init__(self, Vo, Eo, Ho, Ha, Hi, Hl, attn_cls=AttentionModule, init_orth=False,
-                 cell_type=rnn_cells.LSTMCell):
-        #         assert cell_type in "gru dgru lstm slow_gru".split()
-        #         self.cell_type = cell_type
-        #         if cell_type == "gru":
-        #             gru = faster_gru.GRU(Ho, Eo + Hi)
-        #         elif cell_type == "dgru":
-        #             gru = DoubleGRU(Ho, Eo + Hi)
-        #         elif cell_type == "lstm":
-        #             gru = L.StatelessLSTM(Eo + Hi, Ho) #, forget_bias_init = 3)
-        #         elif cell_type == "slow_gru":
-        #             gru = L.GRU(Ho, Eo + Hi)
+                 cell_type=rnn_cells.LSTMCell, char_enc_emb = None):
 
         if isinstance(cell_type, (str, unicode)):
             cell_type = rnn_cells.create_cell_model_from_string(cell_type)
@@ -291,8 +344,13 @@ class Decoder(Chain):
 
         log.info("constructing decoder [%r]" % (cell_type,))
 
+        if char_enc_emb is None:
+            emb = L.EmbedID(Vo, Eo)
+        else:
+            emb = CharEncEmbedId(char_enc_emb, (Eo, Eo))
+
         super(Decoder, self).__init__(
-            emb=L.EmbedID(Vo, Eo),
+            emb=emb,
             #             gru = L.GRU(Ho, Eo + Hi),
 
             gru=gru,
