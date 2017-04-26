@@ -40,8 +40,8 @@ subject_pattern = re.compile('([a-zA-Z][a-zA-Z])_([a-zA-Z][a-zA-Z])')
 
 
 def split_text_into_paragraphes(text, src_lang, tgt_lang):
-    if src_lang in ['ja', 'zh'] and '\xe3\x80\x80' in text:
-        paragraphes = text.replace('\n', '').split('\xe3\x80\x80')
+    if src_lang in ['ja', 'zh'] and '\u3000' in text:
+        paragraphes = text.replace('\n', '').split('\u3000')
         paragraphes = filter(lambda p: len(p) > 0, paragraphes)
         return paragraphes
 
