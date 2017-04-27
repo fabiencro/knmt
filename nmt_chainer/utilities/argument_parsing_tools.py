@@ -58,7 +58,7 @@ class OrderedNamespace(OrderedDict):
         ordered_dict.__class__ = cls
         ordered_dict.readonly = False
 
-    def update_recursive(self, other, valid_keys):
+    def update_recursive(self, other, valid_keys, add_absent_keys=False):
         if not isinstance(other, OrderedNamespace):
             raise ValueError()
         if self.readonly:
@@ -70,12 +70,12 @@ class OrderedNamespace(OrderedDict):
                         raise ValueError()
                 else:
                     self[key] = OrderedNamespace()
-                self[key].update_recursive(val, valid_keys)
+                self[key].update_recursive(val, valid_keys, add_absent_keys=add_absent_keys)
             else:
                 if key in self:
                     if (isinstance(self[key], OrderedNamespace)):
                         raise ValueError()
-                if key in valid_keys:
+                if key in valid_keys or (add_absent_keys and key not in self):
                     self[key] = val
 
     def pretty_print(self, indent=4, discard_section=("metadata",)):

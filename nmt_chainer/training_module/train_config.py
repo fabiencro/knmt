@@ -93,6 +93,10 @@ def define_parser(parser):
     training_monitoring_group.add_argument("--description", help="Optional message to be stored in the configuration file")
 
     training_monitoring_group.add_argument("--set_false_in_config", nargs="*", help="Forcing some options to be false")
+    
+    training_monitoring_group.add_argument("--update_old_config_file_with_default_values", 
+                                           default=False, action="store_true", help="When using older config files")
+
 
 class CommandLineValuesException(Exception):
     pass
@@ -199,7 +203,7 @@ def make_config_from_args(args, readonly=True):
                 args_given_set.remove(argname)
 
         print "args_given_set", args_given_set
-        config_base.update_recursive(config_training, valid_keys=args_given_set)
+        config_base.update_recursive(config_training, valid_keys=args_given_set, add_absent_keys=args.update_old_config_file_with_default_values)
         config_training = config_base
     else:
         assert "data" not in config_training
