@@ -490,7 +490,7 @@ class EncoderDecoder(Chain):
     def __init__(self, Vi, Ei, Hi, Vo, Eo, Ho, Ha, Hl, attn_cls=attention.AttentionModule, init_orth=False, use_bn_length=0,
                  encoder_cell_type=rnn_cells.LSTMCell,
                  decoder_cell_type=rnn_cells.LSTMCell,
-                 lexical_probability_dictionary=None, lex_epsilon=1e-3
+                 lexical_probability_dictionary=None, lex_epsilon=1e-3, char_emb_tgt=None
                  ):
         log.info("constructing encoder decoder with Vi:%i Ei:%i Hi:%i Vo:%i Eo:%i Ho:%i Ha:%i Hl:%i" %
                  (Vi, Ei, Hi, Vo, Eo, Ho, Ha, Hl))
@@ -498,7 +498,7 @@ class EncoderDecoder(Chain):
             enc=encoders.make_encoder(Vi, Ei, Hi, init_orth=init_orth, use_bn_length=use_bn_length,
                                       cell_type=encoder_cell_type),
             dec=decoder_cells.Decoder(Vo, Eo, Ho, Ha, 2 * Hi, Hl, attn_cls=attn_cls, init_orth=init_orth,
-                                      cell_type=decoder_cell_type)
+                                      cell_type=decoder_cell_type, char_enc_emb=char_emb_tgt)
         )
         self.Vo = Vo
         self.lexical_probability_dictionary = lexical_probability_dictionary

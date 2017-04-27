@@ -8,6 +8,7 @@ __status__ = "Development"
 
 import chainer
 from chainer import cuda, optimizers, serializers
+import numpy as np
 
 from training import train_on_data
 from nmt_chainer.dataprocessing.indexer import Indexer
@@ -107,6 +108,13 @@ def create_encdec_from_config_dict(config_dict, src_indexer, tgt_indexer):
         lexical_probability_dictionary = None
     lex_epsilon = config_dict.get("lexicon_prob_epsilon", 0.001)
 
+
+    char_encodings_tgt = None
+    if "char_encoding_tgt" in config_dict and config_dict["char_encoding_tgt"] is not None:
+        char_encodings_tgt = np.load(config_dict["char_encoding_tgt"])["enc"]
+        v_size, enc_size = char_encodings_tgt.shape
+        log.info("loaded char embeddings %i x %i from %s", v_size, enc_size, config_dict["char_encoding_tgt"])   
+             
     # Creating encoder/decoder
     encdec = nmt_chainer.models.encoder_decoder.EncoderDecoder(Vi, Ei, Hi, Vo + 1, Eo, Ho, Ha, Hl, use_bn_length=use_bn_length,
                                                                attn_cls=attn_cls,
@@ -114,7 +122,8 @@ def create_encdec_from_config_dict(config_dict, src_indexer, tgt_indexer):
                                                                encoder_cell_type=rnn_cells.create_cell_model_from_config(encoder_cell_type),
                                                                decoder_cell_type=rnn_cells.create_cell_model_from_config(decoder_cell_type),
                                                                lexical_probability_dictionary=lexical_probability_dictionary,
-                                                               lex_epsilon=lex_epsilon)
+                                                               lex_epsilon=lex_epsilon,
+                                                               char_emb_tgt=char_encodings_tgt)
 
     return encdec
 

@@ -37,6 +37,9 @@ def define_parser(parser):
     model_description_group.add_argument("--use_accumulated_attn", default=False, action="store_true")
     model_description_group.add_argument("--init_orth", default=False, action="store_true")
     model_description_group.add_argument("--use_bn_length", default=0, type=int)
+    model_description_group.add_argument("--char_encoding_tgt")
+    model_description_group.add_argument("--charenc_config")
+    model_description_group.add_argument("--charenc_model")
 
     training_paramenters_group = parser.add_argument_group(_CONFIG_SECTION_TO_DESCRIPTION["training"])
     training_paramenters_group.add_argument("--mb_size", type=int, default=64, help="Minibatch size")
@@ -92,6 +95,7 @@ def define_parser(parser):
     training_monitoring_group.add_argument("--description", help="Optional message to be stored in the configuration file")
 
     training_monitoring_group.add_argument("--set_false_in_config", nargs="*", help="Forcing some options to be false")
+    training_monitoring_group.add_argument("--no_bleu_computation", default=False, action="store_true")
 
 class CommandLineValuesException(Exception):
     pass

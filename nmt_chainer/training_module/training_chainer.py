@@ -496,6 +496,20 @@ def train_on_data_chainer(encdec, optimizer, training_data, output_files_dict,
     use_gumbel_for_soft_predictions = config_training.training.use_gumbel_for_soft_predictions
     temperature_for_soft_predictions = config_training.training.temperature_for_soft_predictions
 
+    if config_training.model.charenc_config is not None:
+        import nmt_chainer.models.char_encdec
+        tgt_charenc, charlist, chardict = nmt_chainer.models.char_encdec.load_encdec_from_config(
+            config_training.model.charenc_config, config_training.model.charenc_model)
+        
+        if gpu is not None:
+            tgt_charenc = tgt_charenc.to_gpu(gpu)
+        
+        def tgt_charenc_decoder(x):
+            hx = x.reshape(1,1,-1)
+            decoded = tgt_charenc.dec.decode(hx, length = 40, train = False)
+            return "".join([charlist[int(idx)] for idx in decoded[0]])
+    else:
+        tgt_charenc_decoder = None
 
     @chainer.training.make_extension()
     def sample_extension(trainer):
@@ -512,8 +526,9 @@ def train_on_data_chainer(encdec, optimizer, training_data, output_files_dict,
             return "T_UNK_%i" % utag
 
         sample_once(encdec, src_batch, tgt_batch, src_mask, src_indexer, tgt_indexer, eos_idx,
-                    max_nb=20,
-                    s_unk_tag=s_unk_tag, t_unk_tag=t_unk_tag)
+                    max_nb=7,
+                    s_unk_tag=s_unk_tag, t_unk_tag=t_unk_tag,
+                    tgt_charenc_decoder=tgt_charenc_decoder)
 
     iterator_training_data = LengthBasedSerialIterator(training_data, mb_size,
                                                        nb_of_batch_to_sort=nb_of_batch_to_sort,
@@ -565,14 +580,15 @@ def train_on_data_chainer(encdec, optimizer, training_data, output_files_dict,
                                                   observation_name="dev_loss", config_training=config_training)
         trainer.extend(dev_loss_extension, trigger=(report_every, "iteration"))
 
-        dev_bleu_extension = ComputeBleuExtension(dev_data, eos_idx, src_indexer, tgt_indexer,
-                                                  output_files_dict["dev_translation_output"],
-                                                  output_files_dict["dev_src_output"],
-                                                  mb_size, gpu, reverse_src, reverse_tgt,
-                                                  save_best_model_to=output_files_dict["model_best"],
-                                                  observation_name="dev_bleu", config_training=config_training)
-
-        trainer.extend(dev_bleu_extension, trigger=(report_every, "iteration"))
+        if not config_training.training_management.no_bleu_computation:
+            dev_bleu_extension = ComputeBleuExtension(dev_data, eos_idx, src_indexer, tgt_indexer,
+                                                      output_files_dict["dev_translation_output"],
+                                                      output_files_dict["dev_src_output"],
+                                                      mb_size, gpu, reverse_src, reverse_tgt,
+                                                      save_best_model_to=output_files_dict["model_best"],
+                                                      observation_name="dev_bleu", config_training=config_training)
+    
+            trainer.extend(dev_bleu_extension, trigger=(report_every, "iteration"))
 
     if test_data is not None and not no_report_or_save:
         test_loss_extension = ComputeLossExtension(test_data, eos_idx,
@@ -580,13 +596,14 @@ def train_on_data_chainer(encdec, optimizer, training_data, output_files_dict,
                                                    observation_name="test_loss")
         trainer.extend(test_loss_extension, trigger=(report_every, "iteration"))
 
-        test_bleu_extension = ComputeBleuExtension(test_data, eos_idx, src_indexer, tgt_indexer,
-                                                   output_files_dict["test_translation_output"],
-                                                   output_files_dict["test_src_output"],
-                                                   mb_size, gpu, reverse_src, reverse_tgt,
-                                                   observation_name="test_bleu")
-
-        trainer.extend(test_bleu_extension, trigger=(report_every, "iteration"))
+        if not config_training.training_management.no_bleu_computation:
+            test_bleu_extension = ComputeBleuExtension(test_data, eos_idx, src_indexer, tgt_indexer,
+                                                       output_files_dict["test_translation_output"],
+                                                       output_files_dict["test_src_output"],
+                                                       mb_size, gpu, reverse_src, reverse_tgt,
+                                                       observation_name="test_bleu")
+    
+            trainer.extend(test_bleu_extension, trigger=(report_every, "iteration"))
 
     if not no_report_or_save:
         trainer.extend(sample_extension, trigger=(sample_every, "iteration"))
@@ -621,7 +638,7 @@ def train_on_data_chainer(encdec, optimizer, training_data, output_files_dict,
 
         trainer.run()
     except BaseException:
-        if not no_report_or_save:
+        if not no_report_or_save and not do_not_save_data_for_resuming:
             final_snapshot_fn = output_files_dict["model_final"]
             log.info("Exception met. Trying to save current trainer state to file %s" % final_snapshot_fn)
             serializers.save_npz(final_snapshot_fn, trainer)

@@ -3,7 +3,7 @@ from nmt_chainer.utilities import graph_training
 from nmt_chainer.utilities import replace_tgt_unk
 from nmt_chainer.utilities import expe_recap
 from nmt_chainer.utilities import bleu_computer
-
+from nmt_chainer.models import char_encdec
 
 def define_parser(parser):
     subparsers = parser.add_subparsers(dest="__sub_subcommand_name")
@@ -24,11 +24,15 @@ def define_parser(parser):
                                         help="Compute BLEU score.", formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     bleu_computer.define_parser(bleu_parser)
 
+    charenc_parser = subparsers.add_parser('charenc', description="Compute CharEnc.",
+                                        help="Compute CharEnc.", formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+    char_encdec.define_parser(charenc_parser)
 
 def do_utils(args):
     func = {"graph": graph_training.do_graph,
             "replace_tgt_unk": replace_tgt_unk.do_replace,
             "recap": expe_recap.do_recap,
-            "bleu": bleu_computer.do_bleu
+            "bleu": bleu_computer.do_bleu,
+            "charenc": char_encdec.do_command
             }[args.__sub_subcommand_name]
     func(args)

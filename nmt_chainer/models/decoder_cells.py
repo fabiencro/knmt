@@ -129,9 +129,12 @@ class ConditionalizedDecoderCell(object):
 
         return new_states, logits, attn
 
-    def __call__(self, prev_states, inpt, is_soft_inpt=False):
+    def __call__(self, prev_states, inpt, is_soft_inpt=False, from_emb=False):
         if is_soft_inpt:
+            assert not from_emb
             prev_y = F.matmul(inpt, self.decoder_chain.emb.W)
+        elif from_emb:
+            prev_y = self.decoder_chain.emb.from_emb(inpt)
         else:
             prev_y = self.decoder_chain.emb(inpt)
 
@@ -165,15 +168,23 @@ class MLP(ChainList):
         
         
 class CharEncEmbedId(Chain):
-    def __init_(self, emb, layer_sizes):
+    def __init__(self, emb, layer_sizes):
         emb_size = emb.W.data.shape[1]
-        super(CharEncEmbedId, self).__init_(
-            mlp = MLP( (emb_size,) + layer_sizes))
+        super(CharEncEmbedId, self).__init__(
+            mlp = MLP( (emb_size,) + layer_sizes)
+            )
         self.emb = emb
+        
+    def to_gpu(self, dev=None):
+        super(CharEncEmbedId, self).to_gpu(dev)
+        self.emb = self.emb.to_gpu(dev)
         
     def __call__(self, x):
         x_emb = self.emb(x)
         x_emb.unchain_backward()
+        return self.mlp(x_emb)
+    
+    def from_emb(self, x_emb):
         return self.mlp(x_emb)
 
 #############################################################################
@@ -193,6 +204,7 @@ def make_MSE_cross_entropy(emb):
         targets_emb = emb(targets)
         targets_emb.unchain_backward()
         return F.mean_squared_error(logits, targets_emb)
+    return MSE_cross_entropy
 
 def loss_updater(logits, targets, loss, total_nb_predictions, per_sentence=False,
                  loss_computer=softmax_cross_entropy):
@@ -221,7 +233,8 @@ def compute_loss_from_decoder_cell(cell, targets, use_previous_prediction=0,
                                    raw_loss_info=False, per_sentence=False, keep_attn=False,
                                    use_soft_prediction_feedback=False, 
                                    use_gumbel_for_soft_predictions=False,
-                                   temperature_for_soft_predictions=1.0):
+                                   temperature_for_soft_predictions=1.0,
+                                   loss_computer=softmax_cross_entropy):
     loss = None
     attn_list = []
 
@@ -235,7 +248,8 @@ def compute_loss_from_decoder_cell(cell, targets, use_previous_prediction=0,
         if keep_attn:
             attn_list.append(attn)
 
-        loss, total_nb_predictions = loss_updater(logits, targets[i], loss, total_nb_predictions, per_sentence=per_sentence)
+        loss, total_nb_predictions = loss_updater(logits, targets[i], loss, total_nb_predictions, per_sentence=per_sentence,
+                                                  loss_computer=loss_computer)
 
         if i >= len(targets) - 1:  # skipping generation of last states as unneccessary
             break
@@ -314,6 +328,23 @@ def sample_from_decoder_cell(cell, nb_steps, best=False, keep_attn_values=False,
 
     return sequences, score, attn_list
 
+def sample_from_decoder_cell_charenc(cell, nb_steps, keep_attn_values=False):
+
+    states, logits, attn = cell.get_initial_logits()
+
+    sequences = []
+    attn_list = []
+
+    for _ in xrange(nb_steps):
+        if keep_attn_values:
+            attn_list.append(attn)
+
+        sequences.append(logits)
+
+        states, logits, attn = cell(states, logits, from_emb=True)
+
+    return sequences, attn_list
+
 
 class Decoder(Chain):
     """ Decoder for RNNSearch.
@@ -346,8 +377,17 @@ class Decoder(Chain):
 
         if char_enc_emb is None:
             emb = L.EmbedID(Vo, Eo)
+            self.char_enc_emb = None
         else:
-            emb = CharEncEmbedId(char_enc_emb, (Eo, Eo))
+            v_size_char_enc, enc_size_char_enc = char_enc_emb.shape
+            char_emb_tgt = L.EmbedID(v_size_char_enc + 2, enc_size_char_enc)
+            assert char_emb_tgt.W.data.shape == (v_size_char_enc + 2, enc_size_char_enc)
+            char_emb_tgt.W.data[:-2] = char_enc_emb
+            log.info("using last two voc for unk and eos")
+            char_emb_tgt.W.data[-2:] = char_enc_emb[-2:] 
+            emb = CharEncEmbedId(char_emb_tgt, (Eo, Eo))
+            self.char_enc_emb = char_emb_tgt
+            Vo = enc_size_char_enc
 
         super(Decoder, self).__init__(
             emb=emb,
@@ -381,7 +421,7 @@ class Decoder(Chain):
         assert Hi == self.Hi, "%i != %i" % (Hi, self.Hi)
 
         compute_ctxt = self.attn_module(fb_concat, src_mask)
-
+#         print "cell mb_size",  mb_size
         if not demux:
             return ConditionalizedDecoderCell(self, compute_ctxt, mb_size, noise_on_prev_word=noise_on_prev_word,
                                               mode=mode, lexicon_probability_matrix=lexicon_probability_matrix, lex_epsilon=lex_epsilon)
@@ -402,6 +442,12 @@ class Decoder(Chain):
                      ):
         decoding_cell = self.give_conditionalized_cell(fb_concat, src_mask, noise_on_prev_word=noise_on_prev_word,
                                                        mode=mode, lexicon_probability_matrix=lexicon_probability_matrix, lex_epsilon=lex_epsilon)
+        
+        if self.char_enc_emb is not None:
+            loss_computer = make_MSE_cross_entropy(self.char_enc_emb)
+        else:
+            loss_computer = softmax_cross_entropy
+        
         loss, attn_list = compute_loss_from_decoder_cell(decoding_cell, targets,
                                                          use_previous_prediction=use_previous_prediction,
                                                          raw_loss_info=raw_loss_info,
@@ -409,7 +455,8 @@ class Decoder(Chain):
                                                          keep_attn=keep_attn_values,
                                                         use_soft_prediction_feedback=use_soft_prediction_feedback, 
                                                         use_gumbel_for_soft_predictions=use_gumbel_for_soft_predictions,
-                                                        temperature_for_soft_predictions=temperature_for_soft_predictions)
+                                                        temperature_for_soft_predictions=temperature_for_soft_predictions,
+                                                        loss_computer=loss_computer)
         return loss, attn_list
 
     def sample(self, fb_concat, src_mask, nb_steps, mb_size, lexicon_probability_matrix=None,
@@ -417,8 +464,14 @@ class Decoder(Chain):
         decoding_cell = self.give_conditionalized_cell(fb_concat, src_mask, noise_on_prev_word=False,
                                                        mode="test", lexicon_probability_matrix=lexicon_probability_matrix,
                                                        lex_epsilon=lex_epsilon)
-        sequences, score, attn_list = sample_from_decoder_cell(decoding_cell, nb_steps, best=best,
+        
+        if self.char_enc_emb is not None:
+            sequences, attn_list = sample_from_decoder_cell_charenc(decoding_cell, nb_steps, keep_attn_values=keep_attn_values)
+            score = None
+        else:
+            sequences, score, attn_list = sample_from_decoder_cell(decoding_cell, nb_steps, best=best,
                                                                keep_attn_values=keep_attn_values,
                                                                need_score=need_score)
 
         return sequences, score, attn_list
+

@@ -302,7 +302,7 @@ def batch_align(encdec, eos_idx, src_tgt_data, batch_size=80, gpu=None):
 
 
 def sample_once(encdec, src_batch, tgt_batch, src_mask, src_indexer, tgt_indexer, eos_idx, max_nb=None,
-                s_unk_tag="#S_UNK#", t_unk_tag="#T_UNK#"):
+                s_unk_tag="#S_UNK#", t_unk_tag="#T_UNK#", tgt_charenc_decoder = None):
     print "sample"
     sample_greedy, score, attn_list = encdec(src_batch, 50, src_mask, use_best_for_sample=True, need_score=True,
                                              mode="test")
@@ -310,15 +310,23 @@ def sample_once(encdec, src_batch, tgt_batch, src_mask, src_indexer, tgt_indexer
 
 #                 sample, score = encdec(src_batch, 50, src_mask, use_best_for_sample = False)
     assert len(src_batch[0].data) == len(tgt_batch[0].data)
-    assert len(sample_greedy[0]) == len(src_batch[0].data)
+    assert sample_greedy[0].shape[0] == len(src_batch[0].data)
 
     debatched_src = de_batch(src_batch, mask=src_mask, eos_idx=None, is_variable=True)
     debatched_tgt = de_batch(tgt_batch, eos_idx=eos_idx, is_variable=True)
-    debatched_sample = de_batch(sample_greedy, eos_idx=eos_idx)
+    
+    if tgt_charenc_decoder is not None:
+        debatched_sample = de_batch(sample_greedy, raw=True)
+    else:
+        debatched_sample = de_batch(sample_greedy, eos_idx=eos_idx)
 
     sample_random, score_random, attn_list_random = encdec(src_batch, 50, src_mask, use_best_for_sample=False, need_score=True,
                                                            mode="test")
-    debatched_sample_random = de_batch(sample_random, eos_idx=eos_idx)
+    
+    if tgt_charenc_decoder is not None:
+        debatched_sample_random = de_batch(sample_random, raw=True)
+    else:
+        debatched_sample_random = de_batch(sample_random, eos_idx=eos_idx)
 
     for sent_num in xrange(len(debatched_src)):
         if max_nb is not None and sent_num > max_nb:
@@ -335,6 +343,10 @@ def sample_once(encdec, src_batch, tgt_batch, src_mask, src_indexer, tgt_indexer
                                                              [s_unk_tag, t_unk_tag, t_unk_tag, t_unk_tag],
                                                              [src_indexer, tgt_indexer, tgt_indexer, tgt_indexer],
                                                              [None, eos_idx, eos_idx, eos_idx]):
-            print name, "idx:", seq
-            print name, "raw:", " ".join(indexer.deconvert_swallow(seq, unk_tag=unk_tag, eos_idx=this_eos_idx)).encode('utf-8')
-            print name, "postp:", indexer.deconvert(seq, unk_tag=unk_tag, eos_idx=this_eos_idx).encode('utf-8')
+            
+            if tgt_charenc_decoder is not None and name in "sample sample_random".split(" "):
+                print name, " ".join([tgt_charenc_decoder(encoded) for encoded in seq]).encode("utf8")
+            else:
+                print name, "idx:", seq
+                print name, "raw:", " ".join(indexer.deconvert_swallow(seq, unk_tag=unk_tag, eos_idx=this_eos_idx)).encode('utf-8')
+                print name, "postp:", indexer.deconvert(seq, unk_tag=unk_tag, eos_idx=this_eos_idx).encode('utf-8')
