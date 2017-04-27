@@ -114,7 +114,7 @@ def create_encdec_from_config_dict(config_dict, src_indexer, tgt_indexer):
         v_size, enc_size = char_encodings_tgt.shape
         log.info("loaded char embeddings %i x %i from %s", v_size, enc_size, config_dict["char_encoding_tgt"])   
              
-    use_goto_attention = config_dict.get("config_dict", False)
+    use_goto_attention = config_dict.get("use_goto_attention", False)
 
     # Creating encoder/decoder
     encdec = nmt_chainer.models.encoder_decoder.EncoderDecoder(Vi, Ei, Hi, Vo + 1, Eo, Ho, Ha, Hl, use_bn_length=use_bn_length,
