@@ -40,10 +40,6 @@ msgstr ""
 "\n"
 "-- このメッセージの内容はKNMT {4}によって生成されています。 --"
 
-#: nmt_chainer/translation/mail_handler.py:282
-msgid "It will be processed shortly."
-msgstr "まもなく処理されます。"
-
 #: nmt_chainer/translation/mail_handler.py:284
 #, python-brace-format
 msgid "Requests before you: {0}"
