@@ -29,7 +29,7 @@ class AttentionModule(Chain):
         Return a chainer variable of shape (mb_size, Hi) and type float32
     """
 
-    def __init__(self, Hi, Ha, Ho, init_orth=False):
+    def __init__(self, Hi, Ha, Ho, init_orth=False, prev_word_embedding_size = None):
         super(AttentionModule, self).__init__(
             al_lin_h=L.Linear(Hi, Ha, nobias=False),
             al_lin_s=L.Linear(Ho, Ha, nobias=True),
@@ -37,6 +37,9 @@ class AttentionModule(Chain):
         )
         self.Hi = Hi
         self.Ha = Ha
+
+        if prev_word_embedding_size is not None:
+            self.add_link("al_lin_y", L.Linear(prev_word_embedding_size, Ha))
 
         if init_orth:
             ortho_init(self.al_lin_h)
@@ -70,7 +73,7 @@ class AttentionModule(Chain):
                     concatenated_penalties = -10000 * (1 - self.xp.concatenate([
                         self.xp.reshape(mask_elem, (mb_size, 1)).astype(self.xp.float32) for mask_elem in mask], 1))
 
-        def compute_ctxt(previous_state):
+        def compute_ctxt(previous_state, prev_word_embedding=None):
             current_mb_size = previous_state.data.shape[0]
             if current_mb_size < mb_size:
                 al_factor, _ = F.split_axis(
@@ -86,6 +89,11 @@ class AttentionModule(Chain):
                     used_concatenated_penalties = concatenated_penalties
 
             state_al_factor = self.al_lin_s(previous_state)
+            
+            #As suggested by Isao Goto
+            if prev_word_embedding is not None:
+                state_al_factor = state_al_factor + self.al_lin_y(prev_word_embedding)
+                
             state_al_factor_bc = F.broadcast_to(F.reshape(state_al_factor, (current_mb_size, 1, self.Ha)), (current_mb_size, nb_elems, self.Ha))
             a_coeffs = F.reshape(self.al_lin_o(F.reshape(F.tanh(state_al_factor_bc + al_factor),
                                                          (current_mb_size * nb_elems, self.Ha))), (current_mb_size, nb_elems))
@@ -150,7 +158,9 @@ class DeepAttentionModule(Chain):
         Return a chainer variable of shape (mb_size, Hi) and type float32
     """
 
-    def __init__(self, Hi, Ha, Ho, init_orth=False):
+    def __init__(self, Hi, Ha, Ho, init_orth=False, prev_word_embedding_size = None):
+        if prev_word_embedding_size is not None:
+            raise NotImplemented
         log.info("using deep attention")
         super(DeepAttentionModule, self).__init__(
             attn1=AttentionModule(Hi, Ha, Ho, init_orth=init_orth),
