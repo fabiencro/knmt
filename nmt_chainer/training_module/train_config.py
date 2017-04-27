@@ -37,6 +37,7 @@ def define_parser(parser):
     model_description_group.add_argument("--use_accumulated_attn", default=False, action="store_true")
     model_description_group.add_argument("--init_orth", default=False, action="store_true")
     model_description_group.add_argument("--use_bn_length", default=0, type=int)
+    model_description_group.add_argument("--use_goto_attention", default=False, action="store_true")
 
     training_paramenters_group = parser.add_argument_group(_CONFIG_SECTION_TO_DESCRIPTION["training"])
     training_paramenters_group.add_argument("--mb_size", type=int, default=64, help="Minibatch size")
