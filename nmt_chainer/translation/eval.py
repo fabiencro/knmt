@@ -125,7 +125,8 @@ def beam_search_all(gpu, encdec, eos_idx, src_data, beam_width, beam_pruning_mar
                     dic=None,
                     remove_unk=False,
                     normalize_unicode_unk=False,
-                    attempt_to_relocate_unk_source=False):
+                    attempt_to_relocate_unk_source=False,
+                    nbest=1):
 
     log.info("starting beam search translation of %i sentences" % len(src_data))
     if isinstance(encdec, (list, tuple)) and len(encdec) > 1:
@@ -148,46 +149,49 @@ def beam_search_all(gpu, encdec, eos_idx, src_data, beam_width, beam_pruning_mar
             groundhog=groundhog, force_finish=force_finish,
             prob_space_combination=prob_space_combination,
             reverse_encdec=reverse_encdec,
-            use_unfinished_translation_if_none_found=use_unfinished_translation_if_none_found)
+            use_unfinished_translation_if_none_found=use_unfinished_translation_if_none_found,
+            nbest=nbest)
 
-        for num_t, (t, score, attn) in enumerate(translations_gen):
-            if num_t % 200 == 0:
-                print >>sys.stderr, num_t,
-            elif num_t % 40 == 0:
-                print >>sys.stderr, "*",
+        for num_t, best_translations in enumerate(translations_gen):
+            for trans in best_translations:
+                (t, score, attn) = trans
+                if num_t % 200 == 0:
+                    print >>sys.stderr, num_t,
+                elif num_t % 40 == 0:
+                    print >>sys.stderr, "*",
 #                 t, score = bests[1]
 #                 ct = convert_idx_to_string(t, tgt_voc + ["#T_UNK#"])
 #                 ct = convert_idx_to_string_with_attn(t, tgt_voc, attn, unk_idx = len(tgt_voc))
-            if tgt_unk_id == "align":
-                def unk_replacer(num_pos, unk_id):
-                    unk_pattern = "#T_UNK_%i#"
-                    a = attn[num_pos]
-                    xp = cuda.get_array_module(a)
-                    src_pos = int(xp.argmax(a))
-                    return unk_pattern % src_pos
-            elif tgt_unk_id == "id":
-                def unk_replacer(num_pos, unk_id):
-                    unk_pattern = "#T_UNK_%i#"
-                    return unk_pattern % unk_id
-            else:
-                assert False
+                if tgt_unk_id == "align":
+                    def unk_replacer(num_pos, unk_id):
+                        unk_pattern = "#T_UNK_%i#"
+                        a = attn[num_pos]
+                        xp = cuda.get_array_module(a)
+                        src_pos = int(xp.argmax(a))
+                        return unk_pattern % src_pos
+                elif tgt_unk_id == "id":
+                    def unk_replacer(num_pos, unk_id):
+                        unk_pattern = "#T_UNK_%i#"
+                        return unk_pattern % unk_id
+                else:
+                    assert False
 
-            translated = tgt_indexer.deconvert_swallow(t, unk_tag=unk_replacer)
+                translated = tgt_indexer.deconvert_swallow(t, unk_tag=unk_replacer)
 
-            unk_mapping = []
-            ct = " ".join(translated)
-            if ct != '':
-                unk_pattern = re.compile("#T_UNK_(\d+)#")
-                for idx, word in enumerate(ct.split(' ')):
-                    match = unk_pattern.match(word)
-                    if (match):
-                        unk_mapping.append(match.group(1) + '-' + str(idx))
+                unk_mapping = []
+                ct = " ".join(translated)
+                if ct != '':
+                    unk_pattern = re.compile("#T_UNK_(\d+)#")
+                    for idx, word in enumerate(ct.split(' ')):
+                        match = unk_pattern.match(word)
+                        if (match):
+                            unk_mapping.append(match.group(1) + '-' + str(idx))
 
-                if replace_unk:
-                    from nmt_chainer.utilities import replace_tgt_unk
-                    translated = replace_tgt_unk.replace_unk_from_string(ct, src, dic, remove_unk, normalize_unicode_unk, attempt_to_relocate_unk_source).strip().split(" ")
+                    if replace_unk:
+                        from nmt_chainer.utilities import replace_tgt_unk
+                        translated = replace_tgt_unk.replace_unk_from_string(ct, src, dic, remove_unk, normalize_unicode_unk, attempt_to_relocate_unk_source).strip().split(" ")
 
-            yield src_data[num_t], translated, t, score, attn, unk_mapping
+                yield src_data[num_t], translated, t, score, attn, unk_mapping
         print >>sys.stderr
 
 
@@ -205,7 +209,8 @@ def translate_to_file_with_beam_search(dest_fn, gpu, encdec, eos_idx, src_data, 
                                        remove_unk=False,
                                        normalize_unicode_unk=False,
                                        attempt_to_relocate_unk_source=False,
-                                       unprocessed_output_filename=None):
+                                       unprocessed_output_filename=None,
+                                       nbest=1):
 
     log.info("writing translation to %s " % dest_fn)
     out = codecs.open(dest_fn, "w", encoding="utf8")
@@ -222,7 +227,8 @@ def translate_to_file_with_beam_search(dest_fn, gpu, encdec, eos_idx, src_data, 
                                            dic=dic,
                                            remove_unk=remove_unk,
                                            normalize_unicode_unk=normalize_unicode_unk,
-                                           attempt_to_relocate_unk_source=attempt_to_relocate_unk_source)
+                                           attempt_to_relocate_unk_source=attempt_to_relocate_unk_source,
+                                           nbest=nbest)
 
     attn_vis = None
     if generate_attention_html is not None:
@@ -380,6 +386,7 @@ def do_eval(config_eval):
     nb_steps_ratio = config_eval.method.nb_steps_ratio
     max_nb_ex = config_eval.process.max_nb_ex
     nbest_to_rescore = config_eval.output.nbest_to_rescore
+    nbest = config_eval.output.nbest
 
     beam_width = config_eval.method.beam_width
     beam_pruning_margin = config_eval.method.beam_pruning_margin
@@ -518,7 +525,8 @@ def do_eval(config_eval):
                                                src_indexer=src_indexer,
                                                rich_output_filename=rich_output_filename,
                                                use_unfinished_translation_if_none_found=True,
-                                               unprocessed_output_filename=dest_fn + ".unprocessed")
+                                               unprocessed_output_filename=dest_fn + ".unprocessed",
+                                               nbest=nbest)
 
             translation_infos["dest"] = dest_fn
             translation_infos["unprocessed"] = dest_fn + ".unprocessed"

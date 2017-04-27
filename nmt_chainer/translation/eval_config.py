@@ -41,6 +41,7 @@ def define_parser(parser):
     output_group = parser.add_argument_group(_CONFIG_SECTION_TO_DESCRIPTION["output"])
     output_group.add_argument("--tgt_fn", help="target text")
     output_group.add_argument("--nbest_to_rescore", help="nbest list in moses format")
+    output_group.add_argument("--nbest", help="list of nbest translations instead of best translation", type=int, default=1)
     output_group.add_argument("--ref", help="target text")
     output_group.add_argument("--tgt_unk_id", choices=["align", "id"], default="align")
     output_group.add_argument("--generate_attention_html", help="generate a html file with attention information")
