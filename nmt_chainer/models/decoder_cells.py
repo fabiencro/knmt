@@ -152,6 +152,17 @@ class ConditionalizedDecoderCell(object):
 #                                                                 noise_on_prev_word=noise_on_prev_word,
 #                  mode=mode, lexicon_probability_matrix=lexicon_probability_matrix, lex_epsilon=lex_epsilon, demux=demux)
    
+class ChainLinks(ChainList):
+    def __init__(self, *links):
+        super(ChainLinks, self).__init__(*links)
+       
+    def __call__(self, x):
+        for link in self.children():
+            x = link(x)
+        return x
+       
+       
+       
 class MLP(ChainList):
     def __init__(self, layer_sizes, activ = F.relu):
         super(MLP, self).__init__()
@@ -369,7 +380,8 @@ class Decoder(Chain):
     """
 
     def __init__(self, Vo, Eo, Ho, Ha, Hi, Hl, attn_cls=AttentionModule, init_orth=False,
-                 cell_type=rnn_cells.LSTMCell, use_goto_attention=False, char_enc_emb = None):
+                 cell_type=rnn_cells.LSTMCell, use_goto_attention=False, char_enc_emb = None,
+                 mlp_logits=None):
 
         if isinstance(cell_type, (str, unicode)):
             cell_type = rnn_cells.create_cell_model_from_string(cell_type)
@@ -395,18 +407,26 @@ class Decoder(Chain):
         if use_goto_attention:
             log.info("using 'Goto' attention")
             
+            
+        if mlp_logits is not None:
+            log.info("using 'mlp_logits %r", ((Eo + Hi + Ho,) + mlp_logits,))
+            maxo = ChainLinks(MLP((Eo + Hi + Ho,) + mlp_logits), L.Maxout(mlp_logits[-1], Hl, 2))
+        else:
+            maxo=L.Maxout(Eo + Hi + Ho, Hl, 2)
+            
         super(Decoder, self).__init__(
             emb=emb,
             #             gru = L.GRU(Ho, Eo + Hi),
 
             gru=gru,
 
-            maxo=L.Maxout(Eo + Hi + Ho, Hl, 2),
+            maxo=maxo,
             lin_o=L.Linear(Hl, Vo, nobias=False),
 
             attn_module=attn_cls(Hi, Ha, Ho, init_orth=init_orth, 
                                  prev_word_embedding_size = Eo if use_goto_attention else None)
         )
+        
 #         self.add_param("initial_state", (1, Ho))
         self.add_param("bos_embeding", (1, Eo))
 
