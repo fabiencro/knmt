@@ -107,7 +107,7 @@ def create_encdec_from_config_dict(config_dict, src_indexer, tgt_indexer):
         lexical_probability_dictionary = None
     lex_epsilon = config_dict.get("lexicon_prob_epsilon", 0.001)
 
-    use_goto_attention = config_dict.get("config_dict", False)
+    use_goto_attention = config_dict.get("use_goto_attention", False)
 
     # Creating encoder/decoder
     encdec = nmt_chainer.models.encoder_decoder.EncoderDecoder(Vi, Ei, Hi, Vo + 1, Eo, Ho, Ha, Hl, use_bn_length=use_bn_length,
