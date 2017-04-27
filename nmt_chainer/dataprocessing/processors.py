@@ -12,6 +12,7 @@ import codecs
 import itertools
 import re
 import copy
+from __builtin__ import int
 
 logging.basicConfig()
 log = logging.getLogger("rnns:processors")
@@ -186,6 +187,66 @@ class BiProcessor(PreProcessor):
     def apply_to_iterable(self, iterable1, iterable2):
         return ApplyToMultiIteratorPair(iterable1, iterable2, lambda elem1, elem2: self.convert(elem1, elem2))
 
+@registered_processor
+class DicReplaceProcessor(BiProcessor):
+    def __init__(self, dic_fn):
+        self.dic_fn = dic_fn
+        self.dic = json.load(open(dic_fn))
+        assert all(isinstance(key, (str, unicode)) for key in self.dic)
+        
+    def is_translatable_from(self, w_tgt, w_src):
+        return w_src in self.dic and w_tgt == self.dic[w_src]
+        
+    def find_translation(self, w_src):
+        if w_src in self.dic:
+            return self.dic[w_src]
+        else:
+            log.warning("%s not found in dictionnary, using as is", w_src)
+            return w_src
+        
+    def convert(self, sentence1, sentence2):
+        converted_sentence2 = []
+        matched_src_pos = set()
+        for w in sentence2:
+            assert not isinstance(w, int)
+            matchable_src_pos = []
+            for pos1, w1 in enumerate(sentence1):
+                if self.is_translatable(w, w1):
+                    matchable_src_pos.append(pos1)
+            if len(matchable_src_pos) == 0:
+                converted_sentence2.append(w)
+            else:
+                # match with last non attributed matchable position, or last one
+                for pos1 in matchable_src_pos:
+                    if pos1 not in matched_src_pos:
+                        break
+                matched_src_pos.add(pos1)
+                converted_sentence2.append(pos1)
+        return sentence1, converted_sentence2
+    
+    def deconvert(self, sentence1, sentence2):
+        deconverted_sentence2 = []
+        for w in sentence2:
+            if isinstance(w, int):
+                deconverted_sentence2.append(self.find_translation(sentence1[w]))
+            else:
+                deconverted_sentence2.append(w)
+        return sentence1, deconverted_sentence2
+
+    @staticmethod
+    def processor_name():
+        return "DicReplaceProcessor"
+
+    @classmethod
+    def make_from_serializable(cls, obj):
+        res = DicReplaceProcessor(obj["dic_fn"])
+        return res
+
+    def to_serializable(self):
+        assert self.is_initialized()
+        obj = self.make_base_serializable_object()
+        obj["dic_fn"] = self.dic_fn
+        return obj
 
 @registered_processor
 class ProcessorChain(MonoProcessor):
