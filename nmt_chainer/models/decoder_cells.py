@@ -369,7 +369,6 @@ class Decoder(Chain):
     """
 
     def __init__(self, Vo, Eo, Ho, Ha, Hi, Hl, attn_cls=AttentionModule, init_orth=False,
-                 cell_type=rnn_cells.LSTMCell, char_enc_emb = None):
                  cell_type=rnn_cells.LSTMCell, use_goto_attention=False, char_enc_emb = None):
 
         if isinstance(cell_type, (str, unicode)):
