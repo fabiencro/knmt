@@ -58,7 +58,10 @@ class ConditionalizedDecoderCell(object):
             previous_states = tuple(truncated_states)
 
         output_state = previous_states[-1]
-        ci, attn = self.compute_ctxt(output_state)
+        if self.decoder_chain.use_goto_attention:
+            ci, attn = self.compute_ctxt(output_state, prev_y)
+        else:
+            ci, attn = self.compute_ctxt(output_state)
         concatenated = F.concat((prev_y, ci))
 
         new_states = self.decoder_chain.gru(previous_states, concatenated, mode=self.mode)
@@ -367,6 +370,7 @@ class Decoder(Chain):
 
     def __init__(self, Vo, Eo, Ho, Ha, Hi, Hl, attn_cls=AttentionModule, init_orth=False,
                  cell_type=rnn_cells.LSTMCell, char_enc_emb = None):
+                 cell_type=rnn_cells.LSTMCell, use_goto_attention=False, char_enc_emb = None):
 
         if isinstance(cell_type, (str, unicode)):
             cell_type = rnn_cells.create_cell_model_from_string(cell_type)
@@ -389,6 +393,9 @@ class Decoder(Chain):
             self.char_enc_emb = char_emb_tgt
             Vo = enc_size_char_enc
 
+        if use_goto_attention:
+            log.info("using 'Goto' attention")
+            
         super(Decoder, self).__init__(
             emb=emb,
             #             gru = L.GRU(Ho, Eo + Hi),
@@ -398,11 +405,14 @@ class Decoder(Chain):
             maxo=L.Maxout(Eo + Hi + Ho, Hl, 2),
             lin_o=L.Linear(Hl, Vo, nobias=False),
 
-            attn_module=attn_cls(Hi, Ha, Ho, init_orth=init_orth)
+            attn_module=attn_cls(Hi, Ha, Ho, init_orth=init_orth, 
+                                 prev_word_embedding_size = Eo if use_goto_attention else None)
         )
 #         self.add_param("initial_state", (1, Ho))
         self.add_param("bos_embeding", (1, Eo))
 
+
+        self.use_goto_attention = use_goto_attention
         self.Hi = Hi
         self.Ho = Ho
         self.Eo = Eo
