@@ -132,14 +132,35 @@ class MailHandler:
 
     def _split_text_into_sentences(self, src_lang, tgt_lang, text):
         config = json.load(open(self.config_file))
+
+        if 'text_splitter' not in config:
+            return [text]
+
+        splitter_host = None
+        splitter_path = None
+        for langs in config['text_splitter'].keys():
+            if langs == 'default':
+                continue
+            if src_lang in langs.split(','):
+                splitter_host = config['text_splitter'][langs]['host']
+                splitter_path = config['text_splitter'][langs]['path']
+                break
+        if splitter_host is None:
+            if 'default' in config['text_splitter']:
+                splitter_host = config['text_splitter']['default']['host']
+                splitter_path = config['text_splitter']['default']['path']
+            else:
+                return [text]
+
         sentences = []
         params = urllib.urlencode({'lang_source': src_lang.encode('utf-8'),
                                    'lang_target': tgt_lang.encode('utf-8'),
                                    'text': text.encode('utf-8')})
         headers = {'Content-type': 'application/x-www-form-urlencoded', 'Accept': 'application/json'}
-        conn = httplib.HTTPConnection("{0}".format(config['text_splitter']['host']))
+
+        conn = httplib.HTTPConnection(splitter_host)
         try:
-            conn.request('POST', config['text_splitter']['path'], params, headers)
+            conn.request('POST', splitter_path, params, headers)
             resp = conn.getresponse()
             data = resp.read()
             json_data = json.loads(data)

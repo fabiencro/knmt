@@ -16,6 +16,9 @@
         },
         "en-fr": {
             "host": "knmt5", "port": 44665
+        },
+        "fr-en": {
+            "host": "knmt5", "port": 44666
         }
     }, 
     "imap": {
@@ -34,11 +37,21 @@
         "user": "my.translate.knmt.account@gmail.com",
         "password": "********",
         "from": "my.translate@example.com",
-        "cc": " "supervisor@toto.com"
+        "cc": "supervisor@toto.com"
     },
     "text_splitter": {
-        "host": "http://www.example.com",
-        "path": "/splitter/cgi-bin/split_sentences.cgi"
+        "ja": {
+            "host": "http://www.example.com",
+            "path": "/splitter/cgi-bin/split_ja_sentences.cgi"
+        },
+        "en,fr": {
+            "host": "http://www.example.com",
+            "path": "/splitter/cgi-bin/split_romaji_sentences.cgi"
+        },
+        "default": {
+            "host": "http://www.example.com",
+            "path": "/splitter/cgi-bin/split_sentences.cgi"
+        }
     },
     "post_processing_cmd": {
         "ja-en": "cat $FILE | /share/tool/MT/tool/SMT/mosesdecoder/scripts/recaser/detruecase.perl | /share/tool/MT/tool/SMT/mosesdecoder/scripts/tokenizer/detokenizer.perl"
