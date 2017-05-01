@@ -217,7 +217,8 @@ def make_MSE_cross_entropy(emb):
             raise NotImplemented
         targets_emb = emb(targets)
         targets_emb.unchain_backward()
-        return F.mean_squared_error(logits, targets_emb)
+#         return F.mean_squared_error(logits, targets_emb)
+        return F.mean_absolute_error(logits, targets_emb)
     return MSE_cross_entropy
 
 def loss_updater(logits, targets, loss, total_nb_predictions, per_sentence=False,
