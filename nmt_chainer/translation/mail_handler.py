@@ -284,7 +284,8 @@ class MailHandler:
                                 lang_pair = '{0}-{1}'.format(src_lang, tgt_lang)
 
                                 if lang_pair not in config['servers']:
-                                    raise Exception('Unsupported language pair: {0}'.format(lang_pair))
+                                    allowed_lang_pairs = ", ".join(sorted(map((lambda x: x.replace('-', '_')), config['servers'])))
+                                    raise Exception('Unsupported language pair: {0}. Allowed values are: {1}'.format(lang_pair, allowed_lang_pairs))
 
                                 self.logger.info('Queuing request...')
                                 self.logger.info("Uid: {0}".format(mail_uid))
