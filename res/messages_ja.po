@@ -14,8 +14,7 @@ msgstr ""
 msgid ""
 "Translation request received.\n"
 "\n"
-"{0}\n"
-"\n"
+"{0}"
 "Please wait...\n"
 "\n"
 "---------- Original text ----------\n"
@@ -28,8 +27,7 @@ msgid ""
 msgstr ""
 "翻訳リクエストを受け付けました\n"
 "\n"
-"{0}\n"
-"\n"
+"{0}"
 "翻訳が完了するまでお待ちください。\n"
 "\n"
 "---------- リクエスト内容 ----------\n"
@@ -42,8 +40,8 @@ msgstr ""
 
 #: nmt_chainer/translation/mail_handler.py:284
 #, python-brace-format
-msgid "Requests before you: {0}"
-msgstr "以前のリクエスト数: {0}"
+msgid "Requests before you: {0}\n\n"
+msgstr "以前のリクエスト数: {0}\n\n"
 
 #: nmt_chainer/translation/mail_handler.py:286
 #, python-brace-format
