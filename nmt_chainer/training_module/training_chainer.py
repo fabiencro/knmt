@@ -27,6 +27,13 @@ import chainer.training
 import chainer.training.extensions
 import datetime
 
+try:
+    import cupy
+    CudaException = cupy.cuda.runtime.CUDARuntimeError
+except ImportError:
+    class CudaException(Exception):
+        pass # Dummy class
+
 logging.basicConfig()
 log = logging.getLogger("rnns:training")
 log.setLevel(logging.INFO)
@@ -197,12 +204,16 @@ class Updater(chainer.training.StandardUpdater):
 
         t1 = time.clock()
 
-        if isinstance(in_arrays, tuple):
-            optimizer.update(loss_func, *in_arrays)
-        elif isinstance(in_arrays, dict):
-            optimizer.update(loss_func, **in_arrays)
-        else:
-            optimizer.update(loss_func, in_arrays)
+        try:
+            if isinstance(in_arrays, tuple):
+                optimizer.update(loss_func, *in_arrays)
+            elif isinstance(in_arrays, dict):
+                optimizer.update(loss_func, **in_arrays)
+            else:
+                optimizer.update(loss_func, in_arrays)
+        except CudaException:
+            log.warn("CUDARuntimeError during update iteration. Will try to skip this batch and continue")
+            return
 
         t2 = time.clock()
         update_duration = t2 - t0
@@ -491,6 +502,11 @@ def train_on_data_chainer(encdec, optimizer, training_data, output_files_dict,
     trainer_snapshot = config_training.training_management.load_trainer_snapshot
     save_initial_model_to = config_training.training_management.save_initial_model_to
     reshuffle_every_epoch = config_training.training_management.reshuffle_every_epoch
+    
+    use_soft_prediction_feedback = config_training.training.use_soft_prediction_feedback
+    use_gumbel_for_soft_predictions = config_training.training.use_gumbel_for_soft_predictions
+    temperature_for_soft_predictions = config_training.training.temperature_for_soft_predictions
+
 
     @chainer.training.make_extension()
     def sample_extension(trainer):
@@ -522,7 +538,10 @@ def train_on_data_chainer(encdec, optimizer, training_data, output_files_dict,
         (total_loss, total_nb_predictions), attn = encdec(src_batch, tgt_batch, src_mask, raw_loss_info=True,
                                                           noise_on_prev_word=noise_on_prev_word,
                                                           use_previous_prediction=use_previous_prediction,
-                                                          mode="train")
+                                                          mode="train",
+                                                          use_soft_prediction_feedback=use_soft_prediction_feedback, 
+                                                          use_gumbel_for_soft_predictions=use_gumbel_for_soft_predictions,
+                                                          temperature_for_soft_predictions=temperature_for_soft_predictions)
         avg_loss = total_loss / total_nb_predictions
 
         t1 = time.clock()
