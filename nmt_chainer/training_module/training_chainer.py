@@ -213,7 +213,6 @@ class Updater(chainer.training.StandardUpdater):
                 optimizer.update(loss_func, in_arrays)
         except CudaException:
             log.warn("CUDARuntimeError during update iteration. Will try to skip this batch and continue")
-            return
 
         t2 = time.clock()
         update_duration = t2 - t0

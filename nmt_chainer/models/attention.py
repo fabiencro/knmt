@@ -121,7 +121,7 @@ class AttentionModule(Chain):
 
 #         concatenated_mask = F.concat([F.reshape(mask_elem, (mb_size, 1)) for mask_elem in mask], 1)
 
-        def compute_ctxt(previous_state):
+        def compute_ctxt(previous_state, prev_word_embedding=None):
             current_mb_size = previous_state.data.shape[0]
 
             al_factor = F.broadcast_to(precomputed_al_factor, (current_mb_size, nb_elems, self.Ha))
@@ -129,6 +129,11 @@ class AttentionModule(Chain):
 #             used_concatenated_mask = F.broadcast_to(concatenated_mask, (current_mb_size, nb_elems))
 
             state_al_factor = self.al_lin_s(previous_state)
+            
+            #As suggested by Isao Goto
+            if prev_word_embedding is not None:
+                state_al_factor = state_al_factor + self.al_lin_y(prev_word_embedding)
+            
             state_al_factor_bc = F.broadcast_to(F.reshape(state_al_factor, (current_mb_size, 1, self.Ha)), (current_mb_size, nb_elems, self.Ha))
             a_coeffs = F.reshape(self.al_lin_o(F.reshape(F.tanh(state_al_factor_bc + al_factor),
                                                          (current_mb_size * nb_elems, self.Ha))), (current_mb_size, nb_elems))
