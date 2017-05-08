@@ -113,13 +113,17 @@ class MailHandler:
         if 'bcc' in config['smtp']:
             resp_msg['Bcc'] = config['smtp']['bcc']
             bcc = config['smtp']['bcc'].split(",")
-        dests = to
-        if cc or bcc:
-            dests = [to]
-            if cc:
-                dests += cc
-            if bcc:
-                dests += bcc
+
+        dests = []
+        if to:
+            dests += to
+        if cc:
+            dests += cc
+        if bcc:
+            dests += bcc
+
+        if len(dests) == 0:
+            return
 
         resp_msg['Subject'] = subject
         resp_msg.attach(MIMEText(text, 'plain', 'utf-8'))
@@ -168,6 +172,7 @@ class MailHandler:
             sentences = json_data['sentences']
         except Exception as ex:
             self.logger.error(ex)
+            self._send_mail(None, "Mail-Handler - ERROR", ex)
         finally:
             conn.close()
         return sentences
@@ -334,10 +339,9 @@ class MailHandler:
                     mail.uid('COPY', mail_uid, config['imap']['ignored_request_mailbox'])
                     mail.uid('STORE', mail_uid, '+FLAGS', '\\Deleted')
                     mail.expunge()
-                    if email_from is not None:
-                        reply = _("Error: {0}\n\nMoving message to Ignored mailbox\n\n").format(ex_msg)
-                        subject = _('Translation error: {0}').format(email_subject)
-                        self._send_mail(email_from, subject.decode('utf-8'), reply)
+                    reply = _("Error: {0}\n\nMoving message to Ignored mailbox\n\n").format(ex_msg)
+                    subject = _('Translation error: {0}').format(email_subject)
+                    self._send_mail(email_from, subject.decode('utf-8'), reply)
 
     def _process_mail(self):
         self._first_time = True
@@ -422,6 +426,7 @@ class MailHandler:
 
             except Exception, ex:
                 self.logger.error(ex)
+                self._send_mail(None, "Mail-Handler - ERROR", ex)
 
             finally:
                 if mail is not None:
@@ -440,14 +445,19 @@ class MailHandler:
 
         with context:
             try:
-                self.logger.info("Starting mail_handler daemon on {0}...".format(socket.gethostname()))
+                start_msg = "Starting mail_handler daemon on {0}...".format(socket.gethostname())
+                self.logger.info(start_msg)
+                self._send_mail(None, "Mail-Handler - STARTED", start_msg)
                 self._init_localization()
                 self._prepare_mailboxes()
                 self._process_mail()
             except Exception, ex:
                 self.logger.error(ex)
+                self._send_mail(None, "Mail-Handler - ERROR", ex)
             finally:
-                self.logger.info("Stopping mail_handler daemon on {0}.".format(socket.gethostname()))
+                stop_msg = "Stopping mail_handler daemon on {0}.".format(socket.gethostname())
+                self.logger.info(stop_msg)
+                self._send_mail(None, "Mail-Handler - STOPPED", stop_msg)
 
 
 def command_line(arguments=None):
