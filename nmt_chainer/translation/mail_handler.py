@@ -27,6 +27,7 @@ import logging.config
 import os.path
 import re
 import smtplib
+import socket
 import subprocess
 import tempfile
 import time
@@ -439,14 +440,14 @@ class MailHandler:
 
         with context:
             try:
-                self.logger.info("Starting mail_handler daemon...")
+                self.logger.info("Starting mail_handler daemon on {0}...".format(socket.gethostname()))
                 self._init_localization()
                 self._prepare_mailboxes()
                 self._process_mail()
             except Exception, ex:
                 self.logger.error(ex)
             finally:
-                self.logger.info("Stopping mail_handler daemon.")
+                self.logger.info("Stopping mail_handler daemon on {0}.".format(socket.gethostname()))
 
 
 def command_line(arguments=None):
