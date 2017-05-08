@@ -171,7 +171,7 @@ class MailHandler:
             json_data = json.loads(data)
             sentences = json_data['sentences']
         except Exception as ex:
-            self.logger.error(ex)
+            self.logger.exception(ex)
             self._send_mail(None, "Mail-Handler - ERROR", ex)
         finally:
             conn.close()
@@ -335,7 +335,7 @@ class MailHandler:
                             else:
                                 raise Exception('Incorrect protocol or unknown language pair: {0}'.format(email_subject))
                 except Exception, ex_msg:
-                    self.logger.info("Error: {0}\n\nMoving message to Ignored mailbox\n\n".format(ex_msg))
+                    self.logger.exception("Error: {0}\n\nMoving message to Ignored mailbox\n\n".format(ex_msg))
                     mail.uid('COPY', mail_uid, config['imap']['ignored_request_mailbox'])
                     mail.uid('STORE', mail_uid, '+FLAGS', '\\Deleted')
                     mail.expunge()
@@ -411,7 +411,7 @@ class MailHandler:
                         mail.expunge()
 
                     except Exception, ex_msg:
-                        self.logger.info('Error: {0}'.format(ex_msg))
+                        self.logger.exception('Error: {0}'.format(ex_msg))
                         self.logger.info("Moving message to Ignored mailbox.\n\n")
                         mail.uid('COPY', req['uid'], config['imap']['ignored_request_mailbox'])
                         mail.uid('STORE', req['uid'], '+FLAGS', '\\Deleted')
@@ -425,7 +425,7 @@ class MailHandler:
                     self._dequeue_request()
 
             except Exception, ex:
-                self.logger.error(ex)
+                self.logger.exception(ex)
                 self._send_mail(None, "Mail-Handler - ERROR", ex)
 
             finally:
@@ -452,7 +452,7 @@ class MailHandler:
                 self._prepare_mailboxes()
                 self._process_mail()
             except Exception, ex:
-                self.logger.error(ex)
+                self.logger.exception(ex)
                 self._send_mail(None, "Mail-Handler - ERROR", ex)
             finally:
                 stop_msg = "Stopping mail_handler daemon on {0}.".format(socket.gethostname())
