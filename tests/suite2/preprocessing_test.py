@@ -192,3 +192,52 @@ class TestLatinScriptProcess:
             pp.convert(u"in{0}side".format(processors.LatinScriptProcess.SUFFIX_CHAR))
         except Exception, ex:
             assert type(ex) == ValueError and str(ex) == "Special char in word"
+
+
+class TestSimpleSegmenter:
+
+    def test_convert_deconvert_word(self):
+        pp = processors.SimpleSegmenter()
+
+        experiments = {
+            "This is a test sentence.": ['This', 'is', 'a', 'test', 'sentence.'],
+            "   This    is  a test    sentence   with  white    spaces  ...":
+                ['', '', '', 'This', '', '', '', 'is', '', 'a', 'test', '', '', '', 'sentence', '', '', 'with', '', 'white', '', '', '', 'spaces', '', '...'],
+            "What HAPPEN if there's funny chars like !@#$%?": ['What', 'HAPPEN', 'if', "there's", 'funny', 'chars', 'like', '!@#$%?']
+        }
+
+        for k, v in experiments.items():
+            test = pp.convert(k)
+            assert test == v
+            assert pp.deconvert(test) == k
+
+    def test_convert_deconvert_word2char(self):
+        pp = processors.SimpleSegmenter(type="word2char")
+
+        experiments = {
+            "This is a test sentence.": ('T', 'h', 'i', 's', 'i', 's', 'a', 't', 'e', 's', 't', 's', 'e', 'n', 't', 'e', 'n', 'c', 'e', '.'),
+            "   This    is  a test    sentence   with  white    spaces  ...":
+                ('T', 'h', 'i', 's', 'i', 's', 'a', 't', 'e', 's', 't', 's', 'e', 'n', 't', 'e', 'n', 'c', 'e', 'w', 'i', 't', 'h', 'w', 'h', 'i', 't', 'e', 's', 'p', 'a', 'c', 'e', 's', '.', '.', '.'),
+            "What HAPPEN if there's funny chars like !@#$%?": ('W', 'h', 'a', 't', 'H', 'A', 'P', 'P', 'E', 'N', 'i', 'f', 't', 'h', 'e', 'r', 'e', "'", 's', 'f', 'u', 'n', 'n', 'y', 'c', 'h', 'a', 'r', 's', 'l', 'i', 'k', 'e', '!', '@', '#', '$', '%', '?')
+        }
+
+        for k, v in experiments.items():
+            test = pp.convert(k)
+            assert test == v
+            assert pp.deconvert(test) == re.sub('\s+', '', k)
+
+    def test_convert_deconvert_char(self):
+        pp = processors.SimpleSegmenter(type="char")
+
+        experiments = {
+            "This is a test sentence.": ('T', 'h', 'i', 's', ' ', 'i', 's', ' ', 'a', ' ', 't', 'e', 's', 't', ' ', 's', 'e', 'n', 't', 'e', 'n', 'c', 'e', '.'),
+            "   This    is  a test    sentence   with  white    spaces  ...":
+                (' ', ' ', ' ', 'T', 'h', 'i', 's', ' ', ' ', ' ', ' ', 'i', 's', ' ', ' ', 'a', ' ', 't', 'e', 's', 't', ' ', ' ', ' ', ' ', 's', 'e', 'n', 't', 'e', 'n', 'c', 'e', ' ', ' ', ' ', 'w', 'i', 't', 'h', ' ', ' ', 'w', 'h', 'i', 't', 'e', ' ', ' ', ' ', ' ', 's', 'p', 'a', 'c', 'e', 's', ' ', ' ', '.', '.', '.'),
+            "What HAPPEN if there's funny chars like !@#$%?":
+                ('W', 'h', 'a', 't', ' ', 'H', 'A', 'P', 'P', 'E', 'N', ' ', 'i', 'f', ' ', 't', 'h', 'e', 'r', 'e', "'", 's', ' ', 'f', 'u', 'n', 'n', 'y', ' ', 'c', 'h', 'a', 'r', 's', ' ', 'l', 'i', 'k', 'e', ' ', '!', '@', '#', '$', '%', '?')
+        }
+
+        for k, v in experiments.items():
+            test = pp.convert(k)
+            assert test == v
+            assert pp.deconvert(test) == k
