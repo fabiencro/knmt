@@ -27,6 +27,7 @@ import logging.config
 import os.path
 import re
 import smtplib
+from socket import gaierror
 import socket
 import subprocess
 import tempfile
@@ -423,6 +424,9 @@ class MailHandler:
                                         reply.format(ex_msg, knmt_version))
 
                     self._dequeue_request()
+
+            except gaierror:
+                self.logger.error("Cannot reach IMAP server.  Will try again later.")
 
             except Exception, ex:
                 self.logger.exception(ex)
