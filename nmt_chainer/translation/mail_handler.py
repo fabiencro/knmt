@@ -430,7 +430,10 @@ class MailHandler:
 
             except Exception, ex:
                 self.logger.exception(ex)
-                self._send_mail(None, "Mail-Handler - ERROR", ex)
+                try:
+                    self._send_mail(None, "Mail-Handler - ERROR", ex)
+                except Exception, ex2:
+                    self.logger.exception("Could not send mail notification because of: {0}".format(ex2))
 
             finally:
                 if mail is not None:
