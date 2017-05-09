@@ -12,9 +12,9 @@ import re
 import nmt_chainer.dataprocessing.processors as processors
 
 
-class TestPreprocessing:
+class TestLatinScriptProcess:
 
-    def test_LatinScriptProcess_caps(self):
+    def test_convert_deconvert_caps(self):
         pp = processors.LatinScriptProcess()
 
         experiments = {
@@ -38,7 +38,7 @@ class TestPreprocessing:
         except Exception, ex:
             assert type(ex) == ValueError and str(ex) == "Special char in word"
 
-    def test_LatinScriptProcess_caps_alt(self):
+    def test_convert_deconvert_caps_alt(self):
         pp = processors.LatinScriptProcess()
 
         s1 = "Hello"
@@ -72,7 +72,7 @@ class TestPreprocessing:
         except Exception, ex:
             assert type(ex) == ValueError and str(ex) == "Special char in word"
 
-    def test_LatinScriptProcess_punct_word(self):
+    def test_convert_deconvert_punct_word(self):
         pp = processors.LatinScriptProcess()
 
         experiments = {
@@ -102,7 +102,7 @@ class TestPreprocessing:
         except Exception, ex:
             assert type(ex) == ValueError and str(ex) == "Special char in word"
 
-    def test_LatinScriptProcess_punct_inside(self):
+    def test_convert_deconvert_punct_inside(self):
         pp = processors.LatinScriptProcess()
 
         experiments = {
@@ -133,7 +133,7 @@ class TestPreprocessing:
         except Exception, ex:
             assert type(ex) == ValueError and str(ex) == "Special char in word"
 
-    def test_LatinScriptProcess_convert_deconvert_all_adjoint(self):
+    def test_convert_deconvert_all_adjoint(self):
         pp = processors.LatinScriptProcess()
 
         experiments = {
@@ -163,7 +163,7 @@ class TestPreprocessing:
         except Exception, ex:
             assert type(ex) == ValueError and str(ex) == "Special char in word"
 
-    def test_LatinScriptProcess_convert_deconvert_caps_isolate(self):
+    def test_convert_deconvert_caps_isolate(self):
         pp = processors.LatinScriptProcess(mode="caps_isolate")
 
         experiments = {
