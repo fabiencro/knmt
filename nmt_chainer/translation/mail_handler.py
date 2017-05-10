@@ -117,7 +117,7 @@ class MailHandler:
 
         dests = []
         if to:
-            dests += to
+            dests.append(to)
         if cc:
             dests += cc
         if bcc:
