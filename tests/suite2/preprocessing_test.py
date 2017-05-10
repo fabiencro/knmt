@@ -241,3 +241,54 @@ class TestSimpleSegmenter:
             test = pp.convert(k)
             assert test == v
             assert pp.deconvert(test) == k
+
+
+class TestProcessorChain:
+
+    def test_convert_deconvert(self):
+        pp_1 = processors.LatinScriptProcess()
+        pp_2 = processors.SimpleSegmenter(type="char")
+
+        pp = processors.ProcessorChain([pp_1, pp_2])
+
+        experiments = {
+            "Hello": (processors.LatinScriptProcess.CAP_CHAR, u'h', u'e', u'l', u'l', u'o'),
+            "HELLO": (processors.LatinScriptProcess.ALL_CAPS_CHAR, u'h', u'e', u'l', u'l', u'o'),
+            "HeLLo": (u'H', u'e', u'L', u'L', u'o'),
+            "sentence_with!all:the;chars$that]we(want'to&test<if/it@is|possible.":
+                (u's', u'e', u'n', u't', u'e', u'n', u'c', u'e', u' ',
+                 processors.LatinScriptProcess.SUFFIX_CHAR, u'_', u'w', u'i', u't', u'h', u' ',
+                 processors.LatinScriptProcess.SUFFIX_CHAR, u'!', u'a', u'l', u'l', u' ',
+                 processors.LatinScriptProcess.SUFFIX_CHAR, u':', u't', u'h', u'e', u' ',
+                 processors.LatinScriptProcess.SUFFIX_CHAR, u';', u'c', u'h', u'a', u'r', u's', u' ',
+                 processors.LatinScriptProcess.SUFFIX_CHAR, u'$', u't', u'h', u'a', u't', u' ',
+                 processors.LatinScriptProcess.SUFFIX_CHAR, u']', u'w', u'e', u' ',
+                 processors.LatinScriptProcess.SUFFIX_CHAR, u'(', u'w', u'a', u'n', u't', u' ',
+                 processors.LatinScriptProcess.SUFFIX_CHAR, u"'", u't', u'o', u' ',
+                 processors.LatinScriptProcess.SUFFIX_CHAR, u'&', u't', u'e', u's', u't', u' ',
+                 processors.LatinScriptProcess.SUFFIX_CHAR, u'<', u'i', u'f', u' ',
+                 processors.LatinScriptProcess.SUFFIX_CHAR, u'/', u'i', u't', u' ',
+                 processors.LatinScriptProcess.SUFFIX_CHAR, u'@', u'i', u's', u' ',
+                 processors.LatinScriptProcess.SUFFIX_CHAR, u'|', u'p', u'o', u's', u's', u'i', u'b',
+                 u'l', u'e', u' ', processors.LatinScriptProcess.SUFFIX_CHAR, u'.')
+        }
+
+        for k, v in experiments.items():
+            test = pp.convert(k)
+            assert test == v
+            assert pp.deconvert(test) == k
+
+        try:
+            pp.convert(u"{0}hello".format(processors.LatinScriptProcess.CAP_CHAR))
+        except Exception, ex:
+            assert type(ex) == ValueError and str(ex) == "Special char in word"
+
+        try:
+            pp.convert(u"{0}hello".format(processors.LatinScriptProcess.ALL_CAPS_CHAR))
+        except Exception, ex:
+            assert type(ex) == ValueError and str(ex) == "Special char in word"
+
+        try:
+            pp.convert(u"in{0}side".format(processors.LatinScriptProcess.SUFFIX_CHAR))
+        except Exception, ex:
+            assert type(ex) == ValueError and str(ex) == "Special char in word"
