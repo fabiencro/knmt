@@ -300,6 +300,7 @@ def create_encdec(config_eval):
     encdec_list = []
     eos_idx, src_indexer, tgt_indexer = None, None, None
     model_infos_list = []
+    tgt2src_encdec = None
 
     if config_eval.training_config is not None:
         assert config_eval.trained_model is not None
@@ -329,6 +330,26 @@ def create_encdec(config_eval):
             encdec_list.append(encdec)
 
     assert len(encdec_list) > 0
+
+    if 'load_tgt2src_model_config' in config_eval.process and config_eval.process.load_tgt2src_model_config is not None:
+        for config_filename in config_eval.process.load_tgt2src_model_config:
+            log.info(
+                "loading tgt2src model and parameters from config %s" %
+                config_filename)
+            config_training = train_config.load_config_train(config_filename)
+            (encdec, this_eos_idx, this_src_indexer, this_tgt_indexer), model_infos = train.create_encdec_and_indexers_from_config_dict(config_training,
+                                                                                                                                        load_config_model="yes",
+                                                                                                                                        return_model_infos=True)
+            # model_infos_list.append(model_infos)
+            # if eos_idx is None:
+            #     assert len(encdec_list) == 0
+            #     assert src_indexer is None
+            #     assert tgt_indexer is None
+            #     eos_idx, src_indexer, tgt_indexer = this_eos_idx, this_src_indexer, this_tgt_indexer
+            # else:
+            #     check_if_vocabulary_info_compatible(this_eos_idx, this_src_indexer, this_tgt_indexer, eos_idx, src_indexer, tgt_indexer)
+
+            tgt2src_encdec = encdec
 
     if 'additional_training_config' in config_eval.process and config_eval.process.additional_training_config is not None:
         assert len(config_eval.process.additional_training_config) == len(config_eval.process.additional_trained_model)
@@ -366,7 +387,7 @@ def create_encdec(config_eval):
     else:
         reverse_encdec = None
 
-    return encdec_list, eos_idx, src_indexer, tgt_indexer, reverse_encdec, model_infos_list
+    return encdec_list, eos_idx, src_indexer, tgt_indexer, reverse_encdec, model_infos_list, tgt2src_encdec
 
 
 def do_eval(config_eval):
@@ -407,7 +428,7 @@ def do_eval(config_eval):
 
     time_start = time.clock()
 
-    encdec_list, eos_idx, src_indexer, tgt_indexer, reverse_encdec, model_infos_list = create_encdec(config_eval)
+    encdec_list, eos_idx, src_indexer, tgt_indexer, reverse_encdec, model_infos_list, tgt2src_encdec = create_encdec(config_eval)
 
     if config_eval.process.server is None:
         eval_dir_placeholder = "@eval@/"
