@@ -490,7 +490,8 @@ class EncoderDecoder(Chain):
     def __init__(self, Vi, Ei, Hi, Vo, Eo, Ho, Ha, Hl, attn_cls=attention.AttentionModule, init_orth=False, use_bn_length=0,
                  encoder_cell_type=rnn_cells.LSTMCell,
                  decoder_cell_type=rnn_cells.LSTMCell,
-                 lexical_probability_dictionary=None, lex_epsilon=1e-3
+                 lexical_probability_dictionary=None, lex_epsilon=1e-3,
+                 use_goto_attention=False
                  ):
         log.info("constructing encoder decoder with Vi:%i Ei:%i Hi:%i Vo:%i Eo:%i Ho:%i Ha:%i Hl:%i" %
                  (Vi, Ei, Hi, Vo, Eo, Ho, Ha, Hl))
@@ -498,7 +499,7 @@ class EncoderDecoder(Chain):
             enc=encoders.make_encoder(Vi, Ei, Hi, init_orth=init_orth, use_bn_length=use_bn_length,
                                       cell_type=encoder_cell_type),
             dec=decoder_cells.Decoder(Vo, Eo, Ho, Ha, 2 * Hi, Hl, attn_cls=attn_cls, init_orth=init_orth,
-                                      cell_type=decoder_cell_type)
+                                      cell_type=decoder_cell_type, use_goto_attention=use_goto_attention)
         )
         self.Vo = Vo
         self.lexical_probability_dictionary = lexical_probability_dictionary
@@ -518,7 +519,10 @@ class EncoderDecoder(Chain):
 
     def __call__(self, src_batch, tgt_batch, src_mask, use_best_for_sample=False, display_attn=False,
                  raw_loss_info=False, keep_attn_values=False, need_score=False, noise_on_prev_word=False,
-                 use_previous_prediction=0, mode="test"
+                 use_previous_prediction=0, mode="test",
+                 use_soft_prediction_feedback=False, 
+                use_gumbel_for_soft_predictions=False,
+                temperature_for_soft_predictions=1.0
                  ):
         assert mode in "test train".split()
 
@@ -539,7 +543,10 @@ class EncoderDecoder(Chain):
                                          keep_attn_values=keep_attn_values, noise_on_prev_word=noise_on_prev_word,
                                          use_previous_prediction=use_previous_prediction, mode="test",
                                          per_sentence=False, lexicon_probability_matrix=lexicon_probability_matrix,
-                                         lex_epsilon=self.lex_epsilon)
+                                         lex_epsilon=self.lex_epsilon,
+                                         use_soft_prediction_feedback=use_soft_prediction_feedback, 
+                                         use_gumbel_for_soft_predictions=use_gumbel_for_soft_predictions,
+                                         temperature_for_soft_predictions=temperature_for_soft_predictions)
 
     def give_conditionalized_cell(self, src_batch, src_mask, noise_on_prev_word=False,
                                   mode="test", demux=False):
