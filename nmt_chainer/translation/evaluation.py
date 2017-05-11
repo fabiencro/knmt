@@ -146,7 +146,7 @@ def beam_search_translate(encdec, eos_idx, src_data, beam_width=20, beam_pruning
                           groundhog=False, force_finish=False,
                           prob_space_combination=False,
                           reverse_encdec=None, use_unfinished_translation_if_none_found=False,
-                          nbest=1):
+                          nbest=None):
     nb_ex = len(src_data)
     for num_ex in range(nb_ex):
         src_batch, src_mask = make_batch_src([src_data[num_ex]], gpu=gpu, volatile="on")
@@ -241,7 +241,10 @@ def beam_search_translate(encdec, eos_idx, src_data, beam_width=20, beam_pruning
 
         translations.sort(key=ranking_criterion, reverse=True)
 
-        yield translations[:nbest]
+        if nbest is not None:
+            yield translations[:nbest]
+        else:
+            yield [translations[0]]
 
 
 def batch_align(encdec, eos_idx, src_tgt_data, batch_size=80, gpu=None):
