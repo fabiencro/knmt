@@ -1048,14 +1048,16 @@ def build_dataset_one_side_pp(src_fn, src_pp, max_nb_ex=None):
     stats_src = src_pp.make_new_stat()
     log.info("start indexing")
 
+    sentences = []
     res = []
 
     for sentence_src in src:
         #         print len(sentence_tgt), len(sentence_src)
+        sentences.append(sentence_src)
         seq_src = src_pp.convert(sentence_src, stats=stats_src)
         res.append(seq_src)
 
-    return res, stats_src
+    return sentences, res, stats_src
 
 
 # def load_pp_from_data(data):

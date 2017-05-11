@@ -11,6 +11,7 @@ import numpy as np
 from chainer import cuda, serializers
 import sys
 from nmt_chainer.dataprocessing.processors import build_dataset_one_side_pp
+import nmt_chainer.utilities.bleu_computer as bleu
 import nmt_chainer.dataprocessing.make_data as make_data
 import nmt_chainer.training_module.train as train
 import nmt_chainer.training_module.train_config as train_config
@@ -125,14 +126,19 @@ def beam_search_all(gpu, encdec, eos_idx, src_data, beam_width, beam_pruning_mar
                     dic=None,
                     remove_unk=False,
                     normalize_unicode_unk=False,
-                    attempt_to_relocate_unk_source=False):
+                    attempt_to_relocate_unk_source=False,
+                    tgt2src_encdec=None,
+                    tgt2src_eos_idx=None,
+                    tgt2src_src_indexer=None,
+                    tgt2src_tgt_indexer=None,
+                    src_sentences=None):
 
     log.info("starting beam search translation of %i sentences" % len(src_data))
     if isinstance(encdec, (list, tuple)) and len(encdec) > 1:
         log.info("using ensemble of %i models" % len(encdec))
 
     with cuda.get_device(gpu):
-        translations_gen = beam_search_translate(
+        translations_iter = beam_search_translate(
             encdec, eos_idx, src_data, beam_width=beam_width, nb_steps=nb_steps,
             gpu=gpu, beam_pruning_margin=beam_pruning_margin,
             beam_score_coverage_penalty=beam_score_coverage_penalty,
@@ -150,7 +156,30 @@ def beam_search_all(gpu, encdec, eos_idx, src_data, beam_width, beam_pruning_mar
             reverse_encdec=reverse_encdec,
             use_unfinished_translation_if_none_found=use_unfinished_translation_if_none_found)
 
-        for num_t, (t, score, attn) in enumerate(translations_gen):
+        if tgt2src_encdec is not None:
+            def get_tgt2src_bleu(x):
+                idx, sentence_data = x
+                with cuda.get_device(gpu):
+                    tgt2src_translations = greedy_batch_translate(tgt2src_encdec, tgt2src_eos_idx, [sentence_data[0]], batch_size=80, gpu=gpu, nb_steps=nb_steps)
+
+                t = tgt2src_translations[0]
+                if t[-1] == tgt2src_eos_idx:
+                    t = t[:-1]
+                tgt2src_ct = tgt2src_tgt_indexer.deconvert(t, unk_tag="#T_UNK#")
+
+                comp = bleu.BleuComputer()
+                src_sentence = src_sentences[idx]
+                comp.update(src_sentence, tgt2src_ct)
+                return comp.bleu()
+
+            # Decorate the translations with their index so that we can compute and sort by comparative BLEU score.
+            trans_sorted_by_tgt2src_bleu_scores = list(enumerate(translations_iter))
+            trans_sorted_by_tgt2src_bleu_scores.sort(key=get_tgt2src_bleu, reverse=True)
+
+            # Remove the translation index as it is no more needed.
+            translations_iter = iter(map((lambda x: x[1]), trans_sorted_by_tgt2src_bleu_scores))
+
+        for num_t, (t, score, attn) in enumerate(translations_iter):
             if num_t % 200 == 0:
                 print >>sys.stderr, num_t,
             elif num_t % 40 == 0:
@@ -205,7 +234,12 @@ def translate_to_file_with_beam_search(dest_fn, gpu, encdec, eos_idx, src_data, 
                                        remove_unk=False,
                                        normalize_unicode_unk=False,
                                        attempt_to_relocate_unk_source=False,
-                                       unprocessed_output_filename=None):
+                                       unprocessed_output_filename=None,
+                                       tgt2src_encdec=None,
+                                       tgt2src_eos_idx=None,
+                                       tgt2src_src_indexer=None,
+                                       tgt2src_tgt_indexer=None,
+                                       src_sentences=None):
 
     log.info("writing translation to %s " % dest_fn)
     out = codecs.open(dest_fn, "w", encoding="utf8")
@@ -222,7 +256,12 @@ def translate_to_file_with_beam_search(dest_fn, gpu, encdec, eos_idx, src_data, 
                                            dic=dic,
                                            remove_unk=remove_unk,
                                            normalize_unicode_unk=normalize_unicode_unk,
-                                           attempt_to_relocate_unk_source=attempt_to_relocate_unk_source)
+                                           attempt_to_relocate_unk_source=attempt_to_relocate_unk_source,
+                                           tgt2src_encdec=tgt2src_encdec,
+                                           tgt2src_eos_idx=tgt2src_eos_idx,
+                                           tgt2src_src_indexer=tgt2src_src_indexer,
+                                           tgt2src_tgt_indexer=tgt2src_tgt_indexer,
+                                           src_sentences=src_sentences)
 
     attn_vis = None
     if generate_attention_html is not None:
@@ -301,6 +340,7 @@ def create_encdec(config_eval):
     eos_idx, src_indexer, tgt_indexer = None, None, None
     model_infos_list = []
     tgt2src_encdec = None
+    tgt2src_eos_idx, tgt2src_src_indexer, tgt2_tgt_indexer = None, None, None
 
     if config_eval.training_config is not None:
         assert config_eval.trained_model is not None
@@ -348,6 +388,7 @@ def create_encdec(config_eval):
             #     eos_idx, src_indexer, tgt_indexer = this_eos_idx, this_src_indexer, this_tgt_indexer
             # else:
             #     check_if_vocabulary_info_compatible(this_eos_idx, this_src_indexer, this_tgt_indexer, eos_idx, src_indexer, tgt_indexer)
+            tgt2src_eos_idx, tgt2src_src_indexer, tgt2src_tgt_indexer = this_eos_idx, this_src_indexer, this_tgt_indexer
 
             tgt2src_encdec = encdec
 
@@ -387,7 +428,7 @@ def create_encdec(config_eval):
     else:
         reverse_encdec = None
 
-    return encdec_list, eos_idx, src_indexer, tgt_indexer, reverse_encdec, model_infos_list, tgt2src_encdec
+    return encdec_list, eos_idx, src_indexer, tgt_indexer, reverse_encdec, model_infos_list, tgt2src_encdec, tgt2src_eos_idx, tgt2src_src_indexer, tgt2src_tgt_indexer
 
 
 def do_eval(config_eval):
@@ -428,7 +469,7 @@ def do_eval(config_eval):
 
     time_start = time.clock()
 
-    encdec_list, eos_idx, src_indexer, tgt_indexer, reverse_encdec, model_infos_list, tgt2src_encdec = create_encdec(config_eval)
+    encdec_list, eos_idx, src_indexer, tgt_indexer, reverse_encdec, model_infos_list, tgt2src_encdec, tgt2src_eos_idx, tgt2src_src_indexer, tgt2src_tgt_indexer = create_encdec(config_eval)
 
     if config_eval.process.server is None:
         eval_dir_placeholder = "@eval@/"
@@ -458,8 +499,7 @@ def do_eval(config_eval):
                 ref = test_tgt_from_config
 
         log.info("opening source file %s" % src_fn)
-        src_data, stats_src_pp = build_dataset_one_side_pp(src_fn, src_pp=src_indexer,
-                                                           max_nb_ex=max_nb_ex)
+        src_sentences, src_data, stats_src_pp = build_dataset_one_side_pp(src_fn, src_pp=src_indexer, max_nb_ex=max_nb_ex)
         log.info("src data stats:\n%s", stats_src_pp.make_report())
 
     if dest_fn is not None:
@@ -539,7 +579,12 @@ def do_eval(config_eval):
                                                src_indexer=src_indexer,
                                                rich_output_filename=rich_output_filename,
                                                use_unfinished_translation_if_none_found=True,
-                                               unprocessed_output_filename=dest_fn + ".unprocessed")
+                                               unprocessed_output_filename=dest_fn + ".unprocessed",
+                                               tgt2src_encdec=tgt2src_encdec,
+                                               tgt2src_eos_idx=tgt2src_eos_idx,
+                                               tgt2src_src_indexer=tgt2src_src_indexer,
+                                               tgt2src_tgt_indexer=tgt2src_tgt_indexer,
+                                               src_sentences=src_sentences)
 
             translation_infos["dest"] = dest_fn
             translation_infos["unprocessed"] = dest_fn + ".unprocessed"
@@ -565,6 +610,26 @@ def do_eval(config_eval):
                     translation_infos["post_unk_bleu_infos"] = str(bc)
                 else:
                     print "bleu before unk replace: No Ref Provided"
+
+            # if tgt2src_encdec is not None:
+            #     tgt2src_src_sentences, tgt2src_src_data, tgt2src_stats_src_pp = build_dataset_one_side_pp(dest_fn, src_pp=tgt2src_src_indexer, max_nb_ex=max_nb_ex)
+            #     _, tgt2src_src_data, tgt2src_stats_src_pp = build_dataset_one_side_pp(dest_fn, src_pp=tgt2src_src_indexer, max_nb_ex=max_nb_ex)
+            #     with cuda.get_device(gpu):
+            #         print "tgt2src_src_data={0} tgt2src_eos_idx={1}".format(tgt2src_src_data, tgt2src_eos_idx)
+            #         translations = greedy_batch_translate(tgt2src_encdec, tgt2src_eos_idx, tgt2src_src_data, batch_size=mb_size, gpu=gpu, nb_steps=nb_steps)
+            #     out = codecs.open(dest_fn, "a+", encoding="utf8")
+            #     for idx, t in enumerate(translations):
+            #         if t[-1] == tgt2src_eos_idx:
+            #             t = t[:-1]
+            #         print "tgt2src_tgt_indexer0={0} t={1}".format(tgt2src_tgt_indexer, t)
+            #         ct = tgt2src_tgt_indexer.deconvert(t, unk_tag="#T_UNK#")
+            #         out.write(u"Reverse translation using greedy search={0}\n".format(ct))
+
+            #        comp = bleu.BleuComputer()
+            #        src_sentence = src_sentences[idx]
+            #        comp.update(src_sentence, ct)
+            #        out.write("BLEU={0}\n".format(comp.bleu()))
+            #        out.write("src_sentence={0}\n".format(src_sentence))
 
     elif mode == "translate_attn":
         log.info("writing translation + attention as html to %s" % dest_fn)
