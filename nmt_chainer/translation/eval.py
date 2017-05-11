@@ -152,8 +152,9 @@ def beam_search_all(gpu, encdec, eos_idx, src_data, beam_width, beam_pruning_mar
             use_unfinished_translation_if_none_found=use_unfinished_translation_if_none_found,
             nbest=nbest)
 
-        for num_t, best_translations in enumerate(translations_gen):
-            for trans in best_translations:
+        for num_t, translations in enumerate(translations_gen):
+            res_trans = []
+            for trans in translations:
                 (t, score, attn) = trans
                 if num_t % 200 == 0:
                     print >>sys.stderr, num_t,
@@ -191,7 +192,10 @@ def beam_search_all(gpu, encdec, eos_idx, src_data, beam_width, beam_pruning_mar
                         from nmt_chainer.utilities import replace_tgt_unk
                         translated = replace_tgt_unk.replace_unk_from_string(ct, src, dic, remove_unk, normalize_unicode_unk, attempt_to_relocate_unk_source).strip().split(" ")
 
-                yield src_data[num_t], translated, t, score, attn, unk_mapping
+                res_trans.append((src_data[num_t], translated, t, score, attn, unk_mapping))
+
+            yield res_trans
+
         print >>sys.stderr
 
 
@@ -243,20 +247,24 @@ def translate_to_file_with_beam_search(dest_fn, gpu, encdec, eos_idx, src_data, 
     if unprocessed_output_filename is not None:
         unprocessed_output = codecs.open(unprocessed_output_filename, "w", encoding="utf8")
 
-    for src, translated, t, score, attn, unk_mapping in translation_iterator:
-        if rich_output is not None:
-            rich_output.add_info(src, translated, t, score, attn, unk_mapping=unk_mapping)
-        if attn_vis is not None:
-            attn_vis.add_plot(
-                src_indexer.deconvert_swallow(src),
-                translated,
-                attn,
-                attn_graph_with_sum,
-                attn_graph_attribs)
-        ct = tgt_indexer.deconvert_post(translated)
-        out.write(ct + "\n")
-        if unprocessed_output is not None:
-            unprocessed_output.write(" ".join(translated) + "\n")
+    for idx, translations in enumerate(translation_iterator):
+        for src, translated, t, score, attn, unk_mapping in translations:
+            if rich_output is not None:
+                rich_output.add_info(src, translated, t, score, attn, unk_mapping=unk_mapping)
+            if attn_vis is not None:
+                attn_vis.add_plot(
+                    src_indexer.deconvert_swallow(src),
+                    translated,
+                    attn,
+                    attn_graph_with_sum,
+                    attn_graph_attribs)
+            ct = tgt_indexer.deconvert_post(translated)
+            if nbest is not None:
+                out.write("{0} ||| {1}\n".format(idx, ct))
+            else:
+                out.write(ct + "\n")
+            if unprocessed_output is not None:
+                unprocessed_output.write(" ".join(translated) + "\n")
 
     if rich_output is not None:
         rich_output.finish()
