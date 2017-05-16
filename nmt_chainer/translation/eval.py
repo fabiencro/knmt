@@ -19,6 +19,7 @@ import nmt_chainer.dataprocessing.make_data_conf as make_data_conf
 import re
 from nmt_chainer.utilities.file_infos import create_filename_infos
 from nmt_chainer.utilities.argument_parsing_tools import OrderedNamespace
+import tempfile
 import time
 import os.path
 from nmt_chainer.utilities.utils import ensure_path
@@ -163,9 +164,33 @@ def beam_search_all(gpu, encdec, eos_idx, src_data, beam_width, beam_pruning_mar
 
             if tgt2src_encdec is not None:
                 def get_tgt2src_bleu_key(sentence_idx):
-                    def get_tgt2src_bleu_score(sentence_data):
+                    def get_tgt2src_bleu_score(trans):
+                        if tgt_unk_id == "align":
+                            def unk_replacer(num_pos, unk_id):
+                                unk_pattern = "#T_UNK_%i#"
+                                a = attn[num_pos]
+                                xp = cuda.get_array_module(a)
+                                src_pos = int(xp.argmax(a))
+                                return unk_pattern % src_pos
+                        elif tgt_unk_id == "id":
+                            def unk_replacer(num_pos, unk_id):
+                                unk_pattern = "#T_UNK_%i#"
+                                return unk_pattern % unk_id
+                        else:
+                            assert False
+
+                        (t, score, attn) = trans
+                        translated = tgt_indexer.deconvert_swallow(t, unk_tag=unk_replacer)
+                        ct = " ".join(translated)
+
+                        ct_file = tempfile.NamedTemporaryFile()
+                        ct_file.write(ct.encode('utf-8'))
+                        ct_file.seek(0)
+
+                        _, tgt2src_src_data, _ = build_dataset_one_side_pp(ct_file.name, src_pp=tgt2src_src_indexer, max_nb_ex=None)
+
                         with cuda.get_device(gpu):
-                            tgt2src_translations = greedy_batch_translate(tgt2src_encdec, tgt2src_eos_idx, [sentence_data[0]], batch_size=80, gpu=gpu, nb_steps=nb_steps)
+                            tgt2src_translations = greedy_batch_translate(tgt2src_encdec, tgt2src_eos_idx, tgt2src_src_data, batch_size=80, gpu=gpu, nb_steps=nb_steps)
 
                         t = tgt2src_translations[0]
                         if t[-1] == tgt2src_eos_idx:
@@ -175,7 +200,9 @@ def beam_search_all(gpu, encdec, eos_idx, src_data, beam_width, beam_pruning_mar
                         comp = bleu.BleuComputer()
                         src_sentence = src_sentences[sentence_idx]
                         comp.update(src_sentence, tgt2src_ct)
-                        return comp.bleu()
+                        bleu_score = comp.bleu()
+                        print u"ct={0} BLEU={1}".format(ct, bleu_score)
+                        return bleu_score
                     return get_tgt2src_bleu_score
 
                 translations.sort(key=get_tgt2src_bleu_key(num_t), reverse=True)
