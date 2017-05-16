@@ -624,26 +624,6 @@ def do_eval(config_eval):
                 else:
                     print "bleu before unk replace: No Ref Provided"
 
-            # if tgt2src_encdec is not None:
-            #     tgt2src_src_sentences, tgt2src_src_data, tgt2src_stats_src_pp = build_dataset_one_side_pp(dest_fn, src_pp=tgt2src_src_indexer, max_nb_ex=max_nb_ex)
-            #     _, tgt2src_src_data, tgt2src_stats_src_pp = build_dataset_one_side_pp(dest_fn, src_pp=tgt2src_src_indexer, max_nb_ex=max_nb_ex)
-            #     with cuda.get_device(gpu):
-            #         print "tgt2src_src_data={0} tgt2src_eos_idx={1}".format(tgt2src_src_data, tgt2src_eos_idx)
-            #         translations = greedy_batch_translate(tgt2src_encdec, tgt2src_eos_idx, tgt2src_src_data, batch_size=mb_size, gpu=gpu, nb_steps=nb_steps)
-            #     out = codecs.open(dest_fn, "a+", encoding="utf8")
-            #     for idx, t in enumerate(translations):
-            #         if t[-1] == tgt2src_eos_idx:
-            #             t = t[:-1]
-            #         print "tgt2src_tgt_indexer0={0} t={1}".format(tgt2src_tgt_indexer, t)
-            #         ct = tgt2src_tgt_indexer.deconvert(t, unk_tag="#T_UNK#")
-            #         out.write(u"Reverse translation using greedy search={0}\n".format(ct))
-
-            #        comp = bleu.BleuComputer()
-            #        src_sentence = src_sentences[idx]
-            #        comp.update(src_sentence, ct)
-            #        out.write("BLEU={0}\n".format(comp.bleu()))
-            #        out.write("src_sentence={0}\n".format(src_sentence))
-
     elif mode == "translate_attn":
         log.info("writing translation + attention as html to %s" % dest_fn)
         with cuda.get_device(gpu):
