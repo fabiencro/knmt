@@ -27,6 +27,13 @@ import chainer.training
 import chainer.training.extensions
 import datetime
 
+try:
+    import cupy
+    CudaException = cupy.cuda.runtime.CUDARuntimeError
+except ImportError:
+    class CudaException(Exception):
+        pass # Dummy class
+
 logging.basicConfig()
 log = logging.getLogger("rnns:training")
 log.setLevel(logging.INFO)
@@ -197,12 +204,15 @@ class Updater(chainer.training.StandardUpdater):
 
         t1 = time.clock()
 
-        if isinstance(in_arrays, tuple):
-            optimizer.update(loss_func, *in_arrays)
-        elif isinstance(in_arrays, dict):
-            optimizer.update(loss_func, **in_arrays)
-        else:
-            optimizer.update(loss_func, in_arrays)
+        try:
+            if isinstance(in_arrays, tuple):
+                optimizer.update(loss_func, *in_arrays)
+            elif isinstance(in_arrays, dict):
+                optimizer.update(loss_func, **in_arrays)
+            else:
+                optimizer.update(loss_func, in_arrays)
+        except CudaException:
+            log.warn("CUDARuntimeError during update iteration. Will try to skip this batch and continue")
 
         t2 = time.clock()
         update_duration = t2 - t0
