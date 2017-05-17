@@ -107,6 +107,8 @@ def create_encdec_from_config_dict(config_dict, src_indexer, tgt_indexer):
         lexical_probability_dictionary = None
     lex_epsilon = config_dict.get("lexicon_prob_epsilon", 0.001)
 
+    use_goto_attention = config_dict.get("use_goto_attention", False)
+
     # Creating encoder/decoder
     encdec = nmt_chainer.models.encoder_decoder.EncoderDecoder(Vi, Ei, Hi, Vo + 1, Eo, Ho, Ha, Hl, use_bn_length=use_bn_length,
                                                                attn_cls=attn_cls,
@@ -114,7 +116,8 @@ def create_encdec_from_config_dict(config_dict, src_indexer, tgt_indexer):
                                                                encoder_cell_type=rnn_cells.create_cell_model_from_config(encoder_cell_type),
                                                                decoder_cell_type=rnn_cells.create_cell_model_from_config(decoder_cell_type),
                                                                lexical_probability_dictionary=lexical_probability_dictionary,
-                                                               lex_epsilon=lex_epsilon)
+                                                               lex_epsilon=lex_epsilon,
+                                                               use_goto_attention=use_goto_attention)
 
     return encdec
 

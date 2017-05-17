@@ -37,6 +37,7 @@ def define_parser(parser):
     model_description_group.add_argument("--use_accumulated_attn", default=False, action="store_true")
     model_description_group.add_argument("--init_orth", default=False, action="store_true")
     model_description_group.add_argument("--use_bn_length", default=0, type=int)
+    model_description_group.add_argument("--use_goto_attention", default=False, action="store_true")
 
     training_paramenters_group = parser.add_argument_group(_CONFIG_SECTION_TO_DESCRIPTION["training"])
     training_paramenters_group.add_argument("--mb_size", type=int, default=64, help="Minibatch size")
@@ -90,6 +91,11 @@ def define_parser(parser):
     training_monitoring_group.add_argument("--timer_hook", default=False, action="store_true", help="activate timer hook for profiling")
     training_monitoring_group.add_argument("--force_overwrite", default=False, action="store_true", help="Do not ask before overwiting existing files")
     training_monitoring_group.add_argument("--description", help="Optional message to be stored in the configuration file")
+
+    training_monitoring_group.add_argument("--set_false_in_config", nargs="*", help="Forcing some options to be false")
+    
+    training_monitoring_group.add_argument("--update_old_config_file_with_default_values", 
+                                           default=False, action="store_true", help="When using older config files")
 
 
 class CommandLineValuesException(Exception):
@@ -175,6 +181,15 @@ def make_config_from_args(args, readonly=True):
         log.info("loading training config file %s", args.config)
         config_base = load_config_train(args.config, readonly=False)
 
+        if args.set_false_in_config is not None:
+            for option_name in args.set_false_in_config:
+                path_option = option_name.split(".")
+                last_dict = config_base
+                for level in range(len(path_option) -1):
+                    last_dict = config_base[path_option[level]]
+                last_dict[path_option[-1]] = False
+            
+
     parse_option_orderer = get_parse_option_orderer()
     config_training = parse_option_orderer.convert_args_to_ordered_dict(args)
 
@@ -188,7 +203,7 @@ def make_config_from_args(args, readonly=True):
                 args_given_set.remove(argname)
 
         print "args_given_set", args_given_set
-        config_base.update_recursive(config_training, valid_keys=args_given_set)
+        config_base.update_recursive(config_training, valid_keys=args_given_set, add_absent_keys=args.update_old_config_file_with_default_values)
         config_training = config_base
     else:
         assert "data" not in config_training
