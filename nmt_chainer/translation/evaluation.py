@@ -145,9 +145,9 @@ def beam_search_translate(encdec, eos_idx, src_data, beam_width=20, beam_pruning
                           post_score_coverage_penalty='none', post_score_coverage_penalty_strength=0.2,
                           groundhog=False, force_finish=False,
                           prob_space_combination=False,
-                          reverse_encdec=None, use_unfinished_translation_if_none_found=False):
+                          reverse_encdec=None, use_unfinished_translation_if_none_found=False,
+                          nbest=None):
     nb_ex = len(src_data)
-#     res = []
     for num_ex in range(nb_ex):
         src_batch, src_mask = make_batch_src([src_data[num_ex]], gpu=gpu, volatile="on")
         assert len(src_mask) == 0
@@ -181,9 +181,7 @@ def beam_search_translate(encdec, eos_idx, src_data, beam_width=20, beam_pruning
             translations = [t for t in translations if len(t[0]) > 0]
 
 #         print "nb_trans", len(translations), [score for _, score in translations]
-#         bests = []
 #         translations.sort(key = itemgetter(1), reverse = True)
-#         bests.append(translations[0])
 
         if reverse_encdec is not None and len(translations) > 1:
             rescored_translations = []
@@ -243,11 +241,10 @@ def beam_search_translate(encdec, eos_idx, src_data, beam_width=20, beam_pruning
 
         translations.sort(key=ranking_criterion, reverse=True)
 
-#         bests.append(translations[0])
-#         yield bests
-        yield translations[0]
-#         res.append(bests)
-#     return res
+        if nbest is not None:
+            yield translations[:nbest]
+        else:
+            yield [translations[0]]
 
 
 def batch_align(encdec, eos_idx, src_tgt_data, batch_size=80, gpu=None):
