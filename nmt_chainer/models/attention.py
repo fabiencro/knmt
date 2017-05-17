@@ -10,13 +10,129 @@ from chainer import cuda, Variable
 from chainer import Link, Chain, ChainList
 import chainer.functions as F
 import chainer.links as L
-
+import chainer
 from nmt_chainer.utilities.utils import ortho_init
 
 import logging
 logging.basicConfig()
 log = logging.getLogger("rnns:attn")
 log.setLevel(logging.INFO)
+
+
+def softmax_mask_maker(mask, seq_length, mb_size):
+    mask_length = len(mask)
+    assert mask_length <= seq_length
+    mask_offset = seq_length - mask_length
+    
+    if mask_length > 0:
+        xp = chainer.cuda.get_array_module(mask[0])
+        device = cuda.get_device(mask[0])
+        with device:
+            if mask_offset > 0:
+                concatenated_penalties = xp.concatenate(
+                    [
+                        xp.zeros((mb_size, mask_offset), dtype=xp.float32),
+                        -10000 * (1 - xp.concatenate([
+                            xp.reshape(mask_elem, (mb_size, 1)).astype(xp.float32) for mask_elem in mask], 1))
+                    ], 1
+                )
+            else:
+                concatenated_penalties = -10000 * (1 - xp.concatenate([
+                    xp.reshape(mask_elem, (mb_size, 1)).astype(xp.float32) for mask_elem in mask], 1))    
+    
+    def apply_mask(logits):
+        current_mb_size = logits.data.shape[0]
+        assert current_mb_size <= mb_size
+        if mask_length == 0:
+            return logits
+        elif current_mb_size == mb_size:
+            with device:
+                result = logits + concatenated_penalties
+            return result
+        else:
+            with device:
+                result = logits + concatenated_penalties[:current_mb_size]
+            return result
+        
+class PointerMechanism(Chain):
+    def __init__(self, Hi, Hs, Ha, additional_input_size = None):
+        super(PointerMechanism, self).__init__(
+            lin_i = L.Linear(Hi, Ha, nobias=False),
+            lin_s = L.Linear(Hs, Ha, nobias=True),
+            lin_o = L.Linear(Ha, 1, nobias=True)
+            )
+        
+        self.Hi = Hi
+        self.Hs = Hs
+        self.Ha = Ha
+        
+        if additional_input_size is not None:
+            self.add_link("lin_add", L.Linear(additional_input_size, Ha, nobias=True))
+        
+    def __call__(self, fb_concat, mask, demux=False):
+        mb_size, nb_elems, Hi = fb_concat.data.shape
+        assert Hi == self.Hi
+        assert mb_size == 1 or not demux
+        
+        precomputed_al_factor = F.reshape(self.lin_i(
+                F.reshape(fb_concat, (mb_size * nb_elems, self.Hi))), (mb_size, nb_elems, self.Ha))
+
+        seq_length = nb_elems
+
+        if not demux:
+            apply_softmax_mask = softmax_mask_maker(mask, seq_length, mb_size)
+#         concatenated_mask = F.concat([F.reshape(mask_elem, (mb_size, 1)) for mask_elem in mask], 1)
+
+        def compute_pointer(previous_state, additional_input=None):
+            current_mb_size = previous_state.data.shape[0]
+            
+            if demux:
+                al_factor = F.broadcast_to(precomputed_al_factor, (current_mb_size, nb_elems, self.Ha))
+            else:
+                if current_mb_size < mb_size:
+                    al_factor, _ = F.split_axis(
+                        precomputed_al_factor, (current_mb_size,), 0)
+                else:
+                    al_factor = precomputed_al_factor
+
+            
+
+            state_al_factor = self.lin_s(previous_state)
+            
+            #As suggested by Isao Goto
+            if additional_input is not None:
+                state_al_factor = state_al_factor + self.lin_add(additional_input)
+                
+            state_al_factor_bc = F.broadcast_to(F.reshape(state_al_factor, (current_mb_size, 1, self.Ha)), (current_mb_size, nb_elems, self.Ha))
+            a_coeffs = F.reshape(self.al_lin_o(F.reshape(F.tanh(state_al_factor_bc + al_factor),
+                                                         (current_mb_size * nb_elems, self.Ha))), (current_mb_size, nb_elems))
+
+            if not demux:
+                a_coeffs = apply_softmax_mask(a_coeffs)
+
+            pointer = F.softmax(a_coeffs)
+            
+            return pointer         
+
+        def compute_ctxt(previous_state, prev_word_embedding=None):
+            current_mb_size = previous_state.data.shape[0]
+            if not demux:
+                if current_mb_size < mb_size:
+                    used_fb_concat, _ = F.split_axis(
+                        fb_concat, (current_mb_size,), 0)
+                else:
+                    used_fb_concat = fb_concat
+
+            attn = compute_pointer(previous_state, prev_word_embedding=prev_word_embedding)
+            
+            if demux:
+                ci = F.reshape(F.matmul(attn, F.reshape(fb_concat, (nb_elems, Hi))), (current_mb_size, self.Hi))
+            else:
+                ci = F.reshape(F.batch_matmul(attn, used_fb_concat, transa=True), (current_mb_size, self.Hi))
+                
+            return ci, attn
+
+        return compute_pointer, compute_ctxt      
 
 
 class AttentionModule(Chain):
@@ -187,6 +303,7 @@ class DeepAttentionModule(Chain):
 
     def compute_ctxt_demux(self, fb_concat, mask):
         raise NotImplemented
+
 
 
 class CopyMechanism(Chain):

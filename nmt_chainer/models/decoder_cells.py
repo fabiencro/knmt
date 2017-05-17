@@ -19,14 +19,151 @@ from nmt_chainer.utilities.utils import ortho_init, minibatch_sampling
 
 from nmt_chainer.utilities.constant_batch_mul import batch_matmul_constant, matmul_constant
 
-from attention import AttentionModule
+from attention import AttentionModule, PointerMechanism
 
 import logging
 logging.basicConfig()
 log = logging.getLogger("rnns:dec")
 log.setLevel(logging.INFO)
 
+#################################################################################################
+# Loss computation
+#
 
+def elem_wise_sce(logits, targets):
+    normalized_logits = F.log_softmax(logits)
+    return F.select_item(normalized_logits, targets)
+
+def softmax_cross_entropy(logits, targets, per_sentence=False):
+    if per_sentence:
+        return elem_wise_sce(logits, targets)
+    else:
+        return F.softmax_cross_entropy(logits, targets)
+
+def make_MSE_cross_entropy(emb):
+    def MSE_cross_entropy(logits, targets, per_sentence=False):
+        if per_sentence:
+            raise NotImplemented
+        targets_emb = emb(targets)
+        targets_emb.unchain_backward()
+#         return F.mean_squared_error(logits, targets_emb)
+        return F.mean_absolute_error(logits, targets_emb)
+    return MSE_cross_entropy
+
+def make_pointer_loss(V, xp, device):
+    with device:
+        Vm_array = xp.array([V-1], dtype = xp.int32)
+        m1_array = xp.array([-1], dtype = xp.int32)
+        
+    def pointer_loss(logits, targets, per_sentence=False):
+        logits_v, logits_p = logits
+        mb_size = targets.data.shape[0]
+        broadcasted_Vm = xp.broadcast_to(Vm_array, (mb_size,))
+        broadcasted_m1 = xp.broadcast_to(m1_array, (mb_size,))
+        caped_target = F.where(targets <= broadcasted_Vm, targets, broadcasted_m1)
+        ptr_value = F.maximum(targets - broadcasted_Vm, 0)
+        if per_sentence:
+            v_mask = targets <= Vm_array
+            sce_p = elem_wise_sce(logits_p, ptr_value)
+            sce_v = elem_wise_sce(logits_v, caped_target) * v_mask
+        else:
+            sce_p = F.softmax_cross_entropy(logits_p, ptr_value)
+            sce_v = F.softmax_cross_entropy(logits_v, caped_target, normalize=True)
+        return sce_p + sce_v
+    return pointer_loss
+
+##################################################################################
+# Logit Classes
+#
+
+class SimpleLogit(object):
+    def __init__(self, logit):
+        self.logit = logit
+        self.xp = chainer.cuda.get_array_module(logit.data)
+        self.device = chainer.cuda.get_device(logit.data)
+        
+    @classmethod
+    def combine(cls, logits_list, prob_space_combination=False):
+        assert len(logits_list) >= 1
+        assert all(isinstance(lgt, SimpleLogit) for lgt in logits_list)
+        assert all(lgt.logit.shape == logits_list[0].logit.shape for lgt in logits_list[1:])
+        xp = chainer.cuda.get_array_module(logits_list[0].logit.data)
+        if len(logits_list) == 1:
+            return xp.log(F.softmax(logits_list[0].logit).data)
+        else:
+            combined_scores = xp.zeros((logits_list[0].logit.data.shape), dtype=xp.float32)
+        
+            if not prob_space_combination:
+                for logits in logits_list:
+                    combined_scores += xp.log(F.softmax(logits.logit).data)
+                combined_scores /= len(logits_list)
+            else:
+                for logits in logits_list:
+                    combined_scores += F.softmax(logits.logit).data
+                combined_scores /= len(logits_list)
+                combined_scores = xp.log(combined_scores)
+            return combined_scores
+        
+    def get_argmax(self, required_mb_size=None):
+        self.xp.argmax(self.logit.data[:required_mb_size], axis=1).astype(self.xp.int32)
+        
+    def compute_loss(self, targets, per_sentence=False):
+        return softmax_cross_entropy(self.logit, targets, per_sentence=per_sentence)
+        
+    def sample(self):
+        # TODO: rewrite with gumbel
+        probs = F.softmax(self.logit)
+        with self.device:
+            if self.xp != np:
+                probs_data = cuda.to_cpu(probs.data)
+            else:
+                probs_data = probs.data
+            curr_idx = minibatch_sampling(probs_data)
+            if self.xp != np:
+                curr_idx = cuda.to_gpu(curr_idx.astype(np.int32))
+            else:
+                curr_idx = curr_idx.astype(np.int32)
+        return curr_idx
+    
+    def compute_log_prob(self, curr_idx):
+        mb_size = curr_idx.shape[0]
+        probs = F.softmax(self.logit)
+        score = np.log(cuda.to_cpu(probs.data)[np.arange(mb_size), cuda.to_cpu(curr_idx)])
+        return score
+        
+class PointerLogit(object):
+    def __init__(self, logit, logit_ptr):
+        self.logit = logit
+        self.logit_ptr = logit_ptr
+       
+       
+    @classmethod
+    def combine(cls, logits_list, prob_space_combination=False):
+        assert len(logits_list) >= 1
+        assert all(isinstance(lgt, SimpleLogit) for lgt in logits_list)
+        assert all(lgt.logit.shape == logits_list[0].logit.shape for lgt in logits_list[1:])
+        assert all(lgt.logit_ptr.shape == logits_list[0].logit_ptr.shape for lgt in logits_list[1:])
+        mb, Vp = logits_list[0].logit.data.shape
+        mb2, psize = logits_list[0].logit_ptr.data.shape
+        assert mb == mb2
+        xp = chainer.cuda.get_array_module(logits_list[0].logit.data)
+        
+        combined_scores = xp.zeros((mb, Vp + psize -1), dtype=xp.float32)
+        if not prob_space_combination:
+            for logits in logits_list:
+                combined_scores[:,:Vp] += xp.log(F.softmax(logits.logit).data)
+            combined_scores /= len(logits_list)
+        else:
+            for logits in logits_list:
+                combined_scores[:,:Vp] += F.softmax(logits.logit).data
+            combined_scores /= len(logits_list)
+            combined_scores = xp.log(combined_scores)
+        return combined_scores
+        
+################################################################################
+# ConditionalizedDecoderCell
+#
+        
 class ConditionalizedDecoderCell(object):
     def __init__(self, decoder_chain, compute_ctxt, mb_size, noise_on_prev_word=False,
                  mode="test", lexicon_probability_matrix=None, lex_epsilon=1e-3, demux=False):
@@ -103,7 +240,12 @@ class ConditionalizedDecoderCell(object):
                     logits.data.shape)
 
             logits += F.log(weighted_lex_probs + self.lex_epsilon)
-        return logits
+            
+        if self.decoder_chain.pointer_mechanism:
+            logits_ptr = self.decoder_chain.ptr_mec(all_concatenated)
+            return PointerLogit(logits, logits_ptr)
+        else:
+            return SimpleLogit(logits)
 
     def advance_one_step(self, previous_states, prev_y):
 
@@ -135,12 +277,14 @@ class ConditionalizedDecoderCell(object):
     def __call__(self, prev_states, inpt, is_soft_inpt=False, from_emb=False):
         if is_soft_inpt:
             assert not from_emb
+            assert not self.decoder_chain.pointer_mechanism
             prev_y = F.matmul(inpt, self.decoder_chain.emb.W)
         elif from_emb:
+            assert not self.decoder_chain.pointer_mechanism
             prev_y = self.decoder_chain.emb.from_emb(inpt)
         else:
-            prev_y = self.decoder_chain.emb(inpt)
-
+            prev_y = self.decoder_chain.get_prev_word_embedding(inpt)
+            
         new_states, logits, attn = self.advance_one_step(prev_states, prev_y)
 
         return new_states, logits, attn
@@ -204,28 +348,13 @@ class CharEncEmbedId(Chain):
 #############################################################################
 # Computing Loss      
 
-def softmax_cross_entropy(logits, targets, per_sentence=False):
-    if per_sentence:
-        normalized_logits = F.log_softmax(logits)
-        return F.select_item(normalized_logits, targets)
-    else:
-        return F.softmax_cross_entropy(logits, targets)
 
-def make_MSE_cross_entropy(emb):
-    def MSE_cross_entropy(logits, targets, per_sentence=False):
-        if per_sentence:
-            raise NotImplemented
-        targets_emb = emb(targets)
-        targets_emb.unchain_backward()
-#         return F.mean_squared_error(logits, targets_emb)
-        return F.mean_absolute_error(logits, targets_emb)
-    return MSE_cross_entropy
 
 def loss_updater(logits, targets, loss, total_nb_predictions, per_sentence=False,
                  loss_computer=softmax_cross_entropy):
-    xp = chainer.cuda.get_array_module(logits.data)
+    xp = chainer.cuda.get_array_module(logits["logits"].data)
     if per_sentence:
-        total_local_loss = loss_computer(logits, targets, per_sentence=True) #F.select_item(normalized_logits, targets)
+        total_local_loss = logits.compute_loss(targets, per_sentence=True) #F.select_item(normalized_logits, targets)
         if loss is not None and total_local_loss.data.shape[0] != loss.data.shape[0]:
             assert total_local_loss.data.shape[0] < loss.data.shape[0]
             total_local_loss = F.concat(
@@ -234,7 +363,7 @@ def loss_updater(logits, targets, loss, total_nb_predictions, per_sentence=False
                                         dtype=xp.float32), volatile="auto")),
                 axis=0)
     else:
-        local_loss = loss_computer(logits, targets, per_sentence=False)
+        local_loss = logits.compute_loss(targets, per_sentence=False)
         nb_predictions = targets.data.shape[0]
         total_local_loss = local_loss * nb_predictions
         total_nb_predictions += nb_predictions
@@ -273,7 +402,7 @@ def compute_loss_from_decoder_cell(cell, targets, use_previous_prediction=0,
         required_next_mb_size = targets[i + 1].data.shape[0]
 
         if use_soft_prediction_feedback:
-            logits_for_soft_predictions = logits
+            logits_for_soft_predictions = logits.logit
             if required_next_mb_size < current_mb_size:
                 logits_for_soft_predictions, _ = F.split_axis(logits_for_soft_predictions, (required_next_mb_size,), 0)
             if use_gumbel_for_soft_predictions:
@@ -284,7 +413,7 @@ def compute_loss_from_decoder_cell(cell, targets, use_previous_prediction=0,
             previous_word = F.softmax(logits_for_soft_predictions)
         else:
             if use_previous_prediction > 0 and random.random() < use_previous_prediction:
-                previous_word = Variable(cell.xp.argmax(logits.data[:required_next_mb_size], axis=1).astype(cell.xp.int32), volatile="auto")
+                previous_word = Variable(logits.get_argmax(required_next_mb_size), volatile="auto")
             else:
                 if required_next_mb_size < current_mb_size:
                     previous_word, _ = F.split_axis(targets[i], (required_next_mb_size,), 0)
@@ -316,25 +445,13 @@ def sample_from_decoder_cell(cell, nb_steps, best=False, keep_attn_values=False,
         if keep_attn_values:
             attn_list.append(attn)
 
-        probs = F.softmax(logits)
         if best:
-            curr_idx = cell.xp.argmax(probs.data, 1).astype(np.int32)
+            curr_idx = logits.get_argmax()
         else:
-            #                 curr_idx = self.xp.empty((mb_size,), dtype = np.int32)
-            if cell.xp != np:
-                probs_data = cuda.to_cpu(probs.data)
-            else:
-                probs_data = probs.data
-            curr_idx = minibatch_sampling(probs_data)
-            if cell.xp != np:
-                curr_idx = cuda.to_gpu(curr_idx.astype(np.int32))
-            else:
-                curr_idx = curr_idx.astype(np.int32)
-#                 for i in xrange(mb_size):
-#                     sampler = chainer.utils.WalkerAlias(probs_data[i])
-#                     curr_idx[i] =  sampler.sample(1)[0]
+            curr_idx = logits.sample()
+            
         if need_score:
-            score = score + np.log(cuda.to_cpu(probs.data)[np.arange(cell.mb_size), cuda.to_cpu(curr_idx)])
+            score = score + logits.compute_log_prob(curr_idx)
         sequences.append(curr_idx)
 
         previous_word = Variable(curr_idx, volatile="auto")
@@ -382,7 +499,7 @@ class Decoder(Chain):
 
     def __init__(self, Vo, Eo, Ho, Ha, Hi, Hl, attn_cls=AttentionModule, init_orth=False,
                  cell_type=rnn_cells.LSTMCell, use_goto_attention=False, char_enc_emb = None,
-                 mlp_logits=None):
+                 mlp_logits=None, pointer_mechanism=False):
 
         if isinstance(cell_type, (str, unicode)):
             cell_type = rnn_cells.create_cell_model_from_string(cell_type)
@@ -431,6 +548,9 @@ class Decoder(Chain):
 #         self.add_param("initial_state", (1, Ho))
         self.add_param("bos_embeding", (1, Eo))
 
+        self.pointer_mechanism = pointer_mechanism
+        if self.pointer_mechanism:
+            self.add_link("ptr_mec", PointerMechanism())
 
         self.use_goto_attention = use_goto_attention
         self.Hi = Hi
@@ -443,6 +563,18 @@ class Decoder(Chain):
             ortho_init(self.gru)
             ortho_init(self.lin_o)
             ortho_init(self.maxo)
+
+    def get_prev_word_embedding(self, inpt):
+        if self.pointer_mechanism:
+            mb_size = inpt.data.shape[0]
+            broadcasted_Vp = F.broadcast_to(self.Vparray, (mb_size,))
+            broadcasted_Vm = F.broadcast_to(self.Vmarray, (mb_size,))
+            prev_y_v = self.decoder_chain.emb(F.minimum(inpt, broadcasted_Vp))
+            prev_y_p = self.decoder_chain.ptr_mec.get_repr_ptr(F.maximum(inpt-broadcasted_Vm, 0))
+            prev_y = F.concat((prev_y_v, prev_y_p), axis = 1)
+        else:
+            prev_y = self.decoder_chain.emb(inpt)
+        return prev_y
 
     def give_conditionalized_cell(self, fb_concat, src_mask, noise_on_prev_word=False,
                                   mode="test", lexicon_probability_matrix=None, lex_epsilon=1e-3, demux=False):
