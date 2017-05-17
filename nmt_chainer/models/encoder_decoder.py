@@ -63,6 +63,138 @@ class ConstantFunction(chainer.Function):
         return ()
 
 
+import decoder_cells
+import encoders
+
+
+class EncoderDecoder(Chain):
+    """ Do RNNSearch Encoding/Decoding
+
+        Args:
+            Vi: Source vocabulary size
+            Ei: Size of Source word embeddings
+            Hi: Size of source encoder hidden layer
+            Vo: Target Vocabulary Size
+            Eo: Size of Target word embeddings
+            Ho: Size of Decoder hidden state
+            Ha: Size of Attention mechanism hidden layer size
+            Hl: Size of maxout output layer
+            attn_cls: class of the Attention to be used
+
+
+        The __call__ takes 3 required parameters: src_batch, tgt_batch, src_mask
+        src_batch is as in the sequence parameter of Encoder
+        tgt_batch is as in the targets parameter of Decoder
+        src_mask is as in the mask parameter of Encoder
+
+        return loss and attention values
+    """
+
+    def __init__(self, Vi, Ei, Hi, Vo, Eo, Ho, Ha, Hl, attn_cls=attention.AttentionModule, init_orth=False, use_bn_length=0,
+                 encoder_cell_type=rnn_cells.LSTMCell,
+                 decoder_cell_type=rnn_cells.LSTMCell,
+                 lexical_probability_dictionary=None, lex_epsilon=1e-3,
+                 use_goto_attention=False
+                 ):
+        log.info("constructing encoder decoder with Vi:%i Ei:%i Hi:%i Vo:%i Eo:%i Ho:%i Ha:%i Hl:%i" %
+                 (Vi, Ei, Hi, Vo, Eo, Ho, Ha, Hl))
+        super(EncoderDecoder, self).__init__(
+            enc=encoders.make_encoder(Vi, Ei, Hi, init_orth=init_orth, use_bn_length=use_bn_length,
+                                      cell_type=encoder_cell_type),
+            dec=decoder_cells.Decoder(Vo, Eo, Ho, Ha, 2 * Hi, Hl, attn_cls=attn_cls, init_orth=init_orth,
+                                      cell_type=decoder_cell_type, use_goto_attention=use_goto_attention)
+        )
+        self.Vo = Vo
+        self.lexical_probability_dictionary = lexical_probability_dictionary
+        self.lex_epsilon = lex_epsilon
+
+    def compute_lexicon_probability_matrix(self, src_batch):
+        if self.lexical_probability_dictionary is not None:
+            lexicon_probability_matrix = compute_lexicon_matrix(
+                src_batch, self.lexical_probability_dictionary, self.Vo)
+            if self.xp != np:
+                lexicon_probability_matrix = cuda.to_gpu(
+                    lexicon_probability_matrix, cuda.get_device(
+                        self.dec.lin_o.W.data))
+        else:
+            lexicon_probability_matrix = None
+        return lexicon_probability_matrix
+
+    def __call__(self, src_batch, tgt_batch, src_mask, use_best_for_sample=False, display_attn=False,
+                 raw_loss_info=False, keep_attn_values=False, need_score=False, noise_on_prev_word=False,
+                 use_previous_prediction=0, mode="test",
+                 use_soft_prediction_feedback=False, 
+                use_gumbel_for_soft_predictions=False,
+                temperature_for_soft_predictions=1.0
+                 ):
+        assert mode in "test train".split()
+
+        lexicon_probability_matrix = self.compute_lexicon_probability_matrix(src_batch)
+
+        fb_concat = self.enc(src_batch, src_mask, mode=mode)
+
+        mb_size, nb_elems, Hi = fb_concat.data.shape
+
+        if isinstance(tgt_batch, int):
+            return self.dec.sample(fb_concat, src_mask, tgt_batch, mb_size,
+                                   lexicon_probability_matrix=lexicon_probability_matrix,
+                                   lex_epsilon=self.lex_epsilon, best=use_best_for_sample,
+                                   keep_attn_values=keep_attn_values, need_score=need_score)
+
+        else:
+            return self.dec.compute_loss(fb_concat, src_mask, tgt_batch, raw_loss_info=raw_loss_info,
+                                         keep_attn_values=keep_attn_values, noise_on_prev_word=noise_on_prev_word,
+                                         use_previous_prediction=use_previous_prediction, mode="test",
+                                         per_sentence=False, lexicon_probability_matrix=lexicon_probability_matrix,
+                                         lex_epsilon=self.lex_epsilon,
+                                         use_soft_prediction_feedback=use_soft_prediction_feedback, 
+                                         use_gumbel_for_soft_predictions=use_gumbel_for_soft_predictions,
+                                         temperature_for_soft_predictions=temperature_for_soft_predictions)
+
+    def give_conditionalized_cell(self, src_batch, src_mask, noise_on_prev_word=False,
+                                  mode="test", demux=False):
+
+        if self.lexical_probability_dictionary is not None:
+            lexicon_probability_matrix = compute_lexicon_matrix(
+                src_batch, self.lexical_probability_dictionary, self.Vo)
+            if self.xp != np:
+                lexicon_probability_matrix = cuda.to_gpu(
+                    lexicon_probability_matrix, cuda.get_device(
+                        self.dec.lin_o.W.data))
+        else:
+            lexicon_probability_matrix = None
+
+        fb_concat = self.enc(src_batch, src_mask, mode=mode)
+
+        mb_size, nb_elems, Hi = fb_concat.data.shape
+
+        return self.dec.give_conditionalized_cell(fb_concat, src_mask,
+                                                  noise_on_prev_word=noise_on_prev_word,
+                                                  mode=mode, lexicon_probability_matrix=lexicon_probability_matrix,
+                                                  lex_epsilon=self.lex_epsilon, demux=demux)
+
+    def nbest_scorer(self, src_batch, src_mask, keep_attn=False):
+        assert len(src_batch[0].data) == 1
+
+        lexicon_probability_matrix = self.compute_lexicon_probability_matrix(src_batch)
+        fb_concat = self.enc(src_batch, src_mask)
+
+        decoding_cell = self.dec.give_conditionalized_cell(fb_concat, src_mask, noise_on_prev_word=False,
+                                                           mode="test", lexicon_probability_matrix=lexicon_probability_matrix, lex_epsilon=self.lex_epsilon,
+                                                           demux=True)
+
+        def scorer(tgt_batch):
+
+            loss, attn_list = decoder_cells.compute_loss_from_decoder_cell(decoding_cell, tgt_batch,
+                                                                           use_previous_prediction=0,
+                                                                           raw_loss_info=True,
+                                                                           per_sentence=True,
+                                                                           keep_attn=keep_attn)
+
+            return loss, attn_list
+
+        return scorer
+
 #
 #     def get_sampler_reinf(self, fb_concat, mask, eos_idx, nb_steps = 50, use_best_for_sample = False,
 #                     temperature = None,
@@ -460,137 +592,7 @@ class ConstantFunction(chainer.Function):
 #         total_score /= nb_samples
 #         return total_score
 
-import decoder_cells
-import encoders
 
-
-class EncoderDecoder(Chain):
-    """ Do RNNSearch Encoding/Decoding
-
-        Args:
-            Vi: Source vocabulary size
-            Ei: Size of Source word embeddings
-            Hi: Size of source encoder hidden layer
-            Vo: Target Vocabulary Size
-            Eo: Size of Target word embeddings
-            Ho: Size of Decoder hidden state
-            Ha: Size of Attention mechanism hidden layer size
-            Hl: Size of maxout output layer
-            attn_cls: class of the Attention to be used
-
-
-        The __call__ takes 3 required parameters: src_batch, tgt_batch, src_mask
-        src_batch is as in the sequence parameter of Encoder
-        tgt_batch is as in the targets parameter of Decoder
-        src_mask is as in the mask parameter of Encoder
-
-        return loss and attention values
-    """
-
-    def __init__(self, Vi, Ei, Hi, Vo, Eo, Ho, Ha, Hl, attn_cls=attention.AttentionModule, init_orth=False, use_bn_length=0,
-                 encoder_cell_type=rnn_cells.LSTMCell,
-                 decoder_cell_type=rnn_cells.LSTMCell,
-                 lexical_probability_dictionary=None, lex_epsilon=1e-3,
-                 use_goto_attention=False
-                 ):
-        log.info("constructing encoder decoder with Vi:%i Ei:%i Hi:%i Vo:%i Eo:%i Ho:%i Ha:%i Hl:%i" %
-                 (Vi, Ei, Hi, Vo, Eo, Ho, Ha, Hl))
-        super(EncoderDecoder, self).__init__(
-            enc=encoders.make_encoder(Vi, Ei, Hi, init_orth=init_orth, use_bn_length=use_bn_length,
-                                      cell_type=encoder_cell_type),
-            dec=decoder_cells.Decoder(Vo, Eo, Ho, Ha, 2 * Hi, Hl, attn_cls=attn_cls, init_orth=init_orth,
-                                      cell_type=decoder_cell_type, use_goto_attention=use_goto_attention)
-        )
-        self.Vo = Vo
-        self.lexical_probability_dictionary = lexical_probability_dictionary
-        self.lex_epsilon = lex_epsilon
-
-    def compute_lexicon_probability_matrix(self, src_batch):
-        if self.lexical_probability_dictionary is not None:
-            lexicon_probability_matrix = compute_lexicon_matrix(
-                src_batch, self.lexical_probability_dictionary, self.Vo)
-            if self.xp != np:
-                lexicon_probability_matrix = cuda.to_gpu(
-                    lexicon_probability_matrix, cuda.get_device(
-                        self.dec.lin_o.W.data))
-        else:
-            lexicon_probability_matrix = None
-        return lexicon_probability_matrix
-
-    def __call__(self, src_batch, tgt_batch, src_mask, use_best_for_sample=False, display_attn=False,
-                 raw_loss_info=False, keep_attn_values=False, need_score=False, noise_on_prev_word=False,
-                 use_previous_prediction=0, mode="test",
-                 use_soft_prediction_feedback=False, 
-                use_gumbel_for_soft_predictions=False,
-                temperature_for_soft_predictions=1.0
-                 ):
-        assert mode in "test train".split()
-
-        lexicon_probability_matrix = self.compute_lexicon_probability_matrix(src_batch)
-
-        fb_concat = self.enc(src_batch, src_mask, mode=mode)
-
-        mb_size, nb_elems, Hi = fb_concat.data.shape
-
-        if isinstance(tgt_batch, int):
-            return self.dec.sample(fb_concat, src_mask, tgt_batch, mb_size,
-                                   lexicon_probability_matrix=lexicon_probability_matrix,
-                                   lex_epsilon=self.lex_epsilon, best=use_best_for_sample,
-                                   keep_attn_values=keep_attn_values, need_score=need_score)
-
-        else:
-            return self.dec.compute_loss(fb_concat, src_mask, tgt_batch, raw_loss_info=raw_loss_info,
-                                         keep_attn_values=keep_attn_values, noise_on_prev_word=noise_on_prev_word,
-                                         use_previous_prediction=use_previous_prediction, mode="test",
-                                         per_sentence=False, lexicon_probability_matrix=lexicon_probability_matrix,
-                                         lex_epsilon=self.lex_epsilon,
-                                         use_soft_prediction_feedback=use_soft_prediction_feedback, 
-                                         use_gumbel_for_soft_predictions=use_gumbel_for_soft_predictions,
-                                         temperature_for_soft_predictions=temperature_for_soft_predictions)
-
-    def give_conditionalized_cell(self, src_batch, src_mask, noise_on_prev_word=False,
-                                  mode="test", demux=False):
-
-        if self.lexical_probability_dictionary is not None:
-            lexicon_probability_matrix = compute_lexicon_matrix(
-                src_batch, self.lexical_probability_dictionary, self.Vo)
-            if self.xp != np:
-                lexicon_probability_matrix = cuda.to_gpu(
-                    lexicon_probability_matrix, cuda.get_device(
-                        self.dec.lin_o.W.data))
-        else:
-            lexicon_probability_matrix = None
-
-        fb_concat = self.enc(src_batch, src_mask, mode=mode)
-
-        mb_size, nb_elems, Hi = fb_concat.data.shape
-
-        return self.dec.give_conditionalized_cell(fb_concat, src_mask,
-                                                  noise_on_prev_word=noise_on_prev_word,
-                                                  mode=mode, lexicon_probability_matrix=lexicon_probability_matrix,
-                                                  lex_epsilon=self.lex_epsilon, demux=demux)
-
-    def nbest_scorer(self, src_batch, src_mask, keep_attn=False):
-        assert len(src_batch[0].data) == 1
-
-        lexicon_probability_matrix = self.compute_lexicon_probability_matrix(src_batch)
-        fb_concat = self.enc(src_batch, src_mask)
-
-        decoding_cell = self.dec.give_conditionalized_cell(fb_concat, src_mask, noise_on_prev_word=False,
-                                                           mode="test", lexicon_probability_matrix=lexicon_probability_matrix, lex_epsilon=self.lex_epsilon,
-                                                           demux=True)
-
-        def scorer(tgt_batch):
-
-            loss, attn_list = decoder_cells.compute_loss_from_decoder_cell(decoding_cell, tgt_batch,
-                                                                           use_previous_prediction=0,
-                                                                           raw_loss_info=True,
-                                                                           per_sentence=True,
-                                                                           keep_attn=keep_attn)
-
-            return loss, attn_list
-
-        return scorer
 
 #     def compute_loss_and_backward(self, src_batch, tgt_batch, src_mask, raw_loss_info = False):
 #         fb_src = self.enc(src_batch, src_mask)
