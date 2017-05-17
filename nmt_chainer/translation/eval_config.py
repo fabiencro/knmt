@@ -59,6 +59,7 @@ def define_parser(parser):
     management_group.add_argument("--nb_batch_to_sort", type=int, default=20, help="Sort this many batches by size.")
     management_group.add_argument("--load_model_config", nargs="+", help="gives a list of models to be used for translation")
     management_group.add_argument("--load_tgt2src_model_config", nargs="+", help="gives a list of models used for reverse translation comparison")
+    management_group.add_argument("--tgt2src_dic")
     management_group.add_argument("--src_fn", nargs="?", help="source text",
                                   action=argument_parsing_tools.ArgumentActionNotOverwriteWithNone)
     management_group.add_argument("--dest_fn", nargs="?", help="destination file",

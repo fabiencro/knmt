@@ -133,6 +133,7 @@ def beam_search_all(gpu, encdec, eos_idx, src_data, beam_width, beam_pruning_mar
                     tgt2src_eos_idx=None,
                     tgt2src_src_indexer=None,
                     tgt2src_tgt_indexer=None,
+                    tgt2src_dic=None,
                     src_sentences=None):
 
     log.info("starting beam search translation of %i sentences" % len(src_data))
@@ -165,6 +166,8 @@ def beam_search_all(gpu, encdec, eos_idx, src_data, beam_width, beam_pruning_mar
             if tgt2src_encdec is not None:
                 def get_tgt2src_bleu_key(sentence_idx):
                     def get_tgt2src_bleu_score(trans):
+                        src_sentence = src_sentences[sentence_idx]
+
                         if tgt_unk_id == "align":
                             def unk_replacer(num_pos, unk_id):
                                 unk_pattern = "#T_UNK_%i#"
@@ -181,27 +184,42 @@ def beam_search_all(gpu, encdec, eos_idx, src_data, beam_width, beam_pruning_mar
 
                         (t, score, attn) = trans
                         translated = tgt_indexer.deconvert_swallow(t, unk_tag=unk_replacer)
+
                         ct = " ".join(translated)
+                        if ct != '':
+                            if dic is not None:
+                                from nmt_chainer.utilities import replace_tgt_unk
+                                translated = replace_tgt_unk.replace_unk_from_string(ct, src_sentence, dic, remove_unk, normalize_unicode_unk, attempt_to_relocate_unk_source).strip().split(" ")
 
-                        ct_file = tempfile.NamedTemporaryFile()
-                        ct_file.write(ct.encode('utf-8'))
-                        ct_file.seek(0)
+                        translated = tgt_indexer.deconvert_post(translated)
 
-                        _, tgt2src_src_data, _ = build_dataset_one_side_pp(ct_file.name, src_pp=tgt2src_src_indexer, max_nb_ex=None)
+                        translated_file = tempfile.NamedTemporaryFile()
+                        translated_file.write(translated.encode('utf-8'))
+                        translated_file.seek(0)
 
+                        _, tgt2src_src_data, _ = build_dataset_one_side_pp(translated_file.name, src_pp=tgt2src_src_indexer, max_nb_ex=None)
+
+                        print u"src_sentence              ={0}".format(src_sentences[sentence_idx])
+                        print u"translated w/unk          ={0}".format(ct)
+                        print u"translated wo/unk         ={0}".format(translated)
                         with cuda.get_device(gpu):
                             tgt2src_translations = greedy_batch_translate(tgt2src_encdec, tgt2src_eos_idx, tgt2src_src_data, batch_size=80, gpu=gpu, nb_steps=nb_steps)
 
                         t = tgt2src_translations[0]
                         if t[-1] == tgt2src_eos_idx:
                             t = t[:-1]
-                        tgt2src_ct = tgt2src_tgt_indexer.deconvert(t, unk_tag="#T_UNK#")
+                        tgt2src_translated = tgt2src_tgt_indexer.deconvert(t, unk_tag="#T_UNK#")
+                        print u"tgt2src_translated w/unk  ={0}".format(tgt2src_translated)
+                        if tgt2src_tgt_indexer != '' and tgt2src_dic is not None:
+                            from nmt_chainer.utilities import replace_tgt_unk
+                            tgt2src_translated = replace_tgt_unk.replace_unk_from_string(tgt2src_translated, " ".join(translated), tgt2src_dic, remove_unk, normalize_unicode_unk, attempt_to_relocate_unk_source).strip().split(" ")
+                        tgt2src_translated = tgt2src_tgt_indexer.deconvert_post(tgt2src_translated)
+                        print u"tgt2src_translated wo/unk ={0}".format(tgt2src_translated)
 
                         comp = bleu.BleuComputer()
-                        src_sentence = src_sentences[sentence_idx]
-                        comp.update(src_sentence, tgt2src_ct)
+                        comp.update(src_sentence, tgt2src_translated)
                         bleu_score = comp.bleu()
-                        print u"ct={0} BLEU={1}".format(ct, bleu_score)
+                        print u"tgt2src_translated        ={0} BLEU={1}".format(tgt2src_translated, bleu_score)
                         return bleu_score
                     return get_tgt2src_bleu_score
 
@@ -272,6 +290,7 @@ def translate_to_file_with_beam_search(dest_fn, gpu, encdec, eos_idx, src_data, 
                                        tgt2src_eos_idx=None,
                                        tgt2src_src_indexer=None,
                                        tgt2src_tgt_indexer=None,
+                                       tgt2src_dic=None,
                                        src_sentences=None):
 
     log.info("writing translation to %s " % dest_fn)
@@ -295,6 +314,7 @@ def translate_to_file_with_beam_search(dest_fn, gpu, encdec, eos_idx, src_data, 
                                            tgt2src_eos_idx=tgt2src_eos_idx,
                                            tgt2src_src_indexer=tgt2src_src_indexer,
                                            tgt2src_tgt_indexer=tgt2src_tgt_indexer,
+                                           tgt2src_dic=tgt2src_dic,
                                            src_sentences=src_sentences)
 
     attn_vis = None
@@ -499,6 +519,7 @@ def do_eval(config_eval):
 
     ref = config_eval.output.ref
     dic = config_eval.output.dic
+    tgt2src_dic = config_eval.process.tgt2src_dic
     normalize_unicode_unk = config_eval.output.normalize_unicode_unk
     attempt_to_relocate_unk_source = config_eval.output.attempt_to_relocate_unk_source
     remove_unk = config_eval.output.remove_unk
@@ -624,6 +645,8 @@ def do_eval(config_eval):
                                                tgt2src_eos_idx=tgt2src_eos_idx,
                                                tgt2src_src_indexer=tgt2src_src_indexer,
                                                tgt2src_tgt_indexer=tgt2src_tgt_indexer,
+                                               dic=dic,
+                                               tgt2src_dic=tgt2src_dic,
                                                src_sentences=src_sentences)
 
             translation_infos["dest"] = dest_fn
