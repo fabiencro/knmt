@@ -179,12 +179,24 @@ class MailHandler:
         return sentences
 
     def _translate_sentence(self, src_lang, tgt_lang, sentence):
+        if sentence.strip() == '':
+            return ''
+
+        # self.logger.info("_translate_sentence src_lang={0} tgt_lang={1} sentence=@@@{2}@@@".format(src_lang, tgt_lang, sentence.decode('utf-8')))
         config = json.load(open(self.config_file))
         lang_pair = '{0}-{1}'.format(src_lang, tgt_lang)
         server_data = config['servers'][lang_pair]
         client = Client(server_data['host'], server_data['port'])
         resp = client.query(sentence)
+        # self.logger.info("resp={0}".format(resp))
         json_resp = json.loads(resp)
+
+        if 'out' not in json_resp:
+            trans_err_msg = 'This sentence @@@{0}@@@ could not be translated from {1} to {2}.'.format(sentence, src_lang, tgt_lang)
+            self.logger.error(trans_err_msg)
+            self._send_mail(None, "Mail-Handler - STARTED", trans_err_msg)
+            return ''
+
         translation = json_resp['out']
 
         if tgt_lang in ['ja', 'zh']:
