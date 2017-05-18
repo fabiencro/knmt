@@ -137,6 +137,9 @@ class MailHandler:
         smtp_server.quit()
 
     def _split_text_into_sentences(self, src_lang, tgt_lang, text):
+        if text.strip() == '':
+            return[text]
+
         config = json.load(open(self.config_file))
 
         if 'text_splitter' not in config:
