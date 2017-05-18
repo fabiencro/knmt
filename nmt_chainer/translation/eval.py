@@ -1,5 +1,4 @@
 #!/usr/bin/env python
-# -*- coding: utf-8 -*-
 """eval.py: Use a RNNSearch Model"""
 __author__ = "Fabien Cromieres"
 __license__ = "undecided"
