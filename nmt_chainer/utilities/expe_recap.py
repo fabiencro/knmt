@@ -69,7 +69,7 @@ def process_eval_config(config_fn, dest_dir):
     nb_models_used = 0
     if config.training_config is not None:
         nb_models_used += 1
-    if config.process.load_model_config is not None:
+    if "load_model_config" in config.process and config.process.load_model_config is not None:
         nb_models_used += len(config.process.load_model_config)
     if config.process.additional_training_config is not None:
         nb_models_used += len(config.process.additional_training_config)
