@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+# -*- coding: utf-8 -*-
 """eval.py: Use a RNNSearch Model"""
 __author__ = "Fabien Cromieres"
 __license__ = "undecided"
@@ -495,15 +496,31 @@ def do_eval(config_eval):
         log.info("writing translation of to %s" % dest_fn)
         with cuda.get_device(gpu):
             assert len(encdec_list) == 1
-            translations = greedy_batch_translate(
-                encdec_list[0], eos_idx, src_data, batch_size=mb_size, gpu=gpu, nb_steps=nb_steps)
+            translations, attn = greedy_batch_translate(
+                encdec_list[0], eos_idx, src_data, batch_size=mb_size, gpu=gpu, nb_steps=nb_steps, get_attention=True)
         out = codecs.open(dest_fn, "w", encoding="utf8")
-        for t in translations:
+
+        for t_idx, t in enumerate(translations):
             if t[-1] == eos_idx:
                 t = t[:-1]
-            ct = tgt_indexer.deconvert(t, unk_tag="#T_UNK#")
-#             ct = convert_idx_to_string(t, tgt_voc + ["#T_UNK#"])
-            out.write(ct + "\n")
+
+            if tgt_unk_id == "align":
+                def unk_replacer(num_pos, unk_id):
+                    unk_pattern = "#T_UNK_%i#"
+                    a = attn[t_idx][num_pos]
+                    xp = cuda.get_array_module(a)
+                    src_pos = int(xp.argmax(a))
+                    return unk_pattern % src_pos
+            elif tgt_unk_id == "id":
+                def unk_replacer(num_pos, unk_id):
+                    unk_pattern = "#T_UNK_%i#"
+                    return unk_pattern % unk_id
+            else:
+                assert False
+
+            ct = tgt_indexer.deconvert_swallow(t, unk_tag=unk_replacer)
+
+            out.write(" ".join(ct) + "\n")
 
     elif mode == "beam_search" or mode == "eval_bleu":
         if config_eval.process.server is not None:
