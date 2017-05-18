@@ -129,11 +129,11 @@ def beam_search_all(gpu, encdec, eos_idx, src_data, beam_width, beam_pruning_mar
                     normalize_unicode_unk=False,
                     attempt_to_relocate_unk_source=False,
                     nbest=None,
-                    tgt2src_encdec=None,
-                    tgt2src_eos_idx=None,
-                    tgt2src_src_indexer=None,
-                    tgt2src_tgt_indexer=None,
-                    tgt2src_dic=None,
+                    back_translation_encdec=None,
+                    back_translation_eos_idx=None,
+                    back_translation_src_indexer=None,
+                    back_translation_tgt_indexer=None,
+                    back_translation_dic=None,
                     src_sentences=None):
 
     log.info("starting beam search translation of %i sentences" % len(src_data))
@@ -163,9 +163,9 @@ def beam_search_all(gpu, encdec, eos_idx, src_data, beam_width, beam_pruning_mar
         for num_t, translations in enumerate(translations_iter):
             res_trans = []
 
-            if tgt2src_encdec is not None:
-                def get_tgt2src_bleu_key(sentence_idx):
-                    def get_tgt2src_bleu_score(trans):
+            if back_translation_encdec is not None:
+                def get_back_translation_bleu_key(sentence_idx):
+                    def get_back_translation_bleu_score(trans):
                         src_sentence = src_sentences[sentence_idx]
 
                         if tgt_unk_id == "align":
@@ -197,33 +197,33 @@ def beam_search_all(gpu, encdec, eos_idx, src_data, beam_width, beam_pruning_mar
                         translated_file.write(translated.encode('utf-8'))
                         translated_file.seek(0)
 
-                        _, tgt2src_src_data, _ = build_dataset_one_side_pp(translated_file.name, src_pp=tgt2src_src_indexer, max_nb_ex=None)
+                        _, back_translation_src_data, _ = build_dataset_one_side_pp(translated_file.name, src_pp=back_translation_src_indexer, max_nb_ex=None)
 
                         print u"src_sentence              ={0}".format(src_sentences[sentence_idx])
                         print u"translated w/unk          ={0}".format(ct)
                         print u"translated wo/unk         ={0}".format(translated)
                         with cuda.get_device(gpu):
-                            tgt2src_translations = greedy_batch_translate(tgt2src_encdec, tgt2src_eos_idx, tgt2src_src_data, batch_size=80, gpu=gpu, nb_steps=nb_steps)
+                            back_translation_translations = greedy_batch_translate(back_translation_encdec, back_translation_eos_idx, back_translation_src_data, batch_size=80, gpu=gpu, nb_steps=nb_steps)
 
-                        t = tgt2src_translations[0]
-                        if t[-1] == tgt2src_eos_idx:
+                        t = back_translation_translations[0]
+                        if t[-1] == back_translation_eos_idx:
                             t = t[:-1]
-                        tgt2src_translated = tgt2src_tgt_indexer.deconvert(t, unk_tag="#T_UNK#")
-                        print u"tgt2src_translated w/unk  ={0}".format(tgt2src_translated)
-                        if tgt2src_tgt_indexer != '' and tgt2src_dic is not None:
+                        back_translation_translated = back_translation_tgt_indexer.deconvert(t, unk_tag="#T_UNK#")
+                        print u"back_translation_translated w/unk  ={0}".format(back_translation_translated)
+                        if back_translation_tgt_indexer != '' and back_translation_dic is not None:
                             from nmt_chainer.utilities import replace_tgt_unk
-                            tgt2src_translated = replace_tgt_unk.replace_unk_from_string(tgt2src_translated, " ".join(translated), tgt2src_dic, remove_unk, normalize_unicode_unk, attempt_to_relocate_unk_source).strip().split(" ")
-                        tgt2src_translated = tgt2src_tgt_indexer.deconvert_post(tgt2src_translated)
-                        print u"tgt2src_translated wo/unk ={0}".format(tgt2src_translated)
+                            back_translation_translated = replace_tgt_unk.replace_unk_from_string(back_translation_translated, " ".join(translated), back_translation_dic, remove_unk, normalize_unicode_unk, attempt_to_relocate_unk_source).strip().split(" ")
+                        back_translation_translated = back_translation_tgt_indexer.deconvert_post(back_translation_translated)
+                        print u"back_translation_translated wo/unk ={0}".format(back_translation_translated)
 
                         comp = bleu.BleuComputer()
-                        comp.update(src_sentence, tgt2src_translated)
+                        comp.update(src_sentence, back_translation_translated)
                         bleu_score = comp.bleu()
-                        print u"tgt2src_translated        ={0} BLEU={1}".format(tgt2src_translated, bleu_score)
+                        print u"back_translation_translated        ={0} BLEU={1}".format(back_translation_translated, bleu_score)
                         return bleu_score
-                    return get_tgt2src_bleu_score
+                    return get_back_translation_bleu_score
 
-                translations.sort(key=get_tgt2src_bleu_key(num_t), reverse=True)
+                translations.sort(key=get_back_translation_bleu_key(num_t), reverse=True)
 
             for trans in translations:
                 (t, score, attn) = trans
@@ -286,11 +286,11 @@ def translate_to_file_with_beam_search(dest_fn, gpu, encdec, eos_idx, src_data, 
                                        attempt_to_relocate_unk_source=False,
                                        unprocessed_output_filename=None,
                                        nbest=None,
-                                       tgt2src_encdec=None,
-                                       tgt2src_eos_idx=None,
-                                       tgt2src_src_indexer=None,
-                                       tgt2src_tgt_indexer=None,
-                                       tgt2src_dic=None,
+                                       back_translation_encdec=None,
+                                       back_translation_eos_idx=None,
+                                       back_translation_src_indexer=None,
+                                       back_translation_tgt_indexer=None,
+                                       back_translation_dic=None,
                                        src_sentences=None):
 
     log.info("writing translation to %s " % dest_fn)
@@ -310,11 +310,11 @@ def translate_to_file_with_beam_search(dest_fn, gpu, encdec, eos_idx, src_data, 
                                            normalize_unicode_unk=normalize_unicode_unk,
                                            attempt_to_relocate_unk_source=attempt_to_relocate_unk_source,
                                            nbest=nbest,
-                                           tgt2src_encdec=tgt2src_encdec,
-                                           tgt2src_eos_idx=tgt2src_eos_idx,
-                                           tgt2src_src_indexer=tgt2src_src_indexer,
-                                           tgt2src_tgt_indexer=tgt2src_tgt_indexer,
-                                           tgt2src_dic=tgt2src_dic,
+                                           back_translation_encdec=back_translation_encdec,
+                                           back_translation_eos_idx=back_translation_eos_idx,
+                                           back_translation_src_indexer=back_translation_src_indexer,
+                                           back_translation_tgt_indexer=back_translation_tgt_indexer,
+                                           back_translation_dic=back_translation_dic,
                                            src_sentences=src_sentences)
 
     attn_vis = None
@@ -397,8 +397,8 @@ def create_encdec(config_eval):
     encdec_list = []
     eos_idx, src_indexer, tgt_indexer = None, None, None
     model_infos_list = []
-    tgt2src_encdec = None
-    tgt2src_eos_idx, tgt2src_src_indexer, tgt2src_tgt_indexer = None, None, None
+    back_translation_encdec = None
+    back_translation_eos_idx, back_translation_src_indexer, back_translation_tgt_indexer = None, None, None
 
     if config_eval.training_config is not None:
         assert config_eval.trained_model is not None
@@ -429,10 +429,10 @@ def create_encdec(config_eval):
 
     assert len(encdec_list) > 0
 
-    if 'load_tgt2src_model_config' in config_eval.process and config_eval.process.load_tgt2src_model_config is not None:
-        for config_filename in config_eval.process.load_tgt2src_model_config:
+    if 'load_back_translation_model_config' in config_eval.process and config_eval.process.load_back_translation_model_config is not None:
+        for config_filename in config_eval.process.load_back_translation_model_config:
             log.info(
-                "loading tgt2src model and parameters from config %s" %
+                "loading back_translation model and parameters from config %s" %
                 config_filename)
             config_training = train_config.load_config_train(config_filename)
             (encdec, this_eos_idx, this_src_indexer, this_tgt_indexer), model_infos = train.create_encdec_and_indexers_from_config_dict(config_training,
@@ -446,9 +446,9 @@ def create_encdec(config_eval):
             #     eos_idx, src_indexer, tgt_indexer = this_eos_idx, this_src_indexer, this_tgt_indexer
             # else:
             #     check_if_vocabulary_info_compatible(this_eos_idx, this_src_indexer, this_tgt_indexer, eos_idx, src_indexer, tgt_indexer)
-            tgt2src_eos_idx, tgt2src_src_indexer, tgt2src_tgt_indexer = this_eos_idx, this_src_indexer, this_tgt_indexer
+            back_translation_eos_idx, back_translation_src_indexer, back_translation_tgt_indexer = this_eos_idx, this_src_indexer, this_tgt_indexer
 
-            tgt2src_encdec = encdec
+            back_translation_encdec = encdec
 
     if 'additional_training_config' in config_eval.process and config_eval.process.additional_training_config is not None:
         assert len(config_eval.process.additional_training_config) == len(config_eval.process.additional_trained_model)
@@ -486,7 +486,7 @@ def create_encdec(config_eval):
     else:
         reverse_encdec = None
 
-    return encdec_list, eos_idx, src_indexer, tgt_indexer, reverse_encdec, model_infos_list, tgt2src_encdec, tgt2src_eos_idx, tgt2src_src_indexer, tgt2src_tgt_indexer
+    return encdec_list, eos_idx, src_indexer, tgt_indexer, reverse_encdec, model_infos_list, back_translation_encdec, back_translation_eos_idx, back_translation_src_indexer, back_translation_tgt_indexer
 
 
 def do_eval(config_eval):
@@ -519,7 +519,7 @@ def do_eval(config_eval):
 
     ref = config_eval.output.ref
     dic = config_eval.output.dic
-    tgt2src_dic = config_eval.process.tgt2src_dic
+    back_translation_dic = config_eval.process.back_translation_dic
     normalize_unicode_unk = config_eval.output.normalize_unicode_unk
     attempt_to_relocate_unk_source = config_eval.output.attempt_to_relocate_unk_source
     remove_unk = config_eval.output.remove_unk
@@ -529,7 +529,7 @@ def do_eval(config_eval):
 
     time_start = time.clock()
 
-    encdec_list, eos_idx, src_indexer, tgt_indexer, reverse_encdec, model_infos_list, tgt2src_encdec, tgt2src_eos_idx, tgt2src_src_indexer, tgt2src_tgt_indexer = create_encdec(config_eval)
+    encdec_list, eos_idx, src_indexer, tgt_indexer, reverse_encdec, model_infos_list, back_translation_encdec, back_translation_eos_idx, back_translation_src_indexer, back_translation_tgt_indexer = create_encdec(config_eval)
 
     if config_eval.process.server is None:
         eval_dir_placeholder = "@eval@/"
@@ -641,12 +641,12 @@ def do_eval(config_eval):
                                                use_unfinished_translation_if_none_found=True,
                                                unprocessed_output_filename=dest_fn + ".unprocessed",
                                                nbest=nbest,
-                                               tgt2src_encdec=tgt2src_encdec,
-                                               tgt2src_eos_idx=tgt2src_eos_idx,
-                                               tgt2src_src_indexer=tgt2src_src_indexer,
-                                               tgt2src_tgt_indexer=tgt2src_tgt_indexer,
+                                               back_translation_encdec=back_translation_encdec,
+                                               back_translation_eos_idx=back_translation_eos_idx,
+                                               back_translation_src_indexer=back_translation_src_indexer,
+                                               back_translation_tgt_indexer=back_translation_tgt_indexer,
                                                dic=dic,
-                                               tgt2src_dic=tgt2src_dic,
+                                               back_translation_dic=back_translation_dic,
                                                src_sentences=src_sentences)
 
             translation_infos["dest"] = dest_fn
