@@ -507,9 +507,9 @@ def do_eval(config_eval):
             if t[-1] == eos_idx:
                 t = t[:-1]
 
-            ct = tgt_indexer.deconvert_swallow(t, unk_tag=get_unk_replacer(tgt_unk_id, attn[t_idx]))
+            ct = tgt_indexer.deconvert(t, unk_tag=get_unk_replacer(tgt_unk_id, attn[t_idx]))
 
-            out.write(" ".join(ct) + "\n")
+            out.write(ct + "\n")
 
     elif mode == "beam_search" or mode == "eval_bleu":
         if config_eval.process.server is not None:
