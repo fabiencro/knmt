@@ -93,7 +93,7 @@ def greedy_batch_translate(encdec, eos_idx, src_data, batch_size=80, gpu=None, g
         deb = de_batch(sample_greedy, mask=None, eos_idx=eos_idx, is_variable=False)
         res += deb
         if get_attention:
-            deb_attn = de_batch(attn_list, mask=None, eos_idx=None, is_variable=True, raw=True)
+            deb_attn = de_batch(attn_list, mask=None, eos_idx=None, is_variable=True, raw=True, reverse=reverse_tgt)
             attn_all += deb_attn
 
     if reverse_tgt:

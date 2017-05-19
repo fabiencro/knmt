@@ -276,12 +276,15 @@ def compute_bleu_with_unk_as_wrong(references, candidates, is_unk_id, new_unk_id
     return bc
 
 
-def de_batch(batch, mask=None, eos_idx=None, is_variable=False, raw=False):
+def de_batch(batch, mask=None, eos_idx=None, is_variable=False, raw=False, reverse=False):
     """ Utility function for "de-batching".
         batch is a list of Variable/numpy/cupy of shape[0] <= mb_size
 
         returns a list of the sequences in the batch
     """
+    if reverse:
+        raise NotImplementedError
+
     res = []
     mb_size = len(batch[0].data) if is_variable else len(batch[0])
     if mask is not None:
