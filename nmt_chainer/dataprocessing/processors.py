@@ -714,17 +714,17 @@ class IndexingPrePostProcessorBase(MonoProcessor):
     def convert(self, sentence, stats=None):
         raise NotImplemented
 
-    def convert_swallow(self, sentence, stats=None):
+    def convert_shallow(self, sentence, stats=None):
         raise NotImplemented
 
-    def deconvert_swallow(self, seq, unk_tag="#UNK#", no_oov=True, eos_idx=None):
+    def deconvert_shallow(self, seq, unk_tag="#UNK#", no_oov=True, eos_idx=None):
         raise NotImplemented
 
     def deconvert_post(self, seq):
         raise NotImplemented
 
     def deconvert(self, seq, unk_tag="#UNK#", no_oov=True, eos_idx=None):
-        sentence = self.deconvert_swallow(
+        sentence = self.deconvert_shallow(
             seq, unk_tag=unk_tag, no_oov=no_oov, eos_idx=eos_idx)
         sentence = self.deconvert_post(sentence)
         return sentence
@@ -751,10 +751,10 @@ class BiIndexingPrePostProcessor(BiProcessor):
     def convert(self, sentence1, sentence2, stat1=None, stat2=None):
         if self.preprocessor is not None:
             sentence1, sentence2 = self.preprocessor.convert(sentence1, sentence2)
-        return self.indexer1.convert_swallow(sentence1, stat1), self.indexer2.convert_swallow(sentence2, stat2)
+        return self.indexer1.convert_shallow(sentence1, stat1), self.indexer2.convert_shallow(sentence2, stat2)
 
     def deconvert(self, sentence1, sentence2):
-        sentence1, sentence2 = self.indexer1.deconvert_swallow(sentence1), self.indexer2.deconvert_swallow(sentence2)
+        sentence1, sentence2 = self.indexer1.deconvert_shallow(sentence1), self.indexer2.deconvert_shallow(sentence2)
         if self.preprocessor is not None:
             sentence1, sentence2 = self.preprocessor.deconvert(
                 sentence1, sentence2)
@@ -782,8 +782,8 @@ class BiIndexingPrePostProcessor(BiProcessor):
             iterable1 = ApplyToMultiIterator(iterable_1_2, lambda x: x[0])
             iterable2 = ApplyToMultiIterator(iterable_1_2, lambda x: x[1])
 
-        self.indexer1.initialize_swallow(iterable1)
-        self.indexer2.initialize_swallow(iterable2)
+        self.indexer1.initialize_shallow(iterable1)
+        self.indexer2.initialize_shallow(iterable2)
         self.is_initialized_ = True
 
     def add_preprocessor(self, processor, can_be_initialized=False):
@@ -834,8 +834,8 @@ class BiIndexingPrePostProcessor(BiProcessor):
     def to_serializable(self):
         assert self.is_initialized()
         obj = self.make_base_serializable_object()
-        obj["indexer_src"] = self.indexer1.to_serializable_swallow()
-        obj["indexer_tgt"] = self.indexer2.to_serializable_swallow()
+        obj["indexer_src"] = self.indexer1.to_serializable_shallow()
+        obj["indexer_tgt"] = self.indexer2.to_serializable_shallow()
         if self.preprocessor is not None:
             obj["preprocessor"] = self.preprocessor.to_serializable()
         return obj
@@ -875,7 +875,7 @@ class IndexingPrePostProcessor(IndexingPrePostProcessorBase):
                 ("unknown_percent", (self.unk_cnt * 100.0) / self.token if self.token != 0 else 0)
             ])
 
-    def initialize_swallow(self, iterable):
+    def initialize_shallow(self, iterable):
         log.info("building dic")
         self.indexer = build_index_from_iterable(iterable, self.voc_limit)
         self.is_initialized_ = True
@@ -884,7 +884,7 @@ class IndexingPrePostProcessor(IndexingPrePostProcessorBase):
         if self.preprocessor is not None:
             self.preprocessor.initialize(iterable)
             iterable = self.preprocessor.apply_to_iterable(iterable)
-        self.initialize_swallow(iterable)
+        self.initialize_shallow(iterable)
         self.indexer = build_index_from_iterable(iterable, self.voc_limit)
 
     def __str__(self):
@@ -905,10 +905,10 @@ class IndexingPrePostProcessor(IndexingPrePostProcessorBase):
     def convert(self, sentence, stats=None):
         if self.preprocessor is not None:
             sentence = self.preprocessor.convert(sentence)
-        converted = self.convert_swallow(sentence, stats=stats)
+        converted = self.convert_shallow(sentence, stats=stats)
         return converted
 
-    def convert_swallow(self, sentence, stats=None):
+    def convert_shallow(self, sentence, stats=None):
         assert self.is_initialized()
         converted = self.indexer.convert(sentence)
         if stats is not None:
@@ -919,7 +919,7 @@ class IndexingPrePostProcessor(IndexingPrePostProcessorBase):
     def apply_to_iterable(self, iterable, stats=None):
         raise AssertionError()
 
-    def deconvert_swallow(self, seq, unk_tag="#UNK#", no_oov=True, eos_idx=None):
+    def deconvert_shallow(self, seq, unk_tag="#UNK#", no_oov=True, eos_idx=None):
         return self.indexer.deconvert(seq, unk_tag=unk_tag, no_oov=no_oov, eos_idx=eos_idx)
 
     def deconvert_post(self, seq):
@@ -966,12 +966,12 @@ class IndexingPrePostProcessor(IndexingPrePostProcessorBase):
         return res
 
     def to_serializable(self):
-        obj = self.to_serializable_swallow()
+        obj = self.to_serializable_shallow()
         if self.preprocessor is not None:
             obj["preprocessor"] = self.preprocessor.to_serializable()
         return obj
 
-    def to_serializable_swallow(self):
+    def to_serializable_shallow(self):
         assert self.is_initialized()
         obj = self.make_base_serializable_object()
         obj["voc_limit"] = self.voc_limit

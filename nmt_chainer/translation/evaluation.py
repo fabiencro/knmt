@@ -333,5 +333,5 @@ def sample_once(encdec, src_batch, tgt_batch, src_mask, src_indexer, tgt_indexer
                                                              [src_indexer, tgt_indexer, tgt_indexer, tgt_indexer],
                                                              [None, eos_idx, eos_idx, eos_idx]):
             print name, "idx:", seq
-            print name, "raw:", " ".join(indexer.deconvert_swallow(seq, unk_tag=unk_tag, eos_idx=this_eos_idx)).encode('utf-8')
+            print name, "raw:", " ".join(indexer.deconvert_shallow(seq, unk_tag=unk_tag, eos_idx=this_eos_idx)).encode('utf-8')
             print name, "postp:", indexer.deconvert(seq, unk_tag=unk_tag, eos_idx=this_eos_idx).encode('utf-8')
