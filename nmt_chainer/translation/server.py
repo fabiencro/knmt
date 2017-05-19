@@ -40,7 +40,7 @@ class Translator:
     def __init__(self, config_server):
         self.config_server = config_server
         from nmt_chainer.translation.eval import create_encdec
-        self.encdec, self.eos_idx, self.src_indexer, self.tgt_indexer, self.reverse_encdec, model_infos_list, back_translation_encdec, back_translation_eos_idx, back_translation_src_indexer, back_translation_tgt_indexer = create_encdec(
+        self.encdec, self.eos_idx, self.src_indexer, self.tgt_indexer, self.reverse_encdec, model_infos_list, backtranslation_encdec, backtranslation_eos_idx, backtranslation_src_indexer, backtranslation_tgt_indexer = create_encdec(
             config_server)
 
         self.encdec_list = [self.encdec]
