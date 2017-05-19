@@ -163,21 +163,7 @@ def beam_search_all(gpu, encdec, eos_idx, src_data, beam_width, beam_pruning_mar
 #                 t, score = bests[1]
 #                 ct = convert_idx_to_string(t, tgt_voc + ["#T_UNK#"])
 #                 ct = convert_idx_to_string_with_attn(t, tgt_voc, attn, unk_idx = len(tgt_voc))
-                if tgt_unk_id == "align":
-                    def unk_replacer(num_pos, unk_id):
-                        unk_pattern = "#T_UNK_%i#"
-                        a = attn[num_pos]
-                        xp = cuda.get_array_module(a)
-                        src_pos = int(xp.argmax(a))
-                        return unk_pattern % src_pos
-                elif tgt_unk_id == "id":
-                    def unk_replacer(num_pos, unk_id):
-                        unk_pattern = "#T_UNK_%i#"
-                        return unk_pattern % unk_id
-                else:
-                    assert False
-
-                translated = tgt_indexer.deconvert_swallow(t, unk_tag=unk_replacer)
+                translated = tgt_indexer.deconvert_swallow(t, unk_tag=get_unk_replacer(tgt_unk_id, attn))
 
                 unk_mapping = []
                 ct = " ".join(translated)
@@ -383,6 +369,24 @@ def create_encdec(config_eval):
     return encdec_list, eos_idx, src_indexer, tgt_indexer, reverse_encdec, model_infos_list
 
 
+def get_unk_replacer(tgt_unk_id, attn):
+    if tgt_unk_id == "align":
+        def unk_replacer(num_pos, unk_id):
+            unk_pattern = "#T_UNK_%i#"
+            a = attn[num_pos]
+            xp = cuda.get_array_module(a)
+            src_pos = int(xp.argmax(a))
+            return unk_pattern % src_pos
+        return unk_replacer
+    elif tgt_unk_id == "id":
+        def unk_replacer(num_pos, unk_id):
+            unk_pattern = "#T_UNK_%i#"
+            return unk_pattern % unk_id
+        return unk_replacer
+    else:
+        assert False
+
+
 def do_eval(config_eval):
     src_fn = config_eval.process.src_fn
     tgt_fn = config_eval.output.tgt_fn
@@ -503,21 +507,7 @@ def do_eval(config_eval):
             if t[-1] == eos_idx:
                 t = t[:-1]
 
-            if tgt_unk_id == "align":
-                def unk_replacer(num_pos, unk_id):
-                    unk_pattern = "#T_UNK_%i#"
-                    a = attn[t_idx][num_pos]
-                    xp = cuda.get_array_module(a)
-                    src_pos = int(xp.argmax(a))
-                    return unk_pattern % src_pos
-            elif tgt_unk_id == "id":
-                def unk_replacer(num_pos, unk_id):
-                    unk_pattern = "#T_UNK_%i#"
-                    return unk_pattern % unk_id
-            else:
-                assert False
-
-            ct = tgt_indexer.deconvert_swallow(t, unk_tag=unk_replacer)
+            ct = tgt_indexer.deconvert_swallow(t, unk_tag=get_unk_replacer(tgt_unk_id, attn[t_idx]))
 
             out.write(" ".join(ct) + "\n")
 
