@@ -26,5 +26,5 @@ RNN_SEARCH_DICTIONARY=~/experiments/rnnsearch/dictionaries/dic_j_e.json
 SEGMENTER_HOME=~/parse-tools
 SEGMENTER_HOST=basil302
 SEGMENTER_PORT=12351
-SEGMENTER_COMMAND="echo '%s' | $SEGMENTER_HOME/src/parse_client.pl --host $SEGMENTER_HOST --port $SEGMENTER_PORT --lang $LANG_SRC"
+SEGMENTER_COMMAND="echo %s | $SEGMENTER_HOME/src/parse_client.pl --host $SEGMENTER_HOST --port $SEGMENTER_PORT --lang $LANG_SRC"
 SEGMENTER_FORMAT=parse_server
