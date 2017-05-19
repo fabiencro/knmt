@@ -43,5 +43,5 @@ RNN_SEARCH_DICTIONARY=
 SEGMENTER_HOME=~/MorphServer
 SEGMENTER_HOST=basil123
 SEGMENTER_PORT=13388
-SEGMENTER_COMMAND="echo '%s' | bin/h2z.pl | $SEGMENTER_HOME/src/ChineseSegmenterClient.py --host $SEGMENTER_HOST --port $SEGMENTER_PORT"
+SEGMENTER_COMMAND="echo %s | bin/h2z.pl | $SEGMENTER_HOME/src/ChineseSegmenterClient.py --host $SEGMENTER_HOST --port $SEGMENTER_PORT"
 SEGMENTER_FORMAT=morph
