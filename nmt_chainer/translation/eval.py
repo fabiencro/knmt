@@ -478,6 +478,8 @@ def create_encdec(config_eval):
 
     if 'gpu' in config_eval.process and config_eval.process.gpu is not None:
         encdec_list = [encdec.to_gpu(config_eval.process.gpu) for encdec in encdec_list]
+        if backtranslation_encdec is not None:
+            backtranslation_encdec = backtranslation_encdec.to_gpu(config_eval.process.gpu)
 
     if 'reverse_training_config' in config_eval.process and config_eval.process.reverse_training_config is not None:
         reverse_encdec, reverse_eos_idx, reverse_src_indexer, reverse_tgt_indexer = create_and_load_encdec_from_files(
