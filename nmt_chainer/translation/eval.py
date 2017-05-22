@@ -206,26 +206,28 @@ def beam_search_all(gpu, encdec, eos_idx, src_data, beam_width, beam_pruning_mar
                         with cuda.get_device(gpu):
                             backtranslations, back_attn = greedy_batch_translate(backtranslation_encdec, backtranslation_eos_idx, backtranslation_src_data, batch_size=80, gpu=gpu, nb_steps=nb_steps, get_attention=True)
 
-                        t = backtranslations[0]
-                        if t[-1] == backtranslation_eos_idx:
-                            t = t[:-1]
+                        bleu_score = 0
+                        if len(backtranslations) > 0:
+                            t = backtranslations[0]
+                            if t[-1] == backtranslation_eos_idx:
+                                t = t[:-1]
 
-                        def backtranslation_unk_replacer(num_pos, unk_id):
-                            unk_pattern = "#T_UNK_%i#"
-                            a = back_attn[0][num_pos]
-                            xp = cuda.get_array_module(a)
-                            src_pos = int(xp.argmax(a))
-                            return unk_pattern % src_pos
+                            def backtranslation_unk_replacer(num_pos, unk_id):
+                                unk_pattern = "#T_UNK_%i#"
+                                a = back_attn[0][num_pos]
+                                xp = cuda.get_array_module(a)
+                                src_pos = int(xp.argmax(a))
+                                return unk_pattern % src_pos
 
-                        backtranslated = backtranslation_tgt_indexer.deconvert_swallow(t, unk_tag=backtranslation_unk_replacer)
-                        if backtranslation_tgt_indexer != '' and backtranslation_dic is not None:
-                            from nmt_chainer.utilities import replace_tgt_unk
-                            backtranslated = replace_tgt_unk.replace_unk_from_string(" ".join(backtranslated), " ".join(translated), backtranslation_dic, remove_unk, normalize_unicode_unk, attempt_to_relocate_unk_source).strip().split(" ")
-                        backtranslated = backtranslation_tgt_indexer.deconvert_post(backtranslated)
+                            backtranslated = backtranslation_tgt_indexer.deconvert_swallow(t, unk_tag=backtranslation_unk_replacer)
+                            if backtranslation_tgt_indexer != '' and backtranslation_dic is not None:
+                                from nmt_chainer.utilities import replace_tgt_unk
+                                backtranslated = replace_tgt_unk.replace_unk_from_string(" ".join(backtranslated), " ".join(translated), backtranslation_dic, remove_unk, normalize_unicode_unk, attempt_to_relocate_unk_source).strip().split(" ")
+                            backtranslated = backtranslation_tgt_indexer.deconvert_post(backtranslated)
 
-                        comp = bleu.BleuComputer()
-                        comp.update(src_sentence, backtranslated)
-                        bleu_score = comp.bleu()
+                            comp = bleu.BleuComputer()
+                            comp.update(src_sentence, backtranslated)
+                            bleu_score = comp.bleu()
 
                         # print u"backtranslated w/unk  ={0}".format(" ".join(backtranslated))
                         # print u"backtranslated wo/unk ={0}".format(backtranslated)
