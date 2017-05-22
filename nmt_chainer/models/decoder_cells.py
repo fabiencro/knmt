@@ -105,7 +105,7 @@ class SimpleLogit(object):
             return combined_scores
         
     def get_argmax(self, required_mb_size=None):
-        self.xp.argmax(self.logit.data[:required_mb_size], axis=1).astype(self.xp.int32)
+        return self.xp.argmax(self.logit.data[:required_mb_size], axis=1).astype(self.xp.int32)
         
     def compute_loss(self, targets, per_sentence=False):
         return softmax_cross_entropy(self.logit, targets, per_sentence=per_sentence)
@@ -135,7 +135,40 @@ class PointerLogit(object):
     def __init__(self, logit, logit_ptr):
         self.logit = logit
         self.logit_ptr = logit_ptr
-       
+        self.xp = chainer.cuda.get_array_module(self.logit.data)
+        
+        self.flattened_logits_raw = None
+        self.flattened_logits_variable = None
+        
+    def get_flattened_logprob(self, as_variable=True):
+        if as_variable:
+            if self.flattened_logits_variable is not None:
+                return self.flattened_logits_variable
+        else:
+            if self.flattened_logits_variable is not None:
+                return self.flattened_logits_variable
+            elif self.flattened_logits_variable is not None:
+                return self.flattened_logits_variable.data
+        
+        mb, V = self.logit.data.shape
+        mb2, psize = self.logit_ptr.data.shape
+        assert mb == mb2        
+        
+        logprobs_ptr = F.log_softmax(self.logit_ptr)
+        logprobs_v = F.log_softmax(self.logit)
+        
+        if as_variable:
+            logprobs_v_2 = logprobs_v + F.broadcast_to(logprobs_ptr[:, 0:1], (mb, V))
+            result = F.concat((logprobs_v_2, logprobs_ptr[:,1:]), axis=1)
+            self.flattened_logits_variable = result
+        else:
+            result = self.xp.zeros((mb, V+psize -1), dtype = np.float32)
+            result[:, :V] += logprobs_v.data
+            result[:, :V] += logprobs_ptr.data[:,0:1]
+            result[:, V:] += logprobs_ptr.data[:,1:]
+            self.flattened_logits_raw = result
+        
+        return result
        
     @classmethod
     def combine(cls, logits_list, prob_space_combination=False):
@@ -151,14 +184,62 @@ class PointerLogit(object):
         combined_scores = xp.zeros((mb, Vp + psize -1), dtype=xp.float32)
         if not prob_space_combination:
             for logits in logits_list:
-                combined_scores[:,:Vp] += xp.log(F.softmax(logits.logit).data)
+                combined_scores += logits.get_flattened_logprob(as_variable=False)
             combined_scores /= len(logits_list)
         else:
             for logits in logits_list:
-                combined_scores[:,:Vp] += F.softmax(logits.logit).data
+                combined_scores += xp.exp(logits.get_flattened_logprob(as_variable=False))
             combined_scores /= len(logits_list)
             combined_scores = xp.log(combined_scores)
         return combined_scores
+        
+    def get_argmax(self, required_mb_size=None):
+        return self.xp.argmax(self.get_flattened_logprob(as_variable=False)[:required_mb_size], axis=1).astype(self.xp.int32)
+        
+    def compute_loss(self, targets, per_sentence=False, simple_mode=False):
+        if simple_mode:
+            return softmax_cross_entropy(self.get_flattened_logprob(), targets, per_sentence=per_sentence) 
+        else:
+            mb, Vp = self.logit.data.shape
+            mb2, psize = self.logit_ptr.data.shape
+            with self.device:
+                Vm_array = self.xp.array([Vp-1], dtype = self.xp.int32)
+                m1_array = self.xp.array([-1], dtype = self.xp.int32)
+            
+            mb_size = targets.data.shape[0]
+            broadcasted_Vm = self.xp.broadcast_to(Vm_array, (mb_size,))
+            broadcasted_m1 = self.xp.broadcast_to(m1_array, (mb_size,))
+            caped_target = F.where(targets <= broadcasted_Vm, targets, broadcasted_m1)
+            ptr_value = F.maximum(targets - broadcasted_Vm, 0)
+            if per_sentence:
+                v_mask = targets <= Vm_array
+                sce_p = elem_wise_sce(self.logit_ptr, ptr_value)
+                sce_v = elem_wise_sce(self.logit, caped_target) * v_mask
+            else:
+                sce_p = F.softmax_cross_entropy(self.logit_ptr, ptr_value)
+                sce_v = F.softmax_cross_entropy(self.logit, caped_target, normalize=True)
+            return sce_p + sce_v
+        
+    def sample(self):
+        # TODO: rewrite with gumbel
+        probs = self.xp.exp(self.get_flattened_logprob(as_variable=False))
+        with self.device:
+            if self.xp != np:
+                probs_data = cuda.to_cpu(probs.data)
+            else:
+                probs_data = probs.data
+            curr_idx = minibatch_sampling(probs_data)
+            if self.xp != np:
+                curr_idx = cuda.to_gpu(curr_idx.astype(np.int32))
+            else:
+                curr_idx = curr_idx.astype(np.int32)
+        return curr_idx
+    
+    def compute_log_prob(self, curr_idx):
+        mb_size = curr_idx.shape[0]
+        probs = self.xp.exp(self.get_flattened_logprob(as_variable=False))
+        score = np.log(cuda.to_cpu(probs.data)[np.arange(mb_size), cuda.to_cpu(curr_idx)])
+        return score
         
 ################################################################################
 # ConditionalizedDecoderCell
