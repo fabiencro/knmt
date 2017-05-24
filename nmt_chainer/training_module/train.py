@@ -82,7 +82,7 @@ def create_encdec_from_config_dict(config_dict, src_indexer, tgt_indexer):
     Hl = config_dict["Hl"]
 
     Vi = len(src_indexer)  # + UNK
-    Vo = len(tgt_indexer)  # + UNK
+    Vo_all = tgt_indexer.get_total_indexed_elements() #len(tgt_indexer)  # + UNK
 
     encoder_cell_type = config_dict.get("encoder_cell_type", "gru")
     decoder_cell_type = config_dict.get("decoder_cell_type", "gru")
@@ -120,7 +120,7 @@ def create_encdec_from_config_dict(config_dict, src_indexer, tgt_indexer):
     if mlp_logits is not None:
         mlp_logits = tuple(int(i) for i in mlp_logits.split(","))
     # Creating encoder/decoder
-    encdec = nmt_chainer.models.encoder_decoder.EncoderDecoder(Vi, Ei, Hi, Vo + 1, Eo, Ho, Ha, Hl, use_bn_length=use_bn_length,
+    encdec = nmt_chainer.models.encoder_decoder.EncoderDecoder(Vi, Ei, Hi, Vo_all, Eo, Ho, Ha, Hl, use_bn_length=use_bn_length,
                                                                attn_cls=attn_cls,
                                                                init_orth=init_orth,
                                                                encoder_cell_type=rnn_cells.create_cell_model_from_config(encoder_cell_type),
@@ -156,7 +156,7 @@ def create_encdec_and_indexers_from_config_dict(config_dict, src_indexer=None, t
 
     encdec = create_encdec_from_config_dict(config_dict["model"], src_indexer, tgt_indexer)
 
-    eos_idx = len(tgt_indexer)
+    eos_idx = tgt_indexer.get_additional_elem_index(0)
 
     model_infos = None
 
@@ -270,7 +270,7 @@ def do_train(config_training):
     Vi = len(src_indexer)  # + UNK
     Vo = len(tgt_indexer)  # + UNK
 
-    eos_idx = Vo
+    eos_idx = tgt_indexer.get_additional_elem_index(0)
 
     data_fn = config_training.data.data_fn
 

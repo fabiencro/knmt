@@ -81,6 +81,13 @@ def do_make_data(config):
             pp.add_src_processor(processors.LatinScriptProcess(config.processing.latin_type))
 
         pp.add_src_processor(processors.SimpleSegmenter(config.processing.src_segmentation_type))
+        
+        
+        if config.processing.dic_replace is not None:
+#             dic_replace = json.load(open(config.processing.dic_replace))
+            dic_pp = processors.DicReplaceProcessor(config.processing.dic_replace)
+            pp.add_biprocessor(dic_pp)
+        
         if config.processing.bpe_src is not None:
             pp.add_src_processor(
                 processors.BPEProcessing(bpe_data_file=bpe_data_file_src, symbols=config.processing.bpe_src, separator="._@@@"))
@@ -95,7 +102,7 @@ def do_make_data(config):
                                                               symbols=config.processing.joint_bpe, separator="._@@@"))
 
         bi_idx.add_preprocessor(pp)
-
+        
     def load_data(src_fn, tgt_fn, max_nb_ex=None, infos_dict=None):
 
         training_data, stats_src, stats_tgt = processors.build_dataset_pp(

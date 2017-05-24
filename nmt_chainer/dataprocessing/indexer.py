@@ -7,11 +7,13 @@ log.setLevel(logging.INFO)
 
 class Indexer(object):
 
-    def __init__(self, unk_tag="#UNK#"):
+    def __init__(self, unk_tag="#UNK#", bypass_int=False, special_aditional_elems = ["#EOS#"]):
         self.dic = {}
         self.lst = []
         self.unk_label_dictionary = None
         self.finalized = False
+        self.bypass_int=bypass_int
+        self.special_aditional_elems = special_aditional_elems
 
     def add_word(self, w, should_be_new=False, should_not_be_int=True):
         assert not self.finalized
@@ -35,6 +37,15 @@ class Indexer(object):
         self.add_word(0, should_be_new=False, should_not_be_int=False)
         self.finalized = True
 
+    def get_additional_elem_index(self, i):
+        assert self.finalized
+        assert i < len(self.special_aditional_elems)
+        return len(self.dic) + i
+
+    def get_total_indexed_elements(self):
+        assert self.finalized
+        return len(self.special_aditional_elems) + len(self.dic)
+
     def get_one_unk_idx(self, w):
         assert self.finalized
         assert w not in self.dic
@@ -52,16 +63,28 @@ class Indexer(object):
 #         assert not self.finalized
 #         self.unk_label_dictionary = unk_dic
 
+    def convert_int(self, i):
+        assert self.finalized
+        return len(self.dic) + len(self.special_aditional_elems) + i
+
+    def deconvert_int(self, idx):
+        assert self.finalized
+        assert idx >= len(self.dic) + len(self.special_aditional_elems)
+        return idx - len(self.dic) - len(self.special_aditional_elems)
+
     def convert(self, seq):
         assert self.finalized
         assert len(self.dic) == len(self.lst)
         res = [None] * len(seq)
         for pos, w in enumerate(seq):
-            assert not isinstance(w, int)
-            if w in self.dic:
-                idx = self.dic[w]
+            if self.bypass_int and isinstance(w, int):
+                idx = self.convert_int(w)
             else:
-                idx = self.get_one_unk_idx(w)
+                assert not isinstance(w, int)
+                if w in self.dic:
+                    idx = self.dic[w]
+                else:
+                    idx = self.get_one_unk_idx(w)
             res[pos] = idx
         return res
 
@@ -84,25 +107,31 @@ class Indexer(object):
 
     def deconvert(self, seq, unk_tag="#UNK#", no_oov=True, eos_idx=None):
         assert self.finalized
-        assert eos_idx is None or eos_idx >= len(self.lst)
+        assert eos_idx is None or eos_idx == len(self.lst)
         res = []
         for num, idx in enumerate(seq):
             if idx >= len(self.lst):
-                if eos_idx is not None and eos_idx == idx:
-                    w = "#EOS#"
-                elif no_oov:
-                    raise KeyError()
+                if idx <= len(self.lst) + len(self.special_aditional_elems):
+                    w = self.special_aditional_elems[idx - len(self.lst)]
+#                 if eos_idx is not None and eos_idx == idx:
+#                     w = "#EOS#"
                 else:
-                    log.warn("unknown idx: %i / %i" % (idx, len(self.lst)))
-                    continue
+                    if self.bypass_int:
+                        w = self.deconvert_int(idx)
+                    else:
+                        if no_oov:
+                            raise KeyError()
+                        else:
+                            log.warn("unknown idx: %i / %i" % (idx, len(self.lst)))
+                            continue
             else:
                 w = self.lst[idx]
 
-            if isinstance(w, int):
-                if callable(unk_tag):
-                    w = unk_tag(num, w)
-                else:
-                    w = unk_tag
+                if isinstance(w, int):
+                    if callable(unk_tag):
+                        w = unk_tag(num, w)
+                    else:
+                        w = unk_tag
 
             res.append(w)
         return res
@@ -113,7 +142,10 @@ class Indexer(object):
         return len(self.lst)
 
     def to_serializable(self):
-        return {"type": "simple_indexer", "rev": 1, "voc_lst": self.lst, "unk_label_dic": self.unk_label_dictionary}
+        return {"type": "simple_indexer", "rev": 1, "voc_lst": self.lst, 
+                "unk_label_dic": self.unk_label_dictionary,
+                "bypass_int": self.bypass_int,
+                "special_aditional_elems":self.special_aditional_elems}
 
     @staticmethod
     def make_from_serializable(datas, from_list = False):
@@ -135,7 +167,8 @@ class Indexer(object):
             assert datas["type"] == "simple_indexer"
             assert datas["rev"] == 1
             voc_lst = datas["voc_lst"]
-            res = Indexer()
+            res = Indexer(bypass_int=datas.get("bypass_int", False), 
+                          special_aditional_elems = datas.get("special_aditional_elems", ["#EOS#"]))
             res.lst = list(voc_lst)
             res.unk_label_dictionary = datas["unk_label_dic"]
             for idx, w in enumerate(voc_lst):

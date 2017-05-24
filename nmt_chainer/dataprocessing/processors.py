@@ -19,16 +19,18 @@ log = logging.getLogger("rnns:processors")
 log.setLevel(logging.INFO)
 
 
-def build_index_from_iterable(iterable, voc_limit=None):
+def build_index_from_iterable(iterable, voc_limit=None, bypass_int = False):
     counts = collections.defaultdict(int)
     for num_ex, line in enumerate(iterable):
         for w in line:
+            if bypass_int and isinstance(w, int):
+                continue
             counts[w] += 1
 
     sorted_counts = sorted(
         counts.items(), key=operator.itemgetter(1), reverse=True)
 
-    res = Indexer()
+    res = Indexer(bypass_int=bypass_int)
 
     for w, _ in sorted_counts[:voc_limit]:
         res.add_word(w, should_be_new=True)
@@ -974,6 +976,14 @@ class IndexingPrePostProcessor(IndexingPrePostProcessorBase):
             return 0
         else:
             return len(self.indexer)
+        
+    def get_total_indexed_elements(self):
+        assert self.is_initialized()
+        return self.indexer.get_total_indexed_elements()
+        
+    def get_additional_elem_index(self, i)
+        assert self.is_initialized()
+        return self.indexer.get_additional_elem_index(i)
 
     def is_initialized(self):
         return self.is_initialized_
