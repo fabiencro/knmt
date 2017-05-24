@@ -16,7 +16,6 @@ import tempfile
 
 from nmt_chainer.dataprocessing.processors import build_dataset_one_side_pp
 import nmt_chainer.translation.eval
-from nmt_chainer.translation.server_arg_parsing import make_config_server
 
 import traceback
 
