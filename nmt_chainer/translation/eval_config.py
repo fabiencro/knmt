@@ -71,6 +71,7 @@ def define_parser(parser):
     management_group.add_argument("--segmenter_command", help="command to communicate with the segmenter server")
     management_group.add_argument("--segmenter_format", help="format to expect from the segmenter (parse_server, morph)", default='plain')
     management_group.add_argument("--description", help="Optional message to be stored in the configuration file")
+    management_group.add_argument("--pp_command", help="command to call on the translation before sending the response to the client.")
 
 
 class CommandLineValuesException(Exception):
