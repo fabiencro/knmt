@@ -245,9 +245,10 @@ class RequestHandler(SocketServer.BaseRequestHandler):
                                                                                              groundhog, force_finish, prob_space_combination, attn_graph_width, attn_graph_height)
                     out += translation
 
-                    pp_cmd = self.server.pp_command % out
-                    log.info("pp_cmd=%s" % pp_cmd)
-                    if pp_cmd is not None and pp_cmd != '':
+                    if self.server.pp_command is not None:
+                        pp_cmd = self.server.pp_command % out
+                        log.info("pp_cmd=%s" % pp_cmd)
+
                         start_pp_cmd = timeit.default_timer()
 
                         pp_output = subprocess.check_output(pp_cmd, shell=True)
