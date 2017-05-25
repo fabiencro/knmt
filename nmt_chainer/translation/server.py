@@ -246,7 +246,7 @@ class RequestHandler(SocketServer.BaseRequestHandler):
                     out += translation
 
                     if self.server.pp_command is not None:
-                        pp_cmd = self.server.pp_command % out
+                        pp_cmd = self.server.pp_command % out.replace("'", "''")
                         log.info("pp_cmd=%s" % pp_cmd)
 
                         start_pp_cmd = timeit.default_timer()
