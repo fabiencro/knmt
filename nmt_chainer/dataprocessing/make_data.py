@@ -71,7 +71,8 @@ def do_make_data(config):
         bi_idx = processors.BiIndexingPrePostProcessor(voc_limit1=config.processing.src_voc_size,
                                                        voc_limit2=config.processing.tgt_voc_size,
                                                        voc_fn1=config.processing.predefined_voc1,
-                                                       voc_fn2=config.processing.predefined_voc2)
+                                                       voc_fn2=config.processing.predefined_voc2,
+                                                       bypass_int = config.processing.dic_replace is not None)
         pp = processors.BiProcessorChain()
 
         if config.processing.latin_tgt:
@@ -82,17 +83,19 @@ def do_make_data(config):
 
         pp.add_src_processor(processors.SimpleSegmenter(config.processing.src_segmentation_type))
         
+        pp.add_tgt_processor(processors.SimpleSegmenter(config.processing.tgt_segmentation_type))
         
         if config.processing.dic_replace is not None:
 #             dic_replace = json.load(open(config.processing.dic_replace))
             dic_pp = processors.DicReplaceProcessor(config.processing.dic_replace)
             pp.add_biprocessor(dic_pp)
-        
+            
         if config.processing.bpe_src is not None:
             pp.add_src_processor(
                 processors.BPEProcessing(bpe_data_file=bpe_data_file_src, symbols=config.processing.bpe_src, separator="._@@@"))
 
-        pp.add_tgt_processor(processors.SimpleSegmenter(config.processing.tgt_segmentation_type))
+        
+        
         if config.processing.bpe_tgt is not None:
             pp.add_tgt_processor(
                 processors.BPEProcessing(bpe_data_file=bpe_data_file_tgt, symbols=config.processing.bpe_tgt, separator="._@@@"))

@@ -133,7 +133,7 @@ class PreProcessor(object):
 #     def make_new_stat(self):
 #         return self.Stats()
 
-    def initialize(self, iterable):
+    def initialize(self, *iterables):
         self.is_initialized_ = True
 
     def is_initialized(self):
@@ -172,19 +172,24 @@ class MonoProcessor(PreProcessor):
         assert not isinstance(self, ProcessorChain)
         return ProcessorChain([self]) + other
 
+class IdentityMonoProcessor(MonoProcessor):
+    def convert(self, sentence):
+        return sentence
+    def deconvert(self, seq):
+        return seq
 
 class BiProcessor(PreProcessor):
     def convert(self, sentence1, sentence2):
-        raise NotImplemented
+        raise NotImplemented()
 
     def deconvert(self, sentence1, sentence2):
-        raise NotImplemented
+        raise NotImplemented()
 
     def src_processor(self):
-        raise NotImplemented
+        raise NotImplemented()
 
     def tgt_processor(self):
-        raise NotImplemented
+        raise NotImplemented()
 
     def apply_to_iterable(self, iterable1, iterable2):
         return ApplyToMultiIteratorPair(iterable1, iterable2, lambda elem1, elem2: self.convert(elem1, elem2))
@@ -206,6 +211,12 @@ class DicReplaceProcessor(BiProcessor):
             log.warning("%s not found in dictionnary, using as is", w_src)
             return w_src
         
+    def src_processor(self):
+        return IdentityMonoProcessor()
+
+    def tgt_processor(self):
+        return IdentityMonoProcessor()
+        
     def convert(self, sentence1, sentence2):
         converted_sentence2 = []
         matched_src_pos = set()
@@ -213,7 +224,7 @@ class DicReplaceProcessor(BiProcessor):
             assert not isinstance(w, int)
             matchable_src_pos = []
             for pos1, w1 in enumerate(sentence1):
-                if self.is_translatable(w, w1):
+                if self.is_translatable_from(w, w1):
                     matchable_src_pos.append(pos1)
             if len(matchable_src_pos) == 0:
                 converted_sentence2.append(w)
@@ -358,15 +369,15 @@ class BiProcessorChain(BiProcessor):
             if channel == "src":
                 processor.initialize(iterable1)
                 if num_processor < len(self.processors_list) - 1:
-                    iterable1 = processor.apply_to_iterable(iterable1)
+                    iterable1 = list(processor.apply_to_iterable(iterable1))
             elif channel == "tgt":
                 processor.initialize(iterable2)
                 if num_processor < len(self.processors_list) - 1:
-                    iterable2 = processor.apply_to_iterable(iterable2)
+                    iterable2 = list(processor.apply_to_iterable(iterable2))
             elif channel == "all":
                 processor.initialize(iterable1, iterable2)
                 if num_processor < len(self.processors_list) - 1:
-                    iterable1, iterable2 = processor.apply_to_iterable(iterable1, iterable2)
+                    iterable1, iterable2 = zip(*list(processor.apply_to_iterable(iterable1, iterable2)))
 
     def convert(self, sentence1, sentence2):
         for num_processor, (channel, processor) in enumerate(
@@ -805,11 +816,11 @@ class IndexingPrePostProcessorBase(MonoProcessor):
 
 @registered_processor
 class BiIndexingPrePostProcessor(BiProcessor):
-    def __init__(self, voc_limit1=None, voc_limit2=None, voc_fn1 = None, voc_fn2 = None):
+    def __init__(self, voc_limit1=None, voc_limit2=None, voc_fn1 = None, voc_fn2 = None, bypass_int=False):
         self.voc_fn1 = voc_fn1
         self.voc_fn2 = voc_fn2
         self.indexer1 = IndexingPrePostProcessor(voc_limit1)
-        self.indexer2 = IndexingPrePostProcessor(voc_limit2)
+        self.indexer2 = IndexingPrePostProcessor(voc_limit2, bypass_int = bypass_int)
         self.preprocessor = None
         self.is_initialized_ = False
 
@@ -916,11 +927,12 @@ class BiIndexingPrePostProcessor(BiProcessor):
 
 @registered_processor
 class IndexingPrePostProcessor(IndexingPrePostProcessorBase):
-    def __init__(self, voc_limit=None):
+    def __init__(self, voc_limit=None, bypass_int=False):
         self.voc_limit = voc_limit
 #         self.save_index_to = save_index_to
         self.is_initialized_ = False
         self.preprocessor = None
+        self.bypass_int = bypass_int
 
     class Stats(object):
         def __init__(self):
@@ -955,7 +967,7 @@ class IndexingPrePostProcessor(IndexingPrePostProcessorBase):
 
     def initialize_swallow(self, iterable):
         log.info("building dic")
-        self.indexer = build_index_from_iterable(iterable, self.voc_limit)
+        self.indexer = build_index_from_iterable(iterable, self.voc_limit, bypass_int=self.bypass_int)
         self.is_initialized_ = True
 
     def initialize(self, iterable):
@@ -963,7 +975,7 @@ class IndexingPrePostProcessor(IndexingPrePostProcessorBase):
             self.preprocessor.initialize(iterable)
             iterable = self.preprocessor.apply_to_iterable(iterable)
         self.initialize_swallow(iterable)
-        self.indexer = build_index_from_iterable(iterable, self.voc_limit)
+        self.indexer = build_index_from_iterable(iterable, self.voc_limit, bypass_int=self.bypass_int)
 
     def __str__(self):
         if not self.is_initialized():
@@ -981,7 +993,7 @@ class IndexingPrePostProcessor(IndexingPrePostProcessorBase):
         assert self.is_initialized()
         return self.indexer.get_total_indexed_elements()
         
-    def get_additional_elem_index(self, i)
+    def get_additional_elem_index(self, i):
         assert self.is_initialized()
         return self.indexer.get_additional_elem_index(i)
 
@@ -1043,7 +1055,7 @@ class IndexingPrePostProcessor(IndexingPrePostProcessorBase):
     @classmethod
     def make_from_serializable(cls, obj):
         obj = cls.make_serialized_form_compatible_with_newer_version(obj)
-        res = IndexingPrePostProcessor(voc_limit=obj["voc_limit"])
+        res = IndexingPrePostProcessor(voc_limit=obj["voc_limit"], bypass_int = obj.get("bypass_int", False))
         res.indexer = Indexer.make_from_serializable(obj["indexer"])
         if "preprocessor" in obj:
             res.preprocessor = PreProcessor.make_from_serializable(
@@ -1063,6 +1075,7 @@ class IndexingPrePostProcessor(IndexingPrePostProcessorBase):
         obj["voc_limit"] = self.voc_limit
 #         obj["voc_fn"] = self.save_index_to
         obj["indexer"] = self.indexer.to_serializable()
+        obj["bypass_int"] = self.bypass_int
         return obj
 
     @classmethod

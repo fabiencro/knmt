@@ -12,7 +12,7 @@ class Indexer(object):
         self.lst = []
         self.unk_label_dictionary = None
         self.finalized = False
-        self.bypass_int=bypass_int
+        self.bypass_int = bypass_int
         self.special_aditional_elems = special_aditional_elems
 
     def add_word(self, w, should_be_new=False, should_not_be_int=True):
@@ -56,6 +56,10 @@ class Indexer(object):
 
     def is_unk_idx(self, idx):
         assert self.finalized
+        if self.bypass_int and idx >= len(self.lst):
+            return False
+        if idx >= len(self.lst) and idx < len(self.special_aditional_elems) + len(self.lst):
+            return False
         assert idx < len(self.lst)
         return isinstance(self.lst[idx], int)
 
