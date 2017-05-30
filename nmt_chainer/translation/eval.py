@@ -134,6 +134,7 @@ def beam_search_all(gpu, encdec, eos_idx, src_data, beam_width, beam_pruning_mar
                     backtranslation_src_indexer=None,
                     backtranslation_tgt_indexer=None,
                     backtranslation_dic=None,
+                    backtranslation_strength=1.0,
                     src_sentences=None):
 
     log.info("starting beam search translation of %i sentences" % len(src_data))
@@ -206,7 +207,7 @@ def beam_search_all(gpu, encdec, eos_idx, src_data, beam_width, beam_pruning_mar
                         with cuda.get_device(gpu):
                             backtranslations, back_attn = greedy_batch_translate(backtranslation_encdec, backtranslation_eos_idx, backtranslation_src_data, batch_size=80, gpu=gpu, nb_steps=nb_steps, get_attention=True)
 
-                        bleu_score = 0
+                        backtranslation_score = 0
                         if len(backtranslations) > 0:
                             t = backtranslations[0]
                             if t[-1] == backtranslation_eos_idx:
@@ -227,13 +228,13 @@ def beam_search_all(gpu, encdec, eos_idx, src_data, beam_width, beam_pruning_mar
 
                             comp = bleu.BleuComputer()
                             comp.update(src_sentence, backtranslated)
-                            bleu_score = comp.bleu()
+                            backtranslation_score = score + backtranslation_strength * comp.bleu()
 
                         # print u"backtranslated w/unk  ={0}".format(" ".join(backtranslated))
                         # print u"backtranslated wo/unk ={0}".format(backtranslated)
                         # print u"backtranslated        ={0} BLEU={1}".format(backtranslated, bleu_score)
 
-                        return bleu_score
+                        return backtranslation_score
                     return get_backtranslation_bleu_score
 
                 translations.sort(key=get_backtranslation_bleu_key(num_t), reverse=True)
@@ -304,6 +305,7 @@ def translate_to_file_with_beam_search(dest_fn, gpu, encdec, eos_idx, src_data, 
                                        backtranslation_src_indexer=None,
                                        backtranslation_tgt_indexer=None,
                                        backtranslation_dic=None,
+                                       backtranslation_strength=1.0,
                                        src_sentences=None):
 
     log.info("writing translation to %s " % dest_fn)
@@ -328,6 +330,7 @@ def translate_to_file_with_beam_search(dest_fn, gpu, encdec, eos_idx, src_data, 
                                            backtranslation_src_indexer=backtranslation_src_indexer,
                                            backtranslation_tgt_indexer=backtranslation_tgt_indexer,
                                            backtranslation_dic=backtranslation_dic,
+                                           backtranslation_strength=backtranslation_strength,
                                            src_sentences=src_sentences)
 
     attn_vis = None
@@ -535,6 +538,7 @@ def do_eval(config_eval):
     ref = config_eval.output.ref
     dic = config_eval.output.dic
     backtranslation_dic = config_eval.process.backtranslation_dic
+    backtranslation_strength = config_eval.method.backtranslation_strength
     normalize_unicode_unk = config_eval.output.normalize_unicode_unk
     attempt_to_relocate_unk_source = config_eval.output.attempt_to_relocate_unk_source
     remove_unk = config_eval.output.remove_unk
@@ -662,6 +666,7 @@ def do_eval(config_eval):
                                                backtranslation_tgt_indexer=backtranslation_tgt_indexer,
                                                dic=dic,
                                                backtranslation_dic=backtranslation_dic,
+                                               backtranslation_strength=backtranslation_strength,
                                                src_sentences=src_sentences)
 
             translation_infos["dest"] = dest_fn
