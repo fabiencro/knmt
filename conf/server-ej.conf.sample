@@ -43,3 +43,10 @@ RNN_SEARCH_DICTIONARY=data/dict/dic.en_ja.json
 SEGMENTER_COMMAND="echo '%s' | bin/z2h.pl | bin/tokenizer.perl"
 SEGMENTER_FORMAT=plain
 
+
+#
+# Postprocessing
+#
+
+PP_COMMAND=
+
