@@ -28,3 +28,11 @@ SEGMENTER_HOST=basil302
 SEGMENTER_PORT=12351
 SEGMENTER_COMMAND="echo '%s' | $SEGMENTER_HOME/src/parse_client.pl --host $SEGMENTER_HOST --port $SEGMENTER_PORT --lang $LANG_SRC"
 SEGMENTER_FORMAT=parse_server
+
+
+#
+# Postprocessing
+#
+
+PP_HOME=/share/tool/MT/tool/SMT/mosesdecoder/scripts
+PP_COMMAND="echo '%s' | $PP_HOME/recaser/detruecase.perl | $PP_HOME/tokenizer/detokenizer.perl"
