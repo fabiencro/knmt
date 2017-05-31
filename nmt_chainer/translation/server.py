@@ -16,7 +16,6 @@ import tempfile
 
 from nmt_chainer.dataprocessing.processors import build_dataset_one_side_pp
 import nmt_chainer.translation.eval
-from nmt_chainer.translation.server_arg_parsing import make_config_server
 
 import traceback
 
@@ -245,6 +244,19 @@ class RequestHandler(SocketServer.BaseRequestHandler):
                                                                                              beam_score_length_normalization, beam_score_length_normalization_strength, post_score_length_normalization, post_score_length_normalization_strength, post_score_coverage_penalty, post_score_coverage_penalty_strength,
                                                                                              groundhog, force_finish, prob_space_combination, attn_graph_width, attn_graph_height)
                     out += translation
+
+                    if self.server.pp_command is not None:
+                        pp_cmd = self.server.pp_command % out.replace("'", "''")
+                        log.info("pp_cmd=%s" % pp_cmd)
+
+                        start_pp_cmd = timeit.default_timer()
+
+                        pp_output = subprocess.check_output(pp_cmd, shell=True)
+
+                        log.info("Postprocessor request processede in {} s.".format(timeit.default_timer() - start_pp_cmd))
+                        log.info("pp_output=%s" % pp_output)
+                        out = pp_output
+
                     segmented_input.append(splitted_sentence)
                     segmented_output.append(translation)
                     mapping.append(unk_mapping)
@@ -292,11 +304,13 @@ class Server(SocketServer.ThreadingMixIn, SocketServer.TCPServer):
             handler_class,
             segmenter_command,
             segmenter_format,
-            translator):
+            translator,
+            pp_command):
         SocketServer.TCPServer.__init__(self, server_address, handler_class)
         self.segmenter_command = segmenter_command
         self.segmenter_format = segmenter_format
         self.translator = translator
+        self.pp_command = pp_command
 
 
 def timestamped_msg(msg):
@@ -313,7 +327,8 @@ def do_start_server(config_server):
         RequestHandler,
         config_server.process.segmenter_command,
         config_server.process.segmenter_format,
-        translator)
+        translator,
+        config_server.process.pp_command)
     ip, port = server.server_address
     log.info(
         timestamped_msg(
