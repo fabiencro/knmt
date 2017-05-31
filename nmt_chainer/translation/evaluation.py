@@ -238,7 +238,9 @@ def beam_search_translate(encdec, eos_idx, src_data, beam_width=20, beam_pruning
 
                 return x[1] / length_normalization + coverage_penalty
 
-        translations.sort(key=ranking_criterion, reverse=True)
+        # Add the adjusted score to the translations and sort them by the adjusted score.
+        translations = map(lambda x: x + tuple([ranking_criterion(x)]), translations)
+        translations.sort(key=operator.itemgetter(3), reverse=True)
 
         if nbest is not None:
             yield translations[:nbest]

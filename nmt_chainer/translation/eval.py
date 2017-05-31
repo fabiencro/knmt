@@ -183,7 +183,7 @@ def beam_search_all(gpu, encdec, eos_idx, src_data, beam_width, beam_pruning_mar
                         else:
                             assert False
 
-                        (t, score, attn) = trans
+                        (t, score, attn, modif_score) = trans
                         translated = tgt_indexer.deconvert_swallow(t, unk_tag=unk_replacer)
 
                         ct = " ".join(translated)
@@ -207,7 +207,8 @@ def beam_search_all(gpu, encdec, eos_idx, src_data, beam_width, beam_pruning_mar
                         with cuda.get_device(gpu):
                             backtranslations, back_attn = greedy_batch_translate(backtranslation_encdec, backtranslation_eos_idx, backtranslation_src_data, batch_size=80, gpu=gpu, nb_steps=nb_steps, get_attention=True)
 
-                        backtranslation_score = 0
+                        # comp = None
+                        backtranslation_score = modif_score
                         if len(backtranslations) > 0:
                             t = backtranslations[0]
                             if t[-1] == backtranslation_eos_idx:
@@ -228,11 +229,12 @@ def beam_search_all(gpu, encdec, eos_idx, src_data, beam_width, beam_pruning_mar
 
                             comp = bleu.BleuComputer()
                             comp.update(src_sentence, backtranslated)
-                            backtranslation_score = score + backtranslation_strength * comp.bleu()
+                            backtranslation_score = backtranslation_score + backtranslation_strength * comp.bleu()
 
                         # print u"backtranslated w/unk  ={0}".format(" ".join(backtranslated))
                         # print u"backtranslated wo/unk ={0}".format(backtranslated)
-                        # print u"backtranslated        ={0} BLEU={1}".format(backtranslated, bleu_score)
+                        # print u"backtranslated        ={0} NewScore={1} + {2} * {3}={4}".format(backtranslated, score, backtranslation_strength, comp.bleu(), backtranslation_score)
+                        # print u"backtranslated        NewScore={0} + {1} * {2}={3}".format(score, backtranslation_strength, comp.bleu() if comp is not None else "n/a", backtranslation_score)
 
                         return backtranslation_score
                     return get_backtranslation_bleu_score
@@ -240,7 +242,7 @@ def beam_search_all(gpu, encdec, eos_idx, src_data, beam_width, beam_pruning_mar
                 translations.sort(key=get_backtranslation_bleu_key(num_t), reverse=True)
 
             for trans in translations:
-                (t, score, attn) = trans
+                (t, score, attn, modif_score) = trans
                 if num_t % 200 == 0:
                     print >>sys.stderr, num_t,
                 elif num_t % 40 == 0:
