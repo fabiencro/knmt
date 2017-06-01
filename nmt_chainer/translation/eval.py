@@ -142,6 +142,8 @@ def beam_search_all(gpu, encdec, eos_idx, src_data, beam_width, beam_pruning_mar
     if isinstance(encdec, (list, tuple)) and len(encdec) > 1:
         log.info("using ensemble of %i models" % len(encdec))
 
+    all_stds = []
+
     with cuda.get_device(gpu):
         translations_iter = beam_search_translate(
             encdec, eos_idx, src_data, beam_width=beam_width, nb_steps=nb_steps,
@@ -304,7 +306,9 @@ def beam_search_all(gpu, encdec, eos_idx, src_data, beam_width, beam_pruning_mar
 
                     res_trans.append((src_data[num_t], translated, t, score, attn, unk_mapping))
 
-                print u"std={0}".format(np.std(tmp_data['backtranslation_bleu_scores']))
+                std = np.std(tmp_data['backtranslation_bleu_scores'])
+                print u"std={0}".format(std)
+                all_stds.append(std)
 
                 best_translation_bleu = max(tmp_data['translation_bleu_scores'])
                 print u"best_bleu={0}".format(best_translation_bleu)
@@ -315,6 +319,8 @@ def beam_search_all(gpu, encdec, eos_idx, src_data, beam_width, beam_pruning_mar
                 bleu_oracle_file.write("\n")
 
                 yield res_trans
+
+        print "Average std={0}".format(np.mean(all_stds))
 
         print >>sys.stderr
 
