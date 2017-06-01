@@ -135,7 +135,8 @@ def beam_search_all(gpu, encdec, eos_idx, src_data, beam_width, beam_pruning_mar
                     backtranslation_tgt_indexer=None,
                     backtranslation_dic=None,
                     backtranslation_strength=1.0,
-                    src_sentences=None):
+                    src_sentences=None,
+                    ref_sentences=None):
 
     log.info("starting beam search translation of %i sentences" % len(src_data))
     if isinstance(encdec, (list, tuple)) and len(encdec) > 1:
@@ -201,9 +202,16 @@ def beam_search_all(gpu, encdec, eos_idx, src_data, beam_width, beam_pruning_mar
 
                         _, backtranslation_src_data, _ = build_dataset_one_side_pp(translated_file.name, src_pp=backtranslation_src_indexer, max_nb_ex=None)
 
-                        # print u"src_sentence          ={0}".format(src_sentences[sentence_idx])
-                        # print u"translated w/unk      ={0}".format(ct)
-                        # print u"translated wo/unk     ={0}".format(translated)
+                        print u"src_sentence          ={0}".format(src_sentences[sentence_idx])
+                        print u"ref_sentence          ={0}".format(ref_sentences[sentence_idx])
+
+                        comp_trans_with_unk = bleu.BleuComputer()
+                        comp_trans_with_unk.update(ref_sentences[sentence_idx], ct)
+                        print u"translation w/unk     ={0} BLEU against ref={1}".format(ct, comp_trans_with_unk.bleu())
+
+                        comp_trans_without_unk = bleu.BleuComputer()
+                        comp_trans_without_unk.update(ref_sentences[sentence_idx], translated)
+                        print u"translation wo/unk    ={0} BLEU against ref={1}".format(translated, comp_trans_without_unk.bleu())
 
                         with cuda.get_device(gpu):
                             backtranslations, back_attn = greedy_batch_translate(backtranslation_encdec, backtranslation_eos_idx, backtranslation_src_data, batch_size=80, gpu=gpu, nb_steps=nb_steps, get_attention=True)
@@ -236,13 +244,18 @@ def beam_search_all(gpu, encdec, eos_idx, src_data, beam_width, beam_pruning_mar
 
                         # print u"backtranslated w/unk  ={0}".format(" ".join(backtranslated))
                         # print u"backtranslated wo/unk ={0}".format(backtranslated)
-                        print u"backtranslated        ={0} NewScore={1} + {2} * {3}={4}".format(backtranslated, score, backtranslation_strength, comp.bleu(), backtranslation_score)
-                        # print u"backtranslated        NewScore={0} + {1} * {2}={3}".format(score, backtranslation_strength, comp.bleu() if comp is not None else "n/a", backtranslation_score)
+                        print u"backtranslation       ={0} BLEU against src={1}".format(backtranslated, comp.bleu())
+                        print u"NewScore={0} + {1} * {2}={3}".format(modif_score, backtranslation_strength, comp.bleu(), backtranslation_score)
+                        # print u"backtranslated        NewScore={0} + {1} * {2}={3}".format(modif_score, backtranslation_strength, comp.bleu() if comp is not None else "n/a", backtranslation_score)
 
                         return backtranslation_score
                     return get_backtranslation_bleu_score
 
                 translations.sort(key=get_backtranslation_bleu_key(num_t, tmp_data), reverse=True)
+                print "modif_score After Sort "
+                for trans in translations:
+                    (t, score, attn, modif_score) = trans
+                    print modif_score
 
             for trans in translations:
                 (t, score, attn, modif_score) = trans
@@ -312,7 +325,8 @@ def translate_to_file_with_beam_search(dest_fn, gpu, encdec, eos_idx, src_data, 
                                        backtranslation_tgt_indexer=None,
                                        backtranslation_dic=None,
                                        backtranslation_strength=1.0,
-                                       src_sentences=None):
+                                       src_sentences=None,
+                                       ref_sentences=None):
 
     log.info("writing translation to %s " % dest_fn)
     out = codecs.open(dest_fn, "w", encoding="utf8")
@@ -337,7 +351,8 @@ def translate_to_file_with_beam_search(dest_fn, gpu, encdec, eos_idx, src_data, 
                                            backtranslation_tgt_indexer=backtranslation_tgt_indexer,
                                            backtranslation_dic=backtranslation_dic,
                                            backtranslation_strength=backtranslation_strength,
-                                           src_sentences=src_sentences)
+                                           src_sentences=src_sentences,
+                                           ref_sentences=ref_sentences)
 
     attn_vis = None
     if generate_attention_html is not None:
@@ -641,6 +656,11 @@ def do_eval(config_eval):
             from nmt_chainer.translation.server import do_start_server
             do_start_server(config_eval)
         else:
+            ref_sentences = None
+            if ref is not None:
+                with codecs.open(ref, "r", encoding="utf8") as ref_file:
+                    ref_sentences = ref_file.read().splitlines()
+
             translate_to_file_with_beam_search(dest_fn, gpu, encdec_list, eos_idx, src_data,
                                                beam_width=beam_width,
                                                beam_pruning_margin=beam_pruning_margin,
@@ -673,7 +693,8 @@ def do_eval(config_eval):
                                                dic=dic,
                                                backtranslation_dic=backtranslation_dic,
                                                backtranslation_strength=backtranslation_strength,
-                                               src_sentences=src_sentences)
+                                               src_sentences=src_sentences,
+                                               ref_sentences=ref_sentences)
 
             translation_infos["dest"] = dest_fn
             translation_infos["unprocessed"] = dest_fn + ".unprocessed"
