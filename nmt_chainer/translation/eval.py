@@ -162,143 +162,159 @@ def beam_search_all(gpu, encdec, eos_idx, src_data, beam_width, beam_pruning_mar
             use_unfinished_translation_if_none_found=use_unfinished_translation_if_none_found,
             nbest=nbest)
 
-        for num_t, translations in enumerate(translations_iter):
-            tmp_data = {'bleu_scores': []}
-            res_trans = []
+        with codecs.open('bleu_oracle', 'w', encoding='utf8') as bleu_oracle_file:
+            for num_t, translations in enumerate(translations_iter):
+                tmp_data = {'backtranslation_bleu_scores': [], 'translations': [], 'translation_bleu_scores': []}
+                res_trans = []
 
-            if backtranslation_encdec is not None:
-                def get_backtranslation_bleu_key(sentence_idx, tmp_data):
-                    def get_backtranslation_bleu_score(trans):
-                        src_sentence = src_sentences[sentence_idx]
+                if backtranslation_encdec is not None:
+                    def get_backtranslation_bleu_key(sentence_idx, tmp_data):
+                        def get_backtranslation_bleu_score(trans):
+                            src_sentence = src_sentences[sentence_idx]
 
-                        if tgt_unk_id == "align":
-                            def unk_replacer(num_pos, unk_id):
-                                unk_pattern = "#T_UNK_%i#"
-                                a = attn[num_pos]
-                                xp = cuda.get_array_module(a)
-                                src_pos = int(xp.argmax(a))
-                                return unk_pattern % src_pos
-                        elif tgt_unk_id == "id":
-                            def unk_replacer(num_pos, unk_id):
-                                unk_pattern = "#T_UNK_%i#"
-                                return unk_pattern % unk_id
-                        else:
-                            assert False
+                            if tgt_unk_id == "align":
+                                def unk_replacer(num_pos, unk_id):
+                                    unk_pattern = "#T_UNK_%i#"
+                                    a = attn[num_pos]
+                                    xp = cuda.get_array_module(a)
+                                    src_pos = int(xp.argmax(a))
+                                    return unk_pattern % src_pos
+                            elif tgt_unk_id == "id":
+                                def unk_replacer(num_pos, unk_id):
+                                    unk_pattern = "#T_UNK_%i#"
+                                    return unk_pattern % unk_id
+                            else:
+                                assert False
 
+                            (t, score, attn, modif_score) = trans
+                            translated = tgt_indexer.deconvert_swallow(t, unk_tag=unk_replacer)
+
+                            ct = " ".join(translated)
+                            if ct != '':
+                                if dic is not None:
+                                    from nmt_chainer.utilities import replace_tgt_unk
+                                    translated = replace_tgt_unk.replace_unk_from_string(ct, src_sentence, dic, remove_unk, normalize_unicode_unk, attempt_to_relocate_unk_source).strip().split(" ")
+
+                            translated = tgt_indexer.deconvert_post(translated)
+
+                            translated_file = tempfile.NamedTemporaryFile()
+                            translated_file.write(translated.encode('utf-8'))
+                            translated_file.seek(0)
+
+                            _, backtranslation_src_data, _ = build_dataset_one_side_pp(translated_file.name, src_pp=backtranslation_src_indexer, max_nb_ex=None)
+
+                            print u"src_sentence          ={0}".format(src_sentences[sentence_idx])
+                            print u"ref_sentence          ={0}".format(ref_sentences[sentence_idx])
+
+                            comp_trans_with_unk = bleu.BleuComputer()
+                            comp_trans_with_unk.update(ref_sentences[sentence_idx], ct)
+                            translation_with_unk_bleu_score = comp_trans_with_unk.bleu()
+                            print u"translation w/unk     ={0} BLEU against ref={1}".format(ct, translation_with_unk_bleu_score)
+
+                            comp_trans_without_unk = bleu.BleuComputer()
+                            comp_trans_without_unk.update(ref_sentences[sentence_idx], translated)
+                            translation_without_unk_bleu_score = comp_trans_without_unk.bleu()
+                            print u"translation wo/unk    ={0} BLEU against ref={1}".format(translated, translation_without_unk_bleu_score)
+
+                            with cuda.get_device(gpu):
+                                backtranslations, back_attn = greedy_batch_translate(backtranslation_encdec, backtranslation_eos_idx, backtranslation_src_data, batch_size=80, gpu=gpu, nb_steps=nb_steps, get_attention=True)
+
+                            # comp = None
+                            backtranslation_score = modif_score
+                            if len(backtranslations) > 0:
+                                t = backtranslations[0]
+                                if t[-1] == backtranslation_eos_idx:
+                                    t = t[:-1]
+
+                                def backtranslation_unk_replacer(num_pos, unk_id):
+                                    unk_pattern = "#T_UNK_%i#"
+                                    a = back_attn[0][num_pos]
+                                    xp = cuda.get_array_module(a)
+                                    src_pos = int(xp.argmax(a))
+                                    return unk_pattern % src_pos
+
+                                backtranslated = backtranslation_tgt_indexer.deconvert_swallow(t, unk_tag=backtranslation_unk_replacer)
+                                if backtranslation_tgt_indexer != '' and backtranslation_dic is not None:
+                                    from nmt_chainer.utilities import replace_tgt_unk
+                                    backtranslated = replace_tgt_unk.replace_unk_from_string(" ".join(backtranslated), " ".join(translated), backtranslation_dic, remove_unk, normalize_unicode_unk, attempt_to_relocate_unk_source).strip().split(" ")
+                                backtranslated = backtranslation_tgt_indexer.deconvert_post(backtranslated)
+
+                                comp = bleu.BleuComputer()
+                                comp.update(src_sentence, backtranslated)
+                                backtranslation_bleu_score = comp.bleu()
+
+                                tmp_data['backtranslation_bleu_scores'].append(backtranslation_bleu_score)
+                                tmp_data['translations'].append(translated)
+                                tmp_data['translation_bleu_scores'].append(translation_without_unk_bleu_score)
+
+                                backtranslation_score = backtranslation_score + backtranslation_strength * backtranslation_bleu_score
+
+                            # print u"backtranslated w/unk  ={0}".format(" ".join(backtranslated))
+                            # print u"backtranslated wo/unk ={0}".format(backtranslated)
+                            print u"backtranslation       ={0} BLEU against src={1}".format(backtranslated, backtranslation_bleu_score)
+                            print u"NewScore={0} + {1} * {2}={3}".format(modif_score, backtranslation_strength, comp.bleu(), backtranslation_score)
+                            # print u"backtranslated        NewScore={0} + {1} * {2}={3}".format(modif_score, backtranslation_strength, comp.bleu() if comp is not None else "n/a", backtranslation_score)
+
+                            return backtranslation_score
+                        return get_backtranslation_bleu_score
+
+                    translations.sort(key=get_backtranslation_bleu_key(num_t, tmp_data), reverse=True)
+                    print "modif_score After Sort "
+                    for trans in translations:
                         (t, score, attn, modif_score) = trans
-                        translated = tgt_indexer.deconvert_swallow(t, unk_tag=unk_replacer)
+                        print modif_score
 
-                        ct = " ".join(translated)
-                        if ct != '':
-                            if dic is not None:
-                                from nmt_chainer.utilities import replace_tgt_unk
-                                translated = replace_tgt_unk.replace_unk_from_string(ct, src_sentence, dic, remove_unk, normalize_unicode_unk, attempt_to_relocate_unk_source).strip().split(" ")
-
-                        translated = tgt_indexer.deconvert_post(translated)
-
-                        translated_file = tempfile.NamedTemporaryFile()
-                        translated_file.write(translated.encode('utf-8'))
-                        translated_file.seek(0)
-
-                        _, backtranslation_src_data, _ = build_dataset_one_side_pp(translated_file.name, src_pp=backtranslation_src_indexer, max_nb_ex=None)
-
-                        print u"src_sentence          ={0}".format(src_sentences[sentence_idx])
-                        print u"ref_sentence          ={0}".format(ref_sentences[sentence_idx])
-
-                        comp_trans_with_unk = bleu.BleuComputer()
-                        comp_trans_with_unk.update(ref_sentences[sentence_idx], ct)
-                        print u"translation w/unk     ={0} BLEU against ref={1}".format(ct, comp_trans_with_unk.bleu())
-
-                        comp_trans_without_unk = bleu.BleuComputer()
-                        comp_trans_without_unk.update(ref_sentences[sentence_idx], translated)
-                        print u"translation wo/unk    ={0} BLEU against ref={1}".format(translated, comp_trans_without_unk.bleu())
-
-                        with cuda.get_device(gpu):
-                            backtranslations, back_attn = greedy_batch_translate(backtranslation_encdec, backtranslation_eos_idx, backtranslation_src_data, batch_size=80, gpu=gpu, nb_steps=nb_steps, get_attention=True)
-
-                        # comp = None
-                        backtranslation_score = modif_score
-                        if len(backtranslations) > 0:
-                            t = backtranslations[0]
-                            if t[-1] == backtranslation_eos_idx:
-                                t = t[:-1]
-
-                            def backtranslation_unk_replacer(num_pos, unk_id):
-                                unk_pattern = "#T_UNK_%i#"
-                                a = back_attn[0][num_pos]
-                                xp = cuda.get_array_module(a)
-                                src_pos = int(xp.argmax(a))
-                                return unk_pattern % src_pos
-
-                            backtranslated = backtranslation_tgt_indexer.deconvert_swallow(t, unk_tag=backtranslation_unk_replacer)
-                            if backtranslation_tgt_indexer != '' and backtranslation_dic is not None:
-                                from nmt_chainer.utilities import replace_tgt_unk
-                                backtranslated = replace_tgt_unk.replace_unk_from_string(" ".join(backtranslated), " ".join(translated), backtranslation_dic, remove_unk, normalize_unicode_unk, attempt_to_relocate_unk_source).strip().split(" ")
-                            backtranslated = backtranslation_tgt_indexer.deconvert_post(backtranslated)
-
-                            comp = bleu.BleuComputer()
-                            comp.update(src_sentence, backtranslated)
-                            bleu_score = comp.bleu()
-                            tmp_data['bleu_scores'].append(bleu_score)
-                            backtranslation_score = backtranslation_score + backtranslation_strength * bleu_score
-
-                        # print u"backtranslated w/unk  ={0}".format(" ".join(backtranslated))
-                        # print u"backtranslated wo/unk ={0}".format(backtranslated)
-                        print u"backtranslation       ={0} BLEU against src={1}".format(backtranslated, comp.bleu())
-                        print u"NewScore={0} + {1} * {2}={3}".format(modif_score, backtranslation_strength, comp.bleu(), backtranslation_score)
-                        # print u"backtranslated        NewScore={0} + {1} * {2}={3}".format(modif_score, backtranslation_strength, comp.bleu() if comp is not None else "n/a", backtranslation_score)
-
-                        return backtranslation_score
-                    return get_backtranslation_bleu_score
-
-                translations.sort(key=get_backtranslation_bleu_key(num_t, tmp_data), reverse=True)
-                print "modif_score After Sort "
                 for trans in translations:
                     (t, score, attn, modif_score) = trans
-                    print modif_score
-
-            for trans in translations:
-                (t, score, attn, modif_score) = trans
-                if num_t % 200 == 0:
-                    print >>sys.stderr, num_t,
-                elif num_t % 40 == 0:
-                    print >>sys.stderr, "*",
+                    if num_t % 200 == 0:
+                        print >>sys.stderr, num_t,
+                    elif num_t % 40 == 0:
+                        print >>sys.stderr, "*",
 #                 t, score = bests[1]
 #                 ct = convert_idx_to_string(t, tgt_voc + ["#T_UNK#"])
 #                 ct = convert_idx_to_string_with_attn(t, tgt_voc, attn, unk_idx = len(tgt_voc))
-                if tgt_unk_id == "align":
-                    def unk_replacer(num_pos, unk_id):
-                        unk_pattern = "#T_UNK_%i#"
-                        a = attn[num_pos]
-                        xp = cuda.get_array_module(a)
-                        src_pos = int(xp.argmax(a))
-                        return unk_pattern % src_pos
-                elif tgt_unk_id == "id":
-                    def unk_replacer(num_pos, unk_id):
-                        unk_pattern = "#T_UNK_%i#"
-                        return unk_pattern % unk_id
-                else:
-                    assert False
+                    if tgt_unk_id == "align":
+                        def unk_replacer(num_pos, unk_id):
+                            unk_pattern = "#T_UNK_%i#"
+                            a = attn[num_pos]
+                            xp = cuda.get_array_module(a)
+                            src_pos = int(xp.argmax(a))
+                            return unk_pattern % src_pos
+                    elif tgt_unk_id == "id":
+                        def unk_replacer(num_pos, unk_id):
+                            unk_pattern = "#T_UNK_%i#"
+                            return unk_pattern % unk_id
+                    else:
+                        assert False
 
-                translated = tgt_indexer.deconvert_swallow(t, unk_tag=unk_replacer)
+                    translated = tgt_indexer.deconvert_swallow(t, unk_tag=unk_replacer)
 
-                unk_mapping = []
-                ct = " ".join(translated)
-                if ct != '':
-                    unk_pattern = re.compile("#T_UNK_(\d+)#")
-                    for idx, word in enumerate(ct.split(' ')):
-                        match = unk_pattern.match(word)
-                        if (match):
-                            unk_mapping.append(match.group(1) + '-' + str(idx))
+                    unk_mapping = []
+                    ct = " ".join(translated)
+                    if ct != '':
+                        unk_pattern = re.compile("#T_UNK_(\d+)#")
+                        for idx, word in enumerate(ct.split(' ')):
+                            match = unk_pattern.match(word)
+                            if (match):
+                                unk_mapping.append(match.group(1) + '-' + str(idx))
 
-                    if replace_unk:
-                        from nmt_chainer.utilities import replace_tgt_unk
-                        translated = replace_tgt_unk.replace_unk_from_string(ct, src, dic, remove_unk, normalize_unicode_unk, attempt_to_relocate_unk_source).strip().split(" ")
+                        if replace_unk:
+                            from nmt_chainer.utilities import replace_tgt_unk
+                            translated = replace_tgt_unk.replace_unk_from_string(ct, src, dic, remove_unk, normalize_unicode_unk, attempt_to_relocate_unk_source).strip().split(" ")
 
-                res_trans.append((src_data[num_t], translated, t, score, attn, unk_mapping))
+                    res_trans.append((src_data[num_t], translated, t, score, attn, unk_mapping))
 
-            print "std={0}".format(np.std(tmp_data['bleu_scores']))
-            yield res_trans
+                print u"std={0}".format(np.std(tmp_data['backtranslation_bleu_scores']))
+
+                best_translation_bleu = max(tmp_data['translation_bleu_scores'])
+                print u"best_bleu={0}".format(best_translation_bleu)
+                best_translation_bleu_index = tmp_data['translation_bleu_scores'].index(best_translation_bleu)
+                print u"best_translation={0}".format(tmp_data['translations'][best_translation_bleu_index])
+
+                bleu_oracle_file.write(tmp_data['translations'][best_translation_bleu_index])
+                bleu_oracle_file.write("\n")
+
+                yield res_trans
 
         print >>sys.stderr
 
