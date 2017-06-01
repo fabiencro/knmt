@@ -162,10 +162,11 @@ def beam_search_all(gpu, encdec, eos_idx, src_data, beam_width, beam_pruning_mar
             nbest=nbest)
 
         for num_t, translations in enumerate(translations_iter):
+            tmp_data = {'bleu_scores': []}
             res_trans = []
 
             if backtranslation_encdec is not None:
-                def get_backtranslation_bleu_key(sentence_idx):
+                def get_backtranslation_bleu_key(sentence_idx, tmp_data):
                     def get_backtranslation_bleu_score(trans):
                         src_sentence = src_sentences[sentence_idx]
 
@@ -229,17 +230,19 @@ def beam_search_all(gpu, encdec, eos_idx, src_data, beam_width, beam_pruning_mar
 
                             comp = bleu.BleuComputer()
                             comp.update(src_sentence, backtranslated)
-                            backtranslation_score = backtranslation_score + backtranslation_strength * comp.bleu()
+                            bleu_score = comp.bleu()
+                            tmp_data['bleu_scores'].append(bleu_score)
+                            backtranslation_score = backtranslation_score + backtranslation_strength * bleu_score
 
                         # print u"backtranslated w/unk  ={0}".format(" ".join(backtranslated))
                         # print u"backtranslated wo/unk ={0}".format(backtranslated)
-                        # print u"backtranslated        ={0} NewScore={1} + {2} * {3}={4}".format(backtranslated, score, backtranslation_strength, comp.bleu(), backtranslation_score)
+                        print u"backtranslated        ={0} NewScore={1} + {2} * {3}={4}".format(backtranslated, score, backtranslation_strength, comp.bleu(), backtranslation_score)
                         # print u"backtranslated        NewScore={0} + {1} * {2}={3}".format(score, backtranslation_strength, comp.bleu() if comp is not None else "n/a", backtranslation_score)
 
                         return backtranslation_score
                     return get_backtranslation_bleu_score
 
-                translations.sort(key=get_backtranslation_bleu_key(num_t), reverse=True)
+                translations.sort(key=get_backtranslation_bleu_key(num_t, tmp_data), reverse=True)
 
             for trans in translations:
                 (t, score, attn, modif_score) = trans
@@ -281,6 +284,7 @@ def beam_search_all(gpu, encdec, eos_idx, src_data, beam_width, beam_pruning_mar
 
                 res_trans.append((src_data[num_t], translated, t, score, attn, unk_mapping))
 
+            print "std={0}".format(np.std(tmp_data['bleu_scores']))
             yield res_trans
 
         print >>sys.stderr
