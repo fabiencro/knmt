@@ -95,7 +95,8 @@ class EncoderDecoder(Chain):
                  decoder_cell_type=rnn_cells.LSTMCell,
                  lexical_probability_dictionary=None, lex_epsilon=1e-3,
                  use_goto_attention=False, char_emb_tgt=None,
-                 mlp_logits = None
+                 mlp_logits = None,
+                 use_pointers=False
                  ):
         log.info("constructing encoder decoder with Vi:%i Ei:%i Hi:%i Vo:%i Eo:%i Ho:%i Ha:%i Hl:%i" %
                  (Vi, Ei, Hi, Vo, Eo, Ho, Ha, Hl))
@@ -106,7 +107,8 @@ class EncoderDecoder(Chain):
                                       cell_type=decoder_cell_type, 
                                       use_goto_attention=use_goto_attention,
                                       char_enc_emb=char_emb_tgt,
-                                      mlp_logits=mlp_logits)
+                                      mlp_logits=mlp_logits,
+                                      pointer_mechanism=use_pointers)
         )
         self.Vo = Vo
         self.lexical_probability_dictionary = lexical_probability_dictionary

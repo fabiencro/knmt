@@ -115,6 +115,7 @@ def create_encdec_from_config_dict(config_dict, src_indexer, tgt_indexer):
         log.info("loaded char embeddings %i x %i from %s", v_size, enc_size, config_dict["char_encoding_tgt"])   
              
     use_goto_attention = config_dict.get("use_goto_attention", False)
+    use_pointers = config_dict.get("use_pointers", False)
 
     mlp_logits = config_dict.get("mlp_logits", None)
     if mlp_logits is not None:
@@ -129,7 +130,8 @@ def create_encdec_from_config_dict(config_dict, src_indexer, tgt_indexer):
                                                                lex_epsilon=lex_epsilon,
                                                                use_goto_attention=use_goto_attention,
                                                                char_emb_tgt=char_encodings_tgt,
-                                                               mlp_logits=mlp_logits)
+                                                               mlp_logits=mlp_logits,
+                                                               use_pointers=use_pointers)
 
     return encdec
 

@@ -12,7 +12,7 @@ import chainer.functions as F
 import chainer.links as L
 import chainer
 from nmt_chainer.utilities.utils import ortho_init
-
+import numpy as np
 import logging
 logging.basicConfig()
 log = logging.getLogger("rnns:attn")
@@ -54,8 +54,97 @@ def softmax_mask_maker(mask, seq_length, mb_size):
                 result = logits + concatenated_penalties[:current_mb_size]
             return result
         
+    return apply_mask
+  
+class PointerMechanismComputer(object):
+    def __init__(self, pointer_mechanism_chain, fb_concat, mask, demux=False):
+        mb_size, nb_elems, Hi = fb_concat.data.shape
+        assert Hi == pointer_mechanism_chain.Hi
+        assert mb_size == 1 or not demux
+        
+        self.pointer_mechanism_chain = pointer_mechanism_chain
+        
+        if self.pointer_mechanism_chain.nb_sentinels > 0:
+            broadcasted_sentinels = F.broadcast_to(self.pointer_mechanism_chain.sentinels, 
+                                                (mb_size, self.pointer_mechanism_chain.nb_sentinels, Hi))
+            fb_concat = F.concat((broadcasted_sentinels, fb_concat))
+            nb_elems += self.pointer_mechanism_chain.nb_sentinels
+        
+        self.nb_elems = nb_elems
+        self.mb_size = mb_size
+        self.fb_concat = fb_concat
+        self.demux = demux
+        self.precomputed_al_factor = F.reshape(self.pointer_mechanism_chain.lin_i(
+                F.reshape(fb_concat, (mb_size * nb_elems, self.pointer_mechanism_chain.Hi))), 
+                                               (mb_size, nb_elems, self.pointer_mechanism_chain.Ha))
+
+        self.xp = chainer.cuda.get_array_module(fb_concat.data)
+        seq_length = nb_elems
+
+        if not demux:
+            self.apply_softmax_mask = softmax_mask_maker(mask, seq_length, mb_size)      
+    
+    def compute_pointer(self, previous_state, additional_input=None):
+        current_mb_size = previous_state.data.shape[0]
+        
+        if self.demux:
+            al_factor = F.broadcast_to(self.precomputed_al_factor, (current_mb_size, self.nb_elems, self.pointer_mechanism_chain.Ha))
+        else:
+            if current_mb_size < self.mb_size:
+                al_factor, _ = F.split_axis(
+                    self.precomputed_al_factor, (current_mb_size,), 0)
+            else:
+                al_factor = self.precomputed_al_factor
+
+        
+
+        state_al_factor = self.pointer_mechanism_chain.lin_s(previous_state)
+        
+        #As suggested by Isao Goto
+        if additional_input is not None:
+            state_al_factor = state_al_factor + self.pointer_mechanism_chain.lin_add(additional_input)
+            
+        state_al_factor_bc = F.broadcast_to(F.reshape(state_al_factor, (current_mb_size, 1, self.pointer_mechanism_chain.Ha)), 
+                                            (current_mb_size, self.nb_elems, self.pointer_mechanism_chain.Ha))
+        a_coeffs = F.reshape(self.pointer_mechanism_chain.lin_o(F.reshape(F.tanh(state_al_factor_bc + al_factor),
+                                                     (current_mb_size * self.nb_elems, self.pointer_mechanism_chain.Ha))),
+                                                      (current_mb_size, self.nb_elems))
+
+        if not self.demux:
+            a_coeffs = self.apply_softmax_mask(a_coeffs)
+
+        pointer = F.softmax(a_coeffs)
+        
+        return pointer         
+
+    def compute_ctxt(self, previous_state, prev_word_embedding=None):
+        current_mb_size = previous_state.data.shape[0]
+        if not self.demux:
+            if current_mb_size < self.mb_size:
+                used_fb_concat, _ = F.split_axis(
+                    self.fb_concat, (current_mb_size,), 0)
+            else:
+                used_fb_concat = self.fb_concat
+
+        attn = self.compute_pointer(previous_state, prev_word_embedding=prev_word_embedding)
+        
+        if self.demux:
+            ci = F.reshape(F.matmul(attn, F.reshape(self.fb_concat, (self.nb_elems, self.pointer_mechanism_chain.Hi))), 
+                           (current_mb_size, self.pointer_mechanism_chain.Hi))
+        else:
+            ci = F.reshape(F.batch_matmul(attn, used_fb_concat, transa=True), (current_mb_size, self.pointer_mechanism_chain.Hi))
+            
+        return ci, attn
+    
+    def get_repr_ptr(self, idx):
+        mb_size = idx.shape[0]
+        assert mb_size <= self.mb_size
+        idx_range = self.xp.array(range(mb_size), dtype=self.xp.int32)
+        return self.fb_concat[idx_range, idx]
+
+            
 class PointerMechanism(Chain):
-    def __init__(self, Hi, Hs, Ha, additional_input_size = None):
+    def __init__(self, Hi, Hs, Ha, additional_input_size = None, nb_sentinels=0):
         super(PointerMechanism, self).__init__(
             lin_i = L.Linear(Hi, Ha, nobias=False),
             lin_s = L.Linear(Hs, Ha, nobias=True),
@@ -68,71 +157,15 @@ class PointerMechanism(Chain):
         
         if additional_input_size is not None:
             self.add_link("lin_add", L.Linear(additional_input_size, Ha, nobias=True))
+            
+        self.nb_sentinels = nb_sentinels
+        if self.nb_sentinels > 0:
+            self.add_param("sentinels", (1, self.nb_sentinels, Hi))
+            self.sentinels.data[...] = np.random.randn(1, self.nb_sentinels, Hi)
         
     def __call__(self, fb_concat, mask, demux=False):
-        mb_size, nb_elems, Hi = fb_concat.data.shape
-        assert Hi == self.Hi
-        assert mb_size == 1 or not demux
-        
-        precomputed_al_factor = F.reshape(self.lin_i(
-                F.reshape(fb_concat, (mb_size * nb_elems, self.Hi))), (mb_size, nb_elems, self.Ha))
-
-        seq_length = nb_elems
-
-        if not demux:
-            apply_softmax_mask = softmax_mask_maker(mask, seq_length, mb_size)
-#         concatenated_mask = F.concat([F.reshape(mask_elem, (mb_size, 1)) for mask_elem in mask], 1)
-
-        def compute_pointer(previous_state, additional_input=None):
-            current_mb_size = previous_state.data.shape[0]
-            
-            if demux:
-                al_factor = F.broadcast_to(precomputed_al_factor, (current_mb_size, nb_elems, self.Ha))
-            else:
-                if current_mb_size < mb_size:
-                    al_factor, _ = F.split_axis(
-                        precomputed_al_factor, (current_mb_size,), 0)
-                else:
-                    al_factor = precomputed_al_factor
-
-            
-
-            state_al_factor = self.lin_s(previous_state)
-            
-            #As suggested by Isao Goto
-            if additional_input is not None:
-                state_al_factor = state_al_factor + self.lin_add(additional_input)
-                
-            state_al_factor_bc = F.broadcast_to(F.reshape(state_al_factor, (current_mb_size, 1, self.Ha)), (current_mb_size, nb_elems, self.Ha))
-            a_coeffs = F.reshape(self.al_lin_o(F.reshape(F.tanh(state_al_factor_bc + al_factor),
-                                                         (current_mb_size * nb_elems, self.Ha))), (current_mb_size, nb_elems))
-
-            if not demux:
-                a_coeffs = apply_softmax_mask(a_coeffs)
-
-            pointer = F.softmax(a_coeffs)
-            
-            return pointer         
-
-        def compute_ctxt(previous_state, prev_word_embedding=None):
-            current_mb_size = previous_state.data.shape[0]
-            if not demux:
-                if current_mb_size < mb_size:
-                    used_fb_concat, _ = F.split_axis(
-                        fb_concat, (current_mb_size,), 0)
-                else:
-                    used_fb_concat = fb_concat
-
-            attn = compute_pointer(previous_state, prev_word_embedding=prev_word_embedding)
-            
-            if demux:
-                ci = F.reshape(F.matmul(attn, F.reshape(fb_concat, (nb_elems, Hi))), (current_mb_size, self.Hi))
-            else:
-                ci = F.reshape(F.batch_matmul(attn, used_fb_concat, transa=True), (current_mb_size, self.Hi))
-                
-            return ci, attn
-
-        return compute_pointer, compute_ctxt      
+        return PointerMechanismComputer(self, fb_concat, mask, demux=demux)
+  
 
 
 class AttentionModule(Chain):

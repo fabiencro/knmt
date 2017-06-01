@@ -345,5 +345,5 @@ def sample_once(encdec, src_batch, tgt_batch, src_mask, src_indexer, tgt_indexer
                 print name, " ".join([tgt_charenc_decoder(encoded) for encoded in seq]).encode("utf8")
             else:
                 print name, "idx:", seq
-                print name, "raw:", " ".join(indexer.deconvert_swallow(seq, unk_tag=unk_tag, eos_idx=this_eos_idx)).encode('utf-8')
+                print name, "raw:", " ".join(("[@%i]"%w if isinstance(w, int) else w) for w in indexer.deconvert_swallow(seq, unk_tag=unk_tag, eos_idx=this_eos_idx)).encode('utf-8')
                 print name, "postp:", indexer.deconvert(seq, unk_tag=unk_tag, eos_idx=this_eos_idx).encode('utf-8')

@@ -41,6 +41,7 @@ def define_parser(parser):
     model_description_group.add_argument("--charenc_config")
     model_description_group.add_argument("--charenc_model")
     model_description_group.add_argument("--use_goto_attention", default=False, action="store_true")
+    model_description_group.add_argument("--use_pointers", default=False, action="store_true")
     model_description_group.add_argument("--mlp_logits", help="Add an MLP to the last layer before computing logits. Syntax is eg. 1024,1024,512")
 
     training_paramenters_group = parser.add_argument_group(_CONFIG_SECTION_TO_DESCRIPTION["training"])

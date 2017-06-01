@@ -131,11 +131,15 @@ class SimpleLogit(object):
         score = np.log(cuda.to_cpu(probs.data)[np.arange(mb_size), cuda.to_cpu(curr_idx)])
         return score
         
+    def get_xp(self):
+        return chainer.cuda.get_array_module(self.logit.data)
+        
 class PointerLogit(object):
     def __init__(self, logit, logit_ptr):
         self.logit = logit
         self.logit_ptr = logit_ptr
         self.xp = chainer.cuda.get_array_module(self.logit.data)
+        self.device = chainer.cuda.get_device(logit.data)
         
         self.flattened_logits_raw = None
         self.flattened_logits_variable = None
@@ -209,8 +213,8 @@ class PointerLogit(object):
             mb_size = targets.data.shape[0]
             broadcasted_Vm = self.xp.broadcast_to(Vm_array, (mb_size,))
             broadcasted_m1 = self.xp.broadcast_to(m1_array, (mb_size,))
-            caped_target = F.where(targets <= broadcasted_Vm, targets, broadcasted_m1)
-            ptr_value = F.maximum(targets - broadcasted_Vm, 0)
+            caped_target = self.xp.where(targets.data <= broadcasted_Vm, targets.data, broadcasted_m1)
+            ptr_value = self.xp.maximum(targets.data - broadcasted_Vm, 0)
             if per_sentence:
                 v_mask = targets <= Vm_array
                 sce_p = elem_wise_sce(self.logit_ptr, ptr_value)
@@ -225,9 +229,9 @@ class PointerLogit(object):
         probs = self.xp.exp(self.get_flattened_logprob(as_variable=False))
         with self.device:
             if self.xp != np:
-                probs_data = cuda.to_cpu(probs.data)
+                probs_data = cuda.to_cpu(probs)
             else:
-                probs_data = probs.data
+                probs_data = probs
             curr_idx = minibatch_sampling(probs_data)
             if self.xp != np:
                 curr_idx = cuda.to_gpu(curr_idx.astype(np.int32))
@@ -238,9 +242,12 @@ class PointerLogit(object):
     def compute_log_prob(self, curr_idx):
         mb_size = curr_idx.shape[0]
         probs = self.xp.exp(self.get_flattened_logprob(as_variable=False))
-        score = np.log(cuda.to_cpu(probs.data)[np.arange(mb_size), cuda.to_cpu(curr_idx)])
+        score = np.log(cuda.to_cpu(probs)[np.arange(mb_size), cuda.to_cpu(curr_idx)])
         return score
         
+    def get_xp(self):
+        return chainer.cuda.get_array_module(self.logit.data)
+    
 ################################################################################
 # ConditionalizedDecoderCell
 #
@@ -259,7 +266,8 @@ class ConditionalizedDecoderCell(object):
     
     """
     def __init__(self, decoder_chain, compute_ctxt, mb_size, noise_on_prev_word=False,
-                 mode="test", lexicon_probability_matrix=None, lex_epsilon=1e-3, demux=False):
+                 mode="test", lexicon_probability_matrix=None, lex_epsilon=1e-3, demux=False,
+                 ptr_computer=None):
         self.decoder_chain = decoder_chain
         self.compute_ctxt = compute_ctxt
         self.noise_on_prev_word = noise_on_prev_word
@@ -270,11 +278,16 @@ class ConditionalizedDecoderCell(object):
         self.mb_size = mb_size
         self.demux = demux
 
+        self.ptr_computer = ptr_computer
+
         self.xp = decoder_chain.xp
 
         if noise_on_prev_word:
             self.noise_mean = self.xp.ones((mb_size, self.decoder_chain.Eo), dtype=self.xp.float32)
             self.noise_lnvar = self.xp.zeros((mb_size, self.decoder_chain.Eo), dtype=self.xp.float32)
+
+        self.Vparray = None
+        self.Vmarray = None
 
     def advance_state(self, previous_states, prev_y):
         current_mb_size = prev_y.data.shape[0]
@@ -335,7 +348,7 @@ class ConditionalizedDecoderCell(object):
             logits += F.log(weighted_lex_probs + self.lex_epsilon)
             
         if self.decoder_chain.pointer_mechanism:
-            logits_ptr = self.decoder_chain.ptr_mec(all_concatenated)
+            logits_ptr = self.ptr_computer.compute_pointer(all_concatenated)
             return PointerLogit(logits, logits_ptr)
         else:
             return SimpleLogit(logits)
@@ -367,6 +380,23 @@ class ConditionalizedDecoderCell(object):
 
         return new_states, logits, attn
 
+    def get_prev_word_embedding(self, inpt):
+        
+        if self.decoder_chain.pointer_mechanism:
+            if self.Vparray is None:
+                self.Vparray = self.xp.array([self.decoder_chain.Vo], dtype = self.xp.int32)
+            if self.Vmarray is None:
+                self.Vmarray = self.xp.array([self.decoder_chain.Vo - 1], dtype = self.xp.int32)
+            mb_size = inpt.data.shape[0]
+            broadcasted_Vp = self.xp.broadcast_to(self.Vparray, (mb_size,))
+            broadcasted_Vm = self.xp.broadcast_to(self.Vmarray, (mb_size,))
+            prev_y_v = self.decoder_chain.emb(self.xp.minimum(inpt.data, broadcasted_Vp))
+            prev_y_p = self.ptr_computer.get_repr_ptr(self.xp.maximum(inpt.data-broadcasted_Vm, 0))
+            prev_y = F.concat((prev_y_v, prev_y_p), axis = 1)
+        else:
+            prev_y = self.decoder_chain.emb(inpt)
+        return prev_y
+
     def __call__(self, prev_states, inpt, is_soft_inpt=False, from_emb=False):
         if is_soft_inpt:
             assert not from_emb
@@ -376,7 +406,7 @@ class ConditionalizedDecoderCell(object):
             assert not self.decoder_chain.pointer_mechanism
             prev_y = self.decoder_chain.emb.from_emb(inpt)
         else:
-            prev_y = self.decoder_chain.get_prev_word_embedding(inpt)
+            prev_y = self.get_prev_word_embedding(inpt)
             
         new_states, logits, attn = self.advance_one_step(prev_states, prev_y)
 
@@ -445,7 +475,7 @@ class CharEncEmbedId(Chain):
 
 def loss_updater(logits, targets, loss, total_nb_predictions, per_sentence=False,
                  loss_computer=softmax_cross_entropy):
-    xp = chainer.cuda.get_array_module(logits["logits"].data)
+    xp = logits.get_xp() 
     if per_sentence:
         total_local_loss = logits.compute_loss(targets, per_sentence=True) #F.select_item(normalized_logits, targets)
         if loss is not None and total_local_loss.data.shape[0] != loss.data.shape[0]:
@@ -607,12 +637,15 @@ class Decoder(Chain):
         if isinstance(cell_type, (str, unicode)):
             cell_type = rnn_cells.create_cell_model_from_string(cell_type)
 
-        gru = cell_type(Eo + Hi, Ho)
-
         log.info("constructing decoder [%r]" % (cell_type,))
 
         if char_enc_emb is None:
-            emb = L.EmbedID(Vo, Eo)
+            if pointer_mechanism:
+                emb = L.EmbedID(Vo+1, Eo) # addtional case when pointer output
+                actual_Eo = Eo + Hi
+            else:
+                emb = L.EmbedID(Vo, Eo)
+                actual_Eo = Eo
             self.char_enc_emb = None
         else:
             v_size_char_enc, enc_size_char_enc = char_enc_emb.shape
@@ -624,16 +657,18 @@ class Decoder(Chain):
             emb = CharEncEmbedId(char_emb_tgt, (Eo, Eo))
             self.char_enc_emb = char_emb_tgt
             Vo = enc_size_char_enc
+            actual_Eo = Eo
 
         if use_goto_attention:
             log.info("using 'Goto' attention")
             
+        gru = cell_type(actual_Eo + Hi, Ho)
             
         if mlp_logits is not None:
-            log.info("using 'mlp_logits %r", ((Eo + Hi + Ho,) + mlp_logits,))
-            maxo = ChainLinks(MLP((Eo + Hi + Ho,) + mlp_logits), L.Maxout(mlp_logits[-1], Hl, 2))
+            log.info("using 'mlp_logits %r", ((actual_Eo + Hi + Ho,) + mlp_logits,))
+            maxo = ChainLinks(MLP((actual_Eo + Hi + Ho,) + mlp_logits), L.Maxout(mlp_logits[-1], Hl, 2))
         else:
-            maxo=L.Maxout(Eo + Hi + Ho, Hl, 2)
+            maxo=L.Maxout(actual_Eo + Hi + Ho, Hl, 2)
             
         super(Decoder, self).__init__(
             emb=emb,
@@ -649,35 +684,27 @@ class Decoder(Chain):
         )
         
 #         self.add_param("initial_state", (1, Ho))
-        self.add_param("bos_embeding", (1, Eo))
+        self.add_param("bos_embeding", (1, actual_Eo))
 
         self.pointer_mechanism = pointer_mechanism
         if self.pointer_mechanism:
-            self.add_link("ptr_mec", PointerMechanism())
-
+            self.add_link("ptr_mec", PointerMechanism(Hi, actual_Eo + Hi + Ho, Ha, additional_input_size = 1, nb_sentinels=1))
+            self.Vparray = None
+            self.Vmarray = None
+            
         self.use_goto_attention = use_goto_attention
         self.Hi = Hi
         self.Ho = Ho
-        self.Eo = Eo
+        self.Eo = actual_Eo
+        self.Vo = Vo
 #         self.initial_state.data[...] = np.random.randn(Ho)
-        self.bos_embeding.data[...] = np.random.randn(Eo)
+        self.bos_embeding.data[...] = np.random.randn(actual_Eo)
 
         if init_orth:
             ortho_init(self.gru)
             ortho_init(self.lin_o)
             ortho_init(self.maxo)
 
-    def get_prev_word_embedding(self, inpt):
-        if self.pointer_mechanism:
-            mb_size = inpt.data.shape[0]
-            broadcasted_Vp = F.broadcast_to(self.Vparray, (mb_size,))
-            broadcasted_Vm = F.broadcast_to(self.Vmarray, (mb_size,))
-            prev_y_v = self.decoder_chain.emb(F.minimum(inpt, broadcasted_Vp))
-            prev_y_p = self.decoder_chain.ptr_mec.get_repr_ptr(F.maximum(inpt-broadcasted_Vm, 0))
-            prev_y = F.concat((prev_y_v, prev_y_p), axis = 1)
-        else:
-            prev_y = self.decoder_chain.emb(inpt)
-        return prev_y
 
     def give_conditionalized_cell(self, fb_concat, src_mask, noise_on_prev_word=False,
                                   mode="test", lexicon_probability_matrix=None, lex_epsilon=1e-3, demux=False):
@@ -685,12 +712,22 @@ class Decoder(Chain):
         mb_size, nb_elems, Hi = fb_concat.data.shape
         assert Hi == self.Hi, "%i != %i" % (Hi, self.Hi)
 
-        compute_ctxt = self.attn_module(fb_concat, src_mask)
-#         print "cell mb_size",  mb_size
+
+
+        
+
         if not demux:
+            compute_ctxt_ptr = None
+            if self.pointer_mechanism:
+                ptr_computer = self.ptr_mec(fb_concat, src_mask)
+            compute_ctxt = self.attn_module(fb_concat, src_mask)
+#         print "cell mb_size",  mb_size
             return ConditionalizedDecoderCell(self, compute_ctxt, mb_size, noise_on_prev_word=noise_on_prev_word,
-                                              mode=mode, lexicon_probability_matrix=lexicon_probability_matrix, lex_epsilon=lex_epsilon)
+                                              mode=mode, lexicon_probability_matrix=lexicon_probability_matrix, lex_epsilon=lex_epsilon,
+                                              ptr_computer=ptr_computer)
         else:
+            if self.pointer_mechanism:
+                raise NotImplemented
             assert mb_size == 1
             assert demux >= 1
             compute_ctxt = self.attn_module.compute_ctxt_demux(fb_concat, src_mask)

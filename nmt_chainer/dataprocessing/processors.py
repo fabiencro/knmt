@@ -178,6 +178,13 @@ class IdentityMonoProcessor(MonoProcessor):
     def deconvert(self, seq):
         return seq
 
+class IdentityMonoProcessorDeconvertNumToString(MonoProcessor):
+    def convert(self, sentence):
+        return sentence
+    def deconvert(self, seq):
+        return [("[@%i]"%w if isinstance(w, int) else w) for w in seq]
+
+
 class BiProcessor(PreProcessor):
     def convert(self, sentence1, sentence2):
         raise NotImplemented()
@@ -215,7 +222,7 @@ class DicReplaceProcessor(BiProcessor):
         return IdentityMonoProcessor()
 
     def tgt_processor(self):
-        return IdentityMonoProcessor()
+        return IdentityMonoProcessorDeconvertNumToString()
         
     def convert(self, sentence1, sentence2):
         converted_sentence2 = []

@@ -115,7 +115,7 @@ class Indexer(object):
         res = []
         for num, idx in enumerate(seq):
             if idx >= len(self.lst):
-                if idx <= len(self.lst) + len(self.special_aditional_elems):
+                if idx < len(self.lst) + len(self.special_aditional_elems):
                     w = self.special_aditional_elems[idx - len(self.lst)]
 #                 if eos_idx is not None and eos_idx == idx:
 #                     w = "#EOS#"
