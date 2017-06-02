@@ -143,6 +143,7 @@ def beam_search_all(gpu, encdec, eos_idx, src_data, beam_width, beam_pruning_mar
         log.info("using ensemble of %i models" % len(encdec))
 
     all_stds = []
+    all_corr_coefs = []
 
     with cuda.get_device(gpu):
         translations_iter = beam_search_translate(
@@ -318,9 +319,19 @@ def beam_search_all(gpu, encdec, eos_idx, src_data, beam_width, beam_pruning_mar
                 bleu_oracle_file.write(tmp_data['translations'][best_translation_bleu_index])
                 bleu_oracle_file.write("\n")
 
+                print u"translation_bleu_scores={0}".format(tmp_data['translation_bleu_scores'])
+                print u"backtranslation_bleu_scores={0}".format(tmp_data['backtranslation_bleu_scores'])
+                corr_coef = np.corrcoef(tmp_data['translation_bleu_scores'], tmp_data['backtranslation_bleu_scores'])[0, 1]
+                if np.isnan(corr_coef):
+                    corr_coef = 0
+                print u"correlation coefficient of translation and backtranslation bleu scores={0}".format(corr_coef)
+                all_corr_coefs.append(corr_coef)
+
                 yield res_trans
 
-        print "Average std={0}".format(np.mean(all_stds))
+        print "Average std={0} l={1}".format(np.mean(all_stds), len(all_stds))
+        print "Average corr_coef={0} l={1}".format(np.mean(all_corr_coefs), len(all_corr_coefs))
+        print "all_corr_coefs={0}".format(all_corr_coefs)
 
         print >>sys.stderr
 
