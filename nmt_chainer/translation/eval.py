@@ -145,6 +145,7 @@ def beam_search_all(gpu, encdec, eos_idx, src_data, beam_width, beam_pruning_mar
     all_stds_bleu = []
     all_corr_coefs_bleu = []
     all_corr_coefs_score_vs_bt_bleu = []
+    all_corr_coefs_score_vs_t_bleu = []
     all_corr_score = []
 
     with cuda.get_device(gpu):
@@ -347,6 +348,12 @@ def beam_search_all(gpu, encdec, eos_idx, src_data, beam_width, beam_pruning_mar
                 print u"correlation coefficient of score vs backtranslation bleu scores={0}".format(corr_coef_score_vs_bt_bleu)
                 all_corr_coefs_score_vs_bt_bleu.append(corr_coef_score_vs_bt_bleu)
 
+                corr_coef_score_vs_t_bleu = np.corrcoef(tmp_data['translation_modif_scores'], tmp_data['translation_bleu_scores'])[0, 1]
+                if np.isnan(corr_coef_score_vs_t_bleu):
+                    corr_coef_score_vs_t_bleu = 0
+                print u"correlation coefficient of score vs translation bleu scores={0}".format(corr_coef_score_vs_t_bleu)
+                all_corr_coefs_score_vs_t_bleu.append(corr_coef_score_vs_t_bleu)
+
                 yield res_trans
 
         print "Average std_bleu={0} l={1}".format(np.mean(all_stds_bleu), len(all_stds_bleu))
@@ -354,6 +361,8 @@ def beam_search_all(gpu, encdec, eos_idx, src_data, beam_width, beam_pruning_mar
         print "Average corr_coef_bleu={0} l={1}".format(np.mean(all_corr_coefs_bleu), len(all_corr_coefs_bleu))
         print "all_corr_coefs_score_vs_bt_bleu={0}".format(all_corr_coefs_score_vs_bt_bleu)
         print "Average corr_coef_score_vs_bt_bleu={0} l={1}".format(np.mean(all_corr_coefs_score_vs_bt_bleu), len(all_corr_coefs_score_vs_bt_bleu))
+        print "all_corr_coefs_score_vs_t_bleu={0}".format(all_corr_coefs_score_vs_t_bleu)
+        print "Average corr_coef_score_vs_t_bleu={0} l={1}".format(np.mean(all_corr_coefs_score_vs_t_bleu), len(all_corr_coefs_score_vs_t_bleu))
 
         print >>sys.stderr
 
