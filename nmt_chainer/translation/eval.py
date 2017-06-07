@@ -142,8 +142,10 @@ def beam_search_all(gpu, encdec, eos_idx, src_data, beam_width, beam_pruning_mar
     if isinstance(encdec, (list, tuple)) and len(encdec) > 1:
         log.info("using ensemble of %i models" % len(encdec))
 
-    all_stds = []
-    all_corr_coefs = []
+    all_stds_bleu = []
+    all_corr_coefs_bleu = []
+    all_corr_coefs_score_vs_bt_bleu = []
+    all_corr_score = []
 
     with cuda.get_device(gpu):
         translations_iter = beam_search_translate(
@@ -167,7 +169,7 @@ def beam_search_all(gpu, encdec, eos_idx, src_data, beam_width, beam_pruning_mar
 
         with codecs.open('bleu_oracle', 'w', encoding='utf8') as bleu_oracle_file:
             for num_t, translations in enumerate(translations_iter):
-                tmp_data = {'backtranslation_bleu_scores': [], 'translations': [], 'translation_bleu_scores': []}
+                tmp_data = {'backtranslation_bleu_scores': [], 'translations': [], 'translation_bleu_scores': [], 'translation_modif_scores': []}
                 res_trans = []
 
                 if backtranslation_encdec is not None:
@@ -222,9 +224,15 @@ def beam_search_all(gpu, encdec, eos_idx, src_data, beam_width, beam_pruning_mar
                             with cuda.get_device(gpu):
                                 backtranslations, back_attn = greedy_batch_translate(backtranslation_encdec, backtranslation_eos_idx, backtranslation_src_data, batch_size=80, gpu=gpu, nb_steps=nb_steps, get_attention=True)
 
-                            # comp = None
+                            tmp_data['translation_bleu_scores'].append(translation_without_unk_bleu_score)
+                            tmp_data['translation_modif_scores'].append(float(modif_score))
+
+                            comp = None
+                            backtranslated = None
                             backtranslation_score = modif_score
-                            if len(backtranslations) > 0:
+                            if len(backtranslations) == 0:
+                                tmp_data['backtranslation_bleu_scores'].append(0.0)
+                            else:
                                 t = backtranslations[0]
                                 if t[-1] == backtranslation_eos_idx:
                                     t = t[:-1]
@@ -248,14 +256,16 @@ def beam_search_all(gpu, encdec, eos_idx, src_data, beam_width, beam_pruning_mar
 
                                 tmp_data['backtranslation_bleu_scores'].append(backtranslation_bleu_score)
                                 tmp_data['translations'].append(translated)
-                                tmp_data['translation_bleu_scores'].append(translation_without_unk_bleu_score)
 
                                 backtranslation_score = backtranslation_score + backtranslation_strength * backtranslation_bleu_score
 
                             # print u"backtranslated w/unk  ={0}".format(" ".join(backtranslated))
                             # print u"backtranslated wo/unk ={0}".format(backtranslated)
-                            print u"backtranslation       ={0} BLEU against src={1}".format(backtranslated, backtranslation_bleu_score)
-                            print u"NewScore={0} + {1} * {2}={3}".format(modif_score, backtranslation_strength, comp.bleu(), backtranslation_score)
+                            if backtranslated is not None:
+                                print u"backtranslation       ={0} BLEU against src={1}".format(backtranslated, backtranslation_bleu_score)
+                                print u"NewScore={0} + {1} * {2}={3}".format(modif_score, backtranslation_strength, comp.bleu(), backtranslation_score)
+                            else:
+                                print u"No backtranslations so NewScore = OldScore = {0}".format(backtranslation_score)
                             # print u"backtranslated        NewScore={0} + {1} * {2}={3}".format(modif_score, backtranslation_strength, comp.bleu() if comp is not None else "n/a", backtranslation_score)
 
                             return backtranslation_score
@@ -307,31 +317,43 @@ def beam_search_all(gpu, encdec, eos_idx, src_data, beam_width, beam_pruning_mar
 
                     res_trans.append((src_data[num_t], translated, t, score, attn, unk_mapping))
 
-                std = np.std(tmp_data['backtranslation_bleu_scores'])
-                print u"std={0}".format(std)
-                all_stds.append(std)
+                std_bleu = np.std(tmp_data['backtranslation_bleu_scores'])
+                print u"std_bleu={0}".format(std_bleu)
+                all_stds_bleu.append(std_bleu)
 
                 best_translation_bleu = max(tmp_data['translation_bleu_scores'])
                 print u"best_bleu={0}".format(best_translation_bleu)
                 best_translation_bleu_index = tmp_data['translation_bleu_scores'].index(best_translation_bleu)
-                print u"best_translation={0}".format(tmp_data['translations'][best_translation_bleu_index])
-
-                bleu_oracle_file.write(tmp_data['translations'][best_translation_bleu_index])
+                print u"best_translation_bleu_index={0}".format(best_translation_bleu_index)
+                if best_translation_bleu_index <= len(tmp_data['translations']) - 1:
+                    bleu_oracle_file.write(tmp_data['translations'][best_translation_bleu_index])
+                else:
+                    print u"best_translation="
+                    bleu_oracle_file.write("")
                 bleu_oracle_file.write("\n")
 
                 print u"translation_bleu_scores={0}".format(tmp_data['translation_bleu_scores'])
                 print u"backtranslation_bleu_scores={0}".format(tmp_data['backtranslation_bleu_scores'])
-                corr_coef = np.corrcoef(tmp_data['translation_bleu_scores'], tmp_data['backtranslation_bleu_scores'])[0, 1]
-                if np.isnan(corr_coef):
-                    corr_coef = 0
-                print u"correlation coefficient of translation and backtranslation bleu scores={0}".format(corr_coef)
-                all_corr_coefs.append(corr_coef)
+
+                corr_coef_bleu = np.corrcoef(tmp_data['translation_bleu_scores'], tmp_data['backtranslation_bleu_scores'])[0, 1]
+                if np.isnan(corr_coef_bleu):
+                    corr_coef_bleu = 0
+                print u"correlation coefficient of translation and backtranslation bleu scores={0}".format(corr_coef_bleu)
+                all_corr_coefs_bleu.append(corr_coef_bleu)
+
+                corr_coef_score_vs_bt_bleu = np.corrcoef(tmp_data['translation_modif_scores'], tmp_data['backtranslation_bleu_scores'])[0, 1]
+                if np.isnan(corr_coef_score_vs_bt_bleu):
+                    corr_coef_score_vs_bt_bleu = 0
+                print u"correlation coefficient of score vs backtranslation bleu scores={0}".format(corr_coef_score_vs_bt_bleu)
+                all_corr_coefs_score_vs_bt_bleu.append(corr_coef_score_vs_bt_bleu)
 
                 yield res_trans
 
-        print "Average std={0} l={1}".format(np.mean(all_stds), len(all_stds))
-        print "Average corr_coef={0} l={1}".format(np.mean(all_corr_coefs), len(all_corr_coefs))
-        print "all_corr_coefs={0}".format(all_corr_coefs)
+        print "Average std_bleu={0} l={1}".format(np.mean(all_stds_bleu), len(all_stds_bleu))
+        # print "all_corr_coefs_bleu={0}".format(all_corr_coefs_bleu)
+        print "Average corr_coef_bleu={0} l={1}".format(np.mean(all_corr_coefs_bleu), len(all_corr_coefs_bleu))
+        print "all_corr_coefs_score_vs_bt_bleu={0}".format(all_corr_coefs_score_vs_bt_bleu)
+        print "Average corr_coef_score_vs_bt_bleu={0} l={1}".format(np.mean(all_corr_coefs_score_vs_bt_bleu), len(all_corr_coefs_score_vs_bt_bleu))
 
         print >>sys.stderr
 
