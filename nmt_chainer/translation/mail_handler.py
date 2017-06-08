@@ -452,8 +452,11 @@ class MailHandler:
 
             finally:
                 if mail is not None:
-                    mail.close()
-                    mail.logout()
+                    try:
+                        mail.close()
+                        mail.logout()
+                    except Exception, ex3:
+                        self.logger.exception("Could not close connection.  Most likely that it was not properly opened in the first place so let's ignore this.")
 
             self._first_time = False
             time.sleep(int(config['next_mail_handling_delay']))
