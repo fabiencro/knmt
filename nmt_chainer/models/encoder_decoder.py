@@ -201,9 +201,9 @@ class EncoderDecoder(Chain):
         lexicon_probability_matrix = self.compute_lexicon_probability_matrix(src_batch)
         fb_concat = self.enc(src_batch, src_mask)
 
-        decoding_cell = self.dec.give_conditionalized_cell(fb_concat, tgt_batch, noise_on_prev_word=False,
-                                                            mode="test", lexicon_probability_matrix=lexicon_probability_matrix, lex_epsilon=self.lex_epsilon,
-                                                            demux=True)
+        decoding_cell = self.dec.give_conditionalized_cell(fb_concat, tgt_batch, noise_on_prev_word=False, mode="test",
+                                                           lexicon_probability_matrix=lexicon_probability_matrix,
+                                                           lex_epsilon=self.lex_epsilon, demux=True)
 
         reference_memory = decoder_cells.compute_reference_memory_from_decoder_cell(decoding_cell, tgt_batch)
 

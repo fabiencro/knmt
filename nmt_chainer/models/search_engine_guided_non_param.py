@@ -12,23 +12,21 @@ def create_reference_memory(encdec, biprocessor, search_engine, src_sentence):
             idx_ex_src, idx_ex_tgt = biprocessor.convert(ex_src, ex_tgt)
             
         reference_memory.extend(encdec.compute_reference_memory(idx_ex_src, idx_ex_tgt))
-                                        # encode idx_ex_src
-                                        # generate conditionalized cell
-                                        # apply conditionalized cell to idx_ex_tgt to generate sequence of (states, ci, yt)
+
     return reference_memory
 
 
 import nmt_chainer.training_module.train as train
 import nmt_chainer.training_module.train_config as train_config
 
+
 def test_reference_memory(config_filename, search_engine, src_sentence):
     config_training = train_config.load_config_train(config_filename)
-    (encdec, eos_idx, src_indexer, tgt_indexer), model_infos = train.create_encdec_and_indexers_from_config_dict(config_training,
-                                                                                                                                        load_config_model="yes",
-                                                                                                                                        return_model_infos=True)
+    (encdec, eos_idx, src_indexer, tgt_indexer), model_infos = \
+        train.create_encdec_and_indexers_from_config_dict(config_training,
+                                                          load_config_model="yes",
+                                                          return_model_infos=True)
     
     ctxt_mem = create_reference_memory(encdec, (src_indexer, tgt_indexer), search_engine, src_sentence)
     
     # (later) do some tests with ctxt_mem
-    
-    
