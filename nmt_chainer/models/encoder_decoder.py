@@ -195,6 +195,19 @@ class EncoderDecoder(Chain):
 
         return scorer
 
+    def compute_reference_memory(idx_ex_src, idx_ex_tgt):
+        eos_idx = self.Vo - 1
+        src_batch, tgt_batch, src_mask = utils.make_batch_src_tgt((idx_ex_src, idx_ex_tgt), eos_idx=eos_idx)
+        lexicon_probability_matrix = self.compute_lexicon_probability_matrix(src_batch)
+        fb_concat = self.enc(src_batch, src_mask)
+
+        decoding_cell = self.dec.give_conditionalized_cell(fb_concat, tgt_batch, noise_on_prev_word=False,
+                                                            mode="test", lexicon_probability_matrix=lexicon_probability_matrix, lex_epsilon=self.lex_epsilon,
+                                                            demux=True)
+
+        reference_memory = decoder_cells.compute_reference_memory_from_decoder_cell(decoding_cell, src_batch, src_mask, tgt_batch)
+
+        return reference_memory
 #
 #     def get_sampler_reinf(self, fb_concat, mask, eos_idx, nb_steps = 50, use_best_for_sample = False,
 #                     temperature = None,
