@@ -249,7 +249,7 @@ def compute_loss_from_decoder_cell(cell, targets, use_previous_prediction=0,
         loss = loss / total_nb_predictions
         return loss, attn_list
 
-def compute_reference_memory_from_decoder_cell(cell, sources, targets):
+def compute_reference_memory_from_decoder_cell(cell, targets):
     mb_size = targets[0].data.shape[0]
     assert cell.mb_size is None or cell.mb_size == mb_size
     states, _, _, ctxt = cell.get_initial_logits(mb_size)
