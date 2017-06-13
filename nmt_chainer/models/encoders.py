@@ -138,6 +138,7 @@ class Encoder(Chain):
             gru_b=gru_b
         )
         self.Hi = Hi
+        self.Ei = Ei
 
         if use_bn_length > 0:
             self.add_link("bn_f", BNList(Hi, use_bn_length))
@@ -148,7 +149,7 @@ class Encoder(Chain):
             ortho_init(self.gru_f)
             ortho_init(self.gru_b)
 
-    def __call__(self, sequence, mask, mode="test"):
+    def __call__(self, sequence, mask, mode="test", return_embedded_seq=False):
         assert mode in "test train".split()
 
         mb_size = sequence[0].data.shape[0]
@@ -201,4 +202,8 @@ class Encoder(Chain):
         for xf, xb in zip(forward_seq, reversed(backward_seq)):
             res.append(F.reshape(F.concat((xf, xb), 1), (-1, 1, 2 * self.Hi)))
 
-        return F.concat(res, 1)
+        if return_embedded_seq:
+            concatenated_embedded_seq = F.concat([F.reshape(x, (-1, 1, self.Ei)) for x in embedded_seq], 1)
+            return F.concat(res, 1), concatenated_embedded_seq
+        else:
+            return F.concat(res, 1)

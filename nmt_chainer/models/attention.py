@@ -57,7 +57,7 @@ def softmax_mask_maker(mask, seq_length, mb_size):
     return apply_mask
   
 class PointerMechanismComputer(object):
-    def __init__(self, pointer_mechanism_chain, fb_concat, mask, demux=False):
+    def __init__(self, pointer_mechanism_chain, fb_concat, mask, demux=False, represented_data=None):
         mb_size, nb_elems, Hi = fb_concat.data.shape
         assert Hi == pointer_mechanism_chain.Hi
         assert mb_size == 1 or not demux
@@ -73,6 +73,16 @@ class PointerMechanismComputer(object):
         self.nb_elems = nb_elems
         self.mb_size = mb_size
         self.fb_concat = fb_concat
+        
+        if represented_data is None:
+            self.represented_data = fb_concat
+        else:
+            
+            broadcasted_represented_data_sentinels = F.broadcast_to(self.pointer_mechanism_chain.represented_data_sentinel, 
+                                                (mb_size, self.pointer_mechanism_chain.nb_sentinels, self.pointer_mechanism_chain.represented_data_sentinel.shape[-1]))
+            self.represented_data = F.concat((broadcasted_represented_data_sentinels, represented_data))
+            assert self.represented_data.shape[:2] == fb_concat.shape[:2]
+        
         self.demux = demux
         self.precomputed_al_factor = F.reshape(self.pointer_mechanism_chain.lin_i(
                 F.reshape(fb_concat, (mb_size * nb_elems, self.pointer_mechanism_chain.Hi))), 
@@ -140,11 +150,11 @@ class PointerMechanismComputer(object):
         mb_size = idx.shape[0]
         assert mb_size <= self.mb_size
         idx_range = self.xp.array(range(mb_size), dtype=self.xp.int32)
-        return self.fb_concat[idx_range, idx]
+        return self.represented_data[idx_range, idx]
 
             
 class PointerMechanism(Chain):
-    def __init__(self, Hi, Hs, Ha, additional_input_size = None, nb_sentinels=0):
+    def __init__(self, Hi, Hs, Ha, additional_input_size = None, nb_sentinels=0, size_represented_data_sentinel=None):
         super(PointerMechanism, self).__init__(
             lin_i = L.Linear(Hi, Ha, nobias=False),
             lin_s = L.Linear(Hs, Ha, nobias=True),
@@ -162,9 +172,14 @@ class PointerMechanism(Chain):
         if self.nb_sentinels > 0:
             self.add_param("sentinels", (1, self.nb_sentinels, Hi))
             self.sentinels.data[...] = np.random.randn(1, self.nb_sentinels, Hi)
+            
+        if size_represented_data_sentinel is not None:
+            self.add_param("represented_data_sentinel", (1, self.nb_sentinels, size_represented_data_sentinel))
+            self.represented_data_sentinel.data[...] = np.random.randn(1, self.nb_sentinels, size_represented_data_sentinel)
+            
         
-    def __call__(self, fb_concat, mask, demux=False):
-        return PointerMechanismComputer(self, fb_concat, mask, demux=demux)
+    def __call__(self, fb_concat, mask, demux=False, represented_data=None):
+        return PointerMechanismComputer(self, fb_concat, mask, demux=demux, represented_data=represented_data)
   
 
 

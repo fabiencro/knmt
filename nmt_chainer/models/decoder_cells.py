@@ -632,7 +632,7 @@ class Decoder(Chain):
 
     def __init__(self, Vo, Eo, Ho, Ha, Hi, Hl, attn_cls=AttentionModule, init_orth=False,
                  cell_type=rnn_cells.LSTMCell, use_goto_attention=False, char_enc_emb = None,
-                 mlp_logits=None, pointer_mechanism=False):
+                 mlp_logits=None, pointer_mechanism=False, pointer_repr_size=None):
 
         if isinstance(cell_type, (str, unicode)):
             cell_type = rnn_cells.create_cell_model_from_string(cell_type)
@@ -642,7 +642,10 @@ class Decoder(Chain):
         if char_enc_emb is None:
             if pointer_mechanism:
                 emb = L.EmbedID(Vo+1, Eo) # addtional case when pointer output
-                actual_Eo = Eo + Hi
+                if pointer_repr_size is None:
+                    actual_Eo = Eo + Hi
+                else:
+                    actual_Eo = Eo + pointer_repr_size
             else:
                 emb = L.EmbedID(Vo, Eo)
                 actual_Eo = Eo
@@ -688,7 +691,8 @@ class Decoder(Chain):
 
         self.pointer_mechanism = pointer_mechanism
         if self.pointer_mechanism:
-            self.add_link("ptr_mec", PointerMechanism(Hi, actual_Eo + Hi + Ho, Ha, additional_input_size = 1, nb_sentinels=1))
+            self.add_link("ptr_mec", PointerMechanism(Hi, actual_Eo + Hi + Ho, Ha, additional_input_size = 1, nb_sentinels=1,
+                                                      size_represented_data_sentinel=pointer_repr_size))
             self.Vparray = None
             self.Vmarray = None
             
@@ -707,7 +711,8 @@ class Decoder(Chain):
 
 
     def give_conditionalized_cell(self, fb_concat, src_mask, noise_on_prev_word=False,
-                                  mode="test", lexicon_probability_matrix=None, lex_epsilon=1e-3, demux=False):
+                                  mode="test", lexicon_probability_matrix=None, lex_epsilon=1e-3, demux=False,
+                                  represented_seq_for_pointers = None):
         assert mode in "test train".split()
         mb_size, nb_elems, Hi = fb_concat.data.shape
         assert Hi == self.Hi, "%i != %i" % (Hi, self.Hi)
@@ -719,7 +724,7 @@ class Decoder(Chain):
         if not demux:
             compute_ctxt_ptr = None
             if self.pointer_mechanism:
-                ptr_computer = self.ptr_mec(fb_concat, src_mask)
+                ptr_computer = self.ptr_mec(fb_concat, src_mask, represented_data=represented_seq_for_pointers)
             compute_ctxt = self.attn_module(fb_concat, src_mask)
 #         print "cell mb_size",  mb_size
             return ConditionalizedDecoderCell(self, compute_ctxt, mb_size, noise_on_prev_word=noise_on_prev_word,
@@ -740,10 +745,12 @@ class Decoder(Chain):
                      lexicon_probability_matrix=None, lex_epsilon=1e-3,
                      use_soft_prediction_feedback=False, 
                     use_gumbel_for_soft_predictions=False,
-                    temperature_for_soft_predictions=1.0
+                    temperature_for_soft_predictions=1.0,
+                    represented_seq_for_pointers=None
                      ):
         decoding_cell = self.give_conditionalized_cell(fb_concat, src_mask, noise_on_prev_word=noise_on_prev_word,
-                                                       mode=mode, lexicon_probability_matrix=lexicon_probability_matrix, lex_epsilon=lex_epsilon)
+                                                       mode=mode, lexicon_probability_matrix=lexicon_probability_matrix, lex_epsilon=lex_epsilon,
+                                                       represented_seq_for_pointers=represented_seq_for_pointers)
         
         if self.char_enc_emb is not None:
             loss_computer = make_MSE_cross_entropy(self.char_enc_emb)
@@ -762,10 +769,12 @@ class Decoder(Chain):
         return loss, attn_list
 
     def sample(self, fb_concat, src_mask, nb_steps, mb_size, lexicon_probability_matrix=None,
-               lex_epsilon=1e-3, best=False, keep_attn_values=False, need_score=False):
+               lex_epsilon=1e-3, best=False, keep_attn_values=False, need_score=False,
+               represented_seq_for_pointers=None):
         decoding_cell = self.give_conditionalized_cell(fb_concat, src_mask, noise_on_prev_word=False,
                                                        mode="test", lexicon_probability_matrix=lexicon_probability_matrix,
-                                                       lex_epsilon=lex_epsilon)
+                                                       lex_epsilon=lex_epsilon,
+                                                       represented_seq_for_pointers=represented_seq_for_pointers)
         
         if self.char_enc_emb is not None:
             sequences, attn_list = sample_from_decoder_cell_charenc(decoding_cell, nb_steps, keep_attn_values=keep_attn_values)

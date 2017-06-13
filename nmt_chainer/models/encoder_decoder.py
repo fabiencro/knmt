@@ -96,7 +96,8 @@ class EncoderDecoder(Chain):
                  lexical_probability_dictionary=None, lex_epsilon=1e-3,
                  use_goto_attention=False, char_emb_tgt=None,
                  mlp_logits = None,
-                 use_pointers=False
+                 use_pointers=False,
+                 use_input_seq_for_pointer_repr=False
                  ):
         log.info("constructing encoder decoder with Vi:%i Ei:%i Hi:%i Vo:%i Eo:%i Ho:%i Ha:%i Hl:%i" %
                  (Vi, Ei, Hi, Vo, Eo, Ho, Ha, Hl))
@@ -108,11 +109,24 @@ class EncoderDecoder(Chain):
                                       use_goto_attention=use_goto_attention,
                                       char_enc_emb=char_emb_tgt,
                                       mlp_logits=mlp_logits,
-                                      pointer_mechanism=use_pointers)
+                                      pointer_mechanism=use_pointers,
+                                      pointer_repr_size=Ei if use_input_seq_for_pointer_repr else None)
         )
+        
+        if lexical_probability_dictionary is not None:
+            log.info("using lexical probability dictionnary")
+            
+        if use_pointers:
+            log.info("using pointers mechanism")
+        if use_input_seq_for_pointer_repr:
+            log.info("using use_input_seq_for_pointer_repr")
+        
         self.Vo = Vo
         self.lexical_probability_dictionary = lexical_probability_dictionary
         self.lex_epsilon = lex_epsilon
+        
+        assert use_pointers or not use_input_seq_for_pointer_repr
+        self.use_input_seq_for_pointer_repr = use_input_seq_for_pointer_repr
 
     def compute_lexicon_probability_matrix(self, src_batch):
         if self.lexical_probability_dictionary is not None:
@@ -137,7 +151,9 @@ class EncoderDecoder(Chain):
 
         lexicon_probability_matrix = self.compute_lexicon_probability_matrix(src_batch)
 
-        fb_concat = self.enc(src_batch, src_mask, mode=mode)
+
+        fb_concat, embedded_seq_for_pointers = self.compute_fb_concat_and_embeded_seq(src_batch, src_mask, mode=mode)
+#         fb_concat = self.enc(src_batch, src_mask, mode=mode)
 
         mb_size, nb_elems, Hi = fb_concat.data.shape
 
@@ -145,7 +161,8 @@ class EncoderDecoder(Chain):
             return self.dec.sample(fb_concat, src_mask, tgt_batch, mb_size,
                                    lexicon_probability_matrix=lexicon_probability_matrix,
                                    lex_epsilon=self.lex_epsilon, best=use_best_for_sample,
-                                   keep_attn_values=keep_attn_values, need_score=need_score)
+                                   keep_attn_values=keep_attn_values, need_score=need_score,
+                                   represented_seq_for_pointers=embedded_seq_for_pointers)
 
         else:
             return self.dec.compute_loss(fb_concat, src_mask, tgt_batch, raw_loss_info=raw_loss_info,
@@ -155,7 +172,16 @@ class EncoderDecoder(Chain):
                                          lex_epsilon=self.lex_epsilon,
                                          use_soft_prediction_feedback=use_soft_prediction_feedback, 
                                          use_gumbel_for_soft_predictions=use_gumbel_for_soft_predictions,
-                                         temperature_for_soft_predictions=temperature_for_soft_predictions)
+                                         temperature_for_soft_predictions=temperature_for_soft_predictions,
+                                         represented_seq_for_pointers=embedded_seq_for_pointers)
+
+    def compute_fb_concat_and_embeded_seq(self, src_batch, src_mask, mode):
+        embedded_seq_for_pointers = None
+        if self.dec.pointer_mechanism and self.use_input_seq_for_pointer_repr:
+            fb_concat, embedded_seq_for_pointers = self.enc(src_batch, src_mask, mode=mode, return_embedded_seq=True)
+        else:
+            fb_concat = self.enc(src_batch, src_mask, mode=mode)
+        return fb_concat, embedded_seq_for_pointers   
 
     def give_conditionalized_cell(self, src_batch, src_mask, noise_on_prev_word=False,
                                   mode="test", demux=False):
@@ -170,14 +196,16 @@ class EncoderDecoder(Chain):
         else:
             lexicon_probability_matrix = None
 
-        fb_concat = self.enc(src_batch, src_mask, mode=mode)
 
+        fb_concat, embedded_seq_for_pointers = self.compute_fb_concat_and_embeded_seq(src_batch, src_mask, mode=mode)
+        
         mb_size, nb_elems, Hi = fb_concat.data.shape
 
         return self.dec.give_conditionalized_cell(fb_concat, src_mask,
                                                   noise_on_prev_word=noise_on_prev_word,
                                                   mode=mode, lexicon_probability_matrix=lexicon_probability_matrix,
-                                                  lex_epsilon=self.lex_epsilon, demux=demux)
+                                                  lex_epsilon=self.lex_epsilon, demux=demux,
+                                                  represented_seq_for_pointers=embedded_seq_for_pointers)
 
     def nbest_scorer(self, src_batch, src_mask, keep_attn=False):
         assert len(src_batch[0].data) == 1
