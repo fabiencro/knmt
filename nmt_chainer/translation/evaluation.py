@@ -21,8 +21,8 @@ log = logging.getLogger("rnns:evaluation")
 log.setLevel(logging.INFO)
 
 
-def translate_to_file(encdec, eos_idx, test_src_data, mb_size, tgt_indexer,
-                      translations_fn, test_references=None, control_src_fn=None, src_indexer=None, gpu=None, nb_steps=50,
+def translate_to_file(encdec, eos_idx, test_src_data, mb_size, bi_indexer,
+                      translations_fn, test_references=None, control_src_fn=None, gpu=None, nb_steps=50,
                       reverse_src=False, reverse_tgt=False,
                       s_unk_tag="#S_UNK#", t_unk_tag="#T_UNK#"):
 
@@ -33,21 +33,24 @@ def translate_to_file(encdec, eos_idx, test_src_data, mb_size, tgt_indexer,
 
     log.info("writing translation of set to %s" % translations_fn)
     out = codecs.open(translations_fn, "w", encoding="utf8")
-    for t in translations:
+    
+    control_out = None
+    if control_src_fn is not None:
+        control_out = codecs.open(control_src_fn, "w", encoding="utf8")
+        log.info("writing src of test set to %s" % control_src_fn)
+    
+    for num_t, t in enumerate(translations):
         if t[-1] == eos_idx:
             t = t[:-1]
 #         out.write(convert_idx_to_string(t, tgt_voc) + "\n")
-        out.write(tgt_indexer.deconvert(t, unk_tag=t_unk_tag) + "\n")
+        deconverted_src, deconverted_tgt = bi_indexer.deconvert(test_src_data[num_t], t, unk_tag_src=s_unk_tag , unk_tag_tgt=t_unk_tag)
+        out.write(deconverted_tgt + "\n")
 
-    if control_src_fn is not None:
-        assert src_indexer is not None
-        control_out = codecs.open(control_src_fn, "w", encoding="utf8")
-        log.info("writing src of test set to %s" % control_src_fn)
-        for s in test_src_data:
-            #             control_out.write(convert_idx_to_string(s, src_voc) + "\n")
-            control_out.write(src_indexer.deconvert(s, unk_tag=s_unk_tag) + "\n")
+        if control_out is not None:
+            control_out.write(deconverted_src + "\n")
 
     if test_references is not None:
+        tgt_indexer = bi_indexer.tgt_processor()
         #         unk_id = tgt_indexer.get_unk_idx()  #len(tgt_voc) - 1
         new_unk_id_ref = len(tgt_indexer) + 7777
         new_unk_id_cand = len(tgt_indexer) + 9999
@@ -298,8 +301,12 @@ def batch_align(encdec, eos_idx, src_tgt_data, batch_size=80, gpu=None):
 #     return " ".join(trans)
 
 
-def sample_once(encdec, src_batch, tgt_batch, src_mask, src_indexer, tgt_indexer, eos_idx, max_nb=None,
+def sample_once(encdec, src_batch, tgt_batch, src_mask, bi_indexer, eos_idx, max_nb=None,
                 s_unk_tag="#S_UNK#", t_unk_tag="#T_UNK#", tgt_charenc_decoder = None):
+    
+    src_indexer = bi_indexer.src_processor()
+    tgt_indexer = bi_indexer.tgt_processor()
+    
     print "sample"
     sample_greedy, score, attn_list = encdec(src_batch, 50, src_mask, use_best_for_sample=True, need_score=True,
                                              mode="test")
@@ -335,11 +342,12 @@ def sample_once(encdec, src_batch, tgt_batch, src_mask, src_indexer, tgt_indexer
 
         print "sent num", sent_num
 
-        for name, seq, unk_tag, indexer, this_eos_idx in zip("src tgt sample sample_random".split(" "),
+        for name, seq, unk_tag, indexer, this_eos_idx, need_bi_deconv in zip("src tgt sample sample_random".split(" "),
                                                              [src_idx_seq, tgt_idx_seq, sample_idx_seq, sample_random_idx_seq],
                                                              [s_unk_tag, t_unk_tag, t_unk_tag, t_unk_tag],
                                                              [src_indexer, tgt_indexer, tgt_indexer, tgt_indexer],
-                                                             [None, eos_idx, eos_idx, eos_idx]):
+                                                             [None, eos_idx, eos_idx, eos_idx],
+                                                             [False, True, True, True]):
             
             if tgt_charenc_decoder is not None and name in "sample sample_random".split(" "):
                 print name, " ".join([tgt_charenc_decoder(encoded) for encoded in seq]).encode("utf8")
@@ -347,3 +355,9 @@ def sample_once(encdec, src_batch, tgt_batch, src_mask, src_indexer, tgt_indexer
                 print name, "idx:", seq
                 print name, "raw:", " ".join(("[@%i]"%w if isinstance(w, int) else w) for w in indexer.deconvert_swallow(seq, unk_tag=unk_tag, eos_idx=this_eos_idx)).encode('utf-8')
                 print name, "postp:", indexer.deconvert(seq, unk_tag=unk_tag, eos_idx=this_eos_idx).encode('utf-8')
+                if need_bi_deconv:
+                    src_deconv, tgt_deconv = bi_indexer.deconvert(src_idx_seq, seq, unk_tag_src=s_unk_tag, unk_tag_tgt= t_unk_tag, eos_idx=this_eos_idx)
+                    print name, "bi_postp_s:", src_deconv.encode('utf-8')
+                    print name, "bi_postp_t:", tgt_deconv.encode('utf-8')
+            print
+        print 

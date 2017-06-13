@@ -288,7 +288,7 @@ class ComputeLossExtension(chainer.training.Extension):
 class ComputeBleuExtension(chainer.training.Extension):
     priority = chainer.training.PRIORITY_WRITER
 
-    def __init__(self, data, eos_idx, src_indexer, tgt_indexer,
+    def __init__(self, data, eos_idx, bi_indexer,
                  translations_fn, control_src_fn,
                  mb_size, gpu, reverse_src=False, reverse_tgt=False,
                  save_best_model_to=None, observation_name="dev_bleu",
@@ -308,8 +308,8 @@ class ComputeBleuExtension(chainer.training.Extension):
         self.s_unk_tag = s_unk_tag
         self.t_unk_tag = t_unk_tag
 
-        self.src_indexer = src_indexer
-        self.tgt_indexer = tgt_indexer
+        self.bi_indexer = bi_indexer
+#         self.tgt_indexer = tgt_indexer
         self.nb_steps = nb_steps
 
         self.translations_fn = translations_fn
@@ -325,10 +325,10 @@ class ComputeBleuExtension(chainer.training.Extension):
 #         translations_fn = output_files_dict["dev_translation_output"] #save_prefix + ".test.out"
 #         control_src_fn = output_files_dict["dev_src_output"] #save_prefix + ".test.src.out"
         bleu_stats = translate_to_file(encdec, self.eos_idx, self.src_data, self.mb_size,
-                                       self.tgt_indexer,
+                                       self.bi_indexer,
                                        self.translations_fn, test_references=self.references,
                                        control_src_fn=self.control_src_fn,
-                                       src_indexer=self.src_indexer, gpu=self.gpu, nb_steps=50,
+                                       gpu=self.gpu, nb_steps=50,
                                        reverse_src=self.reverse_src, reverse_tgt=self.reverse_tgt,
                                        s_unk_tag=self.s_unk_tag, t_unk_tag=self.t_unk_tag)
         bleu = bleu_stats.bleu()
@@ -475,7 +475,7 @@ class CheckpontSavingExtension(chainer.training.Extension):
 
 
 def train_on_data_chainer(encdec, optimizer, training_data, output_files_dict,
-                          src_indexer, tgt_indexer, eos_idx,
+                          bi_indexer, eos_idx,
                           config_training,
                           stop_trigger=None,
                           test_data=None, dev_data=None, valid_data=None,
@@ -535,7 +535,7 @@ def train_on_data_chainer(encdec, optimizer, training_data, output_files_dict,
         def t_unk_tag(num, utag):
             return "T_UNK_%i" % utag
 
-        sample_once(encdec, src_batch, tgt_batch, src_mask, src_indexer, tgt_indexer, eos_idx,
+        sample_once(encdec, src_batch, tgt_batch, src_mask, bi_indexer, eos_idx,
                     max_nb=7,
                     s_unk_tag=s_unk_tag, t_unk_tag=t_unk_tag,
                     tgt_charenc_decoder=tgt_charenc_decoder)
@@ -591,7 +591,7 @@ def train_on_data_chainer(encdec, optimizer, training_data, output_files_dict,
         trainer.extend(dev_loss_extension, trigger=(report_every, "iteration"))
 
         if not config_training.training_management.no_bleu_computation:
-            dev_bleu_extension = ComputeBleuExtension(dev_data, eos_idx, src_indexer, tgt_indexer,
+            dev_bleu_extension = ComputeBleuExtension(dev_data, eos_idx, bi_indexer,
                                                       output_files_dict["dev_translation_output"],
                                                       output_files_dict["dev_src_output"],
                                                       mb_size, gpu, reverse_src, reverse_tgt,
@@ -607,7 +607,7 @@ def train_on_data_chainer(encdec, optimizer, training_data, output_files_dict,
         trainer.extend(test_loss_extension, trigger=(report_every, "iteration"))
 
         if not config_training.training_management.no_bleu_computation:
-            test_bleu_extension = ComputeBleuExtension(test_data, eos_idx, src_indexer, tgt_indexer,
+            test_bleu_extension = ComputeBleuExtension(test_data, eos_idx, bi_indexer,
                                                        output_files_dict["test_translation_output"],
                                                        output_files_dict["test_src_output"],
                                                        mb_size, gpu, reverse_src, reverse_tgt,

@@ -136,25 +136,20 @@ def create_encdec_from_config_dict(config_dict, src_indexer, tgt_indexer):
     return encdec
 
 
-def create_encdec_and_indexers_from_config_dict(config_dict, src_indexer=None, tgt_indexer=None, load_config_model="no",
+def create_encdec_and_indexers_from_config_dict(config_dict, bi_idx = None, load_config_model="no",
                                                 return_model_infos=False):
     assert load_config_model in "yes no if_exists".split()
 
-    if src_indexer is None or tgt_indexer is None:
+    if bi_idx is None:
         voc_fn = config_dict.data["voc"]
         log.info("loading voc from %s" % voc_fn)
-#         src_voc, tgt_voc = json.load(open(voc_fn))
-
         bi_idx = processors.load_pp_pair_from_file(voc_fn)
 
-    if src_indexer is None:
-        src_indexer = bi_idx.src_processor()
+    if isinstance(bi_idx, tuple):
+        src_indexer, tgt_indexer = bi_idx
+    else:
+        src_indexer, tgt_indexer = bi_idx.src_processor(), bi_idx.tgt_processor()
 
-    if tgt_indexer is None:
-        tgt_indexer = bi_idx.tgt_processor()
-
-#     tgt_voc = None
-#     src_voc = None
 
     encdec = create_encdec_from_config_dict(config_dict["model"], src_indexer, tgt_indexer)
 
@@ -200,7 +195,7 @@ def load_voc_and_update_training_config(config_training):
 
     bi_idx = processors.load_pp_pair_from_file(voc_fn)
 
-    src_indexer, tgt_indexer = bi_idx.src_processor(), bi_idx.tgt_processor()
+#     src_indexer, tgt_indexer = bi_idx.src_processor(), bi_idx.tgt_processor()
 #     src_indexer = processors.PreProcessor.make_from_serializable(src_voc)
 #     tgt_indexer = processors.PreProcessor.make_from_serializable(tgt_voc)
 #     tgt_voc = None
@@ -209,8 +204,10 @@ def load_voc_and_update_training_config(config_training):
 #     Vi = len(src_voc) + 1 # + UNK
 #     Vo = len(tgt_voc) + 1 # + UNK
 
-    Vi = len(src_indexer)  # + UNK
-    Vo = len(tgt_indexer)  # + UNK
+#     Vi = len(src_indexer)  # + UNK
+#     Vo = len(tgt_indexer)  # + UNK
+    
+    Vi, Vo = bi_idx.get_source_and_target_vocabulary_size()
 
     config_training.add_section("data", keep_at_bottom="metadata", overwrite=False)
     config_training["data"]["data_fn"] = data_fn
@@ -220,12 +217,12 @@ def load_voc_and_update_training_config(config_training):
 
     config_training.set_readonly()
 
-    return src_indexer, tgt_indexer
+    return bi_idx #src_indexer, tgt_indexer
 
 
 def do_train(config_training):
 
-    src_indexer, tgt_indexer = load_voc_and_update_training_config(config_training)
+    bi_indexer = load_voc_and_update_training_config(config_training)
 
     save_prefix = config_training.training_management.save_prefix
 
@@ -269,10 +266,11 @@ def do_train(config_training):
     config_training.save_to(save_train_config_fn)
 #     json.dump(config_training, open(save_train_config_fn, "w"), indent=2, separators=(',', ': '))
 
-    Vi = len(src_indexer)  # + UNK
-    Vo = len(tgt_indexer)  # + UNK
+    Vi, Vo = bi_indexer.get_source_and_target_vocabulary_size()
+#     Vi = len(src_indexer)  # + UNK
+#     Vo = len(tgt_indexer)  # + UNK
 
-    eos_idx = tgt_indexer.get_additional_elem_index(0)
+    eos_idx = bi_indexer.tgt_processor().get_additional_elem_index(0)
 
     data_fn = config_training.data.data_fn
 
@@ -325,7 +323,7 @@ def do_train(config_training):
         log.info("done")
 
     encdec, _, _, _ = create_encdec_and_indexers_from_config_dict(config_training,
-                                                                  src_indexer=src_indexer, tgt_indexer=tgt_indexer,
+                                                                  bi_idx = bi_indexer,
                                                                   load_config_model="if_exists" if config_training.training_management.resume else "no")
 #     create_encdec_from_config_dict(config_training.model, src_indexer, tgt_indexer,
 #                             load_config_model = "if_exists" if config_training.training_management.resume else "no")
@@ -415,7 +413,7 @@ def do_train(config_training):
             else:
                 stop_trigger = None
             training_chainer.train_on_data_chainer(encdec, optimizer, training_data, output_files_dict,
-                                                   src_indexer, tgt_indexer, eos_idx=eos_idx,
+                                                   bi_indexer, eos_idx=eos_idx,
                                                    config_training=config_training,
                                                    stop_trigger=stop_trigger,
                                                    test_data=test_data, dev_data=dev_data, valid_data=valid_data

@@ -248,7 +248,10 @@ class DicReplaceProcessor(BiProcessor):
         deconverted_sentence2 = []
         for w in sentence2:
             if isinstance(w, int):
-                deconverted_sentence2.append(self.find_translation(sentence1[w]))
+                if w < len(sentence1):
+                    deconverted_sentence2.append(self.find_translation(sentence1[w]))
+                else:
+                    deconverted_sentence2.append("#OOR:%i/%i#"%(w, len(sentence1)))
             else:
                 deconverted_sentence2.append(w)
         return sentence1, deconverted_sentence2
@@ -820,9 +823,44 @@ class IndexingPrePostProcessorBase(MonoProcessor):
     def make_new_stat(self):
         return self.Stats()
 
+class BiIndexingPrePostProcessorBase(BiProcessor):
+    def __len__(self):
+        raise NotImplemented
+
+    def is_unk_idx(self, idx):
+        raise NotImplemented
+
+    def convert(self, sentence1, sentence2, stat1=None, stat2=None):
+        raise NotImplemented
+
+    def convert_swallow(self, sentence1, sentence2, stat1=None, stat2=None):
+        raise NotImplemented
+
+    def deconvert_swallow(self, seq1, seq2, unk_tag_src="#UNK#", unk_tag_tgt="#UNK#", no_oov=True, eos_idx=None):
+        raise NotImplemented
+
+    def deconvert_post(self, seq1, seq2):
+        raise NotImplemented
+
+    def deconvert(self, seq1, seq2, unk_tag_src="#UNK#", unk_tag_tgt="#UNK#", no_oov=True, eos_idx=None):
+        sentence1, sentence2 = self.deconvert_swallow(
+            seq1, seq2, unk_tag_src=unk_tag_src, unk_tag_tgt=unk_tag_tgt, no_oov=no_oov, eos_idx=eos_idx)
+        sentence1, sentence2 = self.deconvert_post(sentence1, sentence2)
+        return sentence1, sentence2
+
+    class Stats(object):
+        def make_report(self):
+            return "nothing to report"
+
+        def report_as_obj(self):
+            return OrderedDict()
+
+    def make_new_stat(self):
+        return self.Stats()
+
 
 @registered_processor
-class BiIndexingPrePostProcessor(BiProcessor):
+class BiIndexingPrePostProcessor(BiIndexingPrePostProcessorBase):
     def __init__(self, voc_limit1=None, voc_limit2=None, voc_fn1 = None, voc_fn2 = None, bypass_int=False):
         self.voc_fn1 = voc_fn1
         self.voc_fn2 = voc_fn2
@@ -831,17 +869,35 @@ class BiIndexingPrePostProcessor(BiProcessor):
         self.preprocessor = None
         self.is_initialized_ = False
 
+    def get_source_and_target_vocabulary_size(self):
+        return len(self.indexer1), len(self.indexer2)
+
     def convert(self, sentence1, sentence2, stat1=None, stat2=None):
         if self.preprocessor is not None:
             sentence1, sentence2 = self.preprocessor.convert(sentence1, sentence2)
+        return self.convert_swallow(sentence1, sentence2, stat1=stat1, stat2=stat2)
+#         return self.indexer1.convert_swallow(sentence1, stat1), self.indexer2.convert_swallow(sentence2, stat2)
+
+#     def deconvert(self, sentence1, sentence2, unk_tag_src="#UNK#", unk_tag_tgt="#UNK#", no_oov=True, eos_idx=None):
+#         sentence1, sentence2 = self.deconvert_swallow(sentence1, sentence2, unk_tag_src=unk_tag_src, unk_tag_tgt=unk_tag_tgt, no_oov=no_oov, eos_idx=eos_idx)
+#         sentence1, sentence2 = self.deconvert_post(sentence1, sentence2)
+#         return sentence1, sentence2
+
+
+    def convert_swallow(self, sentence1, sentence2, stat1=None, stat2=None):
         return self.indexer1.convert_swallow(sentence1, stat1), self.indexer2.convert_swallow(sentence2, stat2)
 
-    def deconvert(self, sentence1, sentence2):
-        sentence1, sentence2 = self.indexer1.deconvert_swallow(sentence1), self.indexer2.deconvert_swallow(sentence2)
-        if self.preprocessor is not None:
-            sentence1, sentence2 = self.preprocessor.deconvert(
-                sentence1, sentence2)
+    def deconvert_swallow(self, seq1, seq2, unk_tag_src="#UNK#", unk_tag_tgt="#UNK#", no_oov=True, eos_idx=None):
+        sentence1 = self.indexer1.deconvert_swallow(seq1, unk_tag=unk_tag_src, no_oov=no_oov)
+        sentence2 = self.indexer2.deconvert_swallow(seq2, unk_tag=unk_tag_tgt, no_oov=no_oov, eos_idx=eos_idx)
         return sentence1, sentence2
+
+    def deconvert_post(self, seq1, seq2):
+        if self.preprocessor is not None:
+            seq1, seq2 = self.preprocessor.deconvert(
+                seq1, seq2)
+        return seq1, seq2
+
 
     def __str__(self):
         return """BiIndexing:
