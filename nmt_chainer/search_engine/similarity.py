@@ -1,4 +1,14 @@
+#!/usr/bin/env python
+
 from nltk import edit_distance
+
+
+"""similarity.py: similarity score functions"""
+__author__ = "Ryota Nakao"
+__license__ = "undecided"
+__version__ = "1.0"
+__email__ = "nakario@gmail.com"
+__status__ = "Development"
 
 
 def fuzzy_char_level_similarity(x, y):

@@ -1,5 +1,15 @@
+#!/usr/bin/env python
+
 from abc import ABCMeta, abstractmethod
 from itertools import chain
+
+
+"""retriever.py: The main class for retrieving translation pairs"""
+__author__ = "Ryota Nakao"
+__license__ = "undecided"
+__version__ = "1.0"
+__email__ = "nakario@gmail.com"
+__status__ = "Development"
 
 
 class BaseEngine:
