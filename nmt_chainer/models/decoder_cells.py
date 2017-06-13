@@ -13,6 +13,7 @@ from chainer import Link, Chain, ChainList
 import chainer.functions as F
 import chainer.links as L
 import random
+from builtins import range
 
 import rnn_cells
 from nmt_chainer.utilities.utils import ortho_init, minibatch_sampling
@@ -250,25 +251,6 @@ def compute_loss_from_decoder_cell(cell, targets, use_previous_prediction=0,
         return loss, attn_list
 
 
-def compute_reference_memory_from_decoder_cell(cell, targets):
-    mb_size = targets[0].data.shape[0]
-    assert cell.mb_size is None or cell.mb_size == mb_size
-    states, _, _, ctxt = cell.get_initial_logits(mb_size)
-
-    reference_memory = []
-    for i in xrange(len(targets) - 1):
-        current_mb_size = targets[i].data.shape[0]
-        required_next_mb_size = targets[i + 1].data.shape[0]
-        if required_next_mb_size < current_mb_size:
-            previous_word, _ = F.split_axis(targets[i], (required_next_mb_size,), 0)
-            current_mb_size = required_next_mb_size
-        else:
-            previous_word = targets[i]
-        states, _, _, ctxt = cell(states, previous_word)
-        reference_memory.append((ctxt, previous_word, 0))
-    return reference_memory
-
-
 def sample_from_decoder_cell(cell, nb_steps, best=False, keep_attn_values=False,
                              need_score=False):
     """
@@ -310,6 +292,25 @@ def sample_from_decoder_cell(cell, nb_steps, best=False, keep_attn_values=False,
         states, logits, attn = cell(states, previous_word)
 
     return sequences, score, attn_list
+
+
+def compute_reference_memory_from_decoder_cell(cell, targets):
+    mb_size = targets[0].data.shape[0]
+    assert cell.mb_size is None or cell.mb_size == mb_size
+    states, _, _, ctxt = cell.get_initial_logits(mb_size)
+
+    reference_memory = []
+    for i in range(len(targets) - 1):
+        current_mb_size = targets[i].data.shape[0]
+        required_next_mb_size = targets[i + 1].data.shape[0]
+        if required_next_mb_size < current_mb_size:
+            previous_word, _ = F.split_axis(targets[i], (required_next_mb_size,), 0)
+            current_mb_size = required_next_mb_size
+        else:
+            previous_word = targets[i]
+        states, _, _, ctxt = cell(states, previous_word)
+        reference_memory.append((ctxt, previous_word, 0))
+    return reference_memory
 
 
 class Decoder(Chain):
