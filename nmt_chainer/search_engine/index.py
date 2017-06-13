@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-from whoosh.index import create_in, open_dir, Index
+from whoosh.index import create_in, open_dir
 from whoosh.fields import Schema, TEXT
 import os
 
