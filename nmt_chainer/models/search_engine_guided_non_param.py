@@ -1,7 +1,5 @@
-
-
-def create_reference_memory(encdec, biprocessor, search_engine, src_sentence):
-    examples_list = search_engine.search(src_sentence)
+def create_reference_memory(encdec, biprocessor, retriever, src_sentence):
+    examples_list = retriever.retrieve(src_sentence)
     
     reference_memory = []
     for ex_src, ex_tgt in examples_list:
