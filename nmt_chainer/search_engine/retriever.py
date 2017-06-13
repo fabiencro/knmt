@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 
+from __future__ import division
 from abc import ABCMeta, abstractmethod
 from itertools import chain
 

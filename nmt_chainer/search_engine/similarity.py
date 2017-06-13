@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 
+from __future__ import division
 from nltk import edit_distance
 
 
@@ -12,10 +13,10 @@ __status__ = "Development"
 
 
 def fuzzy_char_level_similarity(x, y):
-    return 1 - edit_distance(x, y) * 1.0 / max(len(x), len(y))
+    return 1 - edit_distance(x, y) / max(len(x), len(y))
 
 
 def fuzzy_word_level_similarity(x, y, sep=None):
     xs = x.split(sep)
     ys = y.split(sep)
-    return 1 - edit_distance(xs, ys) * 1.0 / max(len(xs), len(ys))
+    return 1 - edit_distance(xs, ys) / max(len(xs), len(ys))
