@@ -31,6 +31,11 @@ if [[ ! -z "$RNN_SEARCH_DICTIONARY" ]]; then
     OPT_DIC="--dic $RNN_SEARCH_DICTIONARY"
 fi
 
+OPT_PP_COMMAND=""
+if [[ ! -z "$PP_COMMAND" ]]; then
+    OPT_PP_COMMAND="--pp_command \"$PP_COMMAND\""
+fi
+
 OPT_ADDITIONAL_CONFIGS=""
 if [[ ! -z "$RNN_SEARCH_ADDITIONAL_CONFIG" ]]; then
 	OPT_ADDITIONAL_CONFIGS="--additional_training_config"
@@ -49,6 +54,7 @@ fi
 
 server_cmd="knmt eval --server $HOST:$PORT \
 	--segmenter_command=\"$SEGMENTER_COMMAND\" --segmenter_format $SEGMENTER_FORMAT $OPT_DIC \
+    $OPT_PP_COMMAND \
     --mode beam_search \
     $RNN_SEARCH_CONFIG $RNN_SEARCH_MODEL $OPT_GPU \
 	$OPT_ADDITIONAL_CONFIGS $OPT_ADDITIONAL_MODELS"
