@@ -396,7 +396,7 @@ class TestSearchEngineGuidedNonParam:
         import codecs
         with codecs.open("/zinnia/ebmt_ems/ASPEC-CJ/segmented/dev/zh", "r", "utf-8") as src:
             src_txt = src.readline()
-            log.info(src_txt)
+            log.info("src_txt is [%s]" % src_txt)
             src.seek(0, 0)
             with codecs.open("/zinnia/ebmt_ems/ASPEC-CJ/segmented/dev/ja", "r", "utf-8") as tgt:
                 index = create_index(join(gettempdir(), "index"), src, tgt)

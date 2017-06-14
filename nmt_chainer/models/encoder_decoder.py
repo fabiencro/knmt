@@ -198,7 +198,6 @@ class EncoderDecoder(Chain):
     def compute_reference_memory(self, idx_ex_src, idx_ex_tgt):
         eos_idx = self.Vo - 1
         trg_data = zip([idx_ex_src], [idx_ex_tgt])
-        log.info("trg_data = %s" % trg_data)
         src_batch, tgt_batch, src_mask = make_batch_src_tgt(trg_data, eos_idx=eos_idx)
         lexicon_probability_matrix = self.compute_lexicon_probability_matrix(src_batch)
         fb_concat = self.enc(src_batch, src_mask)

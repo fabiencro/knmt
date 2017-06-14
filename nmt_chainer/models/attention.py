@@ -47,8 +47,6 @@ class AttentionModule(Chain):
             ortho_init(self.al_lin_o)
 
     def __call__(self, fb_concat, mask):
-        log.info("fb_concat = %s" % fb_concat)
-        log.info("mask.data = %s" % [m.data for m in mask])
         mb_size, nb_elems, Hi = fb_concat.data.shape
         assert Hi == self.Hi
         precomputed_al_factor = F.reshape(self.al_lin_h(
