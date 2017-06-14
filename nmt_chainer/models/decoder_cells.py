@@ -313,6 +313,40 @@ def compute_reference_memory_from_decoder_cell(cell, targets):
     return reference_memory
 
 
+class ContextSimilarityComputer(Chain):
+    def __init__(self):
+        super(ContextSimilarityComputer, self).__init__(
+            m_linear = L.Linear(x,x. nobias=True)
+            )
+    
+    def __call__(self, context_memory):
+        
+        def compute_averaged_state(current_c):
+            m_x_c = self.m_linear(current_c)
+            for stored_c in context_memory:
+                coefficients.append(F.matmul(m_x_c , stored_c))
+                
+            normalized_coefficients = F.softmax(F.concat(coefficients))
+            
+            averaged_state = 0
+            for i, stored_states in enumerate(context_memory):
+                averaged_state = averaged_state + stored_states * normalized_coefficients[i]
+            return averaged_state
+        
+        return compute_averaged_state
+        
+class FusionGateComputer(Chain):
+    def __init__(self, c_size, z_size):
+        super(FusionGateComputer, self).__init__(
+            ct_linear = L.Linear(c_size, 1),
+            zt_linear = L.Linear(z_size, 1, nobias=True),
+            zt_prime_linear = L.Linear(z_size, 1, nobias=True)
+            )
+        
+    def __call__(self, ct, zt, zt_prime):
+        return F.sigmoid((self.ct_linear(ct) + self.zt_linear(zt) + ...))
+
+
 class Decoder(Chain):
     """ Decoder for RNNSearch.
         The __call_ takes 3 required parameters: fb_concat, targets, mask.
@@ -368,6 +402,10 @@ class Decoder(Chain):
 #         self.add_param("initial_state", (1, Ho))
         self.add_param("bos_embeding", (1, Eo))
 
+
+        if use_context_memory:
+            self.add_link("context_similarity_computer", ContextSimilarityComputer(xx, xx)))
+                        + FusionGateComputer(Hi, Ho)
 
         self.use_goto_attention = use_goto_attention
         self.Hi = Hi
