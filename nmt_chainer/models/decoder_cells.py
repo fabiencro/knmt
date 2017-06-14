@@ -309,7 +309,7 @@ def compute_reference_memory_from_decoder_cell(cell, targets):
         else:
             previous_word = targets[i]
         states, _, _, ctxt = cell(states, previous_word)
-        reference_memory.append((ctxt, previous_word, 0))
+        reference_memory.append((ctxt.data, previous_word.data, 0))
     return reference_memory
 
 
