@@ -413,7 +413,3 @@ class TestSearchEngineGuidedNonParam:
         assert len(ref_memory) == len(ys)
         for (_, ref_y, _), tgt_y in zip(ref_memory, ys):
             assert ref_y == tgt_y
-        for ref in ref_memory:
-            ctxt, y, b = ref[0], ref[1], ref[2]
-            log.info("ctxt = %s" % ctxt)
-        assert False
