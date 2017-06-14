@@ -131,7 +131,7 @@ class ConditionalizedDecoderCell(object):
                                          Variable(self.noise_lnvar[:current_mb_size], volatile="auto"))
 
         if self.return_ctxt:
-            new_states, concatenated, attn, ctxt = self.advance_state(previous_states, prev_y, return_ctxt=True)
+            new_states, concatenated, attn, ctxt = self.advance_state(previous_states, prev_y)
         else:
             new_states, concatenated, attn = self.advance_state(previous_states, prev_y)
 
@@ -382,7 +382,7 @@ class Decoder(Chain):
             ortho_init(self.maxo)
 
     def give_conditionalized_cell(self, fb_concat, src_mask, noise_on_prev_word=False,
-                                  mode="test", lexicon_probability_matrix=None, lex_epsilon=1e-3, demux=False):
+                                  mode="test", lexicon_probability_matrix=None, lex_epsilon=1e-3, demux=False, return_ctxt=False):
         assert mode in "test train".split()
         mb_size, nb_elems, Hi = fb_concat.data.shape
         assert Hi == self.Hi, "%i != %i" % (Hi, self.Hi)
@@ -391,14 +391,14 @@ class Decoder(Chain):
 
         if not demux:
             return ConditionalizedDecoderCell(self, compute_ctxt, mb_size, noise_on_prev_word=noise_on_prev_word,
-                                              mode=mode, lexicon_probability_matrix=lexicon_probability_matrix, lex_epsilon=lex_epsilon)
+                                              mode=mode, lexicon_probability_matrix=lexicon_probability_matrix, lex_epsilon=lex_epsilon, return_ctxt=return_ctxt)
         else:
             assert mb_size == 1
             assert demux >= 1
             compute_ctxt = self.attn_module.compute_ctxt_demux(fb_concat, src_mask)
             return ConditionalizedDecoderCell(self, compute_ctxt, None, noise_on_prev_word=noise_on_prev_word,
                                               mode=mode, lexicon_probability_matrix=lexicon_probability_matrix, lex_epsilon=lex_epsilon,
-                                              demux=True)
+                                              demux=True, return_ctxt=return_ctxt)
 
     def compute_loss(self, fb_concat, src_mask, targets, raw_loss_info=False, keep_attn_values=False,
                      noise_on_prev_word=False, use_previous_prediction=0, mode="test", per_sentence=False,

@@ -197,13 +197,15 @@ class EncoderDecoder(Chain):
 
     def compute_reference_memory(self, idx_ex_src, idx_ex_tgt):
         eos_idx = self.Vo - 1
-        src_batch, tgt_batch, src_mask = make_batch_src_tgt((idx_ex_src, idx_ex_tgt), eos_idx=eos_idx)
+        trg_data = zip([idx_ex_src], [idx_ex_tgt])
+        log.info("trg_data = %s" % trg_data)
+        src_batch, tgt_batch, src_mask = make_batch_src_tgt(trg_data, eos_idx=eos_idx)
         lexicon_probability_matrix = self.compute_lexicon_probability_matrix(src_batch)
         fb_concat = self.enc(src_batch, src_mask)
 
-        decoding_cell = self.dec.give_conditionalized_cell(fb_concat, tgt_batch, noise_on_prev_word=False, mode="test",
+        decoding_cell = self.dec.give_conditionalized_cell(fb_concat, src_mask, noise_on_prev_word=False, mode="test",
                                                            lexicon_probability_matrix=lexicon_probability_matrix,
-                                                           lex_epsilon=self.lex_epsilon, demux=True)
+                                                           lex_epsilon=self.lex_epsilon, demux=True, return_ctxt=True)
 
         reference_memory = decoder_cells.compute_reference_memory_from_decoder_cell(decoding_cell, tgt_batch)
 

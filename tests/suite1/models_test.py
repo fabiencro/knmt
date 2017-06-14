@@ -385,7 +385,7 @@ class TestSearchEngineGuidedNonParam:
     def test_reference_memory(self):
         import nmt_chainer.training_module.train as train
         import nmt_chainer.training_module.train_config as train_config
-        config_training = train_config.load_config_train("tests/tests_data/models/result_invariability.data.data.config")
+        config_training = train_config.load_config_train("/home/fabien/experiments/nmt_new/aspec-jc/zinnia-corpus/cj_bpe_20k/nstep3stacks_noise_on_prev_confirmation_try/cj.model.best.npz.config")
         (encdec, eos_idx, src_indexer, tgt_indexer), model_infos = \
             train.create_encdec_and_indexers_from_config_dict(config_training,
                                                               load_config_model="yes",
@@ -393,8 +393,12 @@ class TestSearchEngineGuidedNonParam:
         from tempfile import gettempdir
         from os.path import join
         from nmt_chainer.search_engine.index import create_index
-        with open("tests/tests_data/src2.txt", "r") as src:
-            with open("tests/tests_data/tgt2.txt", "r") as tgt:
+        import codecs
+        with codecs.open("/zinnia/ebmt_ems/ASPEC-CJ/segmented/dev/zh", "r", "utf-8") as src:
+            src_txt = src.readline()
+            log.info(src_txt)
+            src.seek(0, 0)
+            with codecs.open("/zinnia/ebmt_ems/ASPEC-CJ/segmented/dev/ja", "r", "utf-8") as tgt:
                 index = create_index(join(gettempdir(), "index"), src, tgt)
         from nmt_chainer.search_engine.whoosh_engine import WhooshEngine
         engine = WhooshEngine(10, index)
@@ -402,5 +406,4 @@ class TestSearchEngineGuidedNonParam:
         from nmt_chainer.search_engine.similarity import fuzzy_word_level_similarity
         retriever = Retriever(engine, fuzzy_word_level_similarity, training=True)
         from nmt_chainer.models.search_engine_guided_non_param import create_reference_memory
-        ref_memory = create_reference_memory(encdec, (src_indexer, tgt_indexer), retriever,
-                                             "e f grand et le 45 d e b c d un long de que est-ce assez utiliser des majuscules beta est il veux boire est noir mon fils")
+        ref_memory = create_reference_memory(encdec, (src_indexer, tgt_indexer), retriever, src_txt)
