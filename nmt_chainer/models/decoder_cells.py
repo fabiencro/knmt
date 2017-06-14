@@ -13,6 +13,7 @@ from chainer import Link, Chain, ChainList
 import chainer.functions as F
 import chainer.links as L
 import random
+from builtins import range
 
 import rnn_cells
 from nmt_chainer.utilities.utils import ortho_init, minibatch_sampling
@@ -40,14 +41,15 @@ class ConditionalizedDecoderCell(object):
             __call__ compute the next decoder state and the next logits
     
     """
-    def __init__(self, decoder_chain, compute_ctxt, mb_size, noise_on_prev_word=False,
-                 mode="test", lexicon_probability_matrix=None, lex_epsilon=1e-3, demux=False):
+    def __init__(self, decoder_chain, compute_ctxt, mb_size, noise_on_prev_word=False, mode="test",
+                 lexicon_probability_matrix=None, lex_epsilon=1e-3, demux=False, return_ctxt=False):
         self.decoder_chain = decoder_chain
         self.compute_ctxt = compute_ctxt
         self.noise_on_prev_word = noise_on_prev_word
         self.mode = mode
         self.lexicon_probability_matrix = lexicon_probability_matrix
         self.lex_epsilon = lex_epsilon
+        self.return_ctxt = return_ctxt
 
         self.mb_size = mb_size
         self.demux = demux
@@ -77,7 +79,10 @@ class ConditionalizedDecoderCell(object):
         concatenated = F.concat((prev_y, ci))
 
         new_states = self.decoder_chain.gru(previous_states, concatenated, mode=self.mode)
-        return new_states, concatenated, attn
+        if self.return_ctxt:
+            return new_states, concatenated, attn, ci
+        else:
+            return new_states, concatenated, attn
 
     def compute_logits(self, new_states, concatenated, attn):
         new_output_state = new_states[-1]
@@ -125,11 +130,17 @@ class ConditionalizedDecoderCell(object):
             prev_y = prev_y * F.gaussian(Variable(self.noise_mean[:current_mb_size], volatile="auto"),
                                          Variable(self.noise_lnvar[:current_mb_size], volatile="auto"))
 
-        new_states, concatenated, attn = self.advance_state(previous_states, prev_y)
+        if self.return_ctxt:
+            new_states, concatenated, attn, ctxt = self.advance_state(previous_states, prev_y)
+        else:
+            new_states, concatenated, attn = self.advance_state(previous_states, prev_y)
 
         logits = self.compute_logits(new_states, concatenated, attn)
 
-        return new_states, logits, attn
+        if self.return_ctxt:
+            return new_states, logits, attn, ctxt
+        else:
+            return new_states, logits, attn
 
     def get_initial_logits(self, mb_size=None):
         if mb_size is None:
@@ -140,9 +151,12 @@ class ConditionalizedDecoderCell(object):
 
         prev_y = F.broadcast_to(self.decoder_chain.bos_embeding, (mb_size, self.decoder_chain.Eo))
 
-        new_states, logits, attn = self.advance_one_step(previous_states, prev_y)
-
-        return new_states, logits, attn
+        if self.return_ctxt:
+            new_states, logits, attn, ctxt = self.advance_one_step(previous_states, prev_y)
+            return new_states, logits, attn, ctxt
+        else:
+            new_states, logits, attn = self.advance_one_step(previous_states, prev_y)
+            return new_states, logits, attn
 
     def __call__(self, prev_states, inpt, is_soft_inpt=False):
         if is_soft_inpt:
@@ -150,9 +164,12 @@ class ConditionalizedDecoderCell(object):
         else:
             prev_y = self.decoder_chain.emb(inpt)
 
-        new_states, logits, attn = self.advance_one_step(prev_states, prev_y)
-
-        return new_states, logits, attn
+        if self.return_ctxt:
+            new_states, logits, attn, ctxt = self.advance_one_step(prev_states, prev_y)
+            return new_states, logits, attn, ctxt
+        else:
+            new_states, logits, attn = self.advance_one_step(prev_states, prev_y)
+            return new_states, logits, attn
 
 
 def compute_loss_from_decoder_cell(cell, targets, use_previous_prediction=0,
@@ -277,6 +294,25 @@ def sample_from_decoder_cell(cell, nb_steps, best=False, keep_attn_values=False,
     return sequences, score, attn_list
 
 
+def compute_reference_memory_from_decoder_cell(cell, targets):
+    mb_size = targets[0].data.shape[0]
+    assert cell.mb_size is None or cell.mb_size == mb_size
+    states, _, _, ctxt = cell.get_initial_logits(mb_size)
+
+    reference_memory = []
+    for i in range(len(targets) - 1):
+        current_mb_size = targets[i].data.shape[0]
+        required_next_mb_size = targets[i + 1].data.shape[0]
+        if required_next_mb_size < current_mb_size:
+            previous_word, _ = F.split_axis(targets[i], (required_next_mb_size,), 0)
+            current_mb_size = required_next_mb_size
+        else:
+            previous_word = targets[i]
+        states, _, _, ctxt = cell(states, previous_word)
+        reference_memory.append((ctxt.data, previous_word.data, 0))
+    return reference_memory
+
+
 class Decoder(Chain):
     """ Decoder for RNNSearch.
         The __call_ takes 3 required parameters: fb_concat, targets, mask.
@@ -346,7 +382,7 @@ class Decoder(Chain):
             ortho_init(self.maxo)
 
     def give_conditionalized_cell(self, fb_concat, src_mask, noise_on_prev_word=False,
-                                  mode="test", lexicon_probability_matrix=None, lex_epsilon=1e-3, demux=False):
+                                  mode="test", lexicon_probability_matrix=None, lex_epsilon=1e-3, demux=False, return_ctxt=False):
         assert mode in "test train".split()
         mb_size, nb_elems, Hi = fb_concat.data.shape
         assert Hi == self.Hi, "%i != %i" % (Hi, self.Hi)
@@ -355,14 +391,14 @@ class Decoder(Chain):
 
         if not demux:
             return ConditionalizedDecoderCell(self, compute_ctxt, mb_size, noise_on_prev_word=noise_on_prev_word,
-                                              mode=mode, lexicon_probability_matrix=lexicon_probability_matrix, lex_epsilon=lex_epsilon)
+                                              mode=mode, lexicon_probability_matrix=lexicon_probability_matrix, lex_epsilon=lex_epsilon, return_ctxt=return_ctxt)
         else:
             assert mb_size == 1
             assert demux >= 1
             compute_ctxt = self.attn_module.compute_ctxt_demux(fb_concat, src_mask)
             return ConditionalizedDecoderCell(self, compute_ctxt, None, noise_on_prev_word=noise_on_prev_word,
                                               mode=mode, lexicon_probability_matrix=lexicon_probability_matrix, lex_epsilon=lex_epsilon,
-                                              demux=True)
+                                              demux=True, return_ctxt=return_ctxt)
 
     def compute_loss(self, fb_concat, src_mask, targets, raw_loss_info=False, keep_attn_values=False,
                      noise_on_prev_word=False, use_previous_prediction=0, mode="test", per_sentence=False,

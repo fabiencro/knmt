@@ -12,6 +12,7 @@ from chainer import cuda, Function, gradient_check, Variable, optimizers, serial
 from chainer import Link, Chain, ChainList
 import chainer.functions as F
 import chainer.links as L
+from mock import MagicMock
 
 import nmt_chainer.models.encoders
 import nmt_chainer.models.encoder_decoder
@@ -378,3 +379,37 @@ class TestBeamSearch:
                                                      need_attention=False)
         res1a, res1b = next(best1_gen), next(best2_gen)
         res2a, res2b = next(best1_gen), next(best2_gen)
+
+
+class TestSearchEngineGuidedNonParam:
+    def test_reference_memory(self):
+        import nmt_chainer.training_module.train as train
+        import nmt_chainer.training_module.train_config as train_config
+        config_training = train_config.load_config_train("/home/fabien/experiments/nmt_new/aspec-jc/zinnia-corpus/cj_bpe_20k/nstep3stacks_noise_on_prev_confirmation_try/cj.model.best.npz.config")
+        (encdec, eos_idx, src_indexer, tgt_indexer), model_infos = \
+            train.create_encdec_and_indexers_from_config_dict(config_training,
+                                                              load_config_model="yes",
+                                                              return_model_infos=True)
+        from tempfile import gettempdir
+        from os.path import join
+        from nmt_chainer.search_engine.index import create_index
+        import codecs
+        with codecs.open("/zinnia/ebmt_ems/ASPEC-CJ/segmented/dev/zh", "r", "utf-8") as src:
+            src_txt = src.readline()
+            log.info("src_txt is [%s]" % src_txt)
+            src.seek(0, 0)
+            with codecs.open("/zinnia/ebmt_ems/ASPEC-CJ/segmented/dev/ja", "r", "utf-8") as tgt:
+                index = create_index(join(gettempdir(), "index"), src, tgt)
+        from nmt_chainer.search_engine.whoosh_engine import WhooshEngine
+        engine = WhooshEngine(10, index)
+        from nmt_chainer.search_engine.retriever import Retriever
+        from nmt_chainer.search_engine.similarity import fuzzy_word_level_similarity
+        retriever = Retriever(engine, fuzzy_word_level_similarity, training=True)
+        from nmt_chainer.models.search_engine_guided_non_param import create_reference_memory
+        ref_memory = create_reference_memory(encdec, (src_indexer, tgt_indexer), retriever, src_txt)
+        pairs = retriever.retrieve(src_txt)
+        from compiler.ast import flatten
+        ys = flatten([tgt_indexer.convert(tgt) for _, tgt in pairs])
+        assert len(ref_memory) == len(ys)
+        for (_, ref_y, _), tgt_y in zip(ref_memory, ys):
+            assert ref_y == tgt_y

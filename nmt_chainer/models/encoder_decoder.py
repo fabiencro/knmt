@@ -14,7 +14,7 @@ import chainer.functions as F
 import chainer.links as L
 
 import rnn_cells
-from nmt_chainer.utilities.utils import compute_lexicon_matrix
+from nmt_chainer.utilities.utils import compute_lexicon_matrix, make_batch_src_tgt
 import attention
 
 import logging
@@ -195,6 +195,20 @@ class EncoderDecoder(Chain):
 
         return scorer
 
+    def compute_reference_memory(self, idx_ex_src, idx_ex_tgt):
+        eos_idx = self.Vo - 1
+        trg_data = zip([idx_ex_src], [idx_ex_tgt])
+        src_batch, tgt_batch, src_mask = make_batch_src_tgt(trg_data, eos_idx=eos_idx)
+        lexicon_probability_matrix = self.compute_lexicon_probability_matrix(src_batch)
+        fb_concat = self.enc(src_batch, src_mask)
+
+        decoding_cell = self.dec.give_conditionalized_cell(fb_concat, src_mask, noise_on_prev_word=False, mode="test",
+                                                           lexicon_probability_matrix=lexicon_probability_matrix,
+                                                           lex_epsilon=self.lex_epsilon, demux=True, return_ctxt=True)
+
+        reference_memory = decoder_cells.compute_reference_memory_from_decoder_cell(decoding_cell, tgt_batch)
+
+        return reference_memory
 #
 #     def get_sampler_reinf(self, fb_concat, mask, eos_idx, nb_steps = 50, use_best_for_sample = False,
 #                     temperature = None,
