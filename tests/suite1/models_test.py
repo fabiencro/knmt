@@ -407,3 +407,13 @@ class TestSearchEngineGuidedNonParam:
         retriever = Retriever(engine, fuzzy_word_level_similarity, training=True)
         from nmt_chainer.models.search_engine_guided_non_param import create_reference_memory
         ref_memory = create_reference_memory(encdec, (src_indexer, tgt_indexer), retriever, src_txt)
+        pairs = retriever.retrieve(src_txt)
+        from compiler.ast import flatten
+        ys = flatten([tgt_indexer.convert(tgt) for _, tgt in pairs])
+        assert len(ref_memory) == len(ys)
+        for (_, ref_y, _), tgt_y in zip(ref_memory, ys):
+            assert ref_y.data == tgt_y
+        for ref in ref_memory:
+            ctxt, y, b = ref[0], ref[1], ref[2]
+            log.info("ctxt = %s" % ctxt.data)
+        assert False
