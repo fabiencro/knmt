@@ -408,6 +408,7 @@ class Decoder(Chain):
             self.add_link("context_similarity_computer", ContextSimilarityComputer(xx, xx)))
                         + FusionGateComputer(Hi, Ho)
 
+
         self.use_goto_attention = use_goto_attention
         self.Hi = Hi
         self.Ho = Ho

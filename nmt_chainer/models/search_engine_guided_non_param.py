@@ -3,6 +3,7 @@ logging.basicConfig()
 log = logging.getLogger("rnns:models")
 log.setLevel(logging.INFO)
 
+
 def create_reference_memory(encdec, biprocessor, retriever, src_sentence):
     examples_list = retriever.retrieve(src_sentence)
     log.info("retrieved %s" % examples_list)
