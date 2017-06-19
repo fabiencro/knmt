@@ -383,6 +383,7 @@ class TestBeamSearch:
 
 class TestSearchEngineGuidedNonParam:
     def test_reference_memory(self):
+        # create encdec, src_indexer, tgt_indexer
         import nmt_chainer.training_module.train as train
         import nmt_chainer.training_module.train_config as train_config
         config_training = train_config.load_config_train("/home/fabien/experiments/nmt_new/aspec-jc/zinnia-corpus/cj_bpe_20k/nstep3stacks_noise_on_prev_confirmation_try/cj.model.best.npz.config")
@@ -390,6 +391,8 @@ class TestSearchEngineGuidedNonParam:
             train.create_encdec_and_indexers_from_config_dict(config_training,
                                                               load_config_model="yes",
                                                               return_model_infos=True)
+
+        # create engine
         from tempfile import gettempdir
         from os.path import join
         from nmt_chainer.search_engine.index import create_index
@@ -402,11 +405,17 @@ class TestSearchEngineGuidedNonParam:
                 index = create_index(join(gettempdir(), "index"), src, tgt)
         from nmt_chainer.search_engine.whoosh_engine import WhooshEngine
         engine = WhooshEngine(10, index)
+
+        # create retriever
         from nmt_chainer.search_engine.retriever import Retriever
         from nmt_chainer.search_engine.similarity import fuzzy_word_level_similarity
         retriever = Retriever(engine, fuzzy_word_level_similarity, training=True)
+
+        # create ref_memory
         from nmt_chainer.models.search_engine_guided_non_param import create_reference_memory
         ref_memory = create_reference_memory(encdec, (src_indexer, tgt_indexer), retriever, src_txt)
+
+        # check ref_memory's target sequences is not changed
         pairs = retriever.retrieve(src_txt)
         from compiler.ast import flatten
         ys = flatten([tgt_indexer.convert(tgt) for _, tgt in pairs])
