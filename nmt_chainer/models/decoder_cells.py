@@ -323,6 +323,7 @@ class ContextSimilarityComputer(Chain):
         
         def compute_averaged_state(current_c):
             m_x_c = self.m_linear(current_c)
+            coefficients = []
             for stored_c in context_memory:
                 coefficients.append(F.matmul(m_x_c , stored_c))
                 
@@ -344,7 +345,7 @@ class FusionGateComputer(Chain):
             )
         
     def __call__(self, ct, zt, zt_prime):
-        return F.sigmoid((self.ct_linear(ct) + self.zt_linear(zt) + ...))
+        return F.sigmoid((self.ct_linear(ct) + self.zt_linear(zt) + self.zt_prime_linear(zt)))
 
 
 class Decoder(Chain):
@@ -367,7 +368,7 @@ class Decoder(Chain):
     """
 
     def __init__(self, Vo, Eo, Ho, Ha, Hi, Hl, attn_cls=AttentionModule, init_orth=False,
-                 cell_type=rnn_cells.LSTMCell, use_goto_attention=False):
+                 cell_type=rnn_cells.LSTMCell, use_goto_attention=False, use_context_memory=False):
         #         assert cell_type in "gru dgru lstm slow_gru".split()
         #         self.cell_type = cell_type
         #         if cell_type == "gru":
