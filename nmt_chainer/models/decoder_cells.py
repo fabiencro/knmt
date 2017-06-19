@@ -314,38 +314,39 @@ def compute_reference_memory_from_decoder_cell(cell, targets):
 
 
 class ContextSimilarityComputer(Chain):
-    def __init__(self):
+    def __init__(self, Hi):
         super(ContextSimilarityComputer, self).__init__(
-            m_linear = L.Linear(x,x. nobias=True)
+            m_linear=L.Linear(Hi, Hi, nobias=True)
             )
     
     def __call__(self, context_memory):
         
-        def compute_averaged_state(current_c):
-            m_x_c = self.m_linear(current_c)
+        def compute_averaged_state(current_ctxt):
+            m_x_c = self.m_linear(current_ctxt)
             coefficients = []
-            for stored_c in context_memory:
-                coefficients.append(F.matmul(m_x_c , stored_c))
+            for _, stored_ctxt, _, _ in context_memory:
+                coefficients.append(F.matmul(m_x_c, stored_ctxt, transa=True))
                 
             normalized_coefficients = F.softmax(F.concat(coefficients))
             
             averaged_state = 0
-            for i, stored_states in enumerate(context_memory):
+            for i, (stored_states, _, _, _) in enumerate(context_memory):
                 averaged_state = averaged_state + stored_states * normalized_coefficients[i]
             return averaged_state
         
         return compute_averaged_state
         
+
 class FusionGateComputer(Chain):
-    def __init__(self, c_size, z_size):
+    def __init__(self, Hi, Ho):
         super(FusionGateComputer, self).__init__(
-            ct_linear = L.Linear(c_size, 1),
-            zt_linear = L.Linear(z_size, 1, nobias=True),
-            zt_prime_linear = L.Linear(z_size, 1, nobias=True)
+            ct_linear=L.Linear(Hi, 1),
+            zt_linear=L.Linear(Ho, 1, nobias=True),
+            zt_prime_linear=L.Linear(Ho, 1, nobias=True)
             )
         
     def __call__(self, ct, zt, zt_prime):
-        return F.sigmoid((self.ct_linear(ct) + self.zt_linear(zt) + self.zt_prime_linear(zt)))
+        return F.sigmoid((self.ct_linear(ct) + self.zt_linear(zt) + self.zt_prime_linear(zt_prime)))
 
 
 class Decoder(Chain):
@@ -405,8 +406,8 @@ class Decoder(Chain):
 
 
         if use_context_memory:
-            self.add_link("context_similarity_computer", ContextSimilarityComputer(xx, xx)))
-                        + FusionGateComputer(Hi, Ho)
+            self.add_link("context_similarity_computer", ContextSimilarityComputer(Hi))
+            self.add_link("fusion_gate_computer", FusionGateComputer(Hi, Ho))
 
 
         self.use_goto_attention = use_goto_attention
