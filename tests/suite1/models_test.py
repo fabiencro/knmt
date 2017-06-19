@@ -411,5 +411,5 @@ class TestSearchEngineGuidedNonParam:
         from compiler.ast import flatten
         ys = flatten([tgt_indexer.convert(tgt) for _, tgt in pairs])
         assert len(ref_memory) == len(ys)
-        for (_, ref_y, _), tgt_y in zip(ref_memory, ys):
+        for (_, _, ref_y, _), tgt_y in zip(ref_memory, ys):
             assert ref_y == tgt_y
