@@ -190,7 +190,10 @@ def compute_loss_from_decoder_cell(cell, targets, use_previous_prediction=0,
 
     mb_size = targets[0].data.shape[0]
     assert cell.mb_size is None or cell.mb_size == mb_size
-    states, logits, attn = cell.get_initial_logits(mb_size)
+    if cell.return_ctxt:
+        states, logits, attn, ctxt = cell.get_initial_logits(mb_size)
+    else:
+        states, logits, attn = cell.get_initial_logits(mb_size)
 
     total_nb_predictions = 0
 
@@ -242,7 +245,13 @@ def compute_loss_from_decoder_cell(cell, targets, use_previous_prediction=0,
                 else:
                     previous_word = targets[i]
 
-        states, logits, attn = cell(states, previous_word, is_soft_inpt=use_soft_prediction_feedback)
+        if cell.return_ctxt:
+            averaged_state = cell.decoder_chain.context_similarity_computer(ctxt)
+            gate = cell.decoder_chain.fusion_gate_computer(ctxt, states, averaged_state)
+            states = gate * averaged_state + (1.0 - gate) * states
+            states, logits, attn, ctxt = cell(states, previous_word, is_soft_inpt=use_soft_prediction_feedback)
+        else:
+            states, logits, attn = cell(states, previous_word, is_soft_inpt=use_soft_prediction_feedback)
 
     if raw_loss_info:
         return (loss, total_nb_predictions), attn_list
