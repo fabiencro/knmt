@@ -132,6 +132,9 @@ class ConditionalizedDecoderCell(object):
 
         if self.return_ctxt:
             new_states, concatenated, attn, ctxt = self.advance_state(previous_states, prev_y)
+            averaged_state = self.decoder_chain.context_similarity_computer(ctxt)
+            gate = self.decoder_chain.fusion_gate_computer(ctxt, new_states, averaged_state)
+            new_states = gate * averaged_state + (1.0 - gate) * new_states
         else:
             new_states, concatenated, attn = self.advance_state(previous_states, prev_y)
 
@@ -246,9 +249,6 @@ def compute_loss_from_decoder_cell(cell, targets, use_previous_prediction=0,
                     previous_word = targets[i]
 
         if cell.return_ctxt:
-            averaged_state = cell.decoder_chain.context_similarity_computer(ctxt)
-            gate = cell.decoder_chain.fusion_gate_computer(ctxt, states, averaged_state)
-            states = gate * averaged_state + (1.0 - gate) * states
             states, logits, attn, ctxt = cell(states, previous_word, is_soft_inpt=use_soft_prediction_feedback)
         else:
             states, logits, attn = cell(states, previous_word, is_soft_inpt=use_soft_prediction_feedback)
