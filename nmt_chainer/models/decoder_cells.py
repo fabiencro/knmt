@@ -414,8 +414,8 @@ class Decoder(Chain):
         self.add_param("bos_embeding", (1, Eo))
 
         if use_context_memory:
-            self.add_link("context_similarity_computer", ContextSimilarityComputer(Hi))
-            self.add_link("fusion_gate_computer", FusionGateComputer(Hi, Ho))
+            self.use_context_memory(init=True)
+        self.using_context_memory = use_context_memory
 
         self.use_goto_attention = use_goto_attention
         self.Hi = Hi
@@ -477,3 +477,9 @@ class Decoder(Chain):
                                                                need_score=need_score)
 
         return sequences, score, attn_list
+
+    def use_context_memory(self, init=False):
+        if init or not self.use_context_memory:
+            self.add_link("context_similarity_computer", ContextSimilarityComputer(self.Hi))
+            self.add_link("fusion_gate_computer", FusionGateComputer(self.Hi, self.Ho))
+            self.using_context_memory = True

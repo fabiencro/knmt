@@ -391,6 +391,7 @@ class TestSearchEngineGuidedNonParam:
             train.create_encdec_and_indexers_from_config_dict(config_training,
                                                               load_config_model="yes",
                                                               return_model_infos=True)
+        encdec.dec.use_context_memory()
 
         # create engine
         from tempfile import gettempdir
