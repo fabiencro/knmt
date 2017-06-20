@@ -422,3 +422,8 @@ class TestSearchEngineGuidedNonParam:
         assert len(ref_memory) == len(ys)
         for (_, _, ref_y, _), tgt_y in zip(ref_memory, ys):
             assert ref_y.data == tgt_y
+
+        encdec.dec.use_context_memory(ref_memory)
+        src_batch, tgt_batch, src_mask = utils.make_batch_src_tgt(
+            [(src_indexer.convert(pairs[0]), tgt_indexer.convert(pairs[0]))], eos_idx=eos_idx)
+        encdec(src_batch, tgt_batch, src_mask, using_reference_memory=True)

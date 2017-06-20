@@ -42,7 +42,8 @@ class ConditionalizedDecoderCell(object):
     
     """
     def __init__(self, decoder_chain, compute_ctxt, mb_size, noise_on_prev_word=False, mode="test",
-                 lexicon_probability_matrix=None, lex_epsilon=1e-3, demux=False, return_ctxt=False):
+                 lexicon_probability_matrix=None, lex_epsilon=1e-3, demux=False, return_ctxt=False,
+                 using_reference_memory=False):
         self.decoder_chain = decoder_chain
         self.compute_ctxt = compute_ctxt
         self.noise_on_prev_word = noise_on_prev_word
@@ -50,6 +51,9 @@ class ConditionalizedDecoderCell(object):
         self.lexicon_probability_matrix = lexicon_probability_matrix
         self.lex_epsilon = lex_epsilon
         self.return_ctxt = return_ctxt
+        if using_reference_memory:
+            assert return_ctxt
+        self.using_reference_memory = using_reference_memory
 
         self.mb_size = mb_size
         self.demux = demux
@@ -132,9 +136,10 @@ class ConditionalizedDecoderCell(object):
 
         if self.return_ctxt:
             new_states, concatenated, attn, ctxt = self.advance_state(previous_states, prev_y)
-            averaged_state = self.decoder_chain.context_similarity_computer(ctxt)
-            gate = self.decoder_chain.fusion_gate_computer(ctxt, new_states, averaged_state)
-            new_states = gate * averaged_state + (1.0 - gate) * new_states
+            if self.using_reference_memory:
+                averaged_state = self.decoder_chain.context_similarity_computer(self.decoder_chain.context_memory)(ctxt)
+                gate = self.decoder_chain.fusion_gate_computer(ctxt, new_states, averaged_state)
+                new_states = gate * averaged_state + (1.0 - gate) * new_states
         else:
             new_states, concatenated, attn = self.advance_state(previous_states, prev_y)
 
@@ -318,7 +323,7 @@ def compute_reference_memory_from_decoder_cell(cell, targets):
         else:
             previous_word = targets[i]
         states, _, _, ctxt = cell(states, previous_word)
-        reference_memory.append((states, ctxt, previous_word, 0))
+        reference_memory.append((states[1], ctxt, previous_word, 0))
     return reference_memory
 
 
@@ -378,7 +383,7 @@ class Decoder(Chain):
     """
 
     def __init__(self, Vo, Eo, Ho, Ha, Hi, Hl, attn_cls=AttentionModule, init_orth=False,
-                 cell_type=rnn_cells.LSTMCell, use_goto_attention=False, use_context_memory=False):
+                 cell_type=rnn_cells.LSTMCell, use_goto_attention=False):
         #         assert cell_type in "gru dgru lstm slow_gru".split()
         #         self.cell_type = cell_type
         #         if cell_type == "gru":
@@ -413,9 +418,8 @@ class Decoder(Chain):
 #         self.add_param("initial_state", (1, Ho))
         self.add_param("bos_embeding", (1, Eo))
 
-        if use_context_memory:
-            self.use_context_memory(init=True)
-        self.using_context_memory = use_context_memory
+        self.context_memory = None
+        self.using_context_memory = False
 
         self.use_goto_attention = use_goto_attention
         self.Hi = Hi
@@ -430,7 +434,8 @@ class Decoder(Chain):
             ortho_init(self.maxo)
 
     def give_conditionalized_cell(self, fb_concat, src_mask, noise_on_prev_word=False,
-                                  mode="test", lexicon_probability_matrix=None, lex_epsilon=1e-3, demux=False, return_ctxt=False):
+                                  mode="test", lexicon_probability_matrix=None, lex_epsilon=1e-3, demux=False,
+                                  return_ctxt=False, using_reference_memory=False):
         assert mode in "test train".split()
         mb_size, nb_elems, Hi = fb_concat.data.shape
         assert Hi == self.Hi, "%i != %i" % (Hi, self.Hi)
@@ -439,32 +444,39 @@ class Decoder(Chain):
 
         if not demux:
             return ConditionalizedDecoderCell(self, compute_ctxt, mb_size, noise_on_prev_word=noise_on_prev_word,
-                                              mode=mode, lexicon_probability_matrix=lexicon_probability_matrix, lex_epsilon=lex_epsilon, return_ctxt=return_ctxt)
+                                              mode=mode, lexicon_probability_matrix=lexicon_probability_matrix,
+                                              lex_epsilon=lex_epsilon, return_ctxt=return_ctxt,
+                                              using_reference_memory=using_reference_memory)
         else:
             assert mb_size == 1
             assert demux >= 1
             compute_ctxt = self.attn_module.compute_ctxt_demux(fb_concat, src_mask)
             return ConditionalizedDecoderCell(self, compute_ctxt, None, noise_on_prev_word=noise_on_prev_word,
-                                              mode=mode, lexicon_probability_matrix=lexicon_probability_matrix, lex_epsilon=lex_epsilon,
-                                              demux=True, return_ctxt=return_ctxt)
+                                              mode=mode, lexicon_probability_matrix=lexicon_probability_matrix,
+                                              lex_epsilon=lex_epsilon, demux=True, return_ctxt=return_ctxt,
+                                              using_reference_memory=using_reference_memory)
 
     def compute_loss(self, fb_concat, src_mask, targets, raw_loss_info=False, keep_attn_values=False,
                      noise_on_prev_word=False, use_previous_prediction=0, mode="test", per_sentence=False,
                      lexicon_probability_matrix=None, lex_epsilon=1e-3,
                      use_soft_prediction_feedback=False, 
-                    use_gumbel_for_soft_predictions=False,
-                    temperature_for_soft_predictions=1.0
+                     use_gumbel_for_soft_predictions=False,
+                     temperature_for_soft_predictions=1.0,
+                     return_ctxt=False, using_reference_memory=False
                      ):
         decoding_cell = self.give_conditionalized_cell(fb_concat, src_mask, noise_on_prev_word=noise_on_prev_word,
-                                                       mode=mode, lexicon_probability_matrix=lexicon_probability_matrix, lex_epsilon=lex_epsilon)
-        loss, attn_list = compute_loss_from_decoder_cell(decoding_cell, targets,
-                                                         use_previous_prediction=use_previous_prediction,
-                                                         raw_loss_info=raw_loss_info,
-                                                         per_sentence=per_sentence,
-                                                         keep_attn=keep_attn_values,
-                                                        use_soft_prediction_feedback=use_soft_prediction_feedback, 
-                                                        use_gumbel_for_soft_predictions=use_gumbel_for_soft_predictions,
-                                                        temperature_for_soft_predictions=temperature_for_soft_predictions)
+                                                       mode=mode, lexicon_probability_matrix=lexicon_probability_matrix,
+                                                       lex_epsilon=lex_epsilon, return_ctxt=return_ctxt,
+                                                       using_reference_memory=using_reference_memory)
+        loss, attn_list = compute_loss_from_decoder_cell(
+                decoding_cell, targets,
+                use_previous_prediction=use_previous_prediction,
+                raw_loss_info=raw_loss_info,
+                per_sentence=per_sentence,
+                keep_attn=keep_attn_values,
+                use_soft_prediction_feedback=use_soft_prediction_feedback,
+                use_gumbel_for_soft_predictions=use_gumbel_for_soft_predictions,
+                temperature_for_soft_predictions=temperature_for_soft_predictions)
         return loss, attn_list
 
     def sample(self, fb_concat, src_mask, nb_steps, mb_size, lexicon_probability_matrix=None,
@@ -478,8 +490,9 @@ class Decoder(Chain):
 
         return sequences, score, attn_list
 
-    def use_context_memory(self, init=False):
+    def use_context_memory(self, context_memory):
         if init or not self.using_context_memory:
+            self.context_memory = context_memory
             self.add_link("context_similarity_computer", ContextSimilarityComputer(self.Hi))
             self.add_link("fusion_gate_computer", FusionGateComputer(self.Hi, self.Ho))
             self.using_context_memory = True
