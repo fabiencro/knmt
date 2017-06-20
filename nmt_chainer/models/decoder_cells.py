@@ -479,7 +479,7 @@ class Decoder(Chain):
         return sequences, score, attn_list
 
     def use_context_memory(self, init=False):
-        if init or not self.use_context_memory:
+        if init or not self.using_context_memory:
             self.add_link("context_similarity_computer", ContextSimilarityComputer(self.Hi))
             self.add_link("fusion_gate_computer", FusionGateComputer(self.Hi, self.Ho))
             self.using_context_memory = True
