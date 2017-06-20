@@ -413,11 +413,9 @@ class Decoder(Chain):
 #         self.add_param("initial_state", (1, Ho))
         self.add_param("bos_embeding", (1, Eo))
 
-
         if use_context_memory:
             self.add_link("context_similarity_computer", ContextSimilarityComputer(Hi))
             self.add_link("fusion_gate_computer", FusionGateComputer(Hi, Ho))
-
 
         self.use_goto_attention = use_goto_attention
         self.Hi = Hi
