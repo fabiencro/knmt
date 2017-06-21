@@ -209,18 +209,18 @@ def beam_search_all(gpu, encdec, eos_idx, src_data, beam_width, beam_pruning_mar
 
                             _, backtranslation_src_data, _ = build_dataset_one_side_pp(translated_file.name, src_pp=backtranslation_src_indexer, max_nb_ex=None)
 
-                            print u"src_sentence          ={0}".format(src_sentences[sentence_idx])
-                            print u"ref_sentence          ={0}".format(ref_sentences[sentence_idx])
+                            # print u"src_sentence          ={0}".format(src_sentences[sentence_idx])
+                            # print u"ref_sentence          ={0}".format(ref_sentences[sentence_idx])
 
                             comp_trans_with_unk = bleu.BleuComputer()
                             comp_trans_with_unk.update(ref_sentences[sentence_idx], ct)
                             translation_with_unk_bleu_score = comp_trans_with_unk.bleu()
-                            print u"translation w/unk     ={0} BLEU against ref={1}".format(ct, translation_with_unk_bleu_score)
+                            # print u"translation w/unk     ={0} BLEU against ref={1}".format(ct, translation_with_unk_bleu_score)
 
                             comp_trans_without_unk = bleu.BleuComputer()
                             comp_trans_without_unk.update(ref_sentences[sentence_idx], translated)
                             translation_without_unk_bleu_score = comp_trans_without_unk.bleu()
-                            print u"translation wo/unk    ={0} BLEU against ref={1}".format(translated, translation_without_unk_bleu_score)
+                            # print u"translation wo/unk    ={0} BLEU against ref={1}".format(translated, translation_without_unk_bleu_score)
 
                             with cuda.get_device(gpu):
                                 backtranslations, back_attn = greedy_batch_translate(backtranslation_encdec, backtranslation_eos_idx, backtranslation_src_data, batch_size=80, gpu=gpu, nb_steps=nb_steps, get_attention=True)
@@ -262,21 +262,21 @@ def beam_search_all(gpu, encdec, eos_idx, src_data, beam_width, beam_pruning_mar
 
                             # print u"backtranslated w/unk  ={0}".format(" ".join(backtranslated))
                             # print u"backtranslated wo/unk ={0}".format(backtranslated)
-                            if backtranslated is not None:
-                                print u"backtranslation       ={0} BLEU against src={1}".format(backtranslated, backtranslation_bleu_score)
-                                print u"NewScore={0} + {1} * {2}={3}".format(modif_score, backtranslation_strength, comp.bleu(), backtranslation_score)
-                            else:
-                                print u"No backtranslations so NewScore = OldScore = {0}".format(backtranslation_score)
+                            # if backtranslated is not None:
+                            #     print u"backtranslation       ={0} BLEU against src={1}".format(backtranslated, backtranslation_bleu_score)
+                            #     print u"NewScore={0} + {1} * {2}={3}".format(modif_score, backtranslation_strength, comp.bleu(), backtranslation_score)
+                            # else:
+                            #     print u"No backtranslations so NewScore = OldScore = {0}".format(backtranslation_score)
                             # print u"backtranslated        NewScore={0} + {1} * {2}={3}".format(modif_score, backtranslation_strength, comp.bleu() if comp is not None else "n/a", backtranslation_score)
 
                             return backtranslation_score
                         return get_backtranslation_bleu_score
 
                     translations.sort(key=get_backtranslation_bleu_key(num_t, tmp_data), reverse=True)
-                    print "modif_score After Sort "
-                    for trans in translations:
-                        (t, score, attn, modif_score) = trans
-                        print modif_score
+                    # print "modif_score After Sort "
+                    # for trans in translations:
+                    #     (t, score, attn, modif_score) = trans
+                    #     print modif_score
 
                 for trans in translations:
                     (t, score, attn, modif_score) = trans
