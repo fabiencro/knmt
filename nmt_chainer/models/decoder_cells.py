@@ -138,8 +138,9 @@ class ConditionalizedDecoderCell(object):
             new_states, concatenated, attn, ctxt = self.advance_state(previous_states, prev_y)
             if self.using_reference_memory:
                 averaged_state = self.decoder_chain.context_similarity_computer(self.decoder_chain.context_memory)(ctxt)
-                gate = self.decoder_chain.fusion_gate_computer(ctxt, new_states, averaged_state)
-                new_states = gate * averaged_state + (1.0 - gate) * new_states
+                gate = self.decoder_chain.fusion_gate_computer(ctxt, new_states[1], averaged_state)
+                new_states = (new_states[0], F.broadcast_to(gate, averaged_state.shape) * averaged_state +
+                              F.broadcast_to((1.0 - gate), new_states[1].shape) * new_states[1])
         else:
             new_states, concatenated, attn = self.advance_state(previous_states, prev_y)
 
@@ -339,13 +340,17 @@ class ContextSimilarityComputer(Chain):
             m_x_c = self.m_linear(current_ctxt)
             coefficients = []
             for _, stored_ctxt, _, _ in context_memory:
-                coefficients.append(F.matmul(m_x_c, stored_ctxt, transa=True))
+                coefficients.append(F.batch_matmul(m_x_c, stored_ctxt, transa=True))
                 
             normalized_coefficients = F.softmax(F.concat(coefficients))
-            
-            averaged_state = 0
-            for i, (stored_states, _, _, _) in enumerate(context_memory):
-                averaged_state = averaged_state + stored_states * normalized_coefficients[i]
+
+            states_list = F.concat([F.reshape(stored_states, (stored_states.shape[0], 1, stored_states.shape[1]))
+                 for stored_states, _, _, _ in context_memory])
+            broadcasted_normalized_coefficients = F.broadcast_to(normalized_coefficients,
+                                                                 (normalized_coefficients.shape[0],
+                                                                  normalized_coefficients.shape[1],
+                                                                  states_list.shape[2]))
+            averaged_state = F.sum(states_list * broadcasted_normalized_coefficients, axis=1)
             return averaged_state
         
         return compute_averaged_state

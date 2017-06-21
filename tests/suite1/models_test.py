@@ -425,5 +425,5 @@ class TestSearchEngineGuidedNonParam:
 
         encdec.dec.use_context_memory(ref_memory)
         src_batch, tgt_batch, src_mask = utils.make_batch_src_tgt(
-            [(src_indexer.convert(pairs[0]), tgt_indexer.convert(pairs[0]))], eos_idx=eos_idx)
-        encdec(src_batch, tgt_batch, src_mask, using_reference_memory=True)
+            [(src_indexer.convert(pairs[0][0]), tgt_indexer.convert(pairs[0][1]))], eos_idx=eos_idx)
+        encdec(src_batch, tgt_batch, src_mask, use_reference_memory=True)
