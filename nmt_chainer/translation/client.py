@@ -72,10 +72,10 @@ class Client:
                              beam_score_coverage_penalty_strength,
                              post_score_coverage_penalty,
                              post_score_coverage_penalty_strength,
-                             prob_space_combination,
-                             normalize_unicode_unk,
-                             remove_unk,
-                             attempt_to_relocate_unk_source,
+                             str(prob_space_combination).lower(),
+                             str(normalize_unicode_unk).lower(),
+                             str(remove_unk).lower(),
+                             str(attempt_to_relocate_unk_source).lower(),
                              sentence_id,
                              escape(sentence))
 
