@@ -36,7 +36,7 @@ class Retriever:
         coverage = 0
         src_symbols = src.split(" ")
         for pair in subset:
-            sentences = [pair[0] for pair in R] + [pair[0]]
+            sentences = [pair_[0] for pair_ in R] + [pair[0]]
             symbols = flatten([s.split(" ") for s in sentences])
             c_tmp = sum([s in symbols for s in src_symbols]) / len(src_symbols)
             if c_tmp > coverage:

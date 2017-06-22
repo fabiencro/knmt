@@ -42,7 +42,8 @@ class ConditionalizedDecoderCell(object):
     
     """
     def __init__(self, decoder_chain, compute_ctxt, mb_size, noise_on_prev_word=False, mode="test",
-                 lexicon_probability_matrix=None, lex_epsilon=1e-3, demux=False, return_ctxt=False):
+                 lexicon_probability_matrix=None, lex_epsilon=1e-3, demux=False, return_ctxt=False,
+                 using_reference_memory=False):
         self.decoder_chain = decoder_chain
         self.compute_ctxt = compute_ctxt
         self.noise_on_prev_word = noise_on_prev_word
@@ -50,6 +51,9 @@ class ConditionalizedDecoderCell(object):
         self.lexicon_probability_matrix = lexicon_probability_matrix
         self.lex_epsilon = lex_epsilon
         self.return_ctxt = return_ctxt
+        if using_reference_memory:
+            assert return_ctxt
+        self.using_reference_memory = using_reference_memory
 
         self.mb_size = mb_size
         self.demux = demux
@@ -132,6 +136,11 @@ class ConditionalizedDecoderCell(object):
 
         if self.return_ctxt:
             new_states, concatenated, attn, ctxt = self.advance_state(previous_states, prev_y)
+            if self.using_reference_memory:
+                averaged_state = self.decoder_chain.context_similarity_computer(self.decoder_chain.context_memory)(ctxt)
+                gate = self.decoder_chain.fusion_gate_computer(ctxt, new_states[1], averaged_state)
+                new_states = (new_states[0], F.broadcast_to(gate, averaged_state.shape) * averaged_state +
+                              F.broadcast_to((1.0 - gate), new_states[1].shape) * new_states[1])
         else:
             new_states, concatenated, attn = self.advance_state(previous_states, prev_y)
 
@@ -190,7 +199,10 @@ def compute_loss_from_decoder_cell(cell, targets, use_previous_prediction=0,
 
     mb_size = targets[0].data.shape[0]
     assert cell.mb_size is None or cell.mb_size == mb_size
-    states, logits, attn = cell.get_initial_logits(mb_size)
+    if cell.return_ctxt:
+        states, logits, attn, ctxt = cell.get_initial_logits(mb_size)
+    else:
+        states, logits, attn = cell.get_initial_logits(mb_size)
 
     total_nb_predictions = 0
 
@@ -242,7 +254,10 @@ def compute_loss_from_decoder_cell(cell, targets, use_previous_prediction=0,
                 else:
                     previous_word = targets[i]
 
-        states, logits, attn = cell(states, previous_word, is_soft_inpt=use_soft_prediction_feedback)
+        if cell.return_ctxt:
+            states, logits, attn, ctxt = cell(states, previous_word, is_soft_inpt=use_soft_prediction_feedback)
+        else:
+            states, logits, attn = cell(states, previous_word, is_soft_inpt=use_soft_prediction_feedback)
 
     if raw_loss_info:
         return (loss, total_nb_predictions), attn_list
@@ -309,42 +324,48 @@ def compute_reference_memory_from_decoder_cell(cell, targets):
         else:
             previous_word = targets[i]
         states, _, _, ctxt = cell(states, previous_word)
-        reference_memory.append((ctxt.data, previous_word.data, 0))
+        reference_memory.append((states[1], ctxt, previous_word, 0))
     return reference_memory
 
 
 class ContextSimilarityComputer(Chain):
-    def __init__(self):
+    def __init__(self, Hi):
         super(ContextSimilarityComputer, self).__init__(
-            m_linear = L.Linear(x,x. nobias=True)
+            m_linear=L.Linear(Hi, Hi, nobias=True)
             )
     
     def __call__(self, context_memory):
         
-        def compute_averaged_state(current_c):
-            m_x_c = self.m_linear(current_c)
-            for stored_c in context_memory:
-                coefficients.append(F.matmul(m_x_c , stored_c))
+        def compute_averaged_state(current_ctxt):
+            m_x_c = self.m_linear(current_ctxt)
+            coefficients = []
+            for _, stored_ctxt, _, _ in context_memory:
+                coefficients.append(F.batch_matmul(m_x_c, stored_ctxt, transa=True))
                 
             normalized_coefficients = F.softmax(F.concat(coefficients))
-            
-            averaged_state = 0
-            for i, stored_states in enumerate(context_memory):
-                averaged_state = averaged_state + stored_states * normalized_coefficients[i]
+
+            states_list = F.concat([F.reshape(stored_states, (stored_states.shape[0], 1, stored_states.shape[1]))
+                 for stored_states, _, _, _ in context_memory])
+            broadcasted_normalized_coefficients = F.broadcast_to(normalized_coefficients,
+                                                                 (normalized_coefficients.shape[0],
+                                                                  normalized_coefficients.shape[1],
+                                                                  states_list.shape[2]))
+            averaged_state = F.sum(states_list * broadcasted_normalized_coefficients, axis=1)
             return averaged_state
         
         return compute_averaged_state
         
+
 class FusionGateComputer(Chain):
-    def __init__(self, c_size, z_size):
+    def __init__(self, Hi, Ho):
         super(FusionGateComputer, self).__init__(
-            ct_linear = L.Linear(c_size, 1),
-            zt_linear = L.Linear(z_size, 1, nobias=True),
-            zt_prime_linear = L.Linear(z_size, 1, nobias=True)
+            ct_linear=L.Linear(Hi, 1),
+            zt_linear=L.Linear(Ho, 1, nobias=True),
+            zt_prime_linear=L.Linear(Ho, 1, nobias=True)
             )
         
     def __call__(self, ct, zt, zt_prime):
-        return F.sigmoid((self.ct_linear(ct) + self.zt_linear(zt) + ...))
+        return F.sigmoid((self.ct_linear(ct) + self.zt_linear(zt) + self.zt_prime_linear(zt_prime)))
 
 
 class Decoder(Chain):
@@ -402,10 +423,8 @@ class Decoder(Chain):
 #         self.add_param("initial_state", (1, Ho))
         self.add_param("bos_embeding", (1, Eo))
 
-
-        if use_context_memory:
-            self.add_link("context_similarity_computer", ContextSimilarityComputer(xx, xx)))
-                        + FusionGateComputer(Hi, Ho)
+        self.context_memory = None
+        self.using_context_memory = False
 
         self.use_goto_attention = use_goto_attention
         self.Hi = Hi
@@ -420,7 +439,8 @@ class Decoder(Chain):
             ortho_init(self.maxo)
 
     def give_conditionalized_cell(self, fb_concat, src_mask, noise_on_prev_word=False,
-                                  mode="test", lexicon_probability_matrix=None, lex_epsilon=1e-3, demux=False, return_ctxt=False):
+                                  mode="test", lexicon_probability_matrix=None, lex_epsilon=1e-3, demux=False,
+                                  return_ctxt=False, using_reference_memory=False):
         assert mode in "test train".split()
         mb_size, nb_elems, Hi = fb_concat.data.shape
         assert Hi == self.Hi, "%i != %i" % (Hi, self.Hi)
@@ -429,32 +449,39 @@ class Decoder(Chain):
 
         if not demux:
             return ConditionalizedDecoderCell(self, compute_ctxt, mb_size, noise_on_prev_word=noise_on_prev_word,
-                                              mode=mode, lexicon_probability_matrix=lexicon_probability_matrix, lex_epsilon=lex_epsilon, return_ctxt=return_ctxt)
+                                              mode=mode, lexicon_probability_matrix=lexicon_probability_matrix,
+                                              lex_epsilon=lex_epsilon, return_ctxt=return_ctxt,
+                                              using_reference_memory=using_reference_memory)
         else:
             assert mb_size == 1
             assert demux >= 1
             compute_ctxt = self.attn_module.compute_ctxt_demux(fb_concat, src_mask)
             return ConditionalizedDecoderCell(self, compute_ctxt, None, noise_on_prev_word=noise_on_prev_word,
-                                              mode=mode, lexicon_probability_matrix=lexicon_probability_matrix, lex_epsilon=lex_epsilon,
-                                              demux=True, return_ctxt=return_ctxt)
+                                              mode=mode, lexicon_probability_matrix=lexicon_probability_matrix,
+                                              lex_epsilon=lex_epsilon, demux=True, return_ctxt=return_ctxt,
+                                              using_reference_memory=using_reference_memory)
 
     def compute_loss(self, fb_concat, src_mask, targets, raw_loss_info=False, keep_attn_values=False,
                      noise_on_prev_word=False, use_previous_prediction=0, mode="test", per_sentence=False,
                      lexicon_probability_matrix=None, lex_epsilon=1e-3,
                      use_soft_prediction_feedback=False, 
-                    use_gumbel_for_soft_predictions=False,
-                    temperature_for_soft_predictions=1.0
+                     use_gumbel_for_soft_predictions=False,
+                     temperature_for_soft_predictions=1.0,
+                     return_ctxt=False, using_reference_memory=False
                      ):
         decoding_cell = self.give_conditionalized_cell(fb_concat, src_mask, noise_on_prev_word=noise_on_prev_word,
-                                                       mode=mode, lexicon_probability_matrix=lexicon_probability_matrix, lex_epsilon=lex_epsilon)
-        loss, attn_list = compute_loss_from_decoder_cell(decoding_cell, targets,
-                                                         use_previous_prediction=use_previous_prediction,
-                                                         raw_loss_info=raw_loss_info,
-                                                         per_sentence=per_sentence,
-                                                         keep_attn=keep_attn_values,
-                                                        use_soft_prediction_feedback=use_soft_prediction_feedback, 
-                                                        use_gumbel_for_soft_predictions=use_gumbel_for_soft_predictions,
-                                                        temperature_for_soft_predictions=temperature_for_soft_predictions)
+                                                       mode=mode, lexicon_probability_matrix=lexicon_probability_matrix,
+                                                       lex_epsilon=lex_epsilon, return_ctxt=return_ctxt,
+                                                       using_reference_memory=using_reference_memory)
+        loss, attn_list = compute_loss_from_decoder_cell(
+                decoding_cell, targets,
+                use_previous_prediction=use_previous_prediction,
+                raw_loss_info=raw_loss_info,
+                per_sentence=per_sentence,
+                keep_attn=keep_attn_values,
+                use_soft_prediction_feedback=use_soft_prediction_feedback,
+                use_gumbel_for_soft_predictions=use_gumbel_for_soft_predictions,
+                temperature_for_soft_predictions=temperature_for_soft_predictions)
         return loss, attn_list
 
     def sample(self, fb_concat, src_mask, nb_steps, mb_size, lexicon_probability_matrix=None,
@@ -467,3 +494,10 @@ class Decoder(Chain):
                                                                need_score=need_score)
 
         return sequences, score, attn_list
+
+    def use_context_memory(self, context_memory):
+        if not self.using_context_memory:
+            self.context_memory = context_memory
+            self.add_link("context_similarity_computer", ContextSimilarityComputer(self.Hi))
+            self.add_link("fusion_gate_computer", FusionGateComputer(self.Hi, self.Ho))
+            self.using_context_memory = True

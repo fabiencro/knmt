@@ -125,7 +125,8 @@ class EncoderDecoder(Chain):
                  use_previous_prediction=0, mode="test",
                  use_soft_prediction_feedback=False, 
                 use_gumbel_for_soft_predictions=False,
-                temperature_for_soft_predictions=1.0
+                temperature_for_soft_predictions=1.0,
+                 use_reference_memory=False
                  ):
         assert mode in "test train".split()
 
@@ -149,7 +150,8 @@ class EncoderDecoder(Chain):
                                          lex_epsilon=self.lex_epsilon,
                                          use_soft_prediction_feedback=use_soft_prediction_feedback, 
                                          use_gumbel_for_soft_predictions=use_gumbel_for_soft_predictions,
-                                         temperature_for_soft_predictions=temperature_for_soft_predictions)
+                                         temperature_for_soft_predictions=temperature_for_soft_predictions,
+                                         return_ctxt=use_reference_memory, using_reference_memory=use_reference_memory)
 
     def give_conditionalized_cell(self, src_batch, src_mask, noise_on_prev_word=False,
                                   mode="test", demux=False):
