@@ -190,7 +190,15 @@ class MailHandler:
         lang_pair = '{0}-{1}'.format(src_lang, tgt_lang)
         server_data = config['servers'][lang_pair]
         client = Client(server_data['host'], server_data['port'])
-        resp = client.query(sentence)
+        resp = client.query(sentence,
+                            beam_score_length_normalization='google',
+                            beam_score_length_normalization_strength=0.2,
+                            post_score_length_normalization='google',
+                            post_score_length_normalization_strength=0.2,
+                            beam_score_coverage_penalty='google',
+                            beam_score_coverage_penalty_strength=0.2,
+                            post_score_coverage_penalty='google',
+                            post_score_coverage_penalty_strength=0.2)
         # self.logger.info("resp={0}".format(resp))
         json_resp = json.loads(resp)
 
