@@ -4,7 +4,7 @@ import chainer.functions as F
 import chainer.links as L
 from chainer import Variable, Chain, ChainList
 
-from nmt_chainer.models.feedforward.utils import generate_pos_vectors, make_batch_mask, pad_data, FeedForward
+from nmt_chainer.models.feedforward.utils import generate_pos_vectors, make_batch_mask, pad_data, FeedForward, apply_linear_layer_to_last_dims
 from nmt_chainer.models.feedforward.multi_attention import AddAndNormalizedSelfAttentionLayer, AddAndNormalizedCrossAttentionLayer
 
 class DecoderLayer(Chain):
@@ -126,7 +126,7 @@ class ConditionalizedDecoderCell(object):
     
         bos_encoding = F.broadcast_to(self.decoder_chain.bos_encoding, (mb_size, 1, self.decoder_chain.d_model))
         
-        cross_mask = F.broadcast_to(self.mask_input[:,1:2,1:2,:], (self.mask_input.shape[0], self.decoder_chain.n_heads, 1, self.mask_input.shape[3]))
+        cross_mask = self.decoder_chain.xp.broadcast_to(self.mask_input[:,0:1,0:1,:], (self.mask_input.shape[0], self.decoder_chain.n_heads, 1, self.mask_input.shape[3]))
         
         final_layer, prev_states =  self.decoder_chain.encoding_layers.one_step(bos_encoding, None,
                                                                self.src_encoding, cross_mask, train=train)
@@ -153,7 +153,7 @@ class ConditionalizedDecoderCell(object):
         if self.decoder_chain.dropout is not None:
             encoded = F.dropout(encoded, self.decoder_chain.dropout, train=train)
             
-        cross_mask = F.broadcast_to(
+        cross_mask = self.decoder_chain.xp.broadcast_to(
             self.mask_input[:,0:1,0:1,:], 
             (self.mask_input.shape[0], self.decoder_chain.n_heads, 1, self.mask_input.shape[3]))
        
@@ -217,7 +217,7 @@ class Decoder(Chain):
                     mask_value=-10000)
         return padded_data, mask
     
-    def compute_loss(self, seq_list, encoded_input, mask_input, train=True):
+    def compute_logits(self, seq_list, encoded_input, mask_input, train=True):
         mb_size = len(seq_list)
         max_length_1 = max(len(x) for x in seq_list)
         x, mask = self.make_batch(seq_list)
@@ -232,12 +232,16 @@ class Decoder(Chain):
         
         bos_plus_encoded = F.concat((F.broadcast_to(self.bos_encoding, (mb_size, 1, self.d_model)), encoded), axis=1)
         
-        cross_mask = F.broadcast_to(mask_input[:,0:1,0:1,:], (mask_input.shape[0], self.n_heads, bos_plus_encoded.data.shape[1], mask_input.shape[3]))
+        cross_mask = self.xp.broadcast_to(mask_input[:,0:1,0:1,:], (mask_input.shape[0], self.n_heads, bos_plus_encoded.data.shape[1], mask_input.shape[3]))
         
         final_layer =  self.encoding_layers(bos_plus_encoded, encoded_input, mask, cross_mask, train=train)
         logits = apply_linear_layer_to_last_dims(final_layer, self.logits_layer)
+        return logits
+    
+    def compute_loss(self, seq_list, encoded_input, mask_input, train=True):
+        logits = self.compute_logits(seq_list, encoded_input, mask_input, train=train)
         padded_target_with_eos = pad_data(seq_list, pad_value=-1, add_eos=self.eos_idx)
-        
         loss = F.softmax_cross_entropy(F.reshape(logits, (-1, self.V+1)), padded_target_with_eos.reshape(-1,))
-        
         return loss
+    
+    

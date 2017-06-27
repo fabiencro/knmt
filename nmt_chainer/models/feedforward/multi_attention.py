@@ -72,6 +72,14 @@ class ConstantSizeMultiBatchMultiHeadAttention(Chain):
                                                  
                                                  
     def __call__(self, Q, K, V, batch_mask = None, train=True):
+#         print "Q",
+#         print Q.data
+#         print "K",
+#         print K.data
+#         print "V",
+#         print V.data
+#         print "M", batch_mask
+        
         mb_size_Q, n_Q, d_model_Q = Q.data.shape
         mb_size_K, seq_length_K, d_model_K = K.data.shape
         mb_size_V, seq_length_V, d_model_V = V.data.shape
@@ -98,24 +106,28 @@ class ConstantSizeMultiBatchMultiHeadAttention(Chain):
         reorganized_K = reorganize_by_head(proj_K, self.n_heads)
         
         scalar_product = batch_matmul_last_dims(reorganized_Q, reorganized_K, transb=True)
-                                            
+#         print "S", scalar_product.data                       
         scaling_factor = self.xp.broadcast_to(self.scaling_factor, (mb_size, self.n_heads, n_Q, seq_length_K))
         scaled_scalar_product = scalar_product * scaling_factor
         
         if batch_mask is not None:
             scaled_scalar_product = scaled_scalar_product + batch_mask
-        
+#         print "B", scaled_scalar_product.data  
         if self.experimental_relu:
             addressing_weights = F.relu(scaled_scalar_product)
         else:
-            addressing_weights = F.softmax(scaled_scalar_product)
+            addressing_weights = F.reshape(F.softmax(F.reshape(scaled_scalar_product, (mb_size * n_Q * self.n_heads, seq_length_K))),
+                                           (mb_size, self.n_heads, n_Q, seq_length_K) )
         
         if self.dropout is not None:
             addressing_weights = F.dropout(addressing_weights, ratio=self.dropout, train=train)
         
+#         print "A", addressing_weights.data
         reorganized_V = reorganize_by_head(proj_V, self.n_heads)
         reorganized_result = batch_matmul_last_dims(addressing_weights, reorganized_V)
-        return undo_reorganize_by_head(reorganized_result)
+        result = undo_reorganize_by_head(reorganized_result)
+#         print "R", result.data
+        return result
     
 class AddAndNormalizedAttentionBase(Chain):
     def __init__(self, d_model, n_heads, experimental_relu=False, dropout=None):
@@ -157,6 +169,7 @@ class AddAndNormalizedSelfAttentionLayer(AddAndNormalizedAttentionBase):
         )
         
     def __call__(self, x, mask, train=True, only_last=False):
+#         print "SELF"
         if only_last:
             x_in = self.extract_last(x)
         else:
@@ -173,6 +186,7 @@ class AddAndNormalizedCrossAttentionLayer(AddAndNormalizedAttentionBase):
         )
         
     def __call__(self, tgt_x, src_x, mask, train=True, only_last=False):
+#         print "CROSS"
         if only_last:
             x_in = self.extract_last(tgt_x)
         else:
