@@ -174,8 +174,8 @@ def beam_search_all(gpu, encdec, eos_idx, src_data, beam_width, beam_pruning_mar
                 res_trans = []
 
                 if backtranslation_encdec is not None:
-                    def get_backtranslation_bleu_key(sentence_idx, tmp_data):
-                        def get_backtranslation_bleu_score(trans):
+                    def get_backtranslation_sort_function(sentence_idx, tmp_data):
+                        def get_backtranslation_scores(trans):
                             src_sentence = src_sentences[sentence_idx]
 
                             if tgt_unk_id == "align":
@@ -231,8 +231,9 @@ def beam_search_all(gpu, encdec, eos_idx, src_data, beam_width, beam_pruning_mar
                             comp = None
                             backtranslated = None
                             backtranslation_score = modif_score
+                            backtranslation_bleu_score = 0.0
                             if len(backtranslations) == 0:
-                                tmp_data['backtranslation_bleu_scores'].append(0.0)
+                                tmp_data['backtranslation_bleu_scores'].append(backtranslation_bleu_score)
                             else:
                                 t = backtranslations[0]
                                 if t[-1] == backtranslation_eos_idx:
@@ -269,17 +270,19 @@ def beam_search_all(gpu, encdec, eos_idx, src_data, beam_width, beam_pruning_mar
                             #     print u"No backtranslations so NewScore = OldScore = {0}".format(backtranslation_score)
                             # print u"backtranslated        NewScore={0} + {1} * {2}={3}".format(modif_score, backtranslation_strength, comp.bleu() if comp is not None else "n/a", backtranslation_score)
 
-                            return backtranslation_score
-                        return get_backtranslation_bleu_score
+                            return (backtranslation_score, backtranslation_bleu_score)
+                        return get_backtranslation_scores
 
-                    translations.sort(key=get_backtranslation_bleu_key(num_t, tmp_data), reverse=True)
+                    translations = map(lambda x: x + (get_backtranslation_sort_function(num_t, tmp_data))(x), translations)
+                    translations.sort(key=lambda x: x[-2], reverse=True)
+
                     # print "modif_score After Sort "
                     # for trans in translations:
                     #     (t, score, attn, modif_score) = trans
                     #     print modif_score
 
                 for trans in translations:
-                    (t, score, attn, modif_score) = trans
+                    (t, score, attn, modif_score, backtranslation_score, backtranslation_bleu_score) = trans
                     if num_t % 200 == 0:
                         print >>sys.stderr, num_t,
                     elif num_t % 40 == 0:
@@ -316,7 +319,7 @@ def beam_search_all(gpu, encdec, eos_idx, src_data, beam_width, beam_pruning_mar
                             from nmt_chainer.utilities import replace_tgt_unk
                             translated = replace_tgt_unk.replace_unk_from_string(ct, src, dic, remove_unk, normalize_unicode_unk, attempt_to_relocate_unk_source).strip().split(" ")
 
-                    res_trans.append((src_data[num_t], translated, t, score, attn, unk_mapping))
+                    res_trans.append((src_data[num_t], translated, t, score, attn, unk_mapping, modif_score, backtranslation_bleu_score))
 
                 std_bleu = np.std(tmp_data['backtranslation_bleu_scores'])
                 print u"std_bleu={0}".format(std_bleu)
@@ -432,7 +435,7 @@ def translate_to_file_with_beam_search(dest_fn, gpu, encdec, eos_idx, src_data, 
         unprocessed_output = codecs.open(unprocessed_output_filename, "w", encoding="utf8")
 
     for idx, translations in enumerate(translation_iterator):
-        for src, translated, t, score, attn, unk_mapping in translations:
+        for src, translated, t, score, attn, unk_mapping, modif_score, backtranslation_bleu_score in translations:
             if rich_output is not None:
                 rich_output.add_info(src, translated, t, score, attn, unk_mapping=unk_mapping)
             if attn_vis is not None:
@@ -444,7 +447,7 @@ def translate_to_file_with_beam_search(dest_fn, gpu, encdec, eos_idx, src_data, 
                     attn_graph_attribs)
             ct = tgt_indexer.deconvert_post(translated)
             if nbest is not None:
-                out.write(u"{0} ||| {1}\n".format(idx, ct))
+                out.write(u"{0}|||{1}|||{2} {3}\n".format(idx, ct, score, modif_score, backtranslation_bleu_score))
             else:
                 out.write(ct + "\n")
             if unprocessed_output is not None:
