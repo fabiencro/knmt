@@ -8,6 +8,11 @@ from nmt_chainer.models.feedforward.utils import (
     generate_pos_vectors, make_batch_mask, pad_data, FeedForward, apply_linear_layer_to_last_dims, cut_minibatch)
 from nmt_chainer.models.feedforward.multi_attention import AddAndNormalizedSelfAttentionLayer, AddAndNormalizedCrossAttentionLayer
 
+import logging
+logging.basicConfig()
+log = logging.getLogger("ff:dec")
+log.setLevel(logging.INFO)
+
 class DecoderLayer(Chain):
     def __init__(self, d_model, n_heads, experimental_relu=False, dropout=None):
         super(DecoderLayer, self).__init__(
@@ -259,11 +264,11 @@ class Decoder(Chain):
         logits = apply_linear_layer_to_last_dims(final_layer, self.logits_layer)
         return logits
     
-    def compute_loss(self, seq_list, encoded_input, mask_input, train=True):
+    def compute_loss(self, seq_list, encoded_input, mask_input, train=True, reduce="mean"):
         logits = self.compute_logits(seq_list, encoded_input, mask_input, train=train)
         padded_target_with_eos = pad_data(seq_list, pad_value=-1, add_eos=self.eos_idx)
         padded_target_with_eos = self.move_np_array_to_correct_device(padded_target_with_eos)
-        loss = F.softmax_cross_entropy(F.reshape(logits, (-1, self.V+1)), padded_target_with_eos.reshape(-1,))
+        loss = F.softmax_cross_entropy(F.reshape(logits, (-1, self.V+1)), padded_target_with_eos.reshape(-1,), reduce=reduce)
         return loss
     
     
