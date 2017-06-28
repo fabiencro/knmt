@@ -187,6 +187,19 @@ class Decoder(Chain):
         self.V = V
         self.eos_idx = V
         
+    def get_device(self):
+        if self.xp is np:
+            return None
+        else:
+            return self.emb.W.data.device
+        
+    def move_np_array_to_correct_device(self, np_array):
+        device = self.get_device()
+        if device is None:
+            return np_array
+        else:
+            return chainer.cuda.to_gpu(np_array, device=device)
+        
     def get_conditionalized_cell(self, encoded_input, mask_input):
         return ConditionalizedDecoderCell(self, encoded_input, mask_input)
         
@@ -194,8 +207,7 @@ class Decoder(Chain):
     def get_cached_pos_vect(self, length):    
         if self.cached_pos_vect is None or self.cached_pos_vect.shape[0] < length:
             self.cached_pos_vect = generate_pos_vectors(self.d_model, length)
-            if self.xp != np:
-                self.cached_pos_vect = chainer.cuda.to_gpu(self.cached_pos_vect, device=self.device)
+            self.cached_pos_vect = self.move_np_array_to_correct_device(self.cached_pos_vect)
         return self.cached_pos_vect
     
     def get_pos_vect(self, mb_size, length):
@@ -217,6 +229,10 @@ class Decoder(Chain):
 #                     key_seq_lengths=seq_length, #actually not needed
                     future_mask=True,
                     mask_value=-10000)
+        
+        padded_data = self.move_np_array_to_correct_device(padded_data)
+        mask = self.move_np_array_to_correct_device(mask)
+                
         return padded_data, mask
     
     def compute_logits(self, seq_list, encoded_input, mask_input, train=True):
@@ -246,6 +262,7 @@ class Decoder(Chain):
     def compute_loss(self, seq_list, encoded_input, mask_input, train=True):
         logits = self.compute_logits(seq_list, encoded_input, mask_input, train=train)
         padded_target_with_eos = pad_data(seq_list, pad_value=-1, add_eos=self.eos_idx)
+        padded_target_with_eos = self.move_np_array_to_correct_device(padded_target_with_eos)
         loss = F.softmax_cross_entropy(F.reshape(logits, (-1, self.V+1)), padded_target_with_eos.reshape(-1,))
         return loss
     

@@ -51,11 +51,17 @@ class Encoder(Chain):
     def get_pos_vect(self, mb_size, length):
         if self.cached_pos_vect is None or self.cached_pos_vect.shape[0] < length:
             self.cached_pos_vect = generate_pos_vectors(self.d_model, length)
-            if self.xp != np:
-                self.cached_pos_vect = chainer.cuda.to_gpu(self.cached_pos_vect, device=self.device)
+            device = self.get_device()
+            if device is not None:
+                self.cached_pos_vect = chainer.cuda.to_gpu(self.cached_pos_vect, device=device)
 #         print self.cached_pos_vect[None, :length, :].shape, mb_size, length, self.d_model
         return self.xp.broadcast_to(self.cached_pos_vect[None, :length, :], (mb_size, length, self.d_model))
         
+    def get_device(self):
+        if self.xp is np:
+            return None
+        else:
+            return self.emb.W.data.device
     
     def make_batch(self, seq_list):
         padded_data = pad_data(seq_list, pad_value=0)
@@ -67,6 +73,13 @@ class Encoder(Chain):
                     key_seq_lengths=seq_length,
                     future_mask=False,
                     mask_value=-10000)
+        
+        device = self.get_device()
+        if device is not None:
+            with device:
+                padded_data = self.xp.array(padded_data)
+                mask = self.xp.array(mask)
+            
         return padded_data, mask
     
     def __call__(self, seq_list, train=True):
