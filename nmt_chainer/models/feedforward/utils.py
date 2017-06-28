@@ -19,6 +19,7 @@ class FeedForward(Chain):
         self.dropout = dropout
         
     def __call__(self, x_input, train=True):
+#         print "FF", x_input.data
         if len(x_input.data.shape) > 2:
             x = F.reshape(x_input, (-1, x_input.shape[-1]))
         else:
@@ -34,6 +35,7 @@ class FeedForward(Chain):
         if len(x_input.data.shape) > 2:
             norm_ff_output = F.reshape(norm_ff_output, x_input.data.shape)
             
+#         print "FFR", norm_ff_output.data
         return norm_ff_output
 
 #########################################################################

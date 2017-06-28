@@ -4,7 +4,8 @@ import chainer.functions as F
 import chainer.links as L
 from chainer import Variable, Chain, ChainList
 
-from nmt_chainer.models.feedforward.utils import generate_pos_vectors, make_batch_mask, pad_data, FeedForward, apply_linear_layer_to_last_dims
+from nmt_chainer.models.feedforward.utils import (
+    generate_pos_vectors, make_batch_mask, pad_data, FeedForward, apply_linear_layer_to_last_dims, cut_minibatch)
 from nmt_chainer.models.feedforward.multi_attention import AddAndNormalizedSelfAttentionLayer, AddAndNormalizedCrossAttentionLayer
 
 class DecoderLayer(Chain):
@@ -75,8 +76,9 @@ class DecoderMultiLayer(ChainList):
     def one_step(self, new_inpt, prev_states, src, mask_input, train=True):
         assert prev_states is None or len(prev_states) == len(self)
         new_prev_tgt = []
+        tgt_last = new_inpt
         for num_link, link in enumerate(self):
-            tgt_last, this_prev_tgt = link.one_step(new_inpt, prev_states[num_link] if prev_states is not None else None, src, mask_input, train=train)
+            tgt_last, this_prev_tgt = link.one_step(tgt_last, prev_states[num_link] if prev_states is not None else None, src, mask_input, train=train)
             new_prev_tgt.append(this_prev_tgt)
         return tgt_last, tuple(new_prev_tgt)      
     
@@ -212,7 +214,7 @@ class Decoder(Chain):
         max_length_2 = max_length_1
         mb_size = len(seq_list)
         mask = make_batch_mask(mb_size, self.n_heads, max_length_1, max_length_2, 
-                    key_seq_lengths=seq_length,
+#                     key_seq_lengths=seq_length, #actually not needed
                     future_mask=True,
                     mask_value=-10000)
         return padded_data, mask
@@ -221,6 +223,9 @@ class Decoder(Chain):
         mb_size = len(seq_list)
         max_length_1 = max(len(x) for x in seq_list)
         x, mask = self.make_batch(seq_list)
+        
+#         print "padded_data", x
+#         print "mask", mask
         
         assert self.xp.all(mask_input == self.xp.broadcast_to(mask_input[:,0:1,0:1,:], mask_input.shape))
         
