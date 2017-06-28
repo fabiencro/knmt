@@ -194,7 +194,6 @@ def batch_sort_and_split(batch, size_parts, sort_key=lambda x: len(x[1]), inplac
         mb_raw = batch[num_batch * size_parts: (num_batch + 1) * size_parts]
         yield mb_raw
 
-
 def mb_reverser(mb_raw, reverse_src=False, reverse_tgt=False):
     if reverse_src or reverse_tgt:
         mb_raw_new = []

@@ -13,6 +13,8 @@ from training import train_on_data
 from nmt_chainer.dataprocessing.indexer import Indexer
 from nmt_chainer.utilities.file_infos import create_filename_infos
 from nmt_chainer.utilities.argument_parsing_tools import OrderedNamespace
+import nmt_chainer.models.feedforward.encoder_decoder
+
 import logging
 import json
 import os.path
@@ -73,51 +75,62 @@ def generate_lexical_probability_dictionary_indexed(lexical_probability_dictiona
 
 
 def create_encdec_from_config_dict(config_dict, src_indexer, tgt_indexer):
-    Ei = config_dict["Ei"]
-    Hi = config_dict["Hi"]
-    Eo = config_dict["Eo"]
-    Ho = config_dict["Ho"]
-    Ha = config_dict["Ha"]
-    Hl = config_dict["Hl"]
-
     Vi = len(src_indexer)  # + UNK
     Vo = len(tgt_indexer)  # + UNK
-
-    encoder_cell_type = config_dict.get("encoder_cell_type", "gru")
-    decoder_cell_type = config_dict.get("decoder_cell_type", "gru")
-
-    use_bn_length = config_dict.get("use_bn_length", None)
-
-    # Selecting Attention type
-    attn_cls = nmt_chainer.models.attention.AttentionModule
-    if config_dict.get("use_accumulated_attn", False):
-        raise NotImplemented
-    if config_dict.get("use_deep_attn", False):
-        attn_cls = nmt_chainer.models.attention.DeepAttentionModule
-
-    init_orth = config_dict.get("init_orth", False)
-
-    if "lexical_probability_dictionary" in config_dict and config_dict["lexical_probability_dictionary"] is not None:
-        log.info("opening lexical_probability_dictionary %s" % config_dict["lexical_probability_dictionary"])
-        lexical_probability_dictionary_all = json.load(gzip.open(config_dict["lexical_probability_dictionary"], "rb"))
-
-        lexical_probability_dictionary = generate_lexical_probability_dictionary_indexed(
-            lexical_probability_dictionary_all, src_indexer, tgt_indexer)
+    
+    if config_dict.get("use_ff_model", False):
+        d_model = config_dict["ff_d_model"]
+        n_heads = config_dict["ff_n_heads"]
+        nb_layers_src = config_dict["ff_nb_layers_src"]
+        nb_layers_tgt = config_dict["ff_nb_layers_tgt"]
+        use_exp_relu = config_dict["ff_use_exp_relu"]
+        dropout = config_dict["ff_dropout"]
+        encdec = nmt_chainer.models.feedforward.encoder_decoder.EncoderDecoder(Vi, Vo, d_model=d_model, n_heads=n_heads,
+                                                     experimental_relu=use_exp_relu, dropout=dropout, 
+                                                     nb_layers_src=nb_layers_src, nb_layers_tgt=nb_layers_tgt)
     else:
-        lexical_probability_dictionary = None
-    lex_epsilon = config_dict.get("lexicon_prob_epsilon", 0.001)
-
-    use_goto_attention = config_dict.get("use_goto_attention", False)
-
-    # Creating encoder/decoder
-    encdec = nmt_chainer.models.encoder_decoder.EncoderDecoder(Vi, Ei, Hi, Vo + 1, Eo, Ho, Ha, Hl, use_bn_length=use_bn_length,
-                                                               attn_cls=attn_cls,
-                                                               init_orth=init_orth,
-                                                               encoder_cell_type=rnn_cells.create_cell_model_from_config(encoder_cell_type),
-                                                               decoder_cell_type=rnn_cells.create_cell_model_from_config(decoder_cell_type),
-                                                               lexical_probability_dictionary=lexical_probability_dictionary,
-                                                               lex_epsilon=lex_epsilon,
-                                                               use_goto_attention=use_goto_attention)
+        Ei = config_dict["Ei"]
+        Hi = config_dict["Hi"]
+        Eo = config_dict["Eo"]
+        Ho = config_dict["Ho"]
+        Ha = config_dict["Ha"]
+        Hl = config_dict["Hl"]
+    
+        encoder_cell_type = config_dict.get("encoder_cell_type", "gru")
+        decoder_cell_type = config_dict.get("decoder_cell_type", "gru")
+    
+        use_bn_length = config_dict.get("use_bn_length", None)
+    
+        # Selecting Attention type
+        attn_cls = nmt_chainer.models.attention.AttentionModule
+        if config_dict.get("use_accumulated_attn", False):
+            raise NotImplemented
+        if config_dict.get("use_deep_attn", False):
+            attn_cls = nmt_chainer.models.attention.DeepAttentionModule
+    
+        init_orth = config_dict.get("init_orth", False)
+    
+        if "lexical_probability_dictionary" in config_dict and config_dict["lexical_probability_dictionary"] is not None:
+            log.info("opening lexical_probability_dictionary %s" % config_dict["lexical_probability_dictionary"])
+            lexical_probability_dictionary_all = json.load(gzip.open(config_dict["lexical_probability_dictionary"], "rb"))
+    
+            lexical_probability_dictionary = generate_lexical_probability_dictionary_indexed(
+                lexical_probability_dictionary_all, src_indexer, tgt_indexer)
+        else:
+            lexical_probability_dictionary = None
+        lex_epsilon = config_dict.get("lexicon_prob_epsilon", 0.001)
+    
+        use_goto_attention = config_dict.get("use_goto_attention", False)
+    
+        # Creating encoder/decoder
+        encdec = nmt_chainer.models.encoder_decoder.EncoderDecoder(Vi, Ei, Hi, Vo + 1, Eo, Ho, Ha, Hl, use_bn_length=use_bn_length,
+                                                                   attn_cls=attn_cls,
+                                                                   init_orth=init_orth,
+                                                                   encoder_cell_type=rnn_cells.create_cell_model_from_config(encoder_cell_type),
+                                                                   decoder_cell_type=rnn_cells.create_cell_model_from_config(decoder_cell_type),
+                                                                   lexical_probability_dictionary=lexical_probability_dictionary,
+                                                                   lex_epsilon=lex_epsilon,
+                                                                   use_goto_attention=use_goto_attention)
 
     return encdec
 

@@ -6,6 +6,13 @@ from chainer import Variable, Chain, ChainList
 
 from nmt_chainer.models.feedforward.encoder import Encoder
 from nmt_chainer.models.feedforward.decoder import Decoder
+from nmt_chainer.utilities.utils import batch_sort_and_split
+from __builtin__ import True
+    
+import logging
+logging.basicConfig()
+log = logging.getLogger("ff:encdec")
+log.setLevel(logging.INFO)
     
 class EncoderDecoder(Chain):
     def __init__(self, V_src, V_tgt, d_model=512, n_heads=8, experimental_relu=False, dropout=None, 
@@ -19,14 +26,52 @@ class EncoderDecoder(Chain):
         
         self.V_tgt = V_tgt
         
-    
+        log.info("Creating FF EncoderDecoder V: %i -> %i dm:%i h:%i er:%i dropout:%r layers:%i -> %i", V_src, V_tgt, d_model, n_heads, experimental_relu, dropout, 
+                 nb_layers_src, nb_layers_tgt)
         
-    def compute_loss(self, src_seq, tgt_seq, train=True):
+    def encdec_type(self):
+        return "ff"
+        
+    def compute_test_loss(self, test_data, mb_size=64, nb_mb_for_sorting= 20):
+        def mb_provider():
+            required_data = nb_mb_for_sorting * mb_size
+            cursor = 0
+            while cursor < len(test_data):
+                larger_batch = test_data[cursor:cursor+required_data]
+                cursor += required_data
+                for minibatch in batch_sort_and_split(larger_batch, size_parts = mb_size):
+                    yield zip(*minibatch)
+        
+        total_loss = 0
+        total_nb_predictions = 0.0     
+        for src_batch, tgt_batch in mb_provider():
+            loss = self.compute_loss(src_batch, tgt_batch, train=False, reduce="no")
+            nb_tgt_words = sum(len(seq) + 1 for seq in tgt_batch) # +1 for eos
+            total_loss += self.xp.sum(loss.data)
+            total_nb_predictions += nb_tgt_words
+        return total_loss / total_nb_predictions
+        
+    def greedy_batch_translate(self, test_data,  mb_size=64, nb_steps=50):
+        def mb_provider(): #TODO: optimize by sorting by size
+            required_data = mb_size
+            cursor = 0
+            while cursor < len(test_data):
+                larger_batch = test_data[cursor:cursor+required_data]
+                cursor += required_data
+                yield larger_batch
+                
+        result = []
+        for src_batch in mb_provider():
+            result += self.greedy_translate(src_batch, nb_steps=nb_steps)
+                
+        return result
+        
+    def compute_loss(self, src_seq, tgt_seq, train=True, reduce="mean"):
         encoded_source, src_mask = self.encoder(src_seq, train=train)
-        loss = self.decoder.compute_loss(tgt_seq, encoded_source, src_mask, train=train)
+        loss = self.decoder.compute_loss(tgt_seq, encoded_source, src_mask, train=train, reduce=reduce)
         return loss
         
-    def greedy_translate(self, src_seq, nb_steps):
+    def greedy_translate(self, src_seq, nb_steps, cut_eos=True):
         encoded_source, src_mask = self.encoder(src_seq, train=False)
         decoding_cell = self.decoder.get_conditionalized_cell(encoded_source, src_mask)
         
@@ -34,6 +79,7 @@ class EncoderDecoder(Chain):
         
         mb_size = len(src_seq)
         result = [[] for _ in xrange(mb_size)]
+        finished = [False for _ in xrange(mb_size)]
         
         num_step = 0
         while 1:
@@ -42,13 +88,19 @@ class EncoderDecoder(Chain):
 #             print "prev w shape", prev_word.shape
             assert prev_word.shape == (mb_size, 1)
             for i in xrange(mb_size):
-                result[i].append(prev_word[i, 0])
+                if not finished[i]:
+                    if cut_eos and prev_word[i, 0] == self.decoder.eos_idx:
+                        finished[i] = True
+                        continue
+                    result[i].append(prev_word[i, 0])
             
             prev_word = self.xp.where(prev_word == self.decoder.eos_idx, 0, prev_word)
             num_step += 1
             if num_step > nb_steps:
                 break
             logits, decoder_state = decoding_cell(decoder_state, prev_word, train=False)
+            
+        result = [[int(x) for x in seq] for seq in result]
         return result
             
     def compute_logits(self, src_seq, tgt_seq, train=True):

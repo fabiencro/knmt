@@ -38,7 +38,15 @@ def define_parser(parser):
     model_description_group.add_argument("--init_orth", default=False, action="store_true")
     model_description_group.add_argument("--use_bn_length", default=0, type=int)
     model_description_group.add_argument("--use_goto_attention", default=False, action="store_true")
-
+    
+    model_description_group.add_argument("--use_ff_model", default=False, action="store_true")
+    model_description_group.add_argument("--ff_d_model", type=int, default=512, help="FF model d_model")
+    model_description_group.add_argument("--ff_n_heads", type=int, default=8, help="FF model number of attention heads")
+    model_description_group.add_argument("--ff_nb_layers_src", type=int, default=6, help="FF model number of source layers")
+    model_description_group.add_argument("--ff_nb_layers_tgt", type=int, default=6, help="FF model number of target layers")
+    model_description_group.add_argument("--ff_use_exp_relu", default=False, action="store_true")
+    model_description_group.add_argument("--ff_dropout", type=float, help="FF model dropout")
+    
     training_paramenters_group = parser.add_argument_group(_CONFIG_SECTION_TO_DESCRIPTION["training"])
     training_paramenters_group.add_argument("--mb_size", type=int, default=64, help="Minibatch size")
     training_paramenters_group.add_argument("--nb_batch_to_sort", type=int, default=20, help="Sort this many batches by size.")
