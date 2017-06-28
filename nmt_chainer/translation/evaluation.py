@@ -34,7 +34,7 @@ def translate_to_file(encdec, eos_idx, test_src_data, mb_size, tgt_indexer,
     log.info("writing translation of set to %s" % translations_fn)
     out = codecs.open(translations_fn, "w", encoding="utf8")
     for t in translations:
-        if t[-1] == eos_idx:
+        if len(t) > 0  and t[-1] == eos_idx:
             t = t[:-1]
 #         out.write(convert_idx_to_string(t, tgt_voc) + "\n")
         out.write(tgt_indexer.deconvert(t, unk_tag=t_unk_tag) + "\n")
@@ -59,6 +59,10 @@ def translate_to_file(encdec, eos_idx, test_src_data, mb_size, tgt_indexer,
 
 
 def compute_loss_all(encdec, test_data, eos_idx, mb_size, gpu=None, reverse_src=False, reverse_tgt=False):
+    if encdec.encdec_type() == "ff":
+        assert not reverse_src and not reverse_tgt
+        return encdec.compute_test_loss(test_data, mb_size=mb_size, nb_mb_for_sorting=20)
+    
     mb_provider_test = minibatch_provider(test_data, eos_idx, mb_size, nb_mb_for_sorting=-1, loop=False,
                                           gpu=gpu, volatile="on",
                                           reverse_src=reverse_src, reverse_tgt=reverse_tgt)
@@ -74,6 +78,16 @@ def compute_loss_all(encdec, test_data, eos_idx, mb_size, gpu=None, reverse_src=
 
 def greedy_batch_translate(encdec, eos_idx, src_data, batch_size=80, gpu=None, get_attention=False, nb_steps=50,
                            reverse_src=False, reverse_tgt=False):
+    if encdec.encdec_type() == "ff":
+        result = encdec.greedy_batch_translate(src_data,  mb_size=batch_size, nb_steps=nb_steps)
+        if get_attention:
+            dummy_attention = []
+            for src, tgt in zip(src_data, result):
+                dummy_attention.append(np.zeros((len(src), len(tgt)), dtype = np.float32))
+            return result, dummy_attention 
+        else:
+            return result
+    
     nb_ex = len(src_data)
     nb_batch = nb_ex / batch_size + (1 if nb_ex % batch_size != 0 else 0)
     res = []
@@ -298,6 +312,33 @@ def batch_align(encdec, eos_idx, src_tgt_data, batch_size=80, gpu=None):
 #     return " ".join(trans)
 
 
+def sample_once_ff(encdec, src_seqs, tgt_seqs, src_indexer, tgt_indexer, max_nb=None,
+                s_unk_tag="#S_UNK#", t_unk_tag="#T_UNK#"):
+    print "sample"
+    
+    sample_greedy = encdec.greedy_translate(src_seqs, nb_steps=50)
+    assert len(sample_greedy) == len(src_seqs) == len(tgt_seqs)
+
+    sample_random = sample_greedy #encdec.greedy_translate(src_seqs, nb_steps=50, sample=True)
+    
+    for sent_num in xrange(len(src_seqs)):
+        if max_nb is not None and sent_num > max_nb:
+            break
+        src_idx_seq = src_seqs[sent_num]
+        tgt_idx_seq = tgt_seqs[sent_num]
+        sample_idx_seq = sample_greedy[sent_num]
+        sample_random_idx_seq = sample_random[sent_num]
+
+        print "sent num", sent_num
+
+        for name, seq, unk_tag, indexer in zip("src tgt sample sample_random".split(" "),
+                                                             [src_idx_seq, tgt_idx_seq, sample_idx_seq, sample_random_idx_seq],
+                                                             [s_unk_tag, t_unk_tag, t_unk_tag, t_unk_tag],
+                                                             [src_indexer, tgt_indexer, tgt_indexer, tgt_indexer]):
+            print name, "idx:", seq
+            print name, "raw:", " ".join(indexer.deconvert_swallow(seq, unk_tag=unk_tag, eos_idx=None)).encode('utf-8')
+            print name, "postp:", indexer.deconvert(seq, unk_tag=unk_tag, eos_idx=None).encode('utf-8')
+
 def sample_once(encdec, src_batch, tgt_batch, src_mask, src_indexer, tgt_indexer, eos_idx, max_nb=None,
                 s_unk_tag="#S_UNK#", t_unk_tag="#T_UNK#"):
     print "sample"
@@ -315,6 +356,9 @@ def sample_once(encdec, src_batch, tgt_batch, src_mask, src_indexer, tgt_indexer
 
     sample_random, score_random, attn_list_random = encdec(src_batch, 50, src_mask, use_best_for_sample=False, need_score=True,
                                                            mode="test")
+    
+    
+    
     debatched_sample_random = de_batch(sample_random, eos_idx=eos_idx)
 
     for sent_num in xrange(len(debatched_src)):

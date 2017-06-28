@@ -19,8 +19,9 @@ import json
 
 from nmt_chainer.utilities.utils import minibatch_provider, minibatch_provider_curiculum, make_batch_src_tgt
 from nmt_chainer.translation.evaluation import (
-    compute_loss_all, translate_to_file, sample_once)
+    compute_loss_all, translate_to_file, sample_once, sample_once_ff)
 
+import chainer.functions as F
 import chainer.iterators
 import chainer.dataset.iterator
 import chainer.training
@@ -513,17 +514,23 @@ def train_on_data_chainer(encdec, optimizer, training_data, output_files_dict,
         iterator = trainer.updater.get_iterator("main")
         mb_raw = iterator.peek()
 
-        src_batch, tgt_batch, src_mask = make_batch_src_tgt(mb_raw, eos_idx=eos_idx, padding_idx=0, gpu=gpu, volatile="on", need_arg_sort=False)
-
         def s_unk_tag(num, utag):
             return "S_UNK_%i" % utag
 
         def t_unk_tag(num, utag):
             return "T_UNK_%i" % utag
 
-        sample_once(encdec, src_batch, tgt_batch, src_mask, src_indexer, tgt_indexer, eos_idx,
-                    max_nb=20,
-                    s_unk_tag=s_unk_tag, t_unk_tag=t_unk_tag)
+        if encdec.encdec_type() == "ff":
+            src_seqs, tgt_seqs = zip(*mb_raw)
+            sample_once_ff(encdec, src_seqs, tgt_seqs, src_indexer, tgt_indexer, max_nb=20,
+                s_unk_tag=s_unk_tag, t_unk_tag=t_unk_tag)
+        else:
+
+            src_batch, tgt_batch, src_mask = make_batch_src_tgt(mb_raw, eos_idx=eos_idx, padding_idx=0, gpu=gpu, volatile="on", need_arg_sort=False)
+    
+            sample_once(encdec, src_batch, tgt_batch, src_mask, src_indexer, tgt_indexer, eos_idx,
+                        max_nb=20,
+                        s_unk_tag=s_unk_tag, t_unk_tag=t_unk_tag)
 
     iterator_training_data = LengthBasedSerialIterator(training_data, mb_size,
                                                        nb_of_batch_to_sort=nb_of_batch_to_sort,
@@ -531,28 +538,49 @@ def train_on_data_chainer(encdec, optimizer, training_data, output_files_dict,
                                                        repeat=True,
                                                        shuffle=reshuffle_every_epoch)
 
-    def loss_func(src_batch, tgt_batch, src_mask):
+    if encdec.encdec_type() == "ff":
+        def loss_func(src_seq, tgt_seq):
+    
+            t0 = time.clock()
+            
+            loss = encdec.compute_loss(src_seq, tgt_seq, train=True, reduce="no")
+            total_loss = F.sum(loss)
+            total_nb_predictions = sum(len(seq) + 1 for seq in tgt_seq)
+            
+            avg_loss = total_loss / total_nb_predictions
+    
+            t1 = time.clock()
+            chainer.reporter.report({"forward_time": t1 - t0})
+    
+            chainer.reporter.report({"mb_loss": total_loss.data})
+            chainer.reporter.report({"mb_nb_predictions": total_nb_predictions})
+            chainer.reporter.report({"trg_loss": avg_loss.data})
+            return avg_loss  
+        def convert_mb(mb_raw, device):
+            return tuple(zip(*mb_raw)) 
+    else:
+        def loss_func(src_batch, tgt_batch, src_mask):
+    
+            t0 = time.clock()
+            (total_loss, total_nb_predictions), attn = encdec(src_batch, tgt_batch, src_mask, raw_loss_info=True,
+                                                              noise_on_prev_word=noise_on_prev_word,
+                                                              use_previous_prediction=use_previous_prediction,
+                                                              mode="train",
+                                                              use_soft_prediction_feedback=use_soft_prediction_feedback, 
+                                                              use_gumbel_for_soft_predictions=use_gumbel_for_soft_predictions,
+                                                              temperature_for_soft_predictions=temperature_for_soft_predictions)
+            avg_loss = total_loss / total_nb_predictions
+    
+            t1 = time.clock()
+            chainer.reporter.report({"forward_time": t1 - t0})
+    
+            chainer.reporter.report({"mb_loss": total_loss.data})
+            chainer.reporter.report({"mb_nb_predictions": total_nb_predictions})
+            chainer.reporter.report({"trg_loss": avg_loss.data})
+            return avg_loss
 
-        t0 = time.clock()
-        (total_loss, total_nb_predictions), attn = encdec(src_batch, tgt_batch, src_mask, raw_loss_info=True,
-                                                          noise_on_prev_word=noise_on_prev_word,
-                                                          use_previous_prediction=use_previous_prediction,
-                                                          mode="train",
-                                                          use_soft_prediction_feedback=use_soft_prediction_feedback, 
-                                                          use_gumbel_for_soft_predictions=use_gumbel_for_soft_predictions,
-                                                          temperature_for_soft_predictions=temperature_for_soft_predictions)
-        avg_loss = total_loss / total_nb_predictions
-
-        t1 = time.clock()
-        chainer.reporter.report({"forward_time": t1 - t0})
-
-        chainer.reporter.report({"mb_loss": total_loss.data})
-        chainer.reporter.report({"mb_nb_predictions": total_nb_predictions})
-        chainer.reporter.report({"trg_loss": avg_loss.data})
-        return avg_loss
-
-    def convert_mb(mb_raw, device):
-        return make_batch_src_tgt(mb_raw, eos_idx=eos_idx, padding_idx=0, gpu=device, volatile="off", need_arg_sort=False)
+        def convert_mb(mb_raw, device):
+            return make_batch_src_tgt(mb_raw, eos_idx=eos_idx, padding_idx=0, gpu=device, volatile="off", need_arg_sort=False)
 
     updater = Updater(iterator_training_data, optimizer,
                       converter=convert_mb,

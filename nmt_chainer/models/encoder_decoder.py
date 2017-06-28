@@ -108,6 +108,9 @@ class EncoderDecoder(Chain):
         self.lexical_probability_dictionary = lexical_probability_dictionary
         self.lex_epsilon = lex_epsilon
 
+    def encdec_type(self):
+        return "classic"
+
     def compute_lexicon_probability_matrix(self, src_batch):
         if self.lexical_probability_dictionary is not None:
             lexicon_probability_matrix = compute_lexicon_matrix(

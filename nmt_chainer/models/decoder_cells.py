@@ -13,7 +13,6 @@ from chainer import Link, Chain, ChainList
 import chainer.functions as F
 import chainer.links as L
 import random
-from builtins import range
 
 import rnn_cells
 from nmt_chainer.utilities.utils import ortho_init, minibatch_sampling
