@@ -65,9 +65,14 @@ class EncoderDecoder(Chain):
         from nmt_chainer.models.feedforward.utils import pad_data
         padded_tgt = pad_data(tgt_seq, pad_value=0)#, add_eos=self.decoder.eos_idx)
         
+        decoder_device = self.decoder.get_device()
+        if decoder_device is not None:
+            padded_tgt = self.xp.array(padded_tgt)
+
         max_tgt_length = padded_tgt.shape[1]
         seq_padded_tgt = [padded_tgt[:, i:i+1] for i in range(max_tgt_length)]
         
+
 #         loss = F.softmax_cross_entropy(F.reshape(logits, (-1, self.decoder.V+1)), padded_target_with_eos.reshape(-1,))
         
         mb_size = len(src_seq)
