@@ -75,6 +75,7 @@ class EncoderDecoder(Chain):
         
         
         for num_step in range(max_tgt_length):
+#             print "num_step", num_step
 #             print "logits shape", logits.shape
             prev_word = seq_padded_tgt[num_step]
 #             print "prev w shape", prev_word.shape
@@ -83,6 +84,7 @@ class EncoderDecoder(Chain):
             logits, decoder_state = decoding_cell(decoder_state, prev_word, train=train)
             result.append(logits)
             
+#         print "seq_padded_tgt", seq_padded_tgt
         return result  
             
     def compute_loss_step_by_step(self, src_seq, tgt_seq, train=True):
