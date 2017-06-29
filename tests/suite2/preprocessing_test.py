@@ -7,6 +7,9 @@ __version__ = "1.0"
 __email__ = "bergeron@pa.jst.jp"
 __status__ = "Development"
 
+from nmt_chainer.__main__ import main
+
+import os.path
 import re
 
 import nmt_chainer.dataprocessing.processors as processors
@@ -305,13 +308,13 @@ class TestBiProcessChain:
         pp.add_tgt_processor(tgt_pp)
 
         experiments = {
-            (u"Hello", u"HELLO", 
+            (u"Hello", u"HELLO",
              u"{0}hello".format(processors.LatinScriptProcess.CAP_CHAR), u"{0}hello".format(processors.LatinScriptProcess.ALL_CAPS_CHAR)),
             (u"x...", u"Wonderful!",
              u"x {0}...".format(processors.LatinScriptProcess.SUFFIX_CHAR),
              u"{0}wonderful {1}!".format(processors.LatinScriptProcess.CAP_CHAR, processors.LatinScriptProcess.SUFFIX_CHAR)),
             (u"test?three", u"test'four",
-             u"test {0}?three".format(processors.LatinScriptProcess.SUFFIX_CHAR), 
+             u"test {0}?three".format(processors.LatinScriptProcess.SUFFIX_CHAR),
              u"test {0}'four".format(processors.LatinScriptProcess.SUFFIX_CHAR)),
             (u"sentence_with!all:the;chars$that]we(want'to&test<if/it@is|possible.",
              u"sentence#with^all<the>other=chars*that\\we[want@to-test",
@@ -331,9 +334,9 @@ class TestBiProcessChain:
             # print u"sentence_tgt={0}".format(sentence_tgt)
             # print u"sentence_src_res={0}".format(sentence_src_res)
             # print u"sentence_tgt_res={0}".format(sentence_tgt_res)
-            assert sentence_src_res == sentence_src_expected_res 
+            assert sentence_src_res == sentence_src_expected_res
             assert sentence_tgt_res == sentence_tgt_expected_res
-            
+
             sentence_src_res, sentence_tgt_res = pp.deconvert(sentence_src_res, sentence_tgt_res)
             assert sentence_src_res == sentence_src
             assert sentence_tgt_res == sentence_tgt
@@ -351,3 +354,53 @@ class TestBiProcessChain:
         except Exception, ex:
             assert type(ex) == ValueError and str(ex) == "Special char in word"
 
+
+class TestJointBPEBiProcessor:
+
+    def test_convert_deconvert_with_JointBPEBiProcessor_using_SimpleSegmenter(self, tmpdir):
+        test_data_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "../tests_data")
+        train_dir = tmpdir.mkdir("train")
+        data_prefix = str(train_dir.join("test1.data"))
+        train_prefix = str(train_dir.join("test1.train"))
+        data_src_file = os.path.join(test_data_dir, "src2.txt")
+        data_tgt_file = os.path.join(test_data_dir, "tgt2.txt")
+        bpe_merges = 10
+        args = 'make_data {0} {1} {2} --dev_src {0} --dev_tgt {1} --joint_bpe {3}'.format(
+            data_src_file, data_tgt_file, data_prefix, bpe_merges).split(' ')
+        main(arguments=args)
+
+        bpe_data_file = os.path.join(str(train_dir), "test1.data.joint.bpe")
+
+        pp = processors.BiProcessorChain()
+
+        pp_child_src = processors.SimpleSegmenter()
+        pp_child_tgt = processors.SimpleSegmenter()
+        pp_child_bi = processors.JointBPEBiProcessor(bpe_data_file, symbols=10000, min_frequency=2, separator="@@")
+        pp_child_bi.bpe_processor.load_bpe()
+
+        pp.add_src_processor(pp_child_src)
+        pp.add_tgt_processor(pp_child_tgt)
+        pp.add_biprocessor(pp_child_bi)
+
+        experiments = [
+            (u"Hello", u"This is a test",
+             [u'H@@', u'e@@', u'l@@', u'l@@', u'o'], [u'T@@', u'h@@', u'i@@', u's', u'i@@', u's', u'a', u't@@', u'es@@', u't']),
+            (u"x...", u"Wonderful!",
+             ['x@@', '.@@', '.@@', '.'],
+             [u'W@@', u'o@@', u'n@@', u'd@@', u'e@@', u'r@@', u'f@@', u'u@@', u'l@@', u'!'])
+        ]
+
+        for idx, exp_data in enumerate(experiments):
+            sentence_src = exp_data[0]
+            sentence_tgt = exp_data[1]
+            sentence_src_expected_res = exp_data[2]
+            sentence_tgt_expected_res = exp_data[3]
+
+            sentence_src_res, sentence_tgt_res = pp.convert(sentence_src, sentence_tgt)
+
+            assert sentence_src_res == sentence_src_expected_res
+            assert sentence_tgt_res == sentence_tgt_expected_res
+
+            sentence_src_res, sentence_tgt_res = pp.deconvert(sentence_src_res, sentence_tgt_res)
+            assert sentence_src_res == sentence_src
+            assert sentence_tgt_res == sentence_tgt
