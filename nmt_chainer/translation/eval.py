@@ -447,7 +447,7 @@ def translate_to_file_with_beam_search(dest_fn, gpu, encdec, eos_idx, src_data, 
                     attn_graph_attribs)
             ct = tgt_indexer.deconvert_post(translated)
             if nbest is not None:
-                out.write(u"{0}|||{1}|||{2} {3}\n".format(idx, ct, score, modif_score, backtranslation_bleu_score))
+                out.write(u"{0}|||{1}|||{2} {3}\n".format(idx, ct, modif_score, backtranslation_bleu_score))
             else:
                 out.write(ct + "\n")
             if unprocessed_output is not None:
