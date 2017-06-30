@@ -4,19 +4,29 @@ import chainer.functions as F
 import chainer.links as L
 from chainer import Variable, Chain, ChainList
 
+LayerNormalization = L.LayerNormalization
+# import nmt_chainer.additional_links.layer_normalization.LayerNormalizationLink as LayerNormalization
+
+
 ########################################################################
 # Feed Forward layer with pass-through and normalization
 #
 
 class FeedForward(Chain):
-    def __init__(self, d_model=512, d_ff=2048, dropout=None):
+    def __init__(self, d_model=512, d_ff=2048, dropout=None,
+            no_add=False, no_normalize=False):
         super(FeedForward, self).__init__(
             lin1 = L.Linear(d_model, d_ff),
             lin2 = L.Linear(d_ff, d_model),
-            normalization_layer = L.LayerNormalization()
         )
         
         self.dropout = dropout
+        
+        if not no_normalize:
+            self.add_link("normalization_layer", LayerNormalization())
+        
+        self.no_add = no_add
+        self.no_normalize = no_normalize
         
     def __call__(self, x_input, train=True):
 #         print "FF", x_input.data
@@ -30,7 +40,15 @@ class FeedForward(Chain):
         if self.dropout is not None:
             ff_output = F.dropout(ff_output, self.dropout, train=train)
             
-        norm_ff_output = self.normalization_layer(ff_output + x)
+        if self.no_add:
+            added_output = ff_output
+        else:
+            added_output = ff_output + x
+        
+        if self.no_normalize:
+            norm_ff_output = added_output
+        else:
+            norm_ff_output = self.normalization_layer(added_output)
         
         if len(x_input.data.shape) > 2:
             norm_ff_output = F.reshape(norm_ff_output, x_input.data.shape)

@@ -15,19 +15,22 @@ log = logging.getLogger("ff:encdec")
 log.setLevel(logging.INFO)
     
 class EncoderDecoder(Chain):
-    def __init__(self, V_src, V_tgt, d_model=512, n_heads=8, experimental_relu=False, dropout=None, 
-                 nb_layers_src=6, nb_layers_tgt=6):
+    def __init__(self, V_src, V_tgt, d_model=512, n_heads=8, d_ff=2048, experimental_relu=False, dropout=None, 
+                 nb_layers_src=6, nb_layers_tgt=6, no_add=False, no_normalize=False):
         super(EncoderDecoder, self).__init__(
-            encoder = Encoder(V_src, d_model=d_model, n_heads=n_heads, 
-                              experimental_relu=experimental_relu, dropout=dropout, nb_layers=nb_layers_src),
-            decoder = Decoder(V_tgt, d_model=d_model, n_heads=n_heads, 
-                              experimental_relu=experimental_relu, dropout=dropout, nb_layers=nb_layers_tgt),
+            encoder = Encoder(V_src, d_model=d_model, n_heads=n_heads, d_ff=d_ff,
+                              experimental_relu=experimental_relu, dropout=dropout, nb_layers=nb_layers_src,
+                              no_add=no_add, no_normalize=no_normalize),
+            decoder = Decoder(V_tgt, d_model=d_model, n_heads=n_heads, d_ff=d_ff,
+                              experimental_relu=experimental_relu, dropout=dropout, nb_layers=nb_layers_tgt,
+                              no_add=no_add, no_normalize=no_normalize),
         )
         
         self.V_tgt = V_tgt
         
-        log.info("Creating FF EncoderDecoder V: %i -> %i dm:%i h:%i er:%i dropout:%r layers:%i -> %i", V_src, V_tgt, d_model, n_heads, experimental_relu, dropout, 
-                 nb_layers_src, nb_layers_tgt)
+        log.info("Creating FF EncoderDecoder V: %i -> %i dm:%i h:%i dff:%i er:%i dropout:%r layers:%i -> %i noadd:%i nonorm:%i", V_src, V_tgt, d_model, n_heads, d_ff, 
+                 experimental_relu, dropout, 
+                 nb_layers_src, nb_layers_tgt, no_add, no_normalize)
         
     def encdec_type(self):
         return "ff"
@@ -51,20 +54,29 @@ class EncoderDecoder(Chain):
             total_nb_predictions += nb_tgt_words
         return total_loss / total_nb_predictions
         
-    def greedy_batch_translate(self, test_data,  mb_size=64, nb_steps=50):
+    def greedy_batch_translate(self, test_data,  mb_size=64, nb_mb_for_sorting= 20, nb_steps=50):
+        test_data_with_index = zip(test_data, range(len(test_data)))
         def mb_provider(): #TODO: optimize by sorting by size
-            required_data = mb_size
+            required_data = nb_mb_for_sorting * mb_size
             cursor = 0
             while cursor < len(test_data):
-                larger_batch = test_data[cursor:cursor+required_data]
+                larger_batch = test_data_with_index[cursor:cursor+required_data]
                 cursor += required_data
-                yield larger_batch
+                for minibatch in batch_sort_and_split(larger_batch, size_parts = mb_size,
+                                            sort_key=lambda x: len(x[0])):
+                
+                    yield minibatch
                 
         result = []
-        for src_batch in mb_provider():
-            result += self.greedy_translate(src_batch, nb_steps=nb_steps)
-                
-        return result
+        for src_batch_with_index in mb_provider():
+            src_batch, indexes = zip(*src_batch_with_index)
+            translated = self.greedy_translate(src_batch, nb_steps=nb_steps)
+            result += zip(indexes, translated) 
+            
+        result.sort(key=lambda x:x[0])
+        reordered_indexes, reordered_result = zip(*result)
+        assert reordered_indexes == range(len(test_data))
+        return reordered_result
         
     def compute_loss(self, src_seq, tgt_seq, train=True, reduce="mean"):
         encoded_source, src_mask = self.encoder(src_seq, train=train)

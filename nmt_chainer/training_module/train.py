@@ -85,9 +85,13 @@ def create_encdec_from_config_dict(config_dict, src_indexer, tgt_indexer):
         nb_layers_tgt = config_dict["ff_nb_layers_tgt"]
         use_exp_relu = config_dict["ff_use_exp_relu"]
         dropout = config_dict["ff_dropout"]
-        encdec = nmt_chainer.models.feedforward.encoder_decoder.EncoderDecoder(Vi, Vo, d_model=d_model, n_heads=n_heads,
+        d_ff = config_dict.get("ff_d_ff", 2048)
+        no_add = config_dict.get("ff_no_add", False)
+        no_normalize = config_dict.get("ff_no_normalize", False)
+        encdec = nmt_chainer.models.feedforward.encoder_decoder.EncoderDecoder(Vi, Vo, d_model=d_model, n_heads=n_heads, d_ff=d_ff,
                                                      experimental_relu=use_exp_relu, dropout=dropout, 
-                                                     nb_layers_src=nb_layers_src, nb_layers_tgt=nb_layers_tgt)
+                                                     nb_layers_src=nb_layers_src, nb_layers_tgt=nb_layers_tgt,
+                                                     no_add = no_add, no_normalize = no_normalize)
     else:
         Ei = config_dict["Ei"]
         Hi = config_dict["Hi"]
