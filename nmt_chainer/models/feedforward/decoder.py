@@ -14,16 +14,18 @@ log = logging.getLogger("ff:dec")
 log.setLevel(logging.INFO)
 
 class DecoderLayer(Chain):
-    def __init__(self, d_model, n_heads, experimental_relu=False, dropout=None):
+    def __init__(self, d_model, n_heads, d_ff=2048, experimental_relu=False, dropout=None,
+                 no_add=False, no_normalize=False):
         super(DecoderLayer, self).__init__(
-            ff_layer = FeedForward(d_model, n_heads, dropout=dropout),
+            ff_layer = FeedForward(d_model, d_ff=d_ff, dropout=dropout, no_add=no_add, no_normalize=no_normalize),
             self_attention_layer = AddAndNormalizedSelfAttentionLayer(d_model=d_model, n_heads=n_heads,
                                                              experimental_relu=experimental_relu,
-                                                          dropout=dropout),
+                                                          dropout=dropout, no_add=no_add, no_normalize=no_normalize),
             
             cross_attention_layer = AddAndNormalizedCrossAttentionLayer(d_model=d_model, n_heads=n_heads,
                                                              experimental_relu=experimental_relu,
-                                                          dropout=dropout)
+                                                          dropout=dropout, 
+                                        no_add=False, no_normalize=no_normalize) # Does not seem good to not let the cross attention be bypassed
         )
         
         self.n_heads = n_heads
@@ -68,10 +70,12 @@ class DecoderLayer(Chain):
         return y3_last, (full_tgt, full_y1)
     
 class DecoderMultiLayer(ChainList):
-    def __init__(self, d_model, n_heads, experimental_relu=False, dropout=None, nb_layers=6):
+    def __init__(self, d_model, n_heads, d_ff=2048, experimental_relu=False, dropout=None, nb_layers=6,
+                 no_add=False, no_normalize=False):
         super(DecoderMultiLayer, self).__init__()
         for _ in range(nb_layers):
-            self.add_link(DecoderLayer(d_model, n_heads, experimental_relu=experimental_relu, dropout=dropout))
+            self.add_link(DecoderLayer(d_model, n_heads, d_ff=d_ff, experimental_relu=experimental_relu, dropout=dropout,
+                                       no_add=no_add, no_normalize=no_normalize))
         
     def __call__(self, tgt, src, mask, mask_input, train=True):
         for link in self:
@@ -172,12 +176,14 @@ class ConditionalizedDecoderCell(object):
         return logits, DecoderState(pos=current_pos, prev_states=prev_states)
     
 class Decoder(Chain):
-    def __init__(self, V, d_model=512, n_heads=8, experimental_relu=False, dropout=None, nb_layers=6):
+    def __init__(self, V, d_model=512, n_heads=8, d_ff=2048, experimental_relu=False, dropout=None, nb_layers=6,
+                 no_add=False, no_normalize=False):
         super(Decoder, self).__init__(
             emb = L.EmbedID(V, d_model),
-            encoding_layers = DecoderMultiLayer(d_model, n_heads, 
+            encoding_layers = DecoderMultiLayer(d_model, n_heads, d_ff=d_ff,
                                                 experimental_relu=experimental_relu, 
-                                                dropout=dropout, nb_layers=nb_layers),
+                                                dropout=dropout, nb_layers=nb_layers,
+                                                no_add=no_add, no_normalize=no_normalize),
             logits_layer = L.Linear(d_model, V + 1)
         )
         
