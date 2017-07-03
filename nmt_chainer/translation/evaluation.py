@@ -319,7 +319,7 @@ def sample_once_ff(encdec, src_seqs, tgt_seqs, src_indexer, tgt_indexer, max_nb=
     sample_greedy = encdec.greedy_translate(src_seqs, nb_steps=50)
     assert len(sample_greedy) == len(src_seqs) == len(tgt_seqs)
 
-    sample_random = sample_greedy #encdec.greedy_translate(src_seqs, nb_steps=50, sample=True)
+    sample_random = encdec.greedy_translate(src_seqs, nb_steps=50, sample=True)
     
     for sent_num in xrange(len(src_seqs)):
         if max_nb is not None and sent_num > max_nb:

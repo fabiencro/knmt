@@ -83,7 +83,7 @@ class EncoderDecoder(Chain):
         loss = self.decoder.compute_loss(tgt_seq, encoded_source, src_mask, train=train, reduce=reduce)
         return loss
         
-    def greedy_translate(self, src_seq, nb_steps, cut_eos=True):
+    def greedy_translate(self, src_seq, nb_steps, cut_eos=True, sample=False):
         encoded_source, src_mask = self.encoder(src_seq, train=False)
         decoding_cell = self.decoder.get_conditionalized_cell(encoded_source, src_mask)
         
@@ -95,6 +95,9 @@ class EncoderDecoder(Chain):
         
         num_step = 0
         while 1:
+            if sample:
+                logits = logits + self.xp.random.gumbel(size=logits.data.shape).astype(self.xp.float32)
+            
 #             print "logits shape", logits.shape
             prev_word = self.xp.argmax(logits.data, axis = 1).reshape(-1, 1).astype(self.xp.int32)
 #             print "prev w shape", prev_word.shape
