@@ -1,3 +1,5 @@
+from __future__ import absolute_import, division, print_function, unicode_literals
+
 import nmt_chainer.external_libs.bpe.learn_bpe as learn_bpe
 import nmt_chainer.external_libs.bpe.apply_bpe as apply_bpe
 import collections
@@ -86,7 +88,7 @@ class FileMultiIterator(object):
         if len(line) == 0:
             raise StopIteration()
         else:
-            #             print self.nb_line_read, line.strip()
+            #             print(self.nb_line_read, line.strip())
             self.nb_line_read += 1
             return line.strip()
 
@@ -236,7 +238,7 @@ class ProcessorChain(MonoProcessor):
                 this_stats = stats.get_sub_stats(num_processor)
             else:
                 this_stats = None
-#             print num_processor, sentence, processor, this_stats, this_stats.make_report()
+#             print(num_processor, sentence, processor, this_stats, this_stats.make_report())
             sentence = processor.convert(sentence, stats=this_stats)
         return sentence
 
@@ -444,10 +446,10 @@ class BPEProcessing(MonoProcessor):
 
     def convert(self, sentence, stats=None):
         assert self.is_initialized()
-#         print sentence
-#         print "->"
+#         print(sentence)
+#         print("->")
         converted = self.bpe.segment_splitted(sentence)
-#         print converted
+#         print(converted)
         return converted
 
     def deconvert(self, seq):
@@ -699,7 +701,7 @@ class LatinScriptProcess(MonoProcessor):
 #     def __iter__(self):
 #         with codecs.open(self.filename, encoding="utf8") as f:
 #             for num_line, line in enumerate(f):
-# #                 print self.filename, num_line, self.max_nb_ex
+# #                 print(self.filename, num_line, self.max_nb_ex)
 #                 if self.max_nb_ex is not None and num_line >= self.max_nb_ex:
 #                     return
 #                 yield line.strip()
@@ -856,7 +858,7 @@ class IndexingPrePostProcessor(IndexingPrePostProcessorBase):
             self.nb_ex = 0
 
         def update(self, unk_cnt, token, nb_ex):
-            #             print unk_cnt, token, nb_ex, self.unk_cnt, self.token, self.nb_ex
+            #             print(unk_cnt, token, nb_ex, self.unk_cnt, self.token, self.nb_ex)
             self.unk_cnt += unk_cnt
             self.token += token
             self.nb_ex += nb_ex
@@ -1017,11 +1019,11 @@ def build_dataset_pp(src_fn, tgt_fn, bi_idx, max_nb_ex=None):
 #         log.info("building tgt_dic")
 #         tgt_pp.initialize(tgt)
 #
-#     print src_pp
+#     print(src_pp)
 #
-#     print tgt_pp
+#     print(tgt_pp)
 
-    print bi_idx
+    print(bi_idx)
 
     stats_src, stats_tgt = bi_idx.make_new_stat()
 
@@ -1030,7 +1032,7 @@ def build_dataset_pp(src_fn, tgt_fn, bi_idx, max_nb_ex=None):
     res = []
 
     for sentence_src, sentence_tgt in izip_must_equal(src, tgt):
-        #         print len(sentence_tgt), len(sentence_src)
+        #         print(len(sentence_tgt), len(sentence_src))
         seq_src, seq_tgt = bi_idx.convert(sentence_src, sentence_tgt, stats_src, stats_tgt)
         res.append((seq_src, seq_tgt))
 
@@ -1040,7 +1042,7 @@ def build_dataset_pp(src_fn, tgt_fn, bi_idx, max_nb_ex=None):
 def build_dataset_one_side_pp(src_fn, src_pp, max_nb_ex=None):
 
     src = FileMultiIterator(src_fn, max_nb_ex=max_nb_ex)
-    print src_pp
+    print(src_pp)
     if not src_pp.is_initialized():
         log.info("building src_dic")
         src_pp.initialize(src)
@@ -1051,7 +1053,7 @@ def build_dataset_one_side_pp(src_fn, src_pp, max_nb_ex=None):
     res = []
 
     for sentence_src in src:
-        #         print len(sentence_tgt), len(sentence_src)
+        #         print(len(sentence_tgt), len(sentence_src))
         seq_src = src_pp.convert(sentence_src, stats=stats_src)
         res.append(seq_src)
 
@@ -1076,8 +1078,8 @@ def load_pp_pair_from_file(filename):
         json.load(open(filename)))
     log.info("loading bilingual preprocessor from file %s", filename)
     log.info(str(bi_idx))
-#     print bi_idx.src_processor()
-#     print bi_idx.tgt_processor()
+#     print(bi_idx.src_processor())
+#     print(bi_idx.tgt_processor())
     return bi_idx
 
 

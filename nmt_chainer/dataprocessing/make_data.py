@@ -1,6 +1,8 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 """make_data.py: prepare data for training"""
+from __future__ import absolute_import, division, print_function, unicode_literals
+
 import nmt_chainer
 __author__ = "Fabien Cromieres"
 __license__ = "undecided"
@@ -57,7 +59,7 @@ def do_make_data(config):
         if os.path.exists(filename):
             already_existing_files.append(filename)
     if len(already_existing_files) > 0 and not config.processing.force_overwrite:
-        print "Warning: existing files are going to be replaced: ", already_existing_files
+        print("Warning: existing files are going to be replaced: ", already_existing_files)
         raw_input("Press Enter to Continue")
 
     if config.processing.use_voc is not None:

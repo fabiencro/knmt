@@ -6,6 +6,8 @@ __version__ = "1.0"
 __email__ = "fabien.cromieres@gmail.com"
 __status__ = "Development"
 
+from __future__ import absolute_import, division, print_function, unicode_literals
+
 import logging
 import codecs
 import exceptions
