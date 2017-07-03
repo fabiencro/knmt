@@ -4,8 +4,8 @@ import chainer.functions as F
 import chainer.links as L
 from chainer import Variable, Chain, ChainList
 
-LayerNormalization = L.LayerNormalization
-# import nmt_chainer.additional_links.layer_normalization.LayerNormalizationLink as LayerNormalization
+# LayerNormalization = L.LayerNormalization
+from nmt_chainer.additional_links.layer_normalization import LayerNormalizationLink as LayerNormalization
 
 
 ########################################################################
