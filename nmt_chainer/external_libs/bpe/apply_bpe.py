@@ -13,7 +13,7 @@ Proceedings of the 54th Annual Meeting of the Association for Computational Ling
 
 # Dec. 2016: Edited by Raj Dabre
 
-from __future__ import unicode_literals, division
+from __future__ import absolute_import, division, print_function, unicode_literals
 
 import sys
 import codecs
@@ -55,7 +55,7 @@ class BPE(object):
             for item in new_word[:-1]:
                 output.append(item + self.separator)
             output.append(new_word[-1])
-        # print output
+        # print(output)
         return ' '.join(output)
 
     def segment_splitted(self, sentence):
@@ -67,7 +67,7 @@ class BPE(object):
             for item in new_word[:-1]:
                 output.append(item + self.separator)
             output.append(new_word[-1])
-        # print output
+        # print(output)
         return output
 
 
