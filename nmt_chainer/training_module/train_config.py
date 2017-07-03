@@ -97,6 +97,7 @@ def define_parser(parser):
     training_monitoring_group.add_argument("--update_old_config_file_with_default_values", 
                                            default=False, action="store_true", help="When using older config files")
 
+    training_monitoring_group.add_argument("--generate_computation_graph", help="will generate computation graph of the first loss computed")
 
 class CommandLineValuesException(Exception):
     pass

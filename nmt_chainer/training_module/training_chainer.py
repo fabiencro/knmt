@@ -51,6 +51,28 @@ def example_complexity(ex):
 
 import numpy
 
+# def write_encdec_loss_computation_graph(encdec, dest_file):
+#     batch = [
+#         ([0,1,2], [3,5,6,7]),
+#         ([0, 0, 0,1,1], [6]),
+#         ([5], [2,3,0])
+#         ]
+#     
+#     src_batch, tgt_batch, src_mask = make_batch_src_tgt(batch, eos_idx=8, padding_idx=0, gpu=gpu, volatile="off", need_arg_sort=False)
+# 
+#     (total_loss, total_nb_predictions), attn = encdec(src_batch, tgt_batch, src_mask, raw_loss_info=True,
+#                                                           noise_on_prev_word=noise_on_prev_word,
+#                                                           use_previous_prediction=use_previous_prediction,
+#                                                           mode="train",
+#                                                           use_soft_prediction_feedback=use_soft_prediction_feedback, 
+#                                                           use_gumbel_for_soft_predictions=use_gumbel_for_soft_predictions,
+#                                                           temperature_for_soft_predictions=temperature_for_soft_predictions)
+#     loss = total_loss / total_nb_predictions
+#     
+#     import chainer.computational_graph as c
+#     g = c.build_computational_graph([loss])
+#     with open(dest_file, 'w') as o:
+#         o.write(g.dump())
 
 class SerialIteratorWithPeek(chainer.iterators.SerialIterator):
 
@@ -506,7 +528,8 @@ def train_on_data_chainer(encdec, optimizer, training_data, output_files_dict,
     use_gumbel_for_soft_predictions = config_training.training.use_gumbel_for_soft_predictions
     temperature_for_soft_predictions = config_training.training.temperature_for_soft_predictions
 
-
+    generate_computation_graph = config_training.training_management.generate_computation_graph
+    
     @chainer.training.make_extension()
     def sample_extension(trainer):
         encdec = trainer.updater.get_optimizer("main").target
@@ -531,6 +554,8 @@ def train_on_data_chainer(encdec, optimizer, training_data, output_files_dict,
                                                        repeat=True,
                                                        shuffle=reshuffle_every_epoch)
 
+
+    generate_loss_computation_graph_on_first_call = [generate_computation_graph is not None]
     def loss_func(src_batch, tgt_batch, src_mask):
 
         t0 = time.clock()
@@ -549,6 +574,15 @@ def train_on_data_chainer(encdec, optimizer, training_data, output_files_dict,
         chainer.reporter.report({"mb_loss": total_loss.data})
         chainer.reporter.report({"mb_nb_predictions": total_nb_predictions})
         chainer.reporter.report({"trg_loss": avg_loss.data})
+        
+        if generate_loss_computation_graph_on_first_call[0]:
+            log.info("Writing loss computation graph to %s", generate_computation_graph)
+            import chainer.computational_graph as c
+            g = c.build_computational_graph([avg_loss])
+            with open(generate_computation_graph, 'w') as o:
+                o.write(g.dump())
+            generate_loss_computation_graph_on_first_call[0] = False
+        
         return avg_loss
 
     def convert_mb(mb_raw, device):
