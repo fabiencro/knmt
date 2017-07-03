@@ -6,8 +6,8 @@ from chainer import Variable, Chain, ChainList
 
 from nmt_chainer.models.feedforward.utils import apply_linear_layer_to_last_dims
 
-LayerNormalization = L.LayerNormalization
-# import nmt_chainer.additional_links.layer_normalization.LayerNormalizationLink as LayerNormalization
+# LayerNormalization = L.LayerNormalization
+from nmt_chainer.additional_links.layer_normalization import LayerNormalizationLink as LayerNormalization
 
 ########################################################################
 # helper functions
