@@ -1,4 +1,5 @@
 """ Some utilities to leverage the argparse module and produce nicer config files."""
+from __future__ import absolute_import, division, print_function, unicode_literals
 
 from collections import OrderedDict
 import argparse
@@ -81,10 +82,10 @@ class OrderedNamespace(OrderedDict):
     def pretty_print(self, indent=4, discard_section=("metadata",)):
         for k, v in self.iteritems():
             if isinstance(v, OrderedNamespace) and k not in discard_section:
-                print " " * indent, k, ":"
+                print(" " * indent, k, ":")
                 v.pretty_print(indent=indent + 4, discard_section=())
             else:
-                print " " * indent, k, v
+                print(" " * indent, k, v)
 
     def copy(self, readonly=None):
         res = OrderedNamespace()
@@ -200,16 +201,16 @@ class ParserWithNoneDefaultAndNoGroup(object):
         self.parser = argparse.ArgumentParser()
 
     def add_argument(self, *args, **kwargs):
-        #         print " add_arg ", args, kwargs
+        #         print(" add_arg ", args, kwargs)
         if len(args) >= 5:
-            #             print "changing default args", args, kwargs
+            #             print("changing default args", args, kwargs)
             assert "default" not in kwargs
             args[4] = None
-#             print " -> ", args, kwargs
+#             print(" -> ", args, kwargs)
         elif "default" in kwargs:
-            #             print "changing default", args, kwargs
+            #             print("changing default", args, kwargs)
             kwargs["default"] = None
-#             print " -> ", args, kwargs
+#             print(" -> ", args, kwargs)
         self.parser.add_argument(*args, **kwargs)
 
     def add_argument_group(self, *args, **kwargs):

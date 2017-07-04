@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+from __future__ import absolute_import, division, print_function, unicode_literals
 """utils.py: Various utilitity functions for RNNSearch"""
 __author__ = "Fabien Cromieres"
 __license__ = "undecided"
@@ -294,7 +295,7 @@ def de_batch(batch, mask=None, eos_idx=None, is_variable=False, raw=False):
             current_batch_size = batch[src_pos].data.shape[0] if is_variable else batch[src_pos].shape[0]
             if (mask is None or
                     (src_pos < mask_offset or mask[src_pos - mask_offset][sent_num])) and current_batch_size > sent_num:
-                #                 print sent_num, src_pos, batch[src_pos].data
+                #                 print(sent_num, src_pos, batch[src_pos].data)
                 idx = batch[src_pos].data[sent_num] if is_variable else batch[src_pos][sent_num]
                 if not raw:
                     idx = int(idx)
@@ -316,15 +317,15 @@ def gen_ortho(shape):
 
 def ortho_init(link):
     if isinstance(link, chainer.links.Linear):
-        print "init ortho", link
+        print("init ortho", link)
         link.W.data[...] = gen_ortho(link.W.data.shape)
     elif isinstance(link, chainer.links.GRU):
-        print "init ortho", link
+        print("init ortho", link)
         for name_lin in "W_r U_r W_z U_z W U".split(" "):
-            print "case", name_lin, getattr(link, name_lin)
+            print("case", name_lin, getattr(link, name_lin))
             ortho_init(getattr(link, name_lin))
     elif isinstance(link, chainer.links.Maxout):
-        print "init ortho", link
+        print("init ortho", link)
         ortho_init(link.linear)
     else:
         raise NotImplemented

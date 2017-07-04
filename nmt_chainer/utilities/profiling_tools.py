@@ -1,3 +1,4 @@
+from __future__ import absolute_import, division, print_function, unicode_literals
 import chainer
 import chainer.function_hooks
 from chainer import function
@@ -61,9 +62,9 @@ class MyTimerHook(function.FunctionHook):
         self.call_times_per_classes = defaultdict(TimerElem)
 
     def __exit__(self, *_):
-        print self
+        print(self)
         self.print_sorted()
-        print "total time:"
+        print("total time:")
         print(self.total_time())
         super(MyTimerHook, self).__exit__(*_)
 
@@ -118,4 +119,4 @@ class MyTimerHook(function.FunctionHook):
 
     def print_sorted(self):
         for name, time in sorted(self.call_times_per_classes.items(), key=lambda x: x[1].total):
-            print name, time
+            print(name, time)

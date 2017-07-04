@@ -1,3 +1,4 @@
+from __future__ import absolute_import, division, print_function, unicode_literals
 import subprocess
 import os
 from collections import OrderedDict
@@ -135,34 +136,34 @@ def get_version_dict():
 
 def main(options=None):
     import nmt_chainer._version
-    print "package version:", nmt_chainer._version.__version__
-    print "installed in:", get_installed_path()
+    print("package version:", nmt_chainer._version.__version__)
+    print("installed in:", get_installed_path())
 
-    print "\n*********** chainer version ***********"
+    print("\n*********** chainer version ***********")
     chainer_infos = get_chainer_infos()
     for keyword in "version cuda cudnn cuda_version cudnn_version".split():
-        print keyword, chainer_infos[keyword]
+        print(keyword, chainer_infos[keyword])
 
-    print "\n\n********** package build info ***********"
-    print "package build (git hash):", get_package_git_hash()
+    print("\n\n********** package build info ***********")
+    print("package build (git hash):", get_package_git_hash())
     package_dirty_status = get_package_dirty_status()
     if package_dirty_status == "clean":
-        print "  - package git index is clean"
+        print("  - package git index is clean")
     elif package_dirty_status == "dirty":
-        print "  - package git index is dirty"
-        print "\npackage build diff (git diff):\n", get_package_git_diff()
+        print("  - package git index is dirty")
+        print("\npackage build diff (git diff):\n", get_package_git_diff())
 
-    print "\n\n********** current version info ***********"
-    print "git hash:", get_current_git_hash()
+    print("\n\n********** current version info ***********")
+    print("git hash:", get_current_git_hash())
 
     current_dirty_status = is_current_git_dirty()
 
     if current_dirty_status == "clean":
-        print "  - git index is clean"
+        print("  - git index is clean")
     elif current_dirty_status == "dirty":
-        print "  - git index is dirty"
-        print "\ngit diff:\n"
-        print get_current_git_diff()
+        print("  - git index is dirty")
+        print("\ngit diff:\n")
+        print(get_current_git_diff())
 
 
 if __name__ == "__main__":
