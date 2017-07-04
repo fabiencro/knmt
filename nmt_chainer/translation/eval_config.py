@@ -1,5 +1,5 @@
 """eval_config.py: parse evaluation argument and create configuration dictionnary"""
-
+from __future__ import absolute_import, division, print_function, unicode_literals
 from nmt_chainer.utilities import argument_parsing_tools
 
 _CONFIG_SECTION_TO_DESCRIPTION = {"method": "Translation Method",

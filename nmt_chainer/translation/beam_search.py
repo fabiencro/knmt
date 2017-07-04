@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 """beam_search.py: Implementation of beam_search"""
+from __future__ import absolute_import, division, print_function, unicode_literals
 __author__ = "Fabien Cromieres"
 __license__ = "undecided"
 __version__ = "1.0"
@@ -454,7 +455,7 @@ def ensemble_beam_search(model_ensemble, src_batch, src_mask, nb_steps, eos_idx,
         if current_translations_states is None:
             break
 
-#     print finished_translations, need_attention
+#     print(finished_translations, need_attention)
 
     # Return finished translations
     if len(finished_translations) == 0:

@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 """eval.py: Use a RNNSearch Model"""
+from __future__ import absolute_import, division, print_function, unicode_literals
 __author__ = "Fabien Cromieres"
 __license__ = "undecided"
 __version__ = "1.0"
@@ -157,9 +158,9 @@ def beam_search_all(gpu, encdec, eos_idx, src_data, beam_width, beam_pruning_mar
             for trans in translations:
                 (t, score, attn) = trans
                 if num_t % 200 == 0:
-                    print >>sys.stderr, num_t,
+                    print(num_t, file=sys.stderr)
                 elif num_t % 40 == 0:
-                    print >>sys.stderr, "*",
+                    print("*", file=sys.stderr)
 #                 t, score = bests[1]
 #                 ct = convert_idx_to_string(t, tgt_voc + ["#T_UNK#"])
 #                 ct = convert_idx_to_string_with_attn(t, tgt_voc, attn, unk_idx = len(tgt_voc))
@@ -196,7 +197,7 @@ def beam_search_all(gpu, encdec, eos_idx, src_data, beam_width, beam_pruning_mar
 
             yield res_trans
 
-        print >>sys.stderr
+        print('', file=sys.stderr)
 
 
 def translate_to_file_with_beam_search(dest_fn, gpu, encdec, eos_idx, src_data, beam_width, beam_pruning_margin, beam_score_coverage_penalty, beam_score_coverage_penalty_strength, nb_steps,
@@ -541,11 +542,11 @@ def do_eval(config_eval):
             if mode == "eval_bleu":
                 if ref is not None:
                     bc = bleu_computer.get_bc_from_files(ref, dest_fn)
-                    print "bleu before unk replace:", bc
+                    print("bleu before unk replace:", bc)
                     translation_infos["bleu"] = bc.bleu()
                     translation_infos["bleu_infos"] = str(bc)
                 else:
-                    print "bleu before unk replace: No Ref Provided"
+                    print("bleu before unk replace: No Ref Provided")
 
                 from nmt_chainer.utilities import replace_tgt_unk
                 replace_tgt_unk.replace_unk(dest_fn, src_fn, dest_fn + ".unk_replaced", dic, remove_unk,
@@ -555,11 +556,11 @@ def do_eval(config_eval):
 
                 if ref is not None:
                     bc = bleu_computer.get_bc_from_files(ref, dest_fn + ".unk_replaced")
-                    print "bleu after unk replace:", bc
+                    print("bleu after unk replace:", bc)
                     translation_infos["post_unk_bleu"] = bc.bleu()
                     translation_infos["post_unk_bleu_infos"] = str(bc)
                 else:
-                    print "bleu before unk replace: No Ref Provided"
+                    print("bleu before unk replace: No Ref Provided")
 
     elif mode == "translate_attn":
         log.info("writing translation + attention as html to %s" % dest_fn)
@@ -586,7 +587,7 @@ def do_eval(config_eval):
 #             for j in xrange(len(tgt_idx_list)):
 #                 tgt_idx_list.append(tgt_voc_with_unk[t_and_attn[j][0]])
 #
-    #         print [src_voc_with_unk[idx] for idx in src_idx_list], tgt_idx_list
+    #         print([src_voc_with_unk[idx] for idx in src_idx_list], tgt_idx_list)
 
             attn_vis.add_plot(src_w, tgt_w, attn)
 
@@ -628,7 +629,7 @@ def do_eval(config_eval):
 #             for j in xrange(len(tgt_idx_list)):
 #                 tgt_idx_list.append(tgt_voc_with_unk[t_and_attn[j][0]])
 #
-    #         print [src_voc_with_unk[idx] for idx in src_idx_list], tgt_idx_list
+    #         print([src_voc_with_unk[idx] for idx in src_idx_list], tgt_idx_list)
             p1 = visualisation.make_alignment_figure(
                 src_w, tgt_w, alignment)
 #             p2 = visualisation.make_alignment_figure(
@@ -639,7 +640,7 @@ def do_eval(config_eval):
         visualisation.show(p_all)
 #     for t in translations_with_attn:
 #         for x, attn in t:
-#             print x, attn
+#             print(x, attn)
 
 
 #         out.write(convert_idx_to_string([x for x, attn in t], tgt_voc + ["#T_UNK#"]) + "\n")
@@ -677,9 +678,9 @@ def do_eval(config_eval):
         res = []
         for num in xrange(len(nbest_converted)):
             if num % 200 == 0:
-                print >>sys.stderr, num,
+                print(num, file=sys.stderr)
             elif num % 50 == 0:
-                print >>sys.stderr, "*",
+                print("*", file=sys.stderr)
 
             res.append([])
             src, tgt_list = src_data[num], nbest_converted[num]
@@ -702,7 +703,7 @@ def do_eval(config_eval):
                     original_pos = arg_sort[xpos]
                     de_sorted_scores[original_pos] = scores[xpos]
                 res[-1] += de_sorted_scores
-        print >>sys.stderr
+        print('', file=sys.stderr)
         log.info("writing scores to %s" % dest_fn)
         out = codecs.open(dest_fn, "w", encoding="utf8")
         for num in xrange(len(res)):

@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 """server.py: Process requests to RNNSearch"""
+from __future__ import absolute_import, division, print_function, unicode_literals
 __author__ = "Frederic Bergeron"
 __license__ = "undecided"
 __version__ = "1.0"
