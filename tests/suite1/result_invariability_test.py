@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 """result_invariabitility_tests.py: Check if the code gives the same results."""
+from __future__ import absolute_import, division, print_function, unicode_literals
 __author__ = "Frederic Bergeron"
 __license__ = "undecided"
 __version__ = "1.0"
@@ -97,12 +98,12 @@ class TestResultInvariability:
             expected_translations = f.readlines()
         with open(search_file) as f:
             actual_translations = f.readlines()
-        print "expected_translations"
+        print("expected_translations")
         for p in expected_translations:
-            print p
-        print "actual_translations"
+            print(p)
+        print("actual_translations")
         for p in actual_translations:
-            print p
+            print(p)
 
         assert(actual_translations == expected_translations)
 
