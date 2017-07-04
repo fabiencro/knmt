@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 """graph_training.py: visualize training process"""
+from __future__ import absolute_import, division, print_function, unicode_literals
 __author__ = "Fabien Cromieres"
 __license__ = "undecided"
 __version__ = "1.0"
@@ -44,7 +45,7 @@ def generate_graph(sqldb, dest, title="Training Evolution"):
         *list(c.fetchall()))
 #     all = [[], [], [], []]
 #     for line in c.fetchall():
-#         print line
+#         print(line)
 # #         _, _, _, test_loss, test_bleu, dev_loss, dev_bleu = line
 #         test_loss, test_bleu, dev_loss, dev_bleu, avg_training_loss = line
 #         all[0].append(test_loss)

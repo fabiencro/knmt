@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 """bleu_computer.py: compute BLEU score"""
+from __future__ import absolute_import, division, print_function, unicode_literals
 __author__ = "Fabien Cromieres"
 __license__ = "undecided"
 __version__ = "1.0"
@@ -79,7 +80,7 @@ class BleuComputer(object):
                 reference_ngrams[ngram] += 1
             for start in xrange(0, len(translation) - n + 1):
                 ngram = tuple(translation[start: start + n])
-#                 print ngram
+#                 print(ngram)
                 translation_ngrams[ngram] += 1
             for ngram, translation_freq in translation_ngrams.iteritems():
                 reference_freq = reference_ngrams[ngram]
@@ -152,7 +153,7 @@ class BleuComputer(object):
                 reference_ngrams[ngram] += 1
             for start in xrange(0, len(translation) - n + 1):
                 ngram = tuple(translation[start: start + n])
-#                 print ngram
+#                 print(ngram)
                 translation_ngrams[ngram] += 1
             for ngram, translation_freq in translation_ngrams.iteritems():
                 reference_freq = reference_ngrams[ngram]
@@ -206,7 +207,7 @@ def compute_confidence_interval_from_sampler(bleu_sampler, nb_resampling, confid
     lower = bleu_list[threshold_95]
     higher = bleu_list[-threshold_95 - 1]
     sampled_mean = sum(bleu_list) / nb_resampling
-#     print bleu_list[0], lower, higher, bleu_list[-1]
+#     print(bleu_list[0], lower, higher, bleu_list[-1])
     return lower, higher, sampled_mean
 
 
@@ -236,7 +237,7 @@ def define_parser(parser):
 def do_bleu(args):
     if args.bootstrap is None:
         bc = get_bc_from_files(args.ref, args.translations)
-        print bc
+        print(bc)
     else:
         bleu_sampler = sample_bleu(args.ref, args.translations)
         lower, higher, sampled_mean = compute_confidence_interval_from_sampler(bleu_sampler,
@@ -244,8 +245,8 @@ def do_bleu(args):
                                                                                confidence_interval=0.95)
 
         bc = get_bc_from_files(args.ref, args.translations)
-        print bc
-        print "95%% confidence interval: %.02f - %.02f  (sampled mean:%.02f)" % (lower * 100, higher * 100, sampled_mean * 100)
+        print(bc)
+        print("95%% confidence interval: %.02f - %.02f  (sampled mean:%.02f)" % (lower * 100, higher * 100, sampled_mean * 100))
 
         if args.other_translation is not None:
             other_bleu_sampler = sample_bleu(args.ref, args.other_translation)
@@ -253,16 +254,16 @@ def do_bleu(args):
                                                                                    nb_resampling=args.bootstrap,
                                                                                    confidence_interval=0.95)
             bc = get_bc_from_files(args.ref, args.other_translation)
-            print "\nOther translation:"
-            print bc
-            print "95%% confidence interval: %.02f - %.02f  (sampled mean:%.02f)" % (lower * 100, higher * 100, sampled_mean * 100)
+            print("\nOther translation:")
+            print(bc)
+            print("95%% confidence interval: %.02f - %.02f  (sampled mean:%.02f)" % (lower * 100, higher * 100, sampled_mean * 100))
 
             this_better, other_better = compute_pairwise_superiority_from_sampler_pair(
                 bleu_sampler, other_bleu_sampler, nb_resampling=args.bootstrap)
 
             print
-            print "better than other:", this_better * 100, "% of times"
-            print "worse than other:", other_better * 100, "% of times"
+            print("better than other:", this_better * 100, "% of times")
+            print("worse than other:", other_better * 100, "% of times")
 
 
 def command_line():

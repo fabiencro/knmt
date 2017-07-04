@@ -1,3 +1,4 @@
+from __future__ import absolute_import, division, print_function, unicode_literals
 import os
 import os.path
 import json
@@ -239,7 +240,7 @@ def process_train_config(config_fn, dest_dir):
         has_graph = True
     except sqlite3.OperationalError as e:
         log.warn("could not create graph for %s" % train_prefix)
-        print e
+        print(e)
         has_graph = False
 
     f.write("<html><body>")

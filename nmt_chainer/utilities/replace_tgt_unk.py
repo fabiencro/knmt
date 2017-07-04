@@ -1,4 +1,5 @@
 """replace_tgt_unk.py: Simple utility to replace target unknown words in nmt output"""
+from __future__ import absolute_import, division, print_function, unicode_literals
 __author__ = "Fabien Cromieres"
 __license__ = "undecided"
 __version__ = "1.0"
