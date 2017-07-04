@@ -1,3 +1,4 @@
+from __future__ import absolute_import, division, print_function, unicode_literals
 import logging
 import codecs
 import exceptions
@@ -20,7 +21,7 @@ def load_lex(lex_file, inverse=False):
 
     dic = defaultdict(lambda: defaultdict(lambda: 0))
     for line in lex:
-        # print line
+        # print(line)
         fr, en, prob = line.split(r' ')
         if inverse is True:
             dic[en][fr] = prob
@@ -54,11 +55,11 @@ def commandline():
             if(prob_f_b > float(prob[fr])):
                 prob[fr] = prob_f_b
                 dic[fr] = en
-    #         print "%s, %s, %s, %s, %s" % (fr, en, dic_e2f[fr][en], dic_f2e[fr][en], prob_f_b)
+    #         print("%s, %s, %s, %s, %s" % (fr, en, dic_e2f[fr][en], dic_f2e[fr][en], prob_f_b))
 
-    # print "======"
+    # print("======")
     # for fr in dic:
-    #     print fr, dic[fr], prob[fr]
+    #     print(fr, dic[fr], prob[fr])
     log.info("saving")
     json.dump(dic, open(args.dest_dic, "w"))
 
