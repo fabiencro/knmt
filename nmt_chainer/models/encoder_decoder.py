@@ -6,6 +6,8 @@ __version__ = "1.0"
 __email__ = "fabien.cromieres@gmail.com"
 __status__ = "Development"
 
+from __future__ import absolute_import, division, print_function, unicode_literals
+
 import numpy as np
 import chainer
 from chainer import cuda, Variable
@@ -750,7 +752,7 @@ class EncoderDecoder(Chain):
 #
 #         ci, attn = compute_ctxt(previous_state)
 #         concatenated = F.concat( (prev_y, ci) )
-# #             print concatenated.data.shape
+# #             print(concatenated.data.shape)
 #         new_state = self.gru(previous_state, concatenated)
 #
 #         all_concatenated = F.concat((concatenated, new_state))
