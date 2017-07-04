@@ -385,7 +385,7 @@ def do_train(config_training):
         def timer_hook():
             yield
 
-    import training_chainer
+    from . import training_chainer
     with cuda.get_device(gpu):
         with timer_hook() as timer_infos:
 
