@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 """client.py: Client that can issue requests to KNMT Server."""
+from __future__ import absolute_import, division, print_function, unicode_literals
 __author__ = "Frederic Bergeron"
 __license__ = "undecided"
 __version__ = "1.0"

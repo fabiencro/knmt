@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 """eval.py: Use a RNNSearch Model"""
+from __future__ import absolute_import, division, print_function, unicode_literals
 
 __author__ = "Fabien Cromieres"
 __license__ = "undecided"
@@ -13,7 +14,7 @@ import numpy as np
 import math
 import codecs
 import operator
-import beam_search
+from . import beam_search
 # import h5py
 
 logging.basicConfig()
@@ -180,7 +181,7 @@ def beam_search_translate(encdec, eos_idx, src_data, beam_width=20, beam_pruning
         if len(translations) > 1:
             translations = [t for t in translations if len(t[0]) > 0]
 
-#         print "nb_trans", len(translations), [score for _, score in translations]
+#         print("nb_trans", len(translations), [score for _, score in translations])
 #         translations.sort(key = itemgetter(1), reverse = True)
 
         if reverse_encdec is not None and len(translations) > 1:
@@ -254,7 +255,7 @@ def batch_align(encdec, eos_idx, src_tgt_data, batch_size=80, gpu=None):
     attn_all = []
     for i in range(nb_batch):
         current_batch_raw_data = src_tgt_data[i * batch_size: (i + 1) * batch_size]
-#         print current_batch_raw_data
+#         print(current_batch_raw_data)
         src_batch, tgt_batch, src_mask, arg_sort = make_batch_src_tgt(
             current_batch_raw_data, eos_idx=eos_idx, gpu=gpu, volatile="on", need_arg_sort=True)
         loss, attn_list = encdec(src_batch, tgt_batch, src_mask, keep_attn_values=True)
@@ -300,7 +301,7 @@ def batch_align(encdec, eos_idx, src_tgt_data, batch_size=80, gpu=None):
 
 def sample_once(encdec, src_batch, tgt_batch, src_mask, src_indexer, tgt_indexer, eos_idx, max_nb=None,
                 s_unk_tag="#S_UNK#", t_unk_tag="#T_UNK#"):
-    print "sample"
+    print("sample")
     sample_greedy, score, attn_list = encdec(src_batch, 50, src_mask, use_best_for_sample=True, need_score=True,
                                              mode="test")
 
@@ -325,13 +326,13 @@ def sample_once(encdec, src_batch, tgt_batch, src_mask, src_indexer, tgt_indexer
         sample_idx_seq = debatched_sample[sent_num]
         sample_random_idx_seq = debatched_sample_random[sent_num]
 
-        print "sent num", sent_num
+        print("sent num", sent_num)
 
         for name, seq, unk_tag, indexer, this_eos_idx in zip("src tgt sample sample_random".split(" "),
                                                              [src_idx_seq, tgt_idx_seq, sample_idx_seq, sample_random_idx_seq],
                                                              [s_unk_tag, t_unk_tag, t_unk_tag, t_unk_tag],
                                                              [src_indexer, tgt_indexer, tgt_indexer, tgt_indexer],
                                                              [None, eos_idx, eos_idx, eos_idx]):
-            print name, "idx:", seq
-            print name, "raw:", " ".join(indexer.deconvert_swallow(seq, unk_tag=unk_tag, eos_idx=this_eos_idx)).encode('utf-8')
-            print name, "postp:", indexer.deconvert(seq, unk_tag=unk_tag, eos_idx=this_eos_idx).encode('utf-8')
+            print(name, "idx:", seq)
+            print(name, "raw:", " ".join(indexer.deconvert_swallow(seq, unk_tag=unk_tag, eos_idx=this_eos_idx)).encode('utf-8'))
+            print(name, "postp:", indexer.deconvert(seq, unk_tag=unk_tag, eos_idx=this_eos_idx).encode('utf-8'))
