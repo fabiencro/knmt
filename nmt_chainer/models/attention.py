@@ -1,12 +1,12 @@
 #!/usr/bin/env python
 """attention.py: Implementation of Attention mechanisms"""
+from __future__ import absolute_import, division, print_function, unicode_literals
+
 __author__ = "Fabien Cromieres"
 __license__ = "undecided"
 __version__ = "1.0"
 __email__ = "fabien.cromieres@gmail.com"
 __status__ = "Development"
-
-from __future__ import absolute_import, division, print_function, unicode_literals
 
 from chainer import cuda, Variable
 from chainer import Link, Chain, ChainList

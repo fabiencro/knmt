@@ -1,12 +1,12 @@
 #!/usr/bin/env python
 """models.py: Implementation of RNNSearch in Chainer"""
+from __future__ import absolute_import, division, print_function, unicode_literals
+
 __author__ = "Fabien Cromieres"
 __license__ = "undecided"
 __version__ = "1.0"
 __email__ = "fabien.cromieres@gmail.com"
 __status__ = "Development"
-
-from __future__ import absolute_import, division, print_function, unicode_literals
 
 import numpy as np
 import chainer
