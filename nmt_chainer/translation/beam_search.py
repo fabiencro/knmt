@@ -98,16 +98,16 @@ def update_next_lists(num_case, idx_in_case, new_cost, eos_idx, new_state_ensemb
     """
     if idx_in_case == eos_idx:
         if need_attention:
-            finished_translations.append((current_translations[num_case],
+            finished_translations.append((current_translations[int(num_case)],
                                           -new_cost,
-                                          current_attentions[num_case]
+                                          current_attentions[int(num_case)]
                                           ))
         else:
-            finished_translations.append((current_translations[num_case],
+            finished_translations.append((current_translations[int(num_case)],
                                           -new_cost))
     else:
         next_states_list.append(
-            [tuple([Variable(substates.data[num_case].reshape(1, -1), volatile="auto") for substates in new_state])
+            [tuple([Variable(substates.data[int(num_case)].reshape(1, -1), volatile="auto") for substates in new_state])
              for new_state in new_state_ensemble]
         )
 
@@ -117,24 +117,24 @@ def update_next_lists(num_case, idx_in_case, new_cost, eos_idx, new_state_ensemb
         # Compute the normalized score if needed.
         if beam_score_coverage_penalty == "google":
             coverage_penalty = 0
-            if len(current_attentions[num_case]) > 0:
+            if len(current_attentions[int(num_case)]) > 0:
                 xp = cuda.get_array_module(attn_ensemble[0].data)
                 log_of_min_of_sum_over_j = xp.log(xp.minimum(
-                    sum(current_attentions[num_case]), xp.array(1.0)))
+                    sum(current_attentions[int(num_case)]), xp.array(1.0)))
                 coverage_penalty = beam_score_coverage_penalty_strength * \
                     xp.sum(log_of_min_of_sum_over_j)
             normalized_score = -new_cost + coverage_penalty
             next_normalized_score_list.append(normalized_score)
 
         next_translations_list.append(
-            current_translations[num_case] + [idx_in_case])
+            current_translations[int(num_case)] + [idx_in_case])
         if need_attention:
             xp = cuda.get_array_module(attn_ensemble[0].data)
             attn_summed = xp.zeros((attn_ensemble[0].data[0].shape), dtype=xp.float32)
             for attn in attn_ensemble:
-                attn_summed += attn.data[num_case]
+                attn_summed += attn.data[int(num_case)]
             attn_summed /= len(attn_ensemble)
-            next_attentions_list.append(current_attentions[num_case] + [attn_summed])
+            next_attentions_list.append(current_attentions[int(num_case)] + [attn_summed])
 
 
 def compute_next_lists(new_state_ensemble, new_scores, beam_width, beam_pruning_margin,
@@ -187,11 +187,11 @@ def compute_next_lists(new_state_ensemble, new_scores, beam_width, beam_pruning_
         score_iterator = iterate_best_score(new_scores, beam_width)
 
     for num_case, idx_in_case, new_cost in score_iterator:
-        if len(current_translations[num_case]) > 0:
+        if len(current_translations[int(num_case)]) > 0:
             if beam_score_length_normalization == 'simple':
-                new_cost /= len(current_translations[num_case])
+                new_cost /= len(current_translations[int(num_case)])
             elif beam_score_length_normalization == 'google':
-                new_cost /= (pow((len(current_translations[num_case]) + 5), beam_score_length_normalization_strength) / pow(6, beam_score_length_normalization_strength))
+                new_cost /= (pow((len(current_translations[int(num_case)]) + 5), beam_score_length_normalization_strength) / pow(6, beam_score_length_normalization_strength))
         update_next_lists(num_case, idx_in_case, new_cost, eos_idx, new_state_ensemble,
                           finished_translations, current_translations, current_attentions,
                           next_states_list, next_words_list, next_score_list, next_normalized_score_list, next_translations_list,
