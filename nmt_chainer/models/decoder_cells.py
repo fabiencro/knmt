@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 """decoder_cells.py: Implementation of RNNSearch in Chainer"""
+from __future__ import absolute_import, division, print_function, unicode_literals
 __author__ = "Fabien Cromieres"
 __license__ = "undecided"
 __version__ = "1.0"
@@ -14,12 +15,12 @@ import chainer.functions as F
 import chainer.links as L
 import random
 
-import rnn_cells
+from . import rnn_cells
 from nmt_chainer.utilities.utils import ortho_init, minibatch_sampling
 
 from nmt_chainer.utilities.constant_batch_mul import batch_matmul_constant, matmul_constant
 
-from attention import AttentionModule
+from .attention import AttentionModule
 
 import logging
 logging.basicConfig()
