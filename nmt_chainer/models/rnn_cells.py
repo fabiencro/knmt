@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 """rnn_cells.py: Wrappers around various RNN Cell types"""
-# from __future__ import absolute_import, division, print_function, unicode_literals
+from __future__ import absolute_import, division, print_function, unicode_literals
 __author__ = "Fabien Cromieres"
 __license__ = "undecided"
 __version__ = "1.0"
