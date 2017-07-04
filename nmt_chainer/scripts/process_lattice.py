@@ -24,7 +24,7 @@ from evaluation import (greedy_batch_translate,
 from nmt_chainer.utilities import visualisation
 
 import logging
-import codecs
+import io
 # import h5py
 
 logging.basicConfig()
@@ -34,7 +34,6 @@ log.setLevel(logging.INFO)
 from collections import defaultdict
 import functools
 import re
-import codecs
 import sys
 import operator
 import itertools
@@ -982,7 +981,7 @@ def command_line2():
     if args.gpu is not None:
         encdec = encdec.to_gpu(args.gpu)
 
-    src_sent_f = codecs.open(args.source_sentence_fn, encoding="utf8")
+    src_sent_f = io.open(args.source_sentence_fn, 'rt', encoding="utf8")
     for _ in range(args.skip_in_src):
         src_sent_f.readline()
     src_sentence = src_sent_f.readline().strip().split(" ")
@@ -991,7 +990,7 @@ def command_line2():
     log.info("src seq: %r" % src_seq)
 
     log.info("loading lattice %s" % args.lattice_fn)
-    lattice_f = codecs.open(args.lattice_fn, "r", encoding="utf8")
+    lattice_f = io.open(args.lattice_fn, "rt", encoding="utf8")
     all_edges = parse_lattice_file(lattice_f)
     log.info("loaded")
 
@@ -1108,7 +1107,7 @@ def commandline():
 
     args = parser.parse_args()
 
-    lattice_f = codecs.open(args.lattice_fn, "r", encoding="utf8")
+    lattice_f = io.open(args.lattice_fn, "rt", encoding="utf8")
 
     print("loading", args.lattice_fn)
     all_edges = parse_lattice_file(lattice_f)

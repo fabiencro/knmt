@@ -12,7 +12,7 @@ import os
 
 from collections import defaultdict
 import math
-import codecs
+import io
 from itertools import izip
 
 
@@ -168,8 +168,8 @@ class BleuComputer(object):
 
 def sample_bleu(ref_fn, trans_fn):
     import numpy
-    ref_file = codecs.open(ref_fn, "r", encoding="utf8")
-    trans_file = codecs.open(trans_fn, "r", encoding="utf8")
+    ref_file = io.open(ref_fn, "rt", encoding="utf8")
+    trans_file = io.open(trans_fn, "rt", encoding="utf8")
     infos_list = []
     for line_ref, line_trans in izip(ref_file, trans_file):
         r = line_ref.strip().split(" ")
@@ -185,8 +185,8 @@ def sample_bleu(ref_fn, trans_fn):
 
 
 def get_bc_from_files(ref_fn, trans_fn):
-    ref_file = codecs.open(ref_fn, "r", encoding="utf8")
-    trans_file = codecs.open(trans_fn, "r", encoding="utf8")
+    ref_file = io.open(ref_fn, "rt", encoding="utf8")
+    trans_file = io.open(trans_fn, "rt", encoding="utf8")
 
     bc = BleuComputer()
     for line_ref, line_trans in izip(ref_file, trans_file):

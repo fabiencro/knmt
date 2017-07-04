@@ -13,7 +13,7 @@ from nmt_chainer.translation.eval_config import load_config_eval
 from nmt_chainer.dataprocessing.make_data_conf import load_config as load_config_data
 import nmt_chainer
 from collections import defaultdict
-import codecs
+import io
 import itertools
 import cgi
 
@@ -114,18 +114,18 @@ table, th, td {
     
     lst_outputs = []
     if src_fn is not None:
-        lst_outputs.append(("src", codecs.open(src_fn, encoding = "utf8")))
+        lst_outputs.append(("src", io.open(src_fn, 'rt', encoding = "utf8")))
     
     if ref_fn is not None:
-        lst_outputs.append(("ref", codecs.open(ref_fn, encoding = "utf8")))
+        lst_outputs.append(("ref", io.open(ref_fn, 'rt', encoding = "utf8")))
             
     if os.path.isfile(eval_prefix + ".unprocessed"):
-        lst_outputs.append(("unprocessed", codecs.open(eval_prefix + ".unprocessed", encoding = "utf8")))
+        lst_outputs.append(("unprocessed", io.open(eval_prefix + ".unprocessed", 'rt', encoding = "utf8")))
             
-    lst_outputs.append(("out", codecs.open(eval_prefix, encoding = "utf8")))
+    lst_outputs.append(("out", io.open(eval_prefix, 'rt', encoding = "utf8")))
     
     if os.path.isfile(eval_prefix + ".unk_replaced"):
-        lst_outputs.append(("unk_repl", codecs.open(eval_prefix + ".unk_replaced", encoding = "utf8")))
+        lst_outputs.append(("unk_repl", io.open(eval_prefix + ".unk_replaced", 'rt', encoding = "utf8")))
     
     tags_list, files_list = zip(*lst_outputs)
     for num_line, line_list in enumerate(itertools.izip(*files_list)):

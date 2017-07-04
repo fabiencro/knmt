@@ -12,7 +12,7 @@ from nmt_chainer.utilities.utils import make_batch_src, make_batch_src_tgt, mini
 import logging
 import numpy as np
 import math
-import codecs
+import io
 import operator
 from . import beam_search
 # import h5py
@@ -33,7 +33,7 @@ def translate_to_file(encdec, eos_idx, test_src_data, mb_size, tgt_indexer,
                                           reverse_src=reverse_src, reverse_tgt=reverse_tgt)
 
     log.info("writing translation of set to %s" % translations_fn)
-    out = codecs.open(translations_fn, "w", encoding="utf8")
+    out = io.open(translations_fn, "wt", encoding="utf8")
     for t in translations:
         if t[-1] == eos_idx:
             t = t[:-1]
@@ -42,7 +42,7 @@ def translate_to_file(encdec, eos_idx, test_src_data, mb_size, tgt_indexer,
 
     if control_src_fn is not None:
         assert src_indexer is not None
-        control_out = codecs.open(control_src_fn, "w", encoding="utf8")
+        control_out = io.open(control_src_fn, "wt", encoding="utf8")
         log.info("writing src of test set to %s" % control_src_fn)
         for s in test_src_data:
             #             control_out.write(convert_idx_to_string(s, src_voc) + "\n")

@@ -16,7 +16,7 @@ Proceedings of the 54th Annual Meeting of the Association for Computational Ling
 from __future__ import absolute_import, division, print_function, unicode_literals
 
 import sys
-import codecs
+import io
 import argparse
 from collections import defaultdict
 
@@ -30,14 +30,11 @@ argparse.open = open
 #   sys.stdout = codecs.getwriter('UTF-8')(sys.stdout)
 #   sys.stdin = codecs.getreader('UTF-8')(sys.stdin)
 
-import codecs
-
-
 class BPE(object):
 
     def __init__(self, codes, separator='__'):
 
-        with codecs.open(codes.name, encoding='utf-8') as codes:
+        with io.open(codes.name, 'rt', encoding='utf-8') as codes:
             self.bpe_codes = [tuple(item.split()) for item in codes]
 
         # some hacking to deal with duplicates (only consider first instance)

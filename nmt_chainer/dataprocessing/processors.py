@@ -10,7 +10,7 @@ from nmt_chainer.dataprocessing.indexer import Indexer
 
 import logging
 import json
-import codecs
+import io 
 import itertools
 import re
 import copy
@@ -78,7 +78,7 @@ class FileMultiIterator(object):
         self.max_nb_ex = max_nb_ex
 
         if can_iter:
-            self.f = codecs.open(self.filename, encoding="utf8")
+            self.f = io.open(self.filename, 'rt', encoding="utf8")
             self.nb_line_read = 0
 
     def next(self):
@@ -425,13 +425,13 @@ class BPEProcessing(MonoProcessor):
 
     def load_bpe(self):
         log.info("loading BPE data from %s", self.bpe_data_file)
-        with codecs.open(self.bpe_data_file, "r", encoding="utf8") as codes:
+        with io.open(self.bpe_data_file, "rt", encoding="utf8") as codes:
             self.bpe = apply_bpe.BPE(codes, self.separator)
         self.is_initialized_ = True
 
     def initialize(self, iterable):
         log.info("Creating BPE data and saving it to %s", self.bpe_data_file)
-        with codecs.open(self.bpe_data_file, "w", encoding="utf8") as output:
+        with io.open(self.bpe_data_file, "wt", encoding="utf8") as output:
             learn_bpe.learn_bpe_from_sentence_iterable(iterable, output=output,
                                                        symbols=self.symbols,
                                                        min_frequency=self.min_frequency,
@@ -699,7 +699,7 @@ class LatinScriptProcess(MonoProcessor):
 #
 #
 #     def __iter__(self):
-#         with codecs.open(self.filename, encoding="utf8") as f:
+#         with io.open(self.filename, 'rt', encoding="utf8") as f:
 #             for num_line, line in enumerate(f):
 # #                 print(self.filename, num_line, self.max_nb_ex)
 #                 if self.max_nb_ex is not None and num_line >= self.max_nb_ex:

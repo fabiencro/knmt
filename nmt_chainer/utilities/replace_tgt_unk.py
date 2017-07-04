@@ -6,7 +6,7 @@ __version__ = "1.0"
 __email__ = "fabien.cromieres@gmail.com"
 __status__ = "Development"
 
-import codecs
+import io 
 import itertools
 import json
 import unicodedata
@@ -59,10 +59,10 @@ def replace_unk_from_string(translation_str, src_str, dic_fn, remove_unk, normal
 def replace_unk(translations, src_file, dest, dic_fn, remove_unk, normalize_unicode_unk,
                 attempt_to_relocate_unk_source):
 
-    ft = codecs.open(translations, encoding="utf8")
-    fs = codecs.open(src_file, encoding="utf8")
+    ft = io.open(translations, 'rt', encoding="utf8")
+    fs = io.open(src_file, 'rt', encoding="utf8")
 
-    fd = codecs.open(dest, "w", encoding="utf8")
+    fd = io.open(dest, "wt", encoding="utf8")
 
     dic = None
     if dic_fn is not None:
