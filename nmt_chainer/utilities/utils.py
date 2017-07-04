@@ -33,12 +33,12 @@ def make_batch_src(src_data, padding_idx=0, gpu=None, volatile="off"):
     min_src_size = min(len(x) for x in src_data)
     mb_size = len(src_data)
 
-    src_batch = [np.empty((mb_size,), dtype=np.int32) for _ in xrange(max_src_size)]
-    src_mask = [np.empty((mb_size,), dtype=np.bool) for _ in xrange(max_src_size - min_src_size)]
+    src_batch = [np.empty((mb_size,), dtype=np.int32) for _ in range(max_src_size)]
+    src_mask = [np.empty((mb_size,), dtype=np.bool) for _ in range(max_src_size - min_src_size)]
 
-    for num_ex in xrange(mb_size):
+    for num_ex in range(mb_size):
         this_src_len = len(src_data[num_ex])
-        for i in xrange(max_src_size):
+        for i in range(max_src_size):
             if i < this_src_len:
                 src_batch[i][num_ex] = src_data[num_ex][i]
                 if i >= min_src_size:
@@ -71,7 +71,7 @@ def make_batch_src_tgt(training_data, eos_idx=1, padding_idx=0, gpu=None, volati
 
     lengths_list = []
     lowest_non_finished = mb_size - 1
-    for pos in xrange(max_tgt_size + 1):
+    for pos in range(max_tgt_size + 1):
         while pos > len(training_data[lowest_non_finished][1]):
             lowest_non_finished -= 1
             assert lowest_non_finished >= 0
@@ -81,11 +81,11 @@ def make_batch_src_tgt(training_data, eos_idx=1, padding_idx=0, gpu=None, volati
         lengths_list.append(mb_length_at_this_pos)
 
     tgt_batch = []
-    for i in xrange(max_tgt_size + 1):
+    for i in range(max_tgt_size + 1):
         current_mb_size = lengths_list[i]
         assert current_mb_size > 0
         tgt_batch.append(np.empty((current_mb_size,), dtype=np.int32))
-        for num_ex in xrange(current_mb_size):
+        for num_ex in range(current_mb_size):
             assert len(training_data[num_ex][1]) >= i
             if len(training_data[num_ex][1]) == i:
                 tgt_batch[-1][num_ex] = eos_idx
@@ -116,7 +116,7 @@ def make_batch_tgt(training_data, eos_idx=1, gpu=None, volatile="off", need_arg_
 
     lengths_list = []
     lowest_non_finished = mb_size - 1
-    for pos in xrange(max_tgt_size + 1):
+    for pos in range(max_tgt_size + 1):
         while pos > len(training_data[lowest_non_finished]):
             lowest_non_finished -= 1
             assert lowest_non_finished >= 0
@@ -126,11 +126,11 @@ def make_batch_tgt(training_data, eos_idx=1, gpu=None, volatile="off", need_arg_
         lengths_list.append(mb_length_at_this_pos)
 
     tgt_batch = []
-    for i in xrange(max_tgt_size + 1):
+    for i in range(max_tgt_size + 1):
         current_mb_size = lengths_list[i]
         assert current_mb_size > 0
         tgt_batch.append(np.empty((current_mb_size,), dtype=np.int32))
-        for num_ex in xrange(current_mb_size):
+        for num_ex in range(current_mb_size):
             assert len(training_data[num_ex]) >= i
             if len(training_data[num_ex]) == i:
                 tgt_batch[-1][num_ex] = eos_idx
@@ -191,7 +191,7 @@ def batch_sort_and_split(batch, size_parts, sort_key=lambda x: len(x[1]), inplac
         batch = list(batch)
     batch.sort(key=sort_key)
     nb_mb_for_sorting = int(len(batch) / size_parts + (1 if len(batch) % size_parts != 0 else 0))
-    for num_batch in xrange(nb_mb_for_sorting):
+    for num_batch in range(nb_mb_for_sorting):
         mb_raw = batch[num_batch * size_parts: (num_batch + 1) * size_parts]
         yield mb_raw
 
@@ -288,7 +288,7 @@ def de_batch(batch, mask=None, eos_idx=None, is_variable=False, raw=False):
     if mask is not None:
         mask_offset = len(batch) - len(mask)
         assert mask_offset >= 0
-    for sent_num in xrange(mb_size):
+    for sent_num in range(mb_size):
         assert sent_num == len(res)
         res.append([])
         for src_pos in range(len(batch)):
@@ -335,10 +335,10 @@ def compute_lexicon_matrix(src_batch, lexical_probability_dictionary, V_tgt):
     real_mb_size = src_batch[0].data.shape[0]
     max_source_size = len(src_batch)
     lexicon_matrix = np.zeros((real_mb_size, max_source_size, V_tgt), dtype=np.float32)
-    for src_pos in xrange(max_source_size):
+    for src_pos in range(max_source_size):
         # TODO: check if this is too slow
         src_batch_cpu = cuda.to_cpu(src_batch[src_pos].data)
-        for num_mb in xrange(real_mb_size):
+        for num_mb in range(real_mb_size):
             src_idx = int(src_batch_cpu[num_mb])
             if src_idx in lexical_probability_dictionary:
                 for tgt_idx, lex_prob in lexical_probability_dictionary[src_idx].iteritems(

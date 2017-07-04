@@ -44,7 +44,7 @@ def iterate_best_score(new_scores, beam_width):
     all_num_cases = best_idx / v_size
     all_idx_in_cases = best_idx % v_size
 
-    for num in xrange(len(best_idx)):
+    for num in range(len(best_idx)):
         idx = best_idx[num]
         num_case = all_num_cases[num]
         idx_in_case = all_idx_in_cases[num]
@@ -54,7 +54,7 @@ def iterate_best_score(new_scores, beam_width):
 def iterate_eos_scores(new_scores, eos_idx):
     nb_cases, v_size = new_scores.shape
 
-    for num_case in xrange(nb_cases):
+    for num_case in range(nb_cases):
         idx_in_case = eos_idx
         yield num_case, idx_in_case, cuda.to_cpu(new_scores[num_case, eos_idx])
 
@@ -436,7 +436,7 @@ def ensemble_beam_search(model_ensemble, src_batch, src_mask, nb_steps, eos_idx,
     )
 
     # Proceed with the search
-    for num_step in xrange(nb_steps):
+    for num_step in range(nb_steps):
         current_translations_states = advance_one_step(
             dec_cell_ensemble,
             eos_idx,

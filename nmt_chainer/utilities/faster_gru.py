@@ -526,10 +526,10 @@ def test_perf(args):
         st = cuda.to_gpu(st, args.gpu)
 
     print("start")
-    for _ in xrange(300):
+    for _ in range(300):
         x_v = Variable(x)
         st_v = Variable(st)
-        for _ in xrange(20):
+        for _ in range(20):
             st_v = gru(st_v, x_v)
         loss = chainer.functions.sum(st_v)
         loss.backward()
