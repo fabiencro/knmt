@@ -34,7 +34,7 @@ class BleuComputer(object):
     def __repr__(self):
         res = []
         res.append("bleu:%f%%   " % (self.bleu() * 100))
-        for n in xrange(1, 5):
+        for n in range(1, 5):
             if self.ngrams_total[n] == 0:
                 assert self.ngrams_corrects[n] == 0
                 ratio_n = 1
@@ -72,13 +72,13 @@ class BleuComputer(object):
     def update(self, reference, translation):
         self.ref_length += len(reference)
         self.total_length += len(translation)
-        for n in xrange(1, 5):
+        for n in range(1, 5):
             reference_ngrams = defaultdict(int)
             translation_ngrams = defaultdict(int)
-            for start in xrange(0, len(reference) - n + 1):
+            for start in range(0, len(reference) - n + 1):
                 ngram = tuple(reference[start: start + n])
                 reference_ngrams[ngram] += 1
-            for start in xrange(0, len(translation) - n + 1):
+            for start in range(0, len(translation) - n + 1):
                 ngram = tuple(translation[start: start + n])
 #                 print(ngram)
                 translation_ngrams[ngram] += 1
@@ -93,7 +93,7 @@ class BleuComputer(object):
 
     def update_plus(self, diff):
         ngrams_corrects, ngrams_total, t_len, r_len = diff
-        for n in xrange(1, 5):
+        for n in range(1, 5):
             self.ngrams_corrects[n] += ngrams_corrects[n]
             self.ngrams_total[n] += ngrams_total[n]
         self.ref_length += r_len
@@ -101,7 +101,7 @@ class BleuComputer(object):
 
     def update_minus(self, diff):
         ngrams_corrects, ngrams_total, t_len, r_len = diff
-        for n in xrange(1, 5):
+        for n in range(1, 5):
             self.ngrams_corrects[n] -= ngrams_corrects[n]
             self.ngrams_total[n] -= ngrams_total[n]
             assert self.ngrams_corrects[n] >= 0
@@ -115,8 +115,8 @@ class BleuComputer(object):
     @staticmethod
     def compute_ngram_info(sentence):
         infos = defaultdict(int)
-        for n in xrange(1, 5):
-            for start in xrange(0, len(sentence) - n + 1):
+        for n in range(1, 5):
+            for start in range(0, len(sentence) - n + 1):
                 ngram = tuple(sentence[start: start + n])
                 infos[ngram] += 1
         return infos, len(sentence)
@@ -145,13 +145,13 @@ class BleuComputer(object):
         ngrams_corrects = {1: 0, 2: 0, 3: 0, 4: 0}
         ngrams_total = {1: 0, 2: 0, 3: 0, 4: 0}
 
-        for n in xrange(1, 5):
+        for n in range(1, 5):
             reference_ngrams = defaultdict(int)
             translation_ngrams = defaultdict(int)
-            for start in xrange(0, len(reference) - n + 1):
+            for start in range(0, len(reference) - n + 1):
                 ngram = tuple(reference[start: start + n])
                 reference_ngrams[ngram] += 1
-            for start in xrange(0, len(translation) - n + 1):
+            for start in range(0, len(translation) - n + 1):
                 ngram = tuple(translation[start: start + n])
 #                 print(ngram)
                 translation_ngrams[ngram] += 1

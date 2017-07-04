@@ -76,7 +76,7 @@ class EncoderNSteps(Chain):
         de_batched_seq = []
         for num_seq in range(mb_size):
             de_batched_seq.append(self.xp.empty((seq_length[num_seq],), dtype=self.xp.int32))
-            for i in xrange(seq_length[num_seq]):
+            for i in range(seq_length[num_seq]):
                 de_batched_seq[-1][i] = sequence[i].data[num_seq]
             de_batched_seq[-1] = Variable(de_batched_seq[-1], volatile="auto")
 
@@ -95,7 +95,7 @@ class EncoderNSteps(Chain):
         assert len(backward_seq) == len(forward_seq) == mb_size
 
         res = []
-        for num_seq in xrange(mb_size):
+        for num_seq in range(mb_size):
             assert backward_seq[num_seq].data.shape[0] == forward_seq[num_seq].data.shape[0]
             fb_concatenated = F.concat(
                 (forward_seq[num_seq], backward_seq[num_seq][::-1]), 1)
@@ -189,7 +189,7 @@ class Encoder(Chain):
                 output = prev_states[-1]
 
                 masked_prev_states = [None] * len(prev_states)
-                for num_state in xrange(len(prev_states)):
+                for num_state in range(len(prev_states)):
                     masked_prev_states[num_state] = F.where(reshaped_mask,
                                                             prev_states[num_state], mb_initial_states_b[num_state])  # TODO: optimize?
                 prev_states = tuple(masked_prev_states)

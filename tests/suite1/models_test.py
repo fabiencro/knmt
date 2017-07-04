@@ -95,7 +95,7 @@ class TestEncoder:
         src_batch, src_mask = utils.make_batch_src(src_data)
         fb = enc(src_batch, src_mask)
 
-        for i in xrange(len(src_data)):
+        for i in range(len(src_data)):
             raw_s = src_data[i]
             input_seq = [Variable(np.array([v], dtype=np.int32)) for v in raw_s]
             fb_naive = enc.naive_call(input_seq, None)
@@ -178,7 +178,7 @@ class AttentionModuleNaive(nmt_chainer.models.attention.AttentionModule):
 
             splitted_attn = F.split_axis(attn, len(fb_concat), 1)
             ci = None
-            for i in xrange(nb_elems):
+            for i in range(nb_elems):
                 contrib = F.broadcast_to(
                     splitted_attn[i], (mb_size, Hi)) * used_fb_concat[i]
                 ci = ci + contrib if ci is not None else contrib
@@ -236,7 +236,7 @@ class TestAttention:
 
         ci, attn = compute_ctxt(state)
 
-        for i in xrange(len(src_data)):
+        for i in range(len(src_data)):
             raw_s = src_data[i]
             input_seq = [Variable(np.array([v], dtype=np.int32)) for v in raw_s]
             fb_naive = enc.naive_call(input_seq, None)
@@ -269,7 +269,7 @@ class DecoderNaive(decoder_cells.Decoder):
         previous_word = None
         attn_list = []
         total_nb_predictions = 0
-        for i in xrange(len(targets)):
+        for i in range(len(targets)):
             if previous_word is not None:  # else we are using the initial prev_y
                 prev_y = self.emb(previous_word)
             ci, attn = compute_ctxt(previous_states[-1])
@@ -347,7 +347,7 @@ class TestEncoderDecoder:
 
         total_loss_naive = 0
         total_length = 0
-        for i in xrange(len(trg_data)):
+        for i in range(len(trg_data)):
             raw_s_raw = trg_data[i]
             raw_s = [raw_s_raw[0], raw_s_raw[1] + [eos_idx]]
             input_seq = [Variable(np.array([v], dtype=np.int32)) for v in raw_s[0]]

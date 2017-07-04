@@ -565,7 +565,7 @@ class Node(object):
 #                 self.add_elem(new_e)
 
 #         found = False
-#         for i in xrange(len(self.pos_lst[elem.p])):
+#         for i in range(len(self.pos_lst[elem.p])):
 #             existing = self.pos_lst[elem.p][i]
 #             if existing is None:
 #                 continue
@@ -601,7 +601,7 @@ class Node(object):
         else:
             found = False
             pos_lst = self.inner_lst[elem.p]
-            for i in xrange(len(pos_lst)):
+            for i in range(len(pos_lst)):
                 existing = pos_lst[i]
                 if existing is None:
                     continue
@@ -983,7 +983,7 @@ def command_line2():
         encdec = encdec.to_gpu(args.gpu)
 
     src_sent_f = codecs.open(args.source_sentence_fn, encoding="utf8")
-    for _ in xrange(args.skip_in_src):
+    for _ in range(args.skip_in_src):
         src_sent_f.readline()
     src_sentence = src_sent_f.readline().strip().split(" ")
     log.info("translating sentence %s" % (" ".join(src_sentence)))

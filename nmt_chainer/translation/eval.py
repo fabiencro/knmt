@@ -51,11 +51,11 @@ class AttentionVisualizer(object):
         from nmt_chainer.utilities import visualisation
         alignment = np.zeros((len(src_w) + 1, len(tgt_w)))
         sum_al = [0] * len(tgt_w)
-        for i in xrange(len(src_w)):
-            for j in xrange(len(tgt_w)):
+        for i in range(len(src_w)):
+            for j in range(len(tgt_w)):
                 alignment[i, j] = attn[j][i]
                 sum_al[j] += alignment[i, j]
-        for j in xrange(len(tgt_w)):
+        for j in range(len(tgt_w)):
             alignment[len(src_w), j] = sum_al[j]
 
         src = src_w
@@ -574,7 +574,7 @@ def do_eval(config_eval):
         assert len(translations) == len(src_data)
         assert len(attn_all) == len(src_data)
         attn_vis = AttentionVisualizer()
-        for num_t in xrange(len(src_data)):
+        for num_t in range(len(src_data)):
             src_idx_list = src_data[num_t]
             tgt_idx_list = translations[num_t][:-1]
             attn = attn_all[num_t]
@@ -584,7 +584,7 @@ def do_eval(config_eval):
             tgt_w = tgt_indexer.deconvert_swallow(tgt_idx_list, unk_tag="#T_UNK#")
 #             src_w = [src_voc_with_unk[idx] for idx in src_idx_list] + ["SUM_ATTN"]
 #             tgt_w = [tgt_voc_with_unk[idx] for idx in tgt_idx_list]
-#             for j in xrange(len(tgt_idx_list)):
+#             for j in range(len(tgt_idx_list)):
 #                 tgt_idx_list.append(tgt_voc_with_unk[t_and_attn[j][0]])
 #
     #         print([src_voc_with_unk[idx] for idx in src_idx_list], tgt_idx_list)
@@ -607,7 +607,7 @@ def do_eval(config_eval):
 
         assert len(attn_all) == len(src_data)
         plots_list = []
-        for num_t in xrange(len(src_data)):
+        for num_t in range(len(src_data)):
             src_idx_list = src_data[num_t]
             tgt_idx_list = tgt_data[num_t]
             attn = attn_all[num_t]
@@ -615,18 +615,18 @@ def do_eval(config_eval):
 
             alignment = np.zeros((len(src_idx_list) + 1, len(tgt_idx_list)))
             sum_al = [0] * len(tgt_idx_list)
-            for i in xrange(len(src_idx_list)):
-                for j in xrange(len(tgt_idx_list)):
+            for i in range(len(src_idx_list)):
+                for j in range(len(tgt_idx_list)):
                     alignment[i, j] = attn[j][i]
                     sum_al[j] += alignment[i, j]
-            for j in xrange(len(tgt_idx_list)):
+            for j in range(len(tgt_idx_list)):
                 alignment[len(src_idx_list), j] = sum_al[j]
 
             src_w = src_indexer.deconvert_swallow(src_idx_list, unk_tag="#S_UNK#") + ["SUM_ATTN"]
             tgt_w = tgt_indexer.deconvert_swallow(tgt_idx_list, unk_tag="#T_UNK#")
 #             src_w = [src_voc_with_unk[idx] for idx in src_idx_list] + ["SUM_ATTN"]
 #             tgt_w = [tgt_voc_with_unk[idx] for idx in tgt_idx_list]
-#             for j in xrange(len(tgt_idx_list)):
+#             for j in range(len(tgt_idx_list)):
 #                 tgt_idx_list.append(tgt_voc_with_unk[t_and_attn[j][0]])
 #
     #         print([src_voc_with_unk[idx] for idx in src_idx_list], tgt_idx_list)
@@ -676,7 +676,7 @@ def do_eval(config_eval):
         log.info("starting scoring")
         from nmt_chainer.utilities import utils
         res = []
-        for num in xrange(len(nbest_converted)):
+        for num in range(len(nbest_converted)):
             if num % 200 == 0:
                 print(num, file=sys.stderr)
             elif num % 50 == 0:
@@ -690,7 +690,7 @@ def do_eval(config_eval):
             scorer = encdec_list[0].nbest_scorer(src_batch, src_mask)
 
             nb_batches = (len(tgt_list) + mb_size - 1) / mb_size
-            for num_batch in xrange(nb_batches):
+            for num_batch in range(nb_batches):
                 tgt_batch, arg_sort = utils.make_batch_tgt(tgt_list[num_batch * nb_batches: (num_batch + 1) * nb_batches],
                                                            eos_idx=eos_idx, gpu=gpu, volatile="on", need_arg_sort=True)
                 scores, attn = scorer(tgt_batch)
@@ -699,14 +699,14 @@ def do_eval(config_eval):
 
                 assert len(arg_sort) == len(scores)
                 de_sorted_scores = [None] * len(scores)
-                for xpos in xrange(len(arg_sort)):
+                for xpos in range(len(arg_sort)):
                     original_pos = arg_sort[xpos]
                     de_sorted_scores[original_pos] = scores[xpos]
                 res[-1] += de_sorted_scores
         print('', file=sys.stderr)
         log.info("writing scores to %s" % dest_fn)
         out = codecs.open(dest_fn, "w", encoding="utf8")
-        for num in xrange(len(res)):
+        for num in range(len(res)):
             for score in res[num]:
                 out.write("%i %f\n" % (num, score))
 
