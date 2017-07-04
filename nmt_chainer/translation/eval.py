@@ -7,6 +7,7 @@ __version__ = "1.0"
 __email__ = "fabien.cromieres@gmail.com"
 __status__ = "Development"
 
+import io
 import json
 import numpy as np
 from chainer import cuda, serializers
@@ -33,7 +34,6 @@ from nmt_chainer.translation.evaluation import (greedy_batch_translate,
 # import visualisation
 from nmt_chainer.utilities import bleu_computer
 import logging
-import codecs
 # import h5py
 import bokeh.embed
 
@@ -218,7 +218,7 @@ def translate_to_file_with_beam_search(dest_fn, gpu, encdec, eos_idx, src_data, 
                                        nbest=None):
 
     log.info("writing translation to %s " % dest_fn)
-    out = codecs.open(dest_fn, "w", encoding="utf8")
+    out = io.open(dest_fn, "wt", encoding="utf8")
 
     translation_iterator = beam_search_all(gpu, encdec, eos_idx, src_data, beam_width, beam_pruning_margin, beam_score_coverage_penalty, beam_score_coverage_penalty_strength, nb_steps,
                                            nb_steps_ratio, beam_score_length_normalization, beam_score_length_normalization_strength, post_score_length_normalization, post_score_length_normalization_strength,
@@ -246,7 +246,7 @@ def translate_to_file_with_beam_search(dest_fn, gpu, encdec, eos_idx, src_data, 
 
     unprocessed_output = None
     if unprocessed_output_filename is not None:
-        unprocessed_output = codecs.open(unprocessed_output_filename, "w", encoding="utf8")
+        unprocessed_output = io.open(unprocessed_output_filename, "wt", encoding="utf8")
 
     for idx, translations in enumerate(translation_iterator):
         for src, translated, t, score, attn, unk_mapping in translations:
@@ -498,7 +498,7 @@ def do_eval(config_eval):
             assert len(encdec_list) == 1
             translations = greedy_batch_translate(
                 encdec_list[0], eos_idx, src_data, batch_size=mb_size, gpu=gpu, nb_steps=nb_steps)
-        out = codecs.open(dest_fn, "w", encoding="utf8")
+        out = io.open(dest_fn, "wt", encoding="utf8")
         for t in translations:
             if t[-1] == eos_idx:
                 t = t[:-1]
@@ -647,7 +647,7 @@ def do_eval(config_eval):
 
     elif mode == "score_nbest":
         log.info("opening nbest file %s" % nbest_to_rescore)
-        nbest_f = codecs.open(nbest_to_rescore, encoding="utf8")
+        nbest_f = io.open(nbest_to_rescore, 'rt', encoding="utf8")
         nbest_list = [[]]
         for line in nbest_f:
             line = line.strip().split("|||")
@@ -705,7 +705,7 @@ def do_eval(config_eval):
                 res[-1] += de_sorted_scores
         print('', file=sys.stderr)
         log.info("writing scores to %s" % dest_fn)
-        out = codecs.open(dest_fn, "w", encoding="utf8")
+        out = io.open(dest_fn, "wt", encoding="utf8")
         for num in range(len(res)):
             for score in res[num]:
                 out.write("%i %f\n" % (num, score))
