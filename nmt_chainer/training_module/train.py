@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 """train.py: Train a RNNSearch Model"""
+from __future__ import absolute_import, division, print_function, unicode_literals
 __author__ = "Fabien Cromieres"
 __license__ = "undecided"
 __version__ = "1.0"
@@ -9,7 +10,7 @@ __status__ = "Development"
 import chainer
 from chainer import cuda, optimizers, serializers
 
-from training import train_on_data
+from .training import train_on_data
 from nmt_chainer.dataprocessing.indexer import Indexer
 from nmt_chainer.utilities.file_infos import create_filename_infos
 from nmt_chainer.utilities.argument_parsing_tools import OrderedNamespace
@@ -246,7 +247,7 @@ def do_train(config_training):
         if os.path.exists(filename):
             already_existing_files.append(filename)
     if len(already_existing_files) > 0:
-        print "Warning: existing files are going to be replaced / updated: ", already_existing_files
+        print("Warning: existing files are going to be replaced / updated: ", already_existing_files)
         if not config_training.training_management.force_overwrite:
             raw_input("Press Enter to Continue")
 
@@ -432,9 +433,9 @@ def do_train(config_training):
 # #                     lexicon_prob_epsilon = args.lexicon_prob_epsilon
 #                       )
 # #             finally:
-# #                 print timer
+# #                 print(timer)
 # #                 timer.print_sorted()
-# #                 print "total time:"
+# #                 print("total time:")
 # #                 print(timer.total_time())
 #
 #
