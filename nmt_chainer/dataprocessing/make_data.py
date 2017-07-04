@@ -12,7 +12,6 @@ __status__ = "Development"
 
 import collections
 import logging
-import codecs
 import json
 import operator
 import os.path

@@ -16,7 +16,6 @@ Proceedings of the 54th Annual Meeting of the Association for Computational Ling
 from __future__ import absolute_import, division, print_function, unicode_literals
 
 import sys
-import codecs
 import re
 import copy
 import argparse

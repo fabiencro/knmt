@@ -1,6 +1,6 @@
 from __future__ import absolute_import, division, print_function, unicode_literals
 import logging
-import codecs
+import io
 import exceptions
 from collections import defaultdict
 
@@ -17,7 +17,7 @@ log.setLevel(logging.INFO)
 
 
 def load_lex(lex_file, inverse=False):
-    lex = codecs.open(lex_file, encoding="utf8")
+    lex = io.open(lex_file, 'rt', encoding="utf8")
 
     dic = defaultdict(lambda: defaultdict(lambda: 0))
     for line in lex:
