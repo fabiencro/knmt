@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 """training.py: training procedures."""
+from __future__ import absolute_import, division, print_function, unicode_literals
 __author__ = "Fabien Cromieres"
 __license__ = "undecided"
 __version__ = "1.0"
@@ -56,9 +57,9 @@ def train_on_data(encdec, optimizer, training_data, output_files_dict,
         log.info("done")
 
         for s, t in training_data_sorted_by_complexity[:400]:
-            print example_complexity((s, t))
-            print src_indexer.deconvert(s)
-            print tgt_indexer.deconvert(t)
+            print(example_complexity((s, t)))
+            print(src_indexer.deconvert(s))
+            print(tgt_indexer.deconvert(t))
             print
 
         mb_provider = minibatch_provider_curiculum(training_data_sorted_by_complexity, eos_idx, mb_size, nb_of_batch_to_sort, gpu=gpu,
@@ -109,8 +110,8 @@ def train_on_data(encdec, optimizer, training_data, output_files_dict,
         t3 = time.clock()
         optimizer.update()
         t4 = time.clock()
-        print "loss:", loss.data,
-        print " time %f zgrad:%f fwd:%f bwd:%f upd:%f" % (t4 - t0, t1 - t0, t2 - t1, t3 - t2, t4 - t3)
+        print("loss:", loss.data,)
+        print(" time %f zgrad:%f fwd:%f bwd:%f upd:%f" % (t4 - t0, t1 - t0, t2 - t1, t3 - t2, t4 - t3))
         return float(total_loss.data), total_nb_predictions
 
     def train_once_optim(src_batch, tgt_batch, src_mask):
@@ -120,11 +121,11 @@ def train_on_data(encdec, optimizer, training_data, output_files_dict,
         loss, total_nb_predictions = encdec.compute_loss_and_backward(
             src_batch, tgt_batch, src_mask)
         t2 = time.clock()
-        print "loss:", loss,
+        print("loss:", loss,)
         t3 = time.clock()
         optimizer.update()
         t4 = time.clock()
-        print " time %f zgrad:%f fwd:%f bwd:%f upd:%f" % (t4 - t0, t1 - t0, t2 - t1, t3 - t2, t4 - t3)
+        print(" time %f zgrad:%f fwd:%f bwd:%f upd:%f" % (t4 - t0, t1 - t0, t2 - t1, t3 - t2, t4 - t3))
         return float(loss) * total_nb_predictions, total_nb_predictions
 
     def train_once_reinf(src_batch, tgt_batch, src_mask):  # , lexicon_matrix = None):
@@ -146,8 +147,8 @@ def train_on_data(encdec, optimizer, training_data, output_files_dict,
         t3 = time.clock()
         optimizer.update()
         t4 = time.clock()
-        print "reinf loss:", reinf_loss.data, reinf_loss.data / len(src_batch)
-        print " time %f zgrad:%f fwd:%f bwd:%f upd:%f" % (t4 - t0, t1 - t0, t2 - t1, t3 - t2, t4 - t3)
+        print("reinf loss:", reinf_loss.data, reinf_loss.data / len(src_batch))
+        print(" time %f zgrad:%f fwd:%f bwd:%f upd:%f" % (t4 - t0, t1 - t0, t2 - t1, t3 - t2, t4 - t3))
         return float(reinf_loss.data), len(src_batch)
 
     if test_data is not None:
@@ -241,7 +242,7 @@ def train_on_data(encdec, optimizer, training_data, output_files_dict,
         for i in xrange(sys.maxsize):
             if max_nb_iters is not None and max_nb_iters <= i:
                 break
-            print i,
+            print(i,)
             src_batch, tgt_batch, src_mask = mb_provider.next()
             if src_batch[0].data.shape[0] != mb_size:
                 log.warn("got minibatch of size %i instead of %i" % (src_batch[0].data.shape[0], mb_size))
@@ -254,7 +255,7 @@ def train_on_data(encdec, optimizer, training_data, output_files_dict,
 #                 lexicon_matrix = None
 
 #             if i%100 == 0:
-#                 print "valid",
+#                 print("valid",)
 #                 compute_valid()
             if not no_report_or_save:
                 if i % sample_every == 0:
@@ -281,9 +282,9 @@ def train_on_data(encdec, optimizer, training_data, output_files_dict,
                     total_loss_this_interval = 0
                     total_nb_predictions_this_interval = 0
 
-                    print "avg time:", avg_time
-                    print "avg training loss:", avg_training_loss
-                    print "avg sentence size", avg_sentence_size
+                    print("avg time:", avg_time)
+                    print("avg training loss:", avg_training_loss)
+                    print("avg sentence size", avg_sentence_size)
 
                     bc_test = translate_test()
                     test_loss = compute_test_loss()

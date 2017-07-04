@@ -1,4 +1,5 @@
 """train_config.py: Parse training arguments and create config dictionnary."""
+from __future__ import absolute_import, division, print_function, unicode_literals
 
 import logging
 import sys
@@ -202,7 +203,7 @@ def make_config_from_args(args, readonly=True):
             if getattr(args, argname) is None:
                 args_given_set.remove(argname)
 
-        print "args_given_set", args_given_set
+        print("args_given_set", args_given_set)
         config_base.update_recursive(config_training, valid_keys=args_given_set, add_absent_keys=args.update_old_config_file_with_default_values)
         config_training = config_base
     else:
