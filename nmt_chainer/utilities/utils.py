@@ -190,7 +190,7 @@ def batch_sort_and_split(batch, size_parts, sort_key=lambda x: len(x[1]), inplac
     if not inplace:
         batch = list(batch)
     batch.sort(key=sort_key)
-    nb_mb_for_sorting = len(batch) / size_parts + (1 if len(batch) % size_parts != 0 else 0)
+    nb_mb_for_sorting = int(len(batch) / size_parts + (1 if len(batch) % size_parts != 0 else 0))
     for num_batch in xrange(nb_mb_for_sorting):
         mb_raw = batch[num_batch * size_parts: (num_batch + 1) * size_parts]
         yield mb_raw
@@ -265,7 +265,7 @@ def minibatch_provider(data, eos_idx, mb_size, nb_mb_for_sorting=1, loop=True, i
 
 
 def compute_bleu_with_unk_as_wrong(references, candidates, is_unk_id, new_unk_id_ref, new_unk_id_cand):
-    import bleu_computer
+    from . import bleu_computer
     assert new_unk_id_ref != new_unk_id_cand
     bc = bleu_computer.BleuComputer()
     for ref, cand in zip(references, candidates):
