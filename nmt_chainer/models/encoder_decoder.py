@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 """models.py: Implementation of RNNSearch in Chainer"""
+from __future__ import absolute_import, division, print_function, unicode_literals
 __author__ = "Fabien Cromieres"
 __license__ = "undecided"
 __version__ = "1.0"
@@ -13,9 +14,9 @@ from chainer import Link, Chain, ChainList
 import chainer.functions as F
 import chainer.links as L
 
-import rnn_cells
+from . import rnn_cells
 from nmt_chainer.utilities.utils import compute_lexicon_matrix
-import attention
+from . import attention
 
 import logging
 logging.basicConfig()
@@ -63,8 +64,8 @@ class ConstantFunction(chainer.Function):
         return ()
 
 
-import decoder_cells
-import encoders
+from . import decoder_cells
+from . import encoders
 
 
 class EncoderDecoder(Chain):

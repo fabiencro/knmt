@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 """encoders.py: Implementation of RNNSearch in Chainer"""
+from __future__ import absolute_import, division, print_function, unicode_literals
 __author__ = "Fabien Cromieres"
 __license__ = "undecided"
 __version__ = "1.0"
@@ -12,7 +13,7 @@ from chainer import Link, Chain, ChainList
 import chainer.functions as F
 import chainer.links as L
 
-import rnn_cells
+from . import rnn_cells
 
 from nmt_chainer.utilities.utils import ortho_init
 
