@@ -42,8 +42,9 @@ logging.basicConfig()
 log = logging.getLogger("rnns:eval")
 log.setLevel(logging.INFO)
 
+__metaclass__ = type
 
-class AttentionVisualizer(object):
+class AttentionVisualizer:
     def __init__(self):
         self.plots_list = []
 
@@ -85,7 +86,7 @@ class AttentionVisualizer(object):
             visualisation.show(p_all)
 
 
-class RichOutputWriter(object):
+class RichOutputWriter:
     def __init__(self, filename):
         log.info("writing JSON translation infos to %s" % filename)
         self.filename = filename

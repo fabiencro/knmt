@@ -8,6 +8,7 @@ import datetime
 import sys
 import nmt_chainer.utilities.versioning_tools as versioning_tools
 
+__metaclass__ = type
 
 class OrderedNamespace(OrderedDict):
     """A class that act as a configuration dictionnary.
@@ -144,7 +145,7 @@ class OrderedNamespace(OrderedDict):
         self["metadata"]["modified_time"] = datetime.datetime.now().strftime("%I:%M%p %B %d, %Y")
 
 
-class ParseOptionRecorder(object):
+class ParseOptionRecorder:
     """ A class whose main role is to remember the order in which argparse options have been defined, and to which subparser they belong.
     """
 
@@ -194,7 +195,7 @@ class ParseOptionRecorder(object):
         return result
 
 
-class ParserWithNoneDefaultAndNoGroup(object):
+class ParserWithNoneDefaultAndNoGroup:
     """ A class whose main role is to help determine which arguments have been set on the command line."""
 
     def __init__(self):

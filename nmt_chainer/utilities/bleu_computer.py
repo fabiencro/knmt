@@ -15,8 +15,9 @@ import math
 import io
 from itertools import izip
 
+__metaclass__ = type
 
-class BleuComputer(object):
+class BleuComputer:
     def __init__(self):
         self.ngrams_corrects = {1: 0, 2: 0, 3: 0, 4: 0}
         self.ngrams_total = {1: 0, 2: 0, 3: 0, 4: 0}

@@ -30,7 +30,9 @@ argparse.open = open
 #   sys.stdout = codecs.getwriter('UTF-8')(sys.stdout)
 #   sys.stdin = codecs.getreader('UTF-8')(sys.stdin)
 
-class BPE(object):
+__metaclass__ = type
+
+class BPE:
 
     def __init__(self, codes, separator='__'):
 

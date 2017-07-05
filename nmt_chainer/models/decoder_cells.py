@@ -27,8 +27,9 @@ logging.basicConfig()
 log = logging.getLogger("rnns:dec")
 log.setLevel(logging.INFO)
 
+__metaclass__ = type
 
-class ConditionalizedDecoderCell(object):
+class ConditionalizedDecoderCell:
     """
         Decoding cell conditionalized on a given input sentence.
         Constructor parameters:

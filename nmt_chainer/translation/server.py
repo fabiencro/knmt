@@ -34,6 +34,7 @@ logging.basicConfig()
 log = logging.getLogger("rnns:server")
 log.setLevel(logging.INFO)
 
+__metaclass__ = type
 
 class Translator:
 
