@@ -363,6 +363,9 @@ def do_train(config_training):
         optimizer = optimizers.AdaDelta()
     elif config_training.training.optimizer == "adam":
         optimizer = optimizers.Adam()
+    elif config_training.training.optimizer == "scheduled_adam":
+        from nmt_chainer.additional_links.scheduled_adam import ScheduledAdam
+        optimizer = ScheduledAdam()
     elif config_training.training.optimizer == "adagrad":
         optimizer = optimizers.AdaGrad(lr=config_training.training.learning_rate)
     elif config_training.training.optimizer == "sgd":

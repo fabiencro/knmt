@@ -59,7 +59,7 @@ def define_parser(parser):
     training_paramenters_group.add_argument("--hard_gradient_clipping", type=float, nargs=2, help="hard gradient clipping.")
     training_paramenters_group.add_argument("--weight_decay", type=float, help="Weight decay value. ")
     training_paramenters_group.add_argument("--optimizer", choices=["sgd", "rmsprop", "rmspropgraves",
-                                                                    "momentum", "nesterov", "adam", "adagrad", "adadelta"],
+                                                                    "momentum", "nesterov", "adam", "scheduled_adam", "adagrad", "adadelta"],
                                             default="adam", help="Optimizer type.")
     training_paramenters_group.add_argument("--learning_rate", type=float, default=0.01, help="Learning Rate")
     training_paramenters_group.add_argument("--momentum", type=float, default=0.9, help="Momentum term")
