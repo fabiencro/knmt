@@ -5,7 +5,53 @@ import chainer.links as L
 from chainer import Variable, Chain, ChainList
 
 # LayerNormalization = L.LayerNormalization
-from nmt_chainer.additional_links.layer_normalization import LayerNormalizationLink as LayerNormalization
+# from nmt_chainer.additional_links.layer_normalization import LayerNormalizationLink as LayerNormalization
+from nmt_chainer.additional_links.layer_normalization import get_layer_normalization_class
+
+class DropoutAndAddAndNormalize(Chain):
+    def __init__(self, dropout=None, residual_mode="normal", no_normalize=False):
+        super(DropoutAndAddAndNormalize, self).__init__()
+        
+        if not no_normalize:
+            LayerNormalization = get_layer_normalization_class()
+            self.add_link("normalizing_layer", LayerNormalization())
+        
+        assert residual_mode in "normal none after".split()
+        self.residual_mode = residual_mode
+        self.no_normalize = no_normalize
+        self.dropout = dropout
+        
+        
+    def apply_layer_normalization(self, added_output):
+        if len(added_output.shape) > 2:
+            d_model = added_output.shape[-1]
+            final_layer = F.reshape(
+                self.normalizing_layer(
+                    F.reshape(added_output, (-1, d_model))
+                    ), added_output.shape)                
+        else:
+            final_layer = self.normalizing_layer(added_output)
+            
+        return final_layer
+            
+    def __call__(self, sub_output, inpt, train=True):
+        if self.dropout is not None:
+            sub_output = F.dropout(sub_output, ratio=self.dropout, train=train)
+            
+        if self.residual_mode == "normal":
+            added_output = sub_output + inpt
+        else:
+            added_output = sub_output
+        
+        if self.no_normalize:
+            final_layer = added_output
+        else:
+            final_layer = self.apply_layer_normalization(added_output)
+
+        if self.residual_mode == "after":
+            final_layer = final_layer + inpt
+
+        return final_layer
 
 
 ########################################################################
@@ -14,19 +60,20 @@ from nmt_chainer.additional_links.layer_normalization import LayerNormalizationL
 
 class FeedForward(Chain):
     def __init__(self, d_model=512, d_ff=2048, dropout=None,
-            no_add=False, no_normalize=False):
+            residual_mode="normal", no_normalize=False):
         super(FeedForward, self).__init__(
             lin1 = L.Linear(d_model, d_ff),
             lin2 = L.Linear(d_ff, d_model),
+            layer_reduce = DropoutAndAddAndNormalize(dropout=dropout, residual_mode=residual_mode, no_normalize=no_normalize)
         )
         
-        self.dropout = dropout
-        
-        if not no_normalize:
-            self.add_link("normalization_layer", LayerNormalization())
-        
-        self.no_add = no_add
-        self.no_normalize = no_normalize
+#         self.dropout = dropout
+#         
+#         if not no_normalize:
+#             self.add_link("normalization_layer", LayerNormalization())
+#         
+#         self.no_add = no_add
+#         self.no_normalize = no_normalize
         
     def __call__(self, x_input, train=True):
 #         print "FF", x_input.data
@@ -37,18 +84,20 @@ class FeedForward(Chain):
             
         ff_output = self.lin2(F.relu(self.lin1(x)))
         
-        if self.dropout is not None:
-            ff_output = F.dropout(ff_output, self.dropout, train=train)
-            
-        if self.no_add:
-            added_output = ff_output
-        else:
-            added_output = ff_output + x
+        norm_ff_output = self.layer_reduce(ff_output, x, train=train)
         
-        if self.no_normalize:
-            norm_ff_output = added_output
-        else:
-            norm_ff_output = self.normalization_layer(added_output)
+#         if self.dropout is not None:
+#             ff_output = F.dropout(ff_output, self.dropout, train=train)
+#             
+#         if self.no_add:
+#             added_output = ff_output
+#         else:
+#             added_output = ff_output + x
+#         
+#         if self.no_normalize:
+#             norm_ff_output = added_output
+#         else:
+#             norm_ff_output = self.normalization_layer(added_output)
         
         if len(x_input.data.shape) > 2:
             norm_ff_output = F.reshape(norm_ff_output, x_input.data.shape)

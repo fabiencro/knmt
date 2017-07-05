@@ -8,12 +8,12 @@ from nmt_chainer.models.feedforward.utils import generate_pos_vectors, make_batc
 from nmt_chainer.models.feedforward.multi_attention import AddAndNormalizedSelfAttentionLayer
 
 class EncoderLayer(Chain):
-    def __init__(self, d_model, n_heads, d_ff=2048, experimental_relu=False, dropout=None, no_add=False, no_normalize=False):
+    def __init__(self, d_model, n_heads, d_ff=2048, experimental_relu=False, dropout=None, residual_mode="normal", no_normalize=False):
         super(EncoderLayer, self).__init__(
-            ff_layer = FeedForward(d_model, d_ff=d_ff, dropout=dropout, no_add=no_add, no_normalize=no_normalize),
+            ff_layer = FeedForward(d_model, d_ff=d_ff, dropout=dropout, residual_mode=residual_mode, no_normalize=no_normalize),
             self_attention_layer = AddAndNormalizedSelfAttentionLayer(d_model=d_model, n_heads=n_heads,
                                                              experimental_relu=experimental_relu,
-                                                          dropout=dropout, no_add=no_add, no_normalize=no_normalize)
+                                                          dropout=dropout, residual_mode=residual_mode, no_normalize=no_normalize)
         )
         
         
@@ -24,11 +24,11 @@ class EncoderLayer(Chain):
    
 class EncoderMultiLayer(ChainList):
     def __init__(self, d_model, n_heads, d_ff=2048, experimental_relu=False, dropout=None, nb_layers=6,
-                 no_add=False, no_normalize=False):
+                 residual_mode="normal", no_normalize=False):
         super(EncoderMultiLayer, self).__init__()
         for _ in range(nb_layers):
             self.add_link(EncoderLayer(d_model, n_heads, d_ff=d_ff, experimental_relu=experimental_relu, dropout=dropout,
-                                no_add=no_add, no_normalize=no_normalize))
+                                residual_mode=residual_mode, no_normalize=no_normalize))
         
     def __call__(self, x, mask, train=True):
         for link in self:
@@ -38,13 +38,13 @@ class EncoderMultiLayer(ChainList):
         
 class Encoder(Chain):
     def __init__(self, V, d_model=512, n_heads=8, d_ff=2048, experimental_relu=False, dropout=None, nb_layers=6,
-                 no_add=False, no_normalize=False):
+                 residual_mode="normal", no_normalize=False):
         super(Encoder, self).__init__(
             emb = L.EmbedID(V, d_model),
             encoding_layers = EncoderMultiLayer(d_model, n_heads, d_ff=d_ff,
                                                 experimental_relu=experimental_relu, 
                                                 dropout=dropout, nb_layers=nb_layers,
-                                                no_add=no_add, no_normalize=no_normalize)
+                                                residual_mode=residual_mode, no_normalize=no_normalize)
         )
         
         self.dropout = dropout
