@@ -16,21 +16,21 @@ log.setLevel(logging.INFO)
     
 class EncoderDecoder(Chain):
     def __init__(self, V_src, V_tgt, d_model=512, n_heads=8, d_ff=2048, experimental_relu=False, dropout=None, 
-                 nb_layers_src=6, nb_layers_tgt=6, no_add=False, no_normalize=False):
+                 nb_layers_src=6, nb_layers_tgt=6, residual_mode="normal", no_normalize=False):
         super(EncoderDecoder, self).__init__(
             encoder = Encoder(V_src, d_model=d_model, n_heads=n_heads, d_ff=d_ff,
                               experimental_relu=experimental_relu, dropout=dropout, nb_layers=nb_layers_src,
-                              no_add=no_add, no_normalize=no_normalize),
+                              residual_mode=residual_mode, no_normalize=no_normalize),
             decoder = Decoder(V_tgt, d_model=d_model, n_heads=n_heads, d_ff=d_ff,
                               experimental_relu=experimental_relu, dropout=dropout, nb_layers=nb_layers_tgt,
-                              no_add=no_add, no_normalize=no_normalize),
+                              residual_mode=residual_mode, no_normalize=no_normalize),
         )
         
         self.V_tgt = V_tgt
         
-        log.info("Creating FF EncoderDecoder V: %i -> %i dm:%i h:%i dff:%i er:%i dropout:%r layers:%i -> %i noadd:%i nonorm:%i", V_src, V_tgt, d_model, n_heads, d_ff, 
+        log.info("Creating FF EncoderDecoder V: %i -> %i dm:%i h:%i dff:%i er:%i dropout:%r layers:%i -> %i resid:%s nonorm:%i", V_src, V_tgt, d_model, n_heads, d_ff, 
                  experimental_relu, dropout, 
-                 nb_layers_src, nb_layers_tgt, no_add, no_normalize)
+                 nb_layers_src, nb_layers_tgt, residual_mode, no_normalize)
         
     def encdec_type(self):
         return "ff"

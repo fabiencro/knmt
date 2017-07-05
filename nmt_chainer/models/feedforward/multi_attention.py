@@ -4,10 +4,9 @@ import chainer.functions as F
 import chainer.links as L
 from chainer import Variable, Chain, ChainList
 
-from nmt_chainer.models.feedforward.utils import apply_linear_layer_to_last_dims
+from nmt_chainer.models.feedforward.utils import apply_linear_layer_to_last_dims, DropoutAndAddAndNormalize
 
-# LayerNormalization = L.LayerNormalization
-from nmt_chainer.additional_links.layer_normalization import LayerNormalizationLink as LayerNormalization
+#from nmt_chainer.additional_links.layer_normalization import LayerNormalizationLink as LayerNormalization
 
 ########################################################################
 # helper functions
@@ -61,6 +60,9 @@ class ConstantSizeMultiBatchMultiHeadAttention(Chain):
             w_K = L.Linear(d_model, d_model, nobias=True),
             w_V = L.Linear(d_model, d_model, nobias=False),
             )
+        
+        if n_heads >= 2:
+            self.add_link("w_O", L.Linear(d_model, d_model)) #if n_heads == 1, it is redundant with w_V
         
         self.d_model = d_model
         self.n_heads = n_heads
@@ -129,45 +131,53 @@ class ConstantSizeMultiBatchMultiHeadAttention(Chain):
         reorganized_V = reorganize_by_head(proj_V, self.n_heads)
         reorganized_result = batch_matmul_last_dims(addressing_weights, reorganized_V)
         result = undo_reorganize_by_head(reorganized_result)
+        
+        if self.n_heads >= 2:
+            result = apply_linear_layer_to_last_dims(result, self.w_O)
+        
 #         print "R", result.data
         return result
     
+    
 class AddAndNormalizedAttentionBase(Chain):
-    def __init__(self, d_model, n_heads, experimental_relu=False, dropout=None, no_add=False, no_normalize=False):
+    def __init__(self, d_model, n_heads, experimental_relu=False, dropout=None, residual_mode="normal", no_normalize=False):
         super(AddAndNormalizedAttentionBase, self).__init__(
             multi_attention= ConstantSizeMultiBatchMultiHeadAttention(d_model = d_model, n_heads=n_heads,
                                                              experimental_relu=experimental_relu,
                                                                      dropout=dropout),
+                                                            
+            residual_layer = DropoutAndAddAndNormalize(dropout=dropout, residual_mode=residual_mode, no_normalize=no_normalize)
         )
         
-        self.dropout = dropout
         self.d_model = d_model
         
-        if not no_normalize:
-            self.add_link("normalizing_layer", LayerNormalization())
+#         self.dropout = dropout
+#         
+#         if not no_normalize:
+#             self.add_link("normalizing_layer", LayerNormalization())
+#         
+#         self.no_add = no_add
+#         self.no_normalize = no_normalize
         
-        self.no_add = no_add
-        self.no_normalize = no_normalize
-        
-    def dropout_and_add_and_normalize(self, sub_output, inpt, train=True):
-        if self.dropout is not None:
-            sub_output = F.dropout(sub_output, ratio=self.dropout, train=train)
-            
-        if self.no_add:
-            added_output = sub_output
-        else:
-            added_output = sub_output + inpt
-        
-        if self.no_normalize:
-            final_layer = added_output
-        else:
-            mb, length, d_model = added_output.shape
-            final_layer = F.reshape(
-                self.normalizing_layer(
-                    F.reshape(added_output, (mb * length, d_model))
-                    ), (mb, length, d_model))
-        
-        return final_layer
+#     def dropout_and_add_and_normalize(self, sub_output, inpt, train=True):
+#         if self.dropout is not None:
+#             sub_output = F.dropout(sub_output, ratio=self.dropout, train=train)
+#             
+#         if self.no_add:
+#             added_output = sub_output
+#         else:
+#             added_output = sub_output + inpt
+#         
+#         if self.no_normalize:
+#             final_layer = added_output
+#         else:
+#             mb, length, d_model = added_output.shape
+#             final_layer = F.reshape(
+#                 self.normalizing_layer(
+#                     F.reshape(added_output, (mb * length, d_model))
+#                     ), (mb, length, d_model))
+#         
+#         return final_layer
       
     def extract_last(self, x):
         mb_size, nQ, dm = x.data.shape
@@ -180,10 +190,10 @@ class AddAndNormalizedAttentionBase(Chain):
         
     
 class AddAndNormalizedSelfAttentionLayer(AddAndNormalizedAttentionBase):
-    def __init__(self, d_model, n_heads, experimental_relu=False, dropout=None, no_add=False, no_normalize=False):
+    def __init__(self, d_model, n_heads, experimental_relu=False, dropout=None, residual_mode="normal", no_normalize=False):
         super(AddAndNormalizedSelfAttentionLayer, self).__init__(
             d_model, n_heads, experimental_relu=experimental_relu, dropout=dropout,
-            no_add=no_add, no_normalize=no_normalize
+            residual_mode=residual_mode, no_normalize=no_normalize
         )
         
     def __call__(self, x, mask, train=True, only_last=False):
@@ -194,14 +204,14 @@ class AddAndNormalizedSelfAttentionLayer(AddAndNormalizedAttentionBase):
             x_in = x
         sub_output = self.multi_attention(x_in, x, x, mask, train=train)
             
-        return self.dropout_and_add_and_normalize(sub_output, x_in)
+        return self.residual_layer(sub_output, x_in, train=train)
         
     
 class AddAndNormalizedCrossAttentionLayer(AddAndNormalizedAttentionBase):
-    def __init__(self, d_model, n_heads, experimental_relu=False, dropout=None, no_add=False, no_normalize=False):
+    def __init__(self, d_model, n_heads, experimental_relu=False, dropout=None, residual_mode="normal", no_normalize=False):
         super(AddAndNormalizedCrossAttentionLayer, self).__init__(
             d_model, n_heads, experimental_relu=experimental_relu, dropout=dropout,
-            no_add=no_add, no_normalize=no_normalize
+            residual_mode=residual_mode, no_normalize=no_normalize
         )
         
     def __call__(self, tgt_x, src_x, mask, train=True, only_last=False):
@@ -212,5 +222,5 @@ class AddAndNormalizedCrossAttentionLayer(AddAndNormalizedAttentionBase):
             x_in = tgt_x
         sub_output = self.multi_attention(x_in, src_x, src_x, mask, train=train)
             
-        return self.dropout_and_add_and_normalize(sub_output, x_in)
+        return self.residual_layer(sub_output, x_in, train=train)
         

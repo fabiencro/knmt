@@ -86,12 +86,22 @@ def create_encdec_from_config_dict(config_dict, src_indexer, tgt_indexer):
         use_exp_relu = config_dict["ff_use_exp_relu"]
         dropout = config_dict["ff_dropout"]
         d_ff = config_dict.get("ff_d_ff", 2048)
-        no_add = config_dict.get("ff_no_add", False)
+        
+        if config_dict.get("use_own_layer_normalization", False):
+            from nmt_chainer.additional_links.layer_normalization import turn_on_own_layer_normalization
+            turn_on_own_layer_normalization()
+        
+        no_add = config_dict.get("ff_no_add", False) #backward compatibility
+        if no_add:
+            residual_mode = None
+        else:
+            residual_mode = config_dict.get("ff_residual_mode", "normal")
+        
         no_normalize = config_dict.get("ff_no_normalize", False)
         encdec = nmt_chainer.models.feedforward.encoder_decoder.EncoderDecoder(Vi, Vo, d_model=d_model, n_heads=n_heads, d_ff=d_ff,
                                                      experimental_relu=use_exp_relu, dropout=dropout, 
                                                      nb_layers_src=nb_layers_src, nb_layers_tgt=nb_layers_tgt,
-                                                     no_add = no_add, no_normalize = no_normalize)
+                                                     residual_mode = residual_mode, no_normalize = no_normalize)
     else:
         Ei = config_dict["Ei"]
         Hi = config_dict["Hi"]

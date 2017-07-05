@@ -12,6 +12,10 @@ log.setLevel(logging.INFO)
 
 use_chainer_layer_normalization = True
 
+def turn_on_own_layer_normalization():
+    global use_chainer_layer_normalization
+    use_chainer_layer_normalization = False
+
 def get_layer_normalization_class():
     global use_chainer_layer_normalization
     if use_chainer_layer_normalization:
@@ -31,7 +35,113 @@ def _broadcast_to(xp, x, shape):
         return bx
 
 
+try:
+    import cupy as cp
+
+    inv_norm_comp = cp.ReductionKernel(
+        'T x',  # input params
+        'T y',  # output params
+        'x * x',  # map
+        'a + b',  # reduce
+        'y = 1.0/sqrt(a + 1e-5)',  # post-reduction map
+        '0',  # identity value
+        'inv_norm_comp'  # kernel name
+    )
+    
+    
+    scale_output = cp.ElementwiseKernel(
+         'T x, T inv_norm, T gamma, T beta',
+         'T normalized, T scaled',
+          '''
+              normalized = x * inv_norm;
+              scaled = normalized * gamma + beta;
+         ''',
+         'scale_output')
+    
+    backprop_scale = cp.ElementwiseKernel(
+         'T inv_norm, T gy_centered, T normalized, T sc_prod',
+         'T z',
+          '''
+              z = inv_norm *(gy_centered - normalized * sc_prod);
+         ''',
+         'backprop_scale')
+except ImportError:
+    inv_norm_comp = None
+    scale_output = None
+    backprop_scale = None
+        
 class LayerNormalization(function.Function):
+    def __init__(self, eps=1e-5):
+        self.eps = eps
+        
+    def check_type_forward(self, in_types):
+        type_check.expect(in_types.size() == 3)
+        x_type, gamma_type, beta_type = in_types
+
+        type_check.expect(
+            x_type.dtype.kind == 'f',
+            x_type.ndim == 2,
+            gamma_type.ndim == 1,
+            beta_type.ndim == 1,
+            gamma_type.dtype == x_type.dtype,
+            beta_type.dtype == x_type.dtype,
+            gamma_type.shape == beta_type.shape,
+        )
+        
+    def forward_cpu(self, inputs):
+        xp = cuda.get_array_module(*inputs)
+        x, gamma, beta = inputs
+        a = x - xp.mean(x, axis=1, keepdims=True)
+        assert len(a.shape) == 2
+        inv_norm = 1.0/xp.sqrt(xp.sum(a*a, axis=1, keepdims=True) + self.eps)
+        self.inv_norm = inv_norm
+        normalized = a * inv_norm
+        self.normalized = normalized
+        scaled = normalized * gamma + beta
+        return scaled,
+    
+    
+    def forward_gpu(self, inputs):
+        xp = cuda.get_array_module(*inputs)
+        x, gamma, beta = inputs
+        a = x - xp.mean(x, axis=1, keepdims=True)
+        assert len(a.shape) == 2
+        inv_norm = inv_norm_comp(a, axis=1, keepdims=True) # 1.0/xp.sqrt(xp.sum(a*a, axis=1, keepdims=True) + self.eps)
+        self.inv_norm = inv_norm
+        
+        normalized, scaled = scale_output(a, inv_norm, gamma, beta)
+        self.normalized = normalized
+        return scaled,
+
+    def backward_gpu(self, inputs, gys):
+        xp = cuda.get_array_module(*inputs)
+        x, gamma, beta = inputs
+        gy, = gys
+        g_beta = xp.sum(gy, axis=0, keepdims=True)
+        g_gamma = xp.sum(gy*self.normalized, axis=0, keepdims=True)
+        
+        gy2 = gy*gamma
+        gy_centered = gy2 - xp.mean(gy2, axis=1, keepdims=True)
+        sc_prod = xp.sum(gy_centered * self.normalized, axis = 1, keepdims=True)
+        
+        ga = backprop_scale(self.inv_norm, gy_centered, self.normalized, sc_prod)
+        return ga, g_gamma, g_beta 
+   
+    def backward_cpu(self, inputs, gys):
+        xp = cuda.get_array_module(*inputs)
+        x, gamma, beta = inputs
+        gy, = gys
+        g_beta = xp.sum(gy, axis=0, keepdims=True)
+        g_gamma = xp.sum(gy*self.normalized, axis=0, keepdims=True)
+        
+        gy2 = gy*gamma
+        gy_centered = gy2 - xp.mean(gy2, axis=1, keepdims=True)
+        sc_prod = xp.sum(gy_centered * self.normalized, axis = 1, keepdims=True)
+        
+        ga = self.inv_norm *(gy_centered - self.normalized * sc_prod)
+        return ga, g_gamma, g_beta 
+
+class LayerNormalizationOther(function.Function):
 
     """Layer normalization"""
 
@@ -167,9 +277,9 @@ class LayerNormalizationLink(link.Link):
             self._initialize_params(size)
 
     def _initialize_params(self, size):
-        self.add_param('gamma', size)
+        self.add_param('gamma', (1,size))
         initializers.init_weight(self.gamma.data, self._gamma_initializer)
-        self.add_param('beta', size)
+        self.add_param('beta', (1,size))
         initializers.init_weight(self.beta.data, self._beta_initializer)
 
     def __call__(self, x):

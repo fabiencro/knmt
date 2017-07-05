@@ -47,8 +47,9 @@ def define_parser(parser):
     model_description_group.add_argument("--ff_dropout", type=float, help="FF model dropout")
     model_description_group.add_argument("--ff_d_ff", type=int, default=2048, help="FF model d_ff")
     model_description_group.add_argument("--ff_use_exp_relu", default=False, action="store_true")
-    model_description_group.add_argument("--ff_no_add", default=False, action="store_true")
+    model_description_group.add_argument("--ff_residual_mode", default="normal", choices="normal none after".split())
     model_description_group.add_argument("--ff_no_normalize", default=False, action="store_true")
+    model_description_group.add_argument("--use_own_layer_normalization", default=False, action="store_true")
     
     training_paramenters_group = parser.add_argument_group(_CONFIG_SECTION_TO_DESCRIPTION["training"])
     training_paramenters_group.add_argument("--mb_size", type=int, default=64, help="Minibatch size")

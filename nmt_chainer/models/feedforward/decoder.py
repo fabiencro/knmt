@@ -15,17 +15,17 @@ log.setLevel(logging.INFO)
 
 class DecoderLayer(Chain):
     def __init__(self, d_model, n_heads, d_ff=2048, experimental_relu=False, dropout=None,
-                 no_add=False, no_normalize=False):
+                 residual_mode="normal", no_normalize=False):
         super(DecoderLayer, self).__init__(
-            ff_layer = FeedForward(d_model, d_ff=d_ff, dropout=dropout, no_add=no_add, no_normalize=no_normalize),
+            ff_layer = FeedForward(d_model, d_ff=d_ff, dropout=dropout, residual_mode=residual_mode, no_normalize=no_normalize),
             self_attention_layer = AddAndNormalizedSelfAttentionLayer(d_model=d_model, n_heads=n_heads,
                                                              experimental_relu=experimental_relu,
-                                                          dropout=dropout, no_add=no_add, no_normalize=no_normalize),
+                                                          dropout=dropout, residual_mode=residual_mode, no_normalize=no_normalize),
             
             cross_attention_layer = AddAndNormalizedCrossAttentionLayer(d_model=d_model, n_heads=n_heads,
                                                              experimental_relu=experimental_relu,
                                                           dropout=dropout, 
-                                        no_add=False, no_normalize=no_normalize) # Does not seem good to not let the cross attention be bypassed
+                                        residual_mode=residual_mode if residual_mode is not "none" else "normal", no_normalize=no_normalize) # Does not seem good to not let the cross attention be bypassed
         )
         
         self.n_heads = n_heads
@@ -71,11 +71,11 @@ class DecoderLayer(Chain):
     
 class DecoderMultiLayer(ChainList):
     def __init__(self, d_model, n_heads, d_ff=2048, experimental_relu=False, dropout=None, nb_layers=6,
-                 no_add=False, no_normalize=False):
+                 residual_mode="normal", no_normalize=False):
         super(DecoderMultiLayer, self).__init__()
         for _ in range(nb_layers):
             self.add_link(DecoderLayer(d_model, n_heads, d_ff=d_ff, experimental_relu=experimental_relu, dropout=dropout,
-                                       no_add=no_add, no_normalize=no_normalize))
+                                       residual_mode=residual_mode, no_normalize=no_normalize))
         
     def __call__(self, tgt, src, mask, mask_input, train=True):
         for link in self:
@@ -90,6 +90,39 @@ class DecoderMultiLayer(ChainList):
             tgt_last, this_prev_tgt = link.one_step(tgt_last, prev_states[num_link] if prev_states is not None else None, src, mask_input, train=train)
             new_prev_tgt.append(this_prev_tgt)
         return tgt_last, tuple(new_prev_tgt)      
+    
+# class FakeDecoderMultiLayer(Chain):
+#     def __init__(self, d_model, n_heads, d_ff=2048, experimental_relu=False, dropout=None, nb_layers=6,
+#                  no_add=False, no_normalize=False):
+#         super(DecoderMultiLayer, self).__init__(    
+#             ff_layer1 = FeedForward(d_model, d_ff=d_ff, dropout=dropout, no_add=no_add, no_normalize=no_normalize),
+#             self_attention_layer1 = AddAndNormalizedSelfAttentionLayer(d_model=d_model, n_heads=n_heads,
+#                                                              experimental_relu=experimental_relu,
+#                                                           dropout=dropout, no_add=no_add, no_normalize=no_normalize),
+#             ff_layer2 = FeedForward(d_model, d_ff=d_ff, dropout=dropout, no_add=no_add, no_normalize=no_normalize),
+#             self_attention_layer2 = AddAndNormalizedSelfAttentionLayer(d_model=d_model, n_heads=n_heads,
+#                                                              experimental_relu=experimental_relu,
+#                                                           dropout=dropout, no_add=no_add, no_normalize=no_normalize),
+#             ff_layer3 = FeedForward(d_model, d_ff=d_ff, dropout=dropout, no_add=no_add, no_normalize=no_normalize),
+#             self_attention_layer3 = AddAndNormalizedSelfAttentionLayer(d_model=d_model, n_heads=n_heads,
+#                                                              experimental_relu=experimental_relu,
+#                                                           dropout=dropout, no_add=no_add, no_normalize=no_normalize)
+#             )
+#         
+#     def __call__(self, tgt, src, mask, mask_input, train=True):
+#         y1 = self.ff_layer1(self.self_attention_layer1(tgt, mask))
+#         y2 = self.ff_layer2(self.self_attention_layer2(y1, mask))
+#         y3 = self.ff_layer3(self.self_attention_layer3(y2, mask))
+#         return y3
+#     
+#     def one_step(self, new_inpt, prev_states, src, mask_input, train=True):
+#         assert prev_states is None or len(prev_states) == len(self)
+#         new_prev_tgt = []
+#         tgt_last = new_inpt
+#         for num_link, link in enumerate(self):
+#             tgt_last, this_prev_tgt = link.one_step(tgt_last, prev_states[num_link] if prev_states is not None else None, src, mask_input, train=train)
+#             new_prev_tgt.append(this_prev_tgt)
+#         return tgt_last, tuple(new_prev_tgt)    
     
 class DecoderState(object):
     def __init__(self, pos, prev_states):
@@ -177,13 +210,13 @@ class ConditionalizedDecoderCell(object):
     
 class Decoder(Chain):
     def __init__(self, V, d_model=512, n_heads=8, d_ff=2048, experimental_relu=False, dropout=None, nb_layers=6,
-                 no_add=False, no_normalize=False):
+                 residual_mode="normal", no_normalize=False):
         super(Decoder, self).__init__(
             emb = L.EmbedID(V, d_model),
             encoding_layers = DecoderMultiLayer(d_model, n_heads, d_ff=d_ff,
                                                 experimental_relu=experimental_relu, 
                                                 dropout=dropout, nb_layers=nb_layers,
-                                                no_add=no_add, no_normalize=no_normalize),
+                                                residual_mode=residual_mode, no_normalize=no_normalize),
             logits_layer = L.Linear(d_model, V + 1)
         )
         
