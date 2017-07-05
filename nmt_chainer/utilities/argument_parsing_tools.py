@@ -22,7 +22,7 @@ class OrderedNamespace(OrderedDict):
 
     def set_readonly(self):
         self.readonly = True
-        for v in self.itervalues():
+        for v in self.values():
             if isinstance(v, OrderedNamespace):
                 v.set_readonly()
 
@@ -52,7 +52,7 @@ class OrderedNamespace(OrderedDict):
 
     @classmethod
     def convert_to_ordered_namespace(cls, ordered_dict):
-        for v in ordered_dict.itervalues():
+        for v in ordered_dict.values():
             if isinstance(v, OrderedDict):
                 cls.convert_to_ordered_namespace(v)
         if not isinstance(ordered_dict, OrderedDict):
