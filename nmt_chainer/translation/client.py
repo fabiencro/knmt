@@ -12,6 +12,7 @@ import os.path
 import re
 from xml.sax.saxutils import escape
 
+__metaclass__ = type
 
 class Client:
 
