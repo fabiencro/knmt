@@ -116,7 +116,7 @@ class MyTimerHook(function.FunctionHook):
         return sum(
             t.total for (
                 _,
-                t) in self.call_times_per_classes.iteritems())
+                t) in self.call_times_per_classes.items())
 
     def print_sorted(self):
         for name, time in sorted(self.call_times_per_classes.items(), key=lambda x: x[1].total):
