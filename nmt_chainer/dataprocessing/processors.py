@@ -50,10 +50,11 @@ class ApplyToMultiIterator:
     def __iter__(self):
         return ApplyToMultiIterator(self.iterable, self.function, can_iter=True)
 
-    def next(self):
+    def __next__(self):
         elem = self.iterator.next()
         return self.function(elem)
 
+    next = __next__
 
 class ApplyToMultiIteratorPair:
     def __init__(self, iterable1, iterable2, function, can_iter=False):
@@ -68,10 +69,12 @@ class ApplyToMultiIteratorPair:
     def __iter__(self):
         return ApplyToMultiIteratorPair(self.iterable1, self.iterable2, self.function, can_iter=True)
 
-    def next(self):
+    def __next__(self):
         elem1 = self.iterator1.next()
         elem2 = self.iterator2.next()
         return self.function(elem1, elem2)
+
+    next = __next__
 
 
 class FileMultiIterator:
@@ -83,7 +86,7 @@ class FileMultiIterator:
             self.f = io.open(self.filename, 'rt', encoding="utf8")
             self.nb_line_read = 0
 
-    def next(self):
+    def __next__(self):
         if self.max_nb_ex is not None and self.nb_line_read >= self.max_nb_ex:
             raise StopIteration()
         line = self.f.readline()
@@ -93,6 +96,8 @@ class FileMultiIterator:
             #             print(self.nb_line_read, line.strip())
             self.nb_line_read += 1
             return line.strip()
+
+    next = __next__
 
     def __iter__(self):
         return FileMultiIterator(self.filename, max_nb_ex=self.max_nb_ex, can_iter=True)
