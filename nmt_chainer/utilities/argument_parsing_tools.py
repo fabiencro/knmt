@@ -65,7 +65,7 @@ class OrderedNamespace(OrderedDict):
             raise ValueError()
         if self.readonly:
             raise ValueError()
-        for key, val in other.iteritems():
+        for key, val in other.items():
             if isinstance(val, OrderedNamespace):
                 if key in self:
                     if not (isinstance(self[key], OrderedNamespace)):
@@ -81,7 +81,7 @@ class OrderedNamespace(OrderedDict):
                     self[key] = val
 
     def pretty_print(self, indent=4, discard_section=("metadata",)):
-        for k, v in self.iteritems():
+        for k, v in self.items():
             if isinstance(v, OrderedNamespace) and k not in discard_section:
                 print(" " * indent, k, ":")
                 v.pretty_print(indent=indent + 4, discard_section=())
@@ -90,7 +90,7 @@ class OrderedNamespace(OrderedDict):
 
     def copy(self, readonly=None):
         res = OrderedNamespace()
-        for k, v in self.iteritems():
+        for k, v in self.items():
             if isinstance(v, OrderedNamespace):
                 res[k] = v.copy(readonly)
             else:

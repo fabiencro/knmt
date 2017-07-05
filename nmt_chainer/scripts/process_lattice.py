@@ -191,7 +191,7 @@ class Lattice:
 
     def __str__(self):
         res = []
-        for v_start, edges in self.outgoing.iteritems():
+        for v_start, edges in self.outgoing.items():
             if v_start == Lattice.kFinal:
                 assert len(edges) == 0
                 continue
@@ -339,7 +339,7 @@ class Lattice:
 #         if self.extremities_with_prefix_ is None:
 #             res = {}
 #             subres = self.path_list.extremities_with_prefix()
-#             for pos, pref in subres.iteritems():
+#             for pos, pref in subres.items():
 #                 res[pos] = [self.prefix, pref]
 #             self.extremities_with_prefix_ = res
 #         return self.extremities_with_prefix_
@@ -363,7 +363,7 @@ class Lattice:
 #         if self.extremities_with_prefix_ is None:
 #             res = {}
 #             subres = self.path_list.extremities_with_prefix()
-#             for pos, pref in subres.iteritems():
+#             for pos, pref in subres.items():
 #                 res[pos] = [self.prefix, pref]
 #             self.extremities_with_prefix_ = res
 #         return self.extremities_with_prefix_
@@ -375,7 +375,7 @@ class Lattice:
 #
 #
 # def merge_sub(current_lattice, res, sub_result, v_end, memoizer, lattice_map):
-#     for w, next_path_set in sub_result.iteritems():
+#     for w, next_path_set in sub_result.items():
 #         assert w != Lattice.EPSILON
 # #         if w == Lattice.EPSILON:
 # #             continue
@@ -394,7 +394,7 @@ class Lattice:
 
 # def merge_in(res1, res2):
 # #     res1[w].append(res2)
-#     for w, next_path_set in res2.iteritems():
+#     for w, next_path_set in res2.items():
 #         if res1[w].contains_elem(next_path_set):
 # #             print("double epsilon entry for", w)
 #             pass
@@ -626,7 +626,7 @@ class Node:
                 if pos_elem.is_leaf():
                     position = (self.lattice_id, pos_elem.p)
                     next_result = next_words_simple_pos3(position, global_memoizer, lattice_map)
-                    for w, sub_node in next_result.iteritems():
+                    for w, sub_node in next_result.items():
                         res[w][id(self)] += sub_node.count_unique_leaves()  # res.get(w, 0) + sub_node.count_unique_leaves() #count_paths(global_count_memoizer)
                 else:
                     sub_res = pos_elem.child_node.get_next_w(
@@ -771,7 +771,7 @@ def next_words_simple_pos3(position, memoizer, lattice_map):
                 pos_sublattice = (edge.sublattice_id, Lattice.kInitial)
                 sub_result = next_words_simple_pos3(pos_sublattice, memoizer, lattice_map)  # new_pos.next_words_simple(memoizer)
 #                 merge_sub(current_lattice, res, sub_result, edge.v_end, memoizer, lattice_map)
-                for w, next_node in sub_result.iteritems():
+                for w, next_node in sub_result.items():
                     pos_elem = PosElem(edge.v_end, next_node)
                     res[w].add_elem(pos_elem)
             elif edge.type == "E":
@@ -1181,7 +1181,7 @@ def commandline():
 # #                 del next_dict[Lattice.EPSILON]
 # #                 upper_pos, levels = current_path.return_popped_reduced_extremity()
 # #                 upper_dict = next_words_simple_pos2(upper_pos, memoize_simple, lattice_map)
-# #                 for upper_w, upper_next_pos in upper_dict.iteritems():
+# #                 for upper_w, upper_next_pos in upper_dict.items():
 # #                     if upper_w in next_dict:
 # #                         next_dict[upper_w].append(FactoredLevelPath(1, upper_next_pos))
 # #                     else:

@@ -243,7 +243,7 @@ def do_train(config_training):
     ensure_path(save_prefix_dir)
 
     already_existing_files = []
-    for key_info, filename in output_files_dict.iteritems():  # , valid_data_fn]:
+    for key_info, filename in output_files_dict.items():  # , valid_data_fn]:
         if os.path.exists(filename):
             already_existing_files.append(filename)
     if len(already_existing_files) > 0:

@@ -83,7 +83,7 @@ class BleuComputer:
                 ngram = tuple(translation[start: start + n])
 #                 print(ngram)
                 translation_ngrams[ngram] += 1
-            for ngram, translation_freq in translation_ngrams.iteritems():
+            for ngram, translation_freq in translation_ngrams.items():
                 reference_freq = reference_ngrams[ngram]
                 self.ngrams_total[n] += translation_freq
                 if ngram in reference_ngrams:
@@ -130,7 +130,7 @@ class BleuComputer:
         reference_ngrams, ref_len = reference_info
         translation_ngrams, t_len = translation_info
 
-        for ngram, translation_freq in translation_ngrams.iteritems():
+        for ngram, translation_freq in translation_ngrams.items():
             n = len(ngram)
             reference_freq = reference_ngrams[ngram]
             ngrams_total[n] += translation_freq
@@ -156,7 +156,7 @@ class BleuComputer:
                 ngram = tuple(translation[start: start + n])
 #                 print(ngram)
                 translation_ngrams[ngram] += 1
-            for ngram, translation_freq in translation_ngrams.iteritems():
+            for ngram, translation_freq in translation_ngrams.items():
                 reference_freq = reference_ngrams[ngram]
                 ngrams_total[n] += translation_freq
                 if ngram in reference_ngrams:
