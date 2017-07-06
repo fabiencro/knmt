@@ -209,7 +209,7 @@ class RequestHandler(SocketServer.BaseRequestHandler):
                     log.info("cmd=%s" % cmd)
                     start_cmd = timeit.default_timer()
 
-                    parser_output = subprocess.check_output(cmd, shell=True)
+                    parser_output = subprocess.check_output(cmd, shell=True, universal_newlines=True)
 
                     log.info(
                         "Segmenter request processed in {} s.".format(
@@ -253,7 +253,7 @@ class RequestHandler(SocketServer.BaseRequestHandler):
 
                         start_pp_cmd = timeit.default_timer()
 
-                        pp_output = subprocess.check_output(pp_cmd, shell=True)
+                        pp_output = subprocess.check_output(pp_cmd, shell=True, universal_newlines=True)
 
                         log.info("Postprocessor request processede in {} s.".format(timeit.default_timer() - start_pp_cmd))
                         log.info("pp_output=%s" % pp_output)
