@@ -57,9 +57,7 @@ class OrderedNamespace(OrderedDict):
                 cls.convert_to_ordered_namespace(v)
         if not isinstance(ordered_dict, OrderedDict):
             raise ValueError()
-
-        if sys.version_info < (3, 0):
-            ordered_dict.__class__ = cls
+        ordered_dict.__class__ = cls
         ordered_dict.readonly = False
 
     def update_recursive(self, other, valid_keys, add_absent_keys=False):
