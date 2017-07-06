@@ -158,5 +158,5 @@ def do_make_data(config):
     if dev_data is not None:
         data_all["dev"] = dev_data
 
-    json.dump(data_all, gzip.open(data_fn, "wb"),
+    json.dump(data_all, gzip.open(data_fn, "w"),
               indent=2, separators=(',', ': '))
