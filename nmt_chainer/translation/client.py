@@ -46,12 +46,12 @@ class Client:
         s.send(query.encode('utf-8'))
 
         try:
-            resp = ''
+            resp = bytearray()
             while True:
                 data = s.recv(1024)
                 if not data:
                     break
-                resp += data.decode('utf-8')
-            return resp
+                resp += data
+            return resp.decode('utf-8')
         finally:
             s.close()
