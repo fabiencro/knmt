@@ -43,7 +43,7 @@ class Client:
 
         s = socket.socket()
         s.connect((self.ip, self.port))
-        s.send(query)
+        s.send(query.encode('utf-8'))
 
         try:
             resp = ''
