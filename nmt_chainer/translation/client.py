@@ -49,9 +49,9 @@ class Client:
             resp = ''
             while True:
                 data = s.recv(1024)
-                resp += data
                 if not data:
                     break
+                resp += data.decode('utf-8')
             return resp
         finally:
             s.close()
