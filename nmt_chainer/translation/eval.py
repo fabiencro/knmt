@@ -77,9 +77,9 @@ class AttentionVisualizer:
         if isinstance(output_file, tuple):
             script_output_fn, div_output_fn = output_file
             script, div = bokeh.embed.components(p_all)
-            with open(script_output_fn, 'w') as f:
-                f.write(script.encode('utf-8'))
-            with open(div_output_fn, 'w') as f:
+            with open(script_output_fn, 'wt') as f:
+                f.write(script)
+            with open(div_output_fn, 'wt') as f:
                 f.write(div)
         else:
             visualisation.output_file(output_file)
