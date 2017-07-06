@@ -74,9 +74,10 @@ class OrderedNamespace(OrderedDict):
                     self[key] = OrderedNamespace()
                 self[key].update_recursive(val, valid_keys, add_absent_keys=add_absent_keys)
             else:
-                if key in self:
-                    if (isinstance(self[key], OrderedNamespace)):
-                        raise ValueError()
+                # Is this test still needed? - FB 
+                # if key in self:
+                #     if (isinstance(self[key], OrderedNamespace)):
+                #         raise ValueError()
                 if key in valid_keys or (add_absent_keys and key not in self):
                     self[key] = val
 
