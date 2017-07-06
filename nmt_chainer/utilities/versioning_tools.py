@@ -12,7 +12,8 @@ def get_current_git_hash():
     try:
         return subprocess.check_output(['git', 'rev-parse', 'HEAD'],
                                        cwd=get_installed_path(),
-                                       stderr=subprocess.STDOUT).strip()
+                                       stderr=subprocess.STDOUT,
+                                       universal_newlines=True).strip()
     except BaseException:
         return None
 
@@ -21,7 +22,8 @@ def get_current_git_diff():
     try:
         return subprocess.check_output(['git', 'diff'],
                                        cwd=get_installed_path(),
-                                       stderr=subprocess.STDOUT)
+                                       stderr=subprocess.STDOUT,
+                                       universal_newlines=True)
     except BaseException:
         return None
 
