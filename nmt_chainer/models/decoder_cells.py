@@ -14,6 +14,7 @@ from chainer import Link, Chain, ChainList
 import chainer.functions as F
 import chainer.links as L
 import random
+import sys
 
 from . import rnn_cells
 from nmt_chainer.utilities.utils import ortho_init, minibatch_sampling
@@ -311,7 +312,12 @@ class Decoder(Chain):
         #         elif cell_type == "slow_gru":
         #             gru = L.GRU(Ho, Eo + Hi)
 
-        if isinstance(cell_type, (str, unicode)):
+
+        if sys.version_info < (3, 0):
+            type_test = isinstance(cell_type, (str, unicode))
+        else:
+            type_test = isinstance(cell_type, str)
+        if type_test:
             cell_type = rnn_cells.create_cell_model_from_string(cell_type)
 
         gru = cell_type(Eo + Hi, Ho)
