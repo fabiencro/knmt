@@ -52,13 +52,14 @@ class OrderedNamespace(OrderedDict):
 
     @classmethod
     def convert_to_ordered_namespace(cls, ordered_dict):
-        for v in ordered_dict.values():
+        ns = OrderedNamespace()
+        for k, v in ordered_dict.items():
             if isinstance(v, OrderedDict):
-                cls.convert_to_ordered_namespace(v)
-        if not isinstance(ordered_dict, OrderedDict):
-            raise ValueError()
-        ordered_dict.__class__ = cls
-        ordered_dict.readonly = False
+                converted_v = cls.convert_to_ordered_namespace(v)
+                ns[k] = converted_v
+            else:
+                ns[k] = v
+        return ns
 
     def update_recursive(self, other, valid_keys, add_absent_keys=False):
         if not isinstance(other, OrderedNamespace):
