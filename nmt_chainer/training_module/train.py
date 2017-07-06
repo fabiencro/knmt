@@ -264,7 +264,8 @@ def do_train(config_training):
     data_fn = config_training.data.data_fn
 
     log.info("loading training data from %s" % data_fn)
-    training_data_all = json.load(gzip.open(data_fn, "rb"))
+    with gzip.open(data_fn, "r") as input_file:
+        training_data_all = json.loads(input_file.read().decode('utf-8'))
 
     training_data = training_data_all["train"]
 
