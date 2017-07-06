@@ -4,7 +4,7 @@ from chainer import cuda
 from chainer import function
 from chainer.utils import type_check
 import chainer.links as L
-
+import math
 import logging
 logging.basicConfig()
 log = logging.getLogger("rnns:lnks")
@@ -71,8 +71,9 @@ except ImportError:
     backprop_scale = None
         
 class LayerNormalization(function.Function):
-    def __init__(self, eps=1e-5):
+    def __init__(self, eps=1e-5, gpu_optim=True):
         self.eps = eps
+        self.gpu_optim = gpu_optim
         
     def check_type_forward(self, in_types):
         type_check.expect(in_types.size() == 3)
@@ -81,11 +82,12 @@ class LayerNormalization(function.Function):
         type_check.expect(
             x_type.dtype.kind == 'f',
             x_type.ndim == 2,
-            gamma_type.ndim == 1,
-            beta_type.ndim == 1,
+            gamma_type.ndim == 2,
+            beta_type.ndim == 2,
             gamma_type.dtype == x_type.dtype,
             beta_type.dtype == x_type.dtype,
             gamma_type.shape == beta_type.shape,
+            gamma_type.shape[0] == 1
         )
         
     def forward_cpu(self, inputs):
@@ -93,20 +95,34 @@ class LayerNormalization(function.Function):
         x, gamma, beta = inputs
         a = x - xp.mean(x, axis=1, keepdims=True)
         assert len(a.shape) == 2
-        inv_norm = 1.0/xp.sqrt(xp.sum(a*a, axis=1, keepdims=True) + self.eps)
+        inv_norm = 1.0/xp.sqrt(xp.mean(xp.square(a), axis=1, keepdims=True) + self.eps)
         self.inv_norm = inv_norm
         normalized = a * inv_norm
         self.normalized = normalized
         scaled = normalized * gamma + beta
         return scaled,
     
-    
     def forward_gpu(self, inputs):
+        if not self.gpu_optim:
+            return self.forward_cpu(inputs)
         xp = cuda.get_array_module(*inputs)
         x, gamma, beta = inputs
         a = x - xp.mean(x, axis=1, keepdims=True)
         assert len(a.shape) == 2
-        inv_norm = inv_norm_comp(a, axis=1, keepdims=True) # 1.0/xp.sqrt(xp.sum(a*a, axis=1, keepdims=True) + self.eps)
+        H = a.shape[1]
+        
+#         inv_norm = inv_norm_comp(a/math.sqrt(H), axis=1, keepdims=True) # 1.0/xp.sqrt(xp.sum(a*a, axis=1, keepdims=True) + self.eps)
+        
+        inv_norm = cp.ReductionKernel(
+        'T x',  # input params
+        'T y',  # output params
+        'x * x',  # map
+        'a + b',  # reduce
+        'y = 1.0/sqrt(a/%f + %f)'%(H, self.eps),  # post-reduction map
+        '0',  # identity value
+        'inv_norm_comp'  # kernel name
+        )(a, axis=1, keepdims=True)
+        
         self.inv_norm = inv_norm
         
         normalized, scaled = scale_output(a, inv_norm, gamma, beta)
@@ -114,6 +130,8 @@ class LayerNormalization(function.Function):
         return scaled,
 
     def backward_gpu(self, inputs, gys):
+        if not self.gpu_optim:
+            return self.backward_cpu(inputs,  gys)
         xp = cuda.get_array_module(*inputs)
         x, gamma, beta = inputs
         gy, = gys
@@ -124,7 +142,16 @@ class LayerNormalization(function.Function):
         gy_centered = gy2 - xp.mean(gy2, axis=1, keepdims=True)
         sc_prod = xp.sum(gy_centered * self.normalized, axis = 1, keepdims=True)
         
-        ga = backprop_scale(self.inv_norm, gy_centered, self.normalized, sc_prod)
+        H = x.shape[1]
+#         ga = backprop_scale(self.inv_norm, gy_centered, self.normalized, sc_prod/H)
+        ga = cp.ElementwiseKernel(
+         'T inv_norm, T gy_centered, T normalized, T sc_prod',
+         'T z',
+          '''
+              z = inv_norm *(gy_centered - normalized * (sc_prod/%f));
+         '''%H,
+         'backprop_scale')(self.inv_norm, gy_centered, self.normalized, sc_prod)
+        
         return ga, g_gamma, g_beta 
    
     def backward_cpu(self, inputs, gys):
@@ -136,7 +163,9 @@ class LayerNormalization(function.Function):
         
         gy2 = gy*gamma
         gy_centered = gy2 - xp.mean(gy2, axis=1, keepdims=True)
-        sc_prod = xp.sum(gy_centered * self.normalized, axis = 1, keepdims=True)
+        
+        H = x.shape[1]
+        sc_prod = xp.sum(gy_centered * self.normalized, axis = 1, keepdims=True)/H
         
         ga = self.inv_norm *(gy_centered - self.normalized * sc_prod)
         return ga, g_gamma, g_beta 
