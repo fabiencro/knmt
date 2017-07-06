@@ -13,7 +13,10 @@ import os
 from collections import defaultdict
 import math
 import io
-from itertools import izip
+import sys
+
+if sys.version_info < (3, 0):
+    from itertools import izip
 
 __metaclass__ = type
 
@@ -172,7 +175,11 @@ def sample_bleu(ref_fn, trans_fn):
     ref_file = io.open(ref_fn, "rt", encoding="utf8")
     trans_file = io.open(trans_fn, "rt", encoding="utf8")
     infos_list = []
-    for line_ref, line_trans in izip(ref_file, trans_file):
+    if sys.version_info < (3, 0):
+        iterator = izip(ref_file, trans_file)
+    else:
+        iterator = zip(ref_file, trans_file)
+    for line_ref, line_trans in iterator:
         r = line_ref.strip().split(" ")
         t = line_trans.strip().split(" ")
         infos_list.append(BleuComputer.compute_update_diff(r, t))
@@ -190,7 +197,11 @@ def get_bc_from_files(ref_fn, trans_fn):
     trans_file = io.open(trans_fn, "rt", encoding="utf8")
 
     bc = BleuComputer()
-    for line_ref, line_trans in izip(ref_file, trans_file):
+    if sys.version_info < (3, 0):
+        iterator = izip(ref_file, trans_file)
+    else:
+        iterator = zip(ref_file, trans_file)
+    for line_ref, line_trans in iterator:
         r = line_ref.strip().split(" ")
         t = line_trans.strip().split(" ")
         bc.update(r, t)
@@ -215,8 +226,11 @@ def compute_confidence_interval_from_sampler(bleu_sampler, nb_resampling, confid
 def compute_pairwise_superiority_from_sampler_pair(bleu_sampler, other_bleu_sampler, nb_resampling):
     this = 0.0
     other = 0.0
-    for num_sample, (bc, bc_other) in enumerate(
-            izip(bleu_sampler, other_bleu_sampler)):
+    if sys.version_info < (3, 0):
+        iterator = izip(bleu_sampler, other_bleu_sampler)
+    else:
+        iterator = zip(bleu_sampler, other_bleu_sampler)
+    for num_sample, (bc, bc_other) in enumerate(iterator):
         if num_sample >= nb_resampling:
             break
         this_bleu = bc.bleu()
