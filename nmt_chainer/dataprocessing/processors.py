@@ -1006,7 +1006,7 @@ def izip_must_equal(it1, it2):
     if sys.version_info < (3,0):
         iterator = itertools.izip_longest(it1, it2, fillvalue=None)
     else:
-        iterator = itertools.zip_longuest(it1, it2, fillvalue=None)
+        iterator = itertools.zip_longest(it1, it2, fillvalue=None)
     for s1, s2 in iterator:
         if s1 is None or s2 is None:
             raise ValueError("iterators have different sizes")
