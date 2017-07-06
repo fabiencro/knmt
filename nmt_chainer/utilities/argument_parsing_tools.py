@@ -47,8 +47,7 @@ class OrderedNamespace(OrderedDict):
     @classmethod
     def load_from(cls, filename):
         d = json.load(open(filename), object_pairs_hook=OrderedDict)
-        cls.convert_to_ordered_namespace(d)
-        return d
+        return cls.convert_to_ordered_namespace(d)
 
     @classmethod
     def convert_to_ordered_namespace(cls, ordered_dict):
