@@ -31,13 +31,13 @@ class TestResultInvariability:
         ("result_invariability_untrained", "beam_search_and_prob_space_combination",
             "--mode beam_search --beam_width 30 "
             "--prob_space_combination"),
-        # ("result_invariability", "beam_search_and_google_options_1",
-        #     "--mode beam_search --beam_width 30 "
-        #     "--beam_pruning_margin 1.5 "
-        #     "--beam_score_coverage_penalty google --beam_score_coverage_penalty_strength 0.3 "
-        #     "--beam_score_length_normalization simple "
-        #     "--post_score_coverage_penalty google --post_score_coverage_penalty_strength 0.4 "
-        #     "--post_score_length_normalization simple"),
+        ("result_invariability", "beam_search_and_google_options_1",
+            "--mode beam_search --beam_width 30 "
+            "--beam_pruning_margin 1.5 "
+            "--beam_score_coverage_penalty google --beam_score_coverage_penalty_strength 0.3 "
+            "--beam_score_length_normalization simple "
+            "--post_score_coverage_penalty google --post_score_coverage_penalty_strength 0.4 "
+            "--post_score_length_normalization simple"),
         ("result_invariability_untrained", "beam_search_and_google_options_1",
             "--mode beam_search --beam_width 30 "
             "--beam_pruning_margin 1.5 "
