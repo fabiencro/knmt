@@ -341,8 +341,7 @@ def compute_lexicon_matrix(src_batch, lexical_probability_dictionary, V_tgt):
         for num_mb in range(real_mb_size):
             src_idx = int(src_batch_cpu[num_mb])
             if src_idx in lexical_probability_dictionary:
-                for tgt_idx, lex_prob in lexical_probability_dictionary[src_idx].iteritems(
-                ):
+                for tgt_idx, lex_prob in lexical_probability_dictionary[src_idx].items():
                     lexicon_matrix[num_mb][src_pos][tgt_idx] = lex_prob
     return lexicon_matrix
 
