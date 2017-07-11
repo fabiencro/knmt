@@ -7,7 +7,9 @@ __email__ = "fabien.cromieres@gmail.com"
 __status__ = "Development"
 
 import io 
-import itertools
+import sys
+if sys.version_info < (3, 0):
+    import itertools
 import json
 import unicodedata
 import logging
@@ -68,7 +70,11 @@ def replace_unk(translations, src_file, dest, dic_fn, remove_unk, normalize_unic
     if dic_fn is not None:
         dic = json.load(open(dic_fn))
 
-    for num_line, (line_t, line_s) in enumerate(itertools.izip(ft, fs)):
+    if sys.version_info < (3, 0):
+        iterator = enumerate(itertools.izip(ft, fs))
+    else:
+        iterator = enumerate(zip(ft, fs))
+    for num_line, (line_t, line_s) in iterator:
         splitted_t = line_t.strip().split(" ")
         splitted_s = line_s.strip().split(" ")
         new_t = []
