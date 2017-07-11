@@ -12,7 +12,6 @@ import numpy as np
 import os.path
 import pytest
 import random
-import sys
 
 
 class TestResultInvariability:
@@ -122,10 +121,7 @@ class TestResultInvariability:
         """
 
         seed = 1234
-        if sys.version_info < (3, 0):
-            random.seed(seed)
-        else:
-            random.seed(seed, version=1)
+        random.seed(seed)
         np.random.seed(seed)
 
         test_data_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "../tests_data")
