@@ -12,6 +12,7 @@ import numpy as np
 import os.path
 import pytest
 import random
+import sys
 
 
 class TestResultInvariability:
@@ -109,6 +110,7 @@ class TestResultInvariability:
 
     @pytest.mark.parametrize("model_name, options", [
         ("result_invariability", "--max_nb_iters 2000 --mb_size 2 --Ei 5 --Eo 12 --Hi 6 --Ha 70 --Ho 15 --Hl 12"),
+        ("result_invariability_py3", "--max_nb_iters 2000 --mb_size 2 --Ei 5 --Eo 12 --Hi 6 --Ha 70 --Ho 15 --Hl 12"),
         # ("result_invariability_untrained", "--max_nb_iters 800 --mb_size 2 --Ei 5 --Eo 12 --Hi 6 --Ha 70 --Ho 15 --Hl 12"),
         # ("result_invariability_with_lex_prob_dict", "--max_nb_iters 2000 --mb_size 2 --Ei 5 --Eo 12 --Hi 6 --Ha 70 --Ho 15 --Hl 12 --lexical_probability_dictionary tests/tests_data/lexical_prob_dict.json.gz"),
         # ("result_invariability_untrained_with_lex_prob_dict", "--max_nb_iters 800 --mb_size 2 --Ei 5 --Eo 12 --Hi 6 --Ha 70 --Ho 15 --Hl 12 --lexical_probability_dictionary tests/tests_data/lexical_prob_dict.json.gz")
@@ -119,6 +121,15 @@ class TestResultInvariability:
         The result should be identical.
         If not, it means that a recent commit have changed the behavior of the system.
         """
+
+        if sys.version_info < (3,0):
+            if model_name.endswith('_py3'):
+                assert True == True
+                return
+        else:
+            if not(model_name.endswith('_py3')):
+                assert True == True
+                return
 
         seed = 1234
         random.seed(seed)
