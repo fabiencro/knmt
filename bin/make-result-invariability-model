@@ -3,6 +3,22 @@
 # This is the script that has been used to generate the result_invariability model
 # found in tests/tests_data/models directory.  This model is used by a test that 
 # checks after each new commit if the translation results are still the same as expected.
+#
+# To make the tests work on Travis on Github, I had to run this script from a virtual machine using
+# Ubuntu 12.04.  To prepare the environment, I also had to run basically the same instructions 
+# that Travis does when running the tests.
+#
+# For example, to generate the models for Python 3, I had to do something similar to this:
+#
+# wget https://s3.amazonaws.com/travis-python-archives/binaries/ubuntu/12.04/x86_64/python-3.6.tar.bz2
+# sudo tar xjf python-3.6.tar.bz2 --directory /
+# source /home/travis/virtualenv/python3.6/bin/activate
+# ...
+# bin/make-result-invariability-model
+#
+# The script must be run for both versions of Python.
+#
+
 
 GPU="$1"
 
