@@ -75,6 +75,11 @@ def define_parser(parser):
     training_paramenters_group.add_argument("--use_gumbel_for_soft_predictions", default=False, action="store_true")
     training_paramenters_group.add_argument("--temperature_for_soft_predictions", type=float, default=1.0)
 
+
+    training_paramenters_group.add_argument("--dynamic_batching", default=False, action="store_true")
+    training_paramenters_group.add_argument("--dynamic_batching_max_elems", type=int, default=10000)
+    training_paramenters_group.add_argument("--dynamic_batching_nb_sent_to_sort", type=int, default=5000)
+
     training_monitoring_group = parser.add_argument_group(_CONFIG_SECTION_TO_DESCRIPTION["training_management"])
     training_monitoring_group.add_argument("--config", help="load a training config file")
     training_monitoring_group.add_argument("--data_prefix", dest="data_prefix",
@@ -110,6 +115,8 @@ def define_parser(parser):
                                            default=False, action="store_true", help="When using older config files")
 
     training_monitoring_group.add_argument("--generate_computation_graph", help="will generate computation graph of the first loss computed")
+
+    training_monitoring_group.add_argument("--disable_cudnn_softmax", default=False, action="store_true")
 
 class CommandLineValuesException(Exception):
     pass

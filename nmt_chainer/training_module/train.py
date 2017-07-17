@@ -237,6 +237,9 @@ def load_voc_and_update_training_config(config_training):
 
 
 def do_train(config_training):
+    if config_training["training_management"]["disable_cudnn_softmax"]:
+        import nmt_chainer.models.feedforward.multi_attention
+        nmt_chainer.models.feedforward.multi_attention.disable_cudnn_softmax = True
 
     src_indexer, tgt_indexer = load_voc_and_update_training_config(config_training)
 
