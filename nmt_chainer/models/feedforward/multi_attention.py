@@ -47,6 +47,8 @@ def batch_matmul_last_dims(A, B, transa=False, transb=False):
 # Multihead Attention
 #
 
+disable_cudnn_softmax=False
+
 class ConstantSizeMultiBatchMultiHeadAttention(Chain):
     """
         Assume all layers have same size d_model
@@ -121,7 +123,8 @@ class ConstantSizeMultiBatchMultiHeadAttention(Chain):
         if self.experimental_relu:
             addressing_weights = F.relu(scaled_scalar_product)
         else:
-            addressing_weights = F.reshape(F.softmax(F.reshape(scaled_scalar_product, (mb_size * n_Q * self.n_heads, seq_length_K))),
+            addressing_weights = F.reshape(F.softmax(F.reshape(scaled_scalar_product, (mb_size * n_Q * self.n_heads, seq_length_K)),
+                                                     use_cudnn=disable_cudnn_softmax),
                                            (mb_size, self.n_heads, n_Q, seq_length_K) )
         
         if self.dropout is not None:
