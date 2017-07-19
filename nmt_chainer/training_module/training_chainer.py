@@ -770,6 +770,8 @@ def train_on_data_chainer(encdec, optimizer, training_data, output_files_dict,
             chainer.reporter.report({"mb_nb_predictions": total_nb_predictions})
             chainer.reporter.report({"trg_loss": avg_loss.data})
             
+            log.info("batch infos: %i x [%i | %i]", src_batch[0].data.shape[0], len(src_batch), len(tgt_batch))
+            
             if generate_loss_computation_graph_on_first_call[0]:
                 log.info("Writing loss computation graph to %s", generate_computation_graph)
                 import chainer.computational_graph as c
