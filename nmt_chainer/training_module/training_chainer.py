@@ -423,7 +423,7 @@ class TrainingLossSummaryExtension(chainer.training.Extension):
             chainer.reporter.report({"avg_update_time": avg_update_time})
             self.reset()
 
-
+import socket
 class SqliteLogExtension(chainer.training.Extension):
     priority = chainer.training.PRIORITY_READER
 
@@ -445,7 +445,7 @@ class SqliteLogExtension(chainer.training.Extension):
 loss real, bleu real,
 dev_loss real, dev_bleu real,
 valid_loss real, valid_bleu real,
-avg_time real, avg_training_loss real)''')
+avg_time real, avg_training_loss real, machine)''')
 
             dev_loss = trainer.observation.get("dev_loss", None)
             if dev_loss is not None:
@@ -459,6 +459,8 @@ avg_time real, avg_training_loss real)''')
             if avg_training_loss is not None:
                 avg_training_loss = float(avg_training_loss)
 
+            machine = socket.gethostname()
+
             infos = (datetime.datetime.now().strftime("%I:%M%p %B %d, %Y"),
                      trainer.observation.get("test_bleu_details", None), trainer.updater.iteration,
                      test_loss,
@@ -466,7 +468,7 @@ avg_time real, avg_training_loss real)''')
                      dev_loss,
                      trainer.observation.get("dev_bleu", None),
                      None, None,
-                     trainer.observation.get("avg_update_time", None), avg_training_loss)
+                     trainer.observation.get("avg_update_time", None), avg_training_loss, machine)
             db_cursor.execute("INSERT INTO exp_data VALUES (?,?,?,?,?,?,?,?,?,?,?)", infos)
             db_connection.commit()
             db_connection.close()
