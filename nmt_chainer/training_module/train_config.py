@@ -38,7 +38,19 @@ def define_parser(parser):
     model_description_group.add_argument("--init_orth", default=False, action="store_true")
     model_description_group.add_argument("--use_bn_length", default=0, type=int)
     model_description_group.add_argument("--use_goto_attention", default=False, action="store_true")
-
+    
+    model_description_group.add_argument("--use_ff_model", default=False, action="store_true")
+    model_description_group.add_argument("--ff_d_model", type=int, default=512, help="FF model d_model")
+    model_description_group.add_argument("--ff_n_heads", type=int, default=8, help="FF model number of attention heads")
+    model_description_group.add_argument("--ff_nb_layers_src", type=int, default=6, help="FF model number of source layers")
+    model_description_group.add_argument("--ff_nb_layers_tgt", type=int, default=6, help="FF model number of target layers")
+    model_description_group.add_argument("--ff_dropout", type=float, help="FF model dropout")
+    model_description_group.add_argument("--ff_d_ff", type=int, default=2048, help="FF model d_ff")
+    model_description_group.add_argument("--ff_use_exp_relu", default=False, action="store_true")
+    model_description_group.add_argument("--ff_residual_mode", default="normal", choices="normal none after".split())
+    model_description_group.add_argument("--ff_no_normalize", default=False, action="store_true")
+    model_description_group.add_argument("--use_own_layer_normalization", default=False, action="store_true")
+    
     training_paramenters_group = parser.add_argument_group(_CONFIG_SECTION_TO_DESCRIPTION["training"])
     training_paramenters_group.add_argument("--mb_size", type=int, default=64, help="Minibatch size")
     training_paramenters_group.add_argument("--nb_batch_to_sort", type=int, default=20, help="Sort this many batches by size.")
@@ -62,6 +74,11 @@ def define_parser(parser):
     training_paramenters_group.add_argument("--use_soft_prediction_feedback", default=False, action="store_true")
     training_paramenters_group.add_argument("--use_gumbel_for_soft_predictions", default=False, action="store_true")
     training_paramenters_group.add_argument("--temperature_for_soft_predictions", type=float, default=1.0)
+
+
+    training_paramenters_group.add_argument("--dynamic_batching", default=False, action="store_true")
+    training_paramenters_group.add_argument("--dynamic_batching_max_elems", type=int, default=10000)
+    training_paramenters_group.add_argument("--dynamic_batching_nb_sent_to_sort", type=int, default=5000)
 
     training_monitoring_group = parser.add_argument_group(_CONFIG_SECTION_TO_DESCRIPTION["training_management"])
     training_monitoring_group.add_argument("--config", help="load a training config file")
@@ -98,6 +115,8 @@ def define_parser(parser):
                                            default=False, action="store_true", help="When using older config files")
 
     training_monitoring_group.add_argument("--generate_computation_graph", help="will generate computation graph of the first loss computed")
+
+    training_monitoring_group.add_argument("--disable_cudnn_softmax", default=False, action="store_true")
 
 class CommandLineValuesException(Exception):
     pass
