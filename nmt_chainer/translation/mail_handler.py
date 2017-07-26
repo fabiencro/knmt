@@ -191,6 +191,7 @@ class MailHandler:
         server_data = config['servers'][lang_pair]
         client = Client(server_data['host'], server_data['port'])
         resp = client.query(sentence,
+                            nb_steps_ratio=2.5,
                             beam_score_length_normalization='google',
                             beam_score_length_normalization_strength=0.2,
                             post_score_length_normalization='google',
