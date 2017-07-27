@@ -343,7 +343,3 @@ def do_start_server(config_server):
         server.server_close()
 
     sys.exit(0)
-
-
-if __name__ == '__main__':
-    command_line()
