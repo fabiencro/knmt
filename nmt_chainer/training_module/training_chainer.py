@@ -609,7 +609,11 @@ avg_time real, avg_training_loss real, machine)''')
                      trainer.observation.get("dev_bleu", None),
                      None, None,
                      trainer.observation.get("avg_update_time", None), avg_training_loss, machine)
-            db_cursor.execute("INSERT INTO exp_data VALUES (?,?,?,?,?,?,?,?,?,?,?)", infos)
+            try:
+                db_cursor.execute("INSERT INTO exp_data VALUES (?,?,?,?,?,?,?,?,?,?,?,?)", infos)
+            except sqlite3.OperationalError:
+                db_cursor.execute("INSERT INTO exp_data VALUES (?,?,?,?,?,?,?,?,?,?,?)", infos[:-1])
+                
             db_connection.commit()
             db_connection.close()
 

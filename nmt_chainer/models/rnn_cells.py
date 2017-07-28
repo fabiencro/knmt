@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 """rnn_cells.py: Wrappers around various RNN Cell types"""
+import nmt_chainer
 __author__ = "Fabien Cromieres"
 __license__ = "undecided"
 __version__ = "1.0"
@@ -76,12 +77,21 @@ class FastGRUCell(Chain):
     def get_nb_states(self):
         return 1
 
+import nmt_chainer.additional_links.ln_lstm
 
 class LSTMCell(Chain):
-    def __init__(self, in_size, out_size, lateral_init=None, upward_init=None, bias_init=None, forget_bias_init=None):
-        log.info("Creating LSTMCell(%i, %i)" % (in_size, out_size))
+    def __init__(self, in_size, out_size, lateral_init=None, upward_init=None, bias_init=None, forget_bias_init=None,
+                 layer_normalization=False):
+        
+        if layer_normalization:
+            LSTMType = nmt_chainer.additional_links.ln_lstm.LNStatelessLSTM
+            log.info("Creating LSTMCell(%i, %i) with LN" % (in_size, out_size))
+        else:
+            LSTMType = L.StatelessLSTM
+            log.info("Creating LSTMCell(%i, %i)" % (in_size, out_size))
+            
         super(LSTMCell, self).__init__(
-            lstm=L.StatelessLSTM(in_size, out_size,
+            lstm=LSTMType(in_size, out_size,
                                  lateral_init=lateral_init, upward_init=upward_init,
                                  bias_init=bias_init, forget_bias_init=forget_bias_init)
         )
@@ -146,7 +156,8 @@ class StackedCell(ChainList):
     def __init__(self, in_size, out_size, cell_type=LSTMCell, nb_stacks=2,
                  dropout=0.5, residual_connection=False, no_dropout_on_input=False,
                  no_residual_connection_on_output=False, no_residual_connection_on_input=False,
-                 init=None, inner_init=None, lateral_init=None, upward_init=None, bias_init=None, forget_bias_init=None):
+                 init=None, inner_init=None, lateral_init=None, upward_init=None, bias_init=None, forget_bias_init=None,
+                 layer_normalization=False):
         nb_stacks = nb_stacks or 2
         cell_type = cell_type or LSTMCell
 
@@ -155,7 +166,8 @@ class StackedCell(ChainList):
         self.nb_of_states = []
 
         if cell_type in (LSTMCell, GatedLSTMCell):
-            cell0 = cell_type(in_size, out_size, lateral_init=lateral_init, upward_init=upward_init, bias_init=bias_init, forget_bias_init=forget_bias_init)
+            cell0 = cell_type(in_size, out_size, lateral_init=lateral_init, upward_init=upward_init, bias_init=bias_init, forget_bias_init=forget_bias_init,
+                              layer_normalization=layer_normalization)
         elif cell_type == GRUCell:
             cell0 = cell_type(in_size, out_size, init=init, inner_init=inner_init, bias_init=bias_init)
         elif cell_type == FastGRUCell:
@@ -167,7 +179,8 @@ class StackedCell(ChainList):
 
         for i in xrange(1, nb_stacks):
             if cell_type in (LSTMCell, GatedLSTMCell):
-                cell = cell_type(out_size, out_size, lateral_init=lateral_init, upward_init=upward_init, bias_init=bias_init, forget_bias_init=forget_bias_init)
+                cell = cell_type(out_size, out_size, lateral_init=lateral_init, upward_init=upward_init, bias_init=bias_init, forget_bias_init=forget_bias_init,
+                                 layer_normalization=layer_normalization)
             elif cell_type == GRUCell:
                 cell = cell_type(out_size, out_size, init=init, inner_init=inner_init, bias_init=bias_init)
             elif cell_type == FastGRUCell:
@@ -294,7 +307,8 @@ cell_description_keywords = {
     "lateral_init_fillvalue": float,
     "upward_init_fillvalue": float,
     "bias_init_fillvalue": float,
-    "forget_bias_init_fillvalue": float
+    "forget_bias_init_fillvalue": float,
+    "layer_normalization": int
 }
 
 
@@ -411,6 +425,8 @@ def create_cell_model(type_str, **cell_parameters):
                 params['no_residual_connection_on_output'] = cell_parameters['no_residual_connection_on_output']
             if 'no_residual_connection_on_input' in cell_parameters:
                 params['no_residual_connection_on_input'] = cell_parameters['no_residual_connection_on_input']
+            if "layer_normalization" in cell_parameters:
+                params['layer_normalization'] = cell_parameters['layer_normalization']
             params['init'] = init
             params['inner_init'] = inner_init
             params['lateral_init'] = lateral_init
@@ -422,7 +438,8 @@ def create_cell_model(type_str, **cell_parameters):
     else:
         def instantiate(in_size, out_size):
             if type_str in ("lstm", "glstm"):
-                return cell_type(in_size, out_size, lateral_init=lateral_init, upward_init=upward_init, bias_init=bias_init, forget_bias_init=forget_bias_init)
+                return cell_type(in_size, out_size, lateral_init=lateral_init, upward_init=upward_init, bias_init=bias_init, forget_bias_init=forget_bias_init,
+                                 layer_normalization=cell_parameters.get("layer_normalization", False))
             elif type_str == "slow_gru":
                 return cell_type(in_size, out_size, init=init, inner_init=inner_init, bias_init=bias_init)
             elif type_str == "gru":
