@@ -79,6 +79,9 @@ def define_parser(parser):
     training_paramenters_group.add_argument("--dynamic_batching", default=False, action="store_true")
     training_paramenters_group.add_argument("--dynamic_batching_max_elems", type=int, default=10000)
     training_paramenters_group.add_argument("--dynamic_batching_nb_sent_to_sort", type=int, default=5000)
+    
+    training_paramenters_group.add_argument("--load_initial_source_embeddings")
+    training_paramenters_group.add_argument("--load_initial_target_embeddings")
 
     training_monitoring_group = parser.add_argument_group(_CONFIG_SECTION_TO_DESCRIPTION["training_management"])
     training_monitoring_group.add_argument("--config", help="load a training config file")

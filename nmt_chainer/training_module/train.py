@@ -343,6 +343,27 @@ def do_train(config_training):
     encdec, _, _, _ = create_encdec_and_indexers_from_config_dict(config_training,
                                                                   src_indexer=src_indexer, tgt_indexer=tgt_indexer,
                                                                   load_config_model="if_exists" if config_training.training_management.resume else "no")
+    
+    if (config_training.training.get("load_initial_source_embeddings", None) is not None or
+        config_training.training.get("load_initial_target_embeddings", None) is not None):
+        import numpy as np
+        src_emb = None
+        tgt_emb = None
+        
+        src_emb_fn = config_training.training.get("load_initial_source_embeddings", None)
+        tgt_emb_fn = config_training.training.get("load_initial_target_embeddings", None)
+        
+        if src_emb_fn is not None:
+            log.info("loading source embeddings from %s", src_emb_fn)
+            src_emb = np.load(src_emb_fn)
+        
+        if tgt_emb_fn is not None:
+            log.info("loading target embeddings from %s", tgt_emb_fn)
+            tgt_emb = np.load(tgt_emb_fn)
+        
+        encdec.initialize_embeddings(src_emb, tgt_emb, no_unk_src=True, no_unk_tgt=True)
+        
+    
 #     create_encdec_from_config_dict(config_training.model, src_indexer, tgt_indexer,
 #                             load_config_model = "if_exists" if config_training.training_management.resume else "no")
 

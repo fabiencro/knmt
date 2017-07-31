@@ -148,6 +148,13 @@ class Encoder(Chain):
             ortho_init(self.gru_f)
             ortho_init(self.gru_b)
 
+    def initialize_embeddings(self, emb_vectors, no_unk=False):
+        log.info("initializing with precomputed source embeddings")
+        if no_unk:
+            self.emb.W.data[:-1,:] = emb_vectors
+        else:
+            self.emb.W.data[:,:] = emb_vectors
+
     def __call__(self, sequence, mask, mode="test"):
         assert mode in "test train".split()
 
