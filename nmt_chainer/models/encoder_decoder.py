@@ -123,6 +123,16 @@ class EncoderDecoder(Chain):
             lexicon_probability_matrix = None
         return lexicon_probability_matrix
 
+    def initialize_embeddings(self, src_emb=None, tgt_emb=None, no_unk_src=False, no_unk_tgt=False):
+        if src_emb is None and tgt_emb is None:
+            log.warn("called initialize_embeddings with 2 None args")
+            
+        if src_emb is not None:
+            self.enc.initialize_embeddings(src_emb, no_unk=no_unk_src)
+            
+        if tgt_emb is not None:
+            self.dec.initialize_embeddings(tgt_emb, no_unk=no_unk_tgt)
+
     def __call__(self, src_batch, tgt_batch, src_mask, use_best_for_sample=False, display_attn=False,
                  raw_loss_info=False, keep_attn_values=False, need_score=False, noise_on_prev_word=False,
                  use_previous_prediction=0, mode="test",

@@ -345,6 +345,13 @@ class Decoder(Chain):
             ortho_init(self.lin_o)
             ortho_init(self.maxo)
 
+    def initialize_embeddings(self, emb_vectors, no_unk=False):
+        log.info("initializing with precomputed target embeddings")
+        if no_unk:
+            self.emb.W.data[:-2,:] = emb_vectors
+        else:
+            self.emb.W.data[:-1,:] = emb_vectors #no eos
+        
     def give_conditionalized_cell(self, fb_concat, src_mask, noise_on_prev_word=False,
                                   mode="test", lexicon_probability_matrix=None, lex_epsilon=1e-3, demux=False):
         assert mode in "test train".split()
