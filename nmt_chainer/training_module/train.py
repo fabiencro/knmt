@@ -14,7 +14,7 @@ from nmt_chainer.dataprocessing.indexer import Indexer
 from nmt_chainer.utilities.file_infos import create_filename_infos
 from nmt_chainer.utilities.argument_parsing_tools import OrderedNamespace
 import nmt_chainer.models.feedforward.encoder_decoder
-
+import numpy as np
 import logging
 import json
 import os.path
@@ -182,8 +182,8 @@ def create_encdec_and_indexers_from_config_dict(config_dict, src_indexer=None, t
                 raise ValueError(
                     "Config file do not contain model_parameters section")
         else:
+            model_filename = config_dict.model_parameters.filename
             if config_dict.model_parameters.type == "model":
-                model_filename = config_dict.model_parameters.filename
                 log.info(
                     "loading model parameters from file specified by config file:%s" %
                     model_filename)
@@ -191,10 +191,12 @@ def create_encdec_and_indexers_from_config_dict(config_dict, src_indexer=None, t
                 if return_model_infos:
                     model_infos = create_filename_infos(model_filename)
             else:
-                if load_config_model == "yes":
-                    log.error(
-                        "model parameters in config file is of type snapshot, not model")
-                    raise ValueError("Config file model is not of type model")
+                log.info("loading model parameters from snapshot file specified by config file:%s" %model_filename)
+                with np.load(model_filename) as fs:
+                    dics = serializers.NpzDeserializer(fs, path="updater/model:main/")
+                    dics.load(encdec)
+                if return_model_infos:
+                    model_infos = create_filename_infos(model_filename)
 
     result = encdec, eos_idx, src_indexer, tgt_indexer
     if return_model_infos:
