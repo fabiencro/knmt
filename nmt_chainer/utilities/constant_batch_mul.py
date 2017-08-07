@@ -14,7 +14,7 @@ except ImportError:
     def _batch_matmul_gpu(*args, **kwds):
         # TO DO: fix this for recent chainer
         print "Sorry, use of lexical probabilities is broken with this version of chainer"
-        raise NotImplemented
+        raise NotImplemented()
     
     
 try:
@@ -23,7 +23,7 @@ except ImportError:
     def _convert_type(*args, **kwds):
         # TO DO: fix this for recent chainer
         print "Sorry, use of lexical probabilities is broken with this version of chainer"
-        raise NotImplemented    
+        raise NotImplemented()
 
 
 class MatMulConstant(function.Function):
