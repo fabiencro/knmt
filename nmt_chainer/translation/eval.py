@@ -177,7 +177,7 @@ def beam_search_all(gpu, encdec, eos_idx, src_data, beam_width, beam_pruning_mar
                 else:
                     assert False
 
-                translated = tgt_indexer.deconvert_swallow(t, unk_tag=unk_replacer)
+                translated = tgt_indexer.deconvert_shallow(t, unk_tag=unk_replacer)
 
                 unk_mapping = []
                 ct = " ".join(translated)
@@ -253,7 +253,7 @@ def translate_to_file_with_beam_search(dest_fn, gpu, encdec, eos_idx, src_data, 
                 rich_output.add_info(src, translated, t, score, attn, unk_mapping=unk_mapping)
             if attn_vis is not None:
                 attn_vis.add_plot(
-                    src_indexer.deconvert_swallow(src),
+                    src_indexer.deconvert_shallow(src),
                     translated,
                     attn,
                     attn_graph_with_sum,
@@ -589,8 +589,8 @@ def do_eval(config_eval):
             attn = attn_all[num_t]
 #             assert len(attn) == len(tgt_idx_list)
 
-            src_w = src_indexer.deconvert_swallow(src_idx_list, unk_tag="#S_UNK#") + ["SUM_ATTN"]
-            tgt_w = tgt_indexer.deconvert_swallow(tgt_idx_list, unk_tag="#T_UNK#")
+            src_w = src_indexer.deconvert_shallow(src_idx_list, unk_tag="#S_UNK#") + ["SUM_ATTN"]
+            tgt_w = tgt_indexer.deconvert_shallow(tgt_idx_list, unk_tag="#T_UNK#")
 #             src_w = [src_voc_with_unk[idx] for idx in src_idx_list] + ["SUM_ATTN"]
 #             tgt_w = [tgt_voc_with_unk[idx] for idx in tgt_idx_list]
 #             for j in xrange(len(tgt_idx_list)):
@@ -631,8 +631,8 @@ def do_eval(config_eval):
             for j in xrange(len(tgt_idx_list)):
                 alignment[len(src_idx_list), j] = sum_al[j]
 
-            src_w = src_indexer.deconvert_swallow(src_idx_list, unk_tag="#S_UNK#") + ["SUM_ATTN"]
-            tgt_w = tgt_indexer.deconvert_swallow(tgt_idx_list, unk_tag="#T_UNK#")
+            src_w = src_indexer.deconvert_shallow(src_idx_list, unk_tag="#S_UNK#") + ["SUM_ATTN"]
+            tgt_w = tgt_indexer.deconvert_shallow(tgt_idx_list, unk_tag="#T_UNK#")
 #             src_w = [src_voc_with_unk[idx] for idx in src_idx_list] + ["SUM_ATTN"]
 #             tgt_w = [tgt_voc_with_unk[idx] for idx in tgt_idx_list]
 #             for j in xrange(len(tgt_idx_list)):
