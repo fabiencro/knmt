@@ -14,6 +14,7 @@ import math
 import codecs
 import operator
 import beam_search
+import chainer
 # import h5py
 
 logging.basicConfig()
