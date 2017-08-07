@@ -28,7 +28,7 @@ class GRUCell(Chain):
     def __init__(self, in_size, out_size, init=None, inner_init=None, bias_init=None):
         log.info("Creating GRUCell(%i, %i)" % (in_size, out_size))
         super(GRUCell, self).__init__(
-            gru=L.GRU(out_size, in_size, init=init, inner_init=inner_init, bias_init=bias_init),
+            gru=L.StatelessGRU(in_size, out_size, init=init, inner_init=inner_init, bias_init=bias_init),
         )
         self.add_param("initial_state", (1, out_size))
         self.initial_state.data[...] = self.xp.random.randn(out_size)
