@@ -34,9 +34,9 @@ class DropoutAndAddAndNormalize(Chain):
             
         return final_layer
             
-    def __call__(self, sub_output, inpt, train=True):
+    def __call__(self, sub_output, inpt):
         if self.dropout is not None:
-            sub_output = F.dropout(sub_output, ratio=self.dropout, train=train)
+            sub_output = F.dropout(sub_output, ratio=self.dropout)
             
         if self.residual_mode == "normal":
             added_output = sub_output + inpt
@@ -75,7 +75,7 @@ class FeedForward(Chain):
 #         self.no_add = no_add
 #         self.no_normalize = no_normalize
         
-    def __call__(self, x_input, train=True):
+    def __call__(self, x_input):
 #         print "FF", x_input.data
         if len(x_input.data.shape) > 2:
             x = F.reshape(x_input, (-1, x_input.shape[-1]))
@@ -84,7 +84,7 @@ class FeedForward(Chain):
             
         ff_output = self.lin2(F.relu(self.lin1(x)))
         
-        norm_ff_output = self.layer_reduce(ff_output, x, train=train)
+        norm_ff_output = self.layer_reduce(ff_output, x)
         
 #         if self.dropout is not None:
 #             ff_output = F.dropout(ff_output, self.dropout, train=train)

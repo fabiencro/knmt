@@ -730,7 +730,7 @@ def train_on_data_chainer(encdec, optimizer, training_data, output_files_dict,
     
             t0 = time.clock()
             
-            loss = encdec.compute_loss(src_seq, tgt_seq, train=True, reduce="no")
+            loss = encdec.compute_loss(src_seq, tgt_seq, reduce="no")
             total_loss = F.sum(loss)
             total_nb_predictions = sum(len(seq) + 1 for seq in tgt_seq)
             
@@ -763,7 +763,6 @@ def train_on_data_chainer(encdec, optimizer, training_data, output_files_dict,
             (total_loss, total_nb_predictions), attn = encdec(src_batch, tgt_batch, src_mask, raw_loss_info=True,
                                                               noise_on_prev_word=noise_on_prev_word,
                                                               use_previous_prediction=use_previous_prediction,
-                                                              mode="train",
                                                               use_soft_prediction_feedback=use_soft_prediction_feedback, 
                                                               use_gumbel_for_soft_predictions=use_gumbel_for_soft_predictions,
                                                               temperature_for_soft_predictions=temperature_for_soft_predictions)

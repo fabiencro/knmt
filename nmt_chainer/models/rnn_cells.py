@@ -40,8 +40,7 @@ class GRUCell(Chain):
             self.initial_state, (1, self.out_size)), (mb_size, self.out_size))
         return (mb_initial_state,)
 
-    def __call__(self, prev_states, x_in, mode="test"):
-        assert mode in "test train".split()
+    def __call__(self, prev_states, x_in):
         assert len(prev_states) == 1
         prev_state = prev_states[0]
         new_state = self.gru(prev_state, x_in)
@@ -67,8 +66,7 @@ class FastGRUCell(Chain):
             self.initial_state, (1, self.out_size)), (mb_size, self.out_size))
         return (mb_initial_state,)
 
-    def __call__(self, prev_states, x_in, mode="test"):
-        assert mode in "test train".split()
+    def __call__(self, prev_states, x_in):
         assert len(prev_states) == 1
         prev_state = prev_states[0]
         new_state = self.gru(prev_state, x_in)
@@ -103,11 +101,10 @@ class LSTMCell(Chain):
 
     def get_initial_states(self, mb_size):
         mb_initial_state = F.broadcast_to(F.reshape(self.initial_state, (1, self.out_size)), (mb_size, self.out_size))
-        mb_initial_cell = Variable(self.xp.broadcast_to(self.initial_cell, (mb_size, self.out_size)), volatile="auto")
+        mb_initial_cell = Variable(self.xp.broadcast_to(self.initial_cell, (mb_size, self.out_size)))
         return (mb_initial_cell, mb_initial_state)
 
-    def __call__(self, prev_states, x_in, mode="test"):
-        assert mode in "test train".split()
+    def __call__(self, prev_states, x_in):
         prev_cell, prev_state = prev_states
         new_cell, new_state = self.lstm(prev_cell, prev_state, x_in)
         return new_cell, new_state
@@ -134,12 +131,11 @@ class GatedLSTMCell(Chain):
 
     def get_initial_states(self, mb_size):
         mb_initial_state = F.broadcast_to(F.reshape(self.initial_state, (1, self.out_size)), (mb_size, self.out_size))
-        mb_initial_cell = Variable(self.xp.broadcast_to(self.initial_cell, (mb_size, self.out_size)), volatile="auto")
-        mb_initial_output = Variable(self.xp.broadcast_to(self.initial_output, (mb_size, self.out_size)), volatile="auto")
+        mb_initial_cell = Variable(self.xp.broadcast_to(self.initial_cell, (mb_size, self.out_size)))
+        mb_initial_output = Variable(self.xp.broadcast_to(self.initial_output, (mb_size, self.out_size)))
         return (mb_initial_cell, mb_initial_state, mb_initial_output)
 
-    def __call__(self, prev_states, x_in, mode="test"):
-        assert mode in "test train".split()
+    def __call__(self, prev_states, x_in):
         prev_cell, prev_state, old_output = prev_states
         new_cell, new_state = self.lstm(prev_cell, prev_state, x_in)
 
@@ -203,16 +199,14 @@ class StackedCell(ChainList):
             res += list(self[i].get_initial_states(mb_size))
         return tuple(res)
 
-    def __call__(self, prev_states, x_in, mode="test"):
-        assert mode in "test train".split()
+    def __call__(self, prev_states, x_in):
         input_below = x_in
         states_cursor = 0
         res = []
         for i in xrange(len(self)):
             if self.dropout is not None and not (self.no_dropout_on_input and i == 0):
-                input_below = F.dropout(input_below, ratio=self.dropout, train=(mode == "train"))
-            new_states = self[i](prev_states[states_cursor:states_cursor + self.nb_of_states[i]], input_below,
-                                 mode=mode)
+                input_below = F.dropout(input_below, ratio=self.dropout)
+            new_states = self[i](prev_states[states_cursor:states_cursor + self.nb_of_states[i]], input_below)
             states_cursor += self.nb_of_states[i]
 
             if (self.residual_connection and
@@ -241,14 +235,13 @@ class NStepsCell(Chain):
 
     def get_initial_states(self, mb_size):
         mb_initial_state = F.broadcast_to(self.initial_state, (self.nb_stacks, mb_size, self.out_size))
-        mb_initial_cell = Variable(self.xp.broadcast_to(self.initial_cell, (self.nb_stacks, mb_size, self.out_size)), volatile="auto")
+        mb_initial_cell = Variable(self.xp.broadcast_to(self.initial_cell, (self.nb_stacks, mb_size, self.out_size)))
         return (mb_initial_cell, mb_initial_state)
 
-    def apply_to_seq(self, seq_list, mode="test"):
-        assert mode in "test train".split()
+    def apply_to_seq(self, seq_list):
         mb_size = len(seq_list)
         mb_initial_cell, mb_initial_state = self.get_initial_states(mb_size)
-        return self.nstep_lstm(mb_initial_cell, mb_initial_state, seq_list, train=mode == "train")
+        return self.nstep_lstm(mb_initial_cell, mb_initial_state, seq_list)
 
 
 # class DoubleGRU(Chain):

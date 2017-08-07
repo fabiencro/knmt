@@ -62,8 +62,7 @@ class EncoderNSteps(Chain):
         )
         self.Hi = Hi
 
-    def __call__(self, sequence, mask, mode="test"):
-        assert mode in "test train".split()
+    def __call__(self, sequence, mask):
 
         mb_size = sequence[0].data.shape[0]
         max_length_size = len(sequence)
@@ -83,13 +82,13 @@ class EncoderNSteps(Chain):
         for elem in de_batched_seq:
             embedded_seq.append(self.emb(elem))
 
-        hx, cx, forward_seq = self.gru_f.apply_to_seq(embedded_seq, mode=mode)
+        hx, cx, forward_seq = self.gru_f.apply_to_seq(embedded_seq)
 
         reversed_embedded_seq = []
         for elem in de_batched_seq:
             reversed_embedded_seq.append(self.emb(elem[::-1]))
 
-        hxb, cxb, backward_seq = self.gru_b.apply_to_seq(reversed_embedded_seq, mode=mode)
+        hxb, cxb, backward_seq = self.gru_b.apply_to_seq(reversed_embedded_seq)
 
         assert len(backward_seq) == len(forward_seq) == mb_size
 
@@ -155,9 +154,7 @@ class Encoder(Chain):
         else:
             self.emb.W.data[:,:] = emb_vectors
 
-    def __call__(self, sequence, mask, mode="test"):
-        assert mode in "test train".split()
-
+    def __call__(self, sequence, mask):
         mb_size = sequence[0].data.shape[0]
 
         mb_initial_states_f = self.gru_f.get_initial_states(mb_size)
@@ -170,7 +167,7 @@ class Encoder(Chain):
         prev_states = mb_initial_states_f
         forward_seq = []
         for i, x in enumerate(embedded_seq):
-            prev_states = self.gru_f(prev_states, x, mode=mode)
+            prev_states = self.gru_f(prev_states, x)
             output = prev_states[-1]
             forward_seq.append(output)
 
@@ -184,14 +181,14 @@ class Encoder(Chain):
         backward_seq = []
         for pos, x in reversed(list(enumerate(embedded_seq))):
             if pos < mask_offset:
-                prev_states = self.gru_b(prev_states, x, mode=mode)
+                prev_states = self.gru_b(prev_states, x)
                 output = prev_states[-1]
             else:
                 reshaped_mask = F.broadcast_to(
                     Variable(self.xp.reshape(mask[pos - mask_offset],
                                              (mb_size, 1)), volatile="auto"), (mb_size, self.Hi))
 
-                prev_states = self.gru_b(prev_states, x, mode=mode)
+                prev_states = self.gru_b(prev_states, x)
                 output = prev_states[-1]
 
                 masked_prev_states = [None] * len(prev_states)
