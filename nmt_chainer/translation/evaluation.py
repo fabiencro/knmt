@@ -107,8 +107,7 @@ def greedy_batch_translate(encdec, eos_idx, src_data, batch_size=80, gpu=None, g
         deb = de_batch(sample_greedy, mask=None, eos_idx=eos_idx, is_variable=False)
         res += deb
         if get_attention:
-            deb_attn = de_batch(attn_list, mask=None, eos_idx=None, is_variable=True, raw=True,
-                                reverse=reverse_tgt)
+            deb_attn = de_batch(attn_list, mask=None, eos_idx=None, is_variable=True, raw=True)
             attn_all += deb_attn
 
     if reverse_tgt:
@@ -253,7 +252,9 @@ def beam_search_translate(encdec, eos_idx, src_data, beam_width=20, beam_pruning
 
                 return x[1] / length_normalization + coverage_penalty
 
-        translations.sort(key=ranking_criterion, reverse=True)
+        # Add the adjusted score to the translations and sort them by the adjusted score.
+        translations = map(lambda x: x + tuple([ranking_criterion(x)]), translations)
+        translations.sort(key=lambda x: x[-1], reverse=True)
 
         if nbest is not None:
             yield translations[:nbest]

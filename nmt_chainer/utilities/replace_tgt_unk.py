@@ -29,7 +29,7 @@ def replace_unk_from_string(translation_str, src_str, dic_fn, remove_unk, normal
         if w.startswith("#T_UNK_"):
             src_pos = int(w[7:-1])
             if src_pos >= len(splitted_s):
-                log.warn("link to source out of bound (%i/%i line %i)" % (src_pos, len(splitted_s), num_line + 1))
+                log.warn("link to source out of bound (%i/%i line %i)" % (src_pos, len(splitted_s), p_w + 1))
                 src_pos = len(splitted_s) - 1
             src_w = splitted_s[src_pos]
 

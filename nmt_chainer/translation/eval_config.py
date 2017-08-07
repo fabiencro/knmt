@@ -37,6 +37,7 @@ def define_parser(parser):
     translation_method_group.add_argument("--post_score_coverage_penalty", choices=['none', 'google'], default='none')
     translation_method_group.add_argument("--post_score_coverage_penalty_strength", type=float, default=0.2)
     translation_method_group.add_argument("--prob_space_combination", default=False, action="store_true")
+    translation_method_group.add_argument("--backtranslation_strength", type=float, default=1.0)
 
     output_group = parser.add_argument_group(_CONFIG_SECTION_TO_DESCRIPTION["output"])
     output_group.add_argument("--tgt_fn", help="target text")
@@ -58,6 +59,8 @@ def define_parser(parser):
     management_group.add_argument("--mb_size", type=int, default=80, help="Minibatch size")
     management_group.add_argument("--nb_batch_to_sort", type=int, default=20, help="Sort this many batches by size.")
     management_group.add_argument("--load_model_config", nargs="+", help="gives a list of models to be used for translation")
+    management_group.add_argument("--load_backtranslation_model_config", nargs="+", help="gives a list of models used for reverse translation comparison")
+    management_group.add_argument("--backtranslation_dic")
     management_group.add_argument("--src_fn", nargs="?", help="source text",
                                   action=argument_parsing_tools.ArgumentActionNotOverwriteWithNone)
     management_group.add_argument("--dest_fn", nargs="?", help="destination file",

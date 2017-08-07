@@ -39,7 +39,7 @@ class Translator:
     def __init__(self, config_server):
         self.config_server = config_server
         from nmt_chainer.translation.eval import create_encdec
-        self.encdec, self.eos_idx, self.src_indexer, self.tgt_indexer, self.reverse_encdec, model_infos_list = create_encdec(
+        self.encdec, self.eos_idx, self.src_indexer, self.tgt_indexer, self.reverse_encdec, model_infos_list, backtranslation_encdec, backtranslation_eos_idx, backtranslation_src_indexer, backtranslation_tgt_indexer = create_encdec(
             config_server)
 
         self.encdec_list = [self.encdec]
@@ -66,7 +66,7 @@ class Translator:
             div = '<div/>'
             unk_mapping = []
 
-            src_data, stats_src_pp = build_dataset_one_side_pp(src_file.name, self.src_indexer, max_nb_ex=self.config_server.process.max_nb_ex)
+            src_sentences, src_data, stats_src_pp = build_dataset_one_side_pp(src_file.name, self.src_indexer, max_nb_ex=self.config_server.process.max_nb_ex)
 
             from nmt_chainer.translation.eval import translate_to_file_with_beam_search
             translate_to_file_with_beam_search(dest_file.name, self.config_server.process.gpu, self.encdec, self.eos_idx, src_data, beam_width, beam_pruning_margin,
