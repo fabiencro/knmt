@@ -76,7 +76,7 @@ class EncoderNSteps(Chain):
             de_batched_seq.append(self.xp.empty((seq_length[num_seq],), dtype=self.xp.int32))
             for i in xrange(seq_length[num_seq]):
                 de_batched_seq[-1][i] = sequence[i].data[num_seq]
-            de_batched_seq[-1] = Variable(de_batched_seq[-1], volatile="auto")
+            de_batched_seq[-1] = Variable(de_batched_seq[-1])
 
         embedded_seq = []
         for elem in de_batched_seq:
@@ -186,7 +186,7 @@ class Encoder(Chain):
             else:
                 reshaped_mask = F.broadcast_to(
                     Variable(self.xp.reshape(mask[pos - mask_offset],
-                                             (mb_size, 1)), volatile="auto"), (mb_size, self.Hi))
+                                             (mb_size, 1))), (mb_size, self.Hi))
 
                 prev_states = self.gru_b(prev_states, x)
                 output = prev_states[-1]
