@@ -331,14 +331,14 @@ class DynamicLengthBasedSerialIterator(chainer.dataset.iterator.Iterator):
 import six
 
 
-def make_collection_of_variables(in_arrays, volatile="off"):
+def make_collection_of_variables(in_arrays):
     if isinstance(in_arrays, tuple):
-        in_vars = tuple(chainer.variable.Variable(x, volatile=volatile) for x in in_arrays)
+        in_vars = tuple(chainer.variable.Variable(x) for x in in_arrays)
     elif isinstance(in_arrays, dict):
-        in_vars = {key: chainer.variable.Variable(x, volatile=volatile)
+        in_vars = {key: chainer.variable.Variable(x)
                    for key, x in six.iteritems(in_arrays)}
     else:
-        in_vars = chainer.variable.Variable(in_arrays, volatile=volatile)
+        in_vars = chainer.variable.Variable(in_arrays)
     return in_vars
 
 
@@ -700,7 +700,7 @@ def train_on_data_chainer(encdec, optimizer, training_data, output_files_dict,
                     s_unk_tag=s_unk_tag, t_unk_tag=t_unk_tag)
             else:
     
-                src_batch, tgt_batch, src_mask = make_batch_src_tgt(mb_raw, eos_idx=eos_idx, padding_idx=0, gpu=gpu, volatile="on", need_arg_sort=False)
+                src_batch, tgt_batch, src_mask = make_batch_src_tgt(mb_raw, eos_idx=eos_idx, padding_idx=0, gpu=gpu, need_arg_sort=False)
         
                 sample_once(encdec, src_batch, tgt_batch, src_mask, src_indexer, tgt_indexer, eos_idx,
                             max_nb=20,
@@ -788,7 +788,7 @@ def train_on_data_chainer(encdec, optimizer, training_data, output_files_dict,
             return avg_loss
 
         def convert_mb(mb_raw, device):
-            return make_batch_src_tgt(mb_raw, eos_idx=eos_idx, padding_idx=0, gpu=device, volatile="off", need_arg_sort=False)
+            return make_batch_src_tgt(mb_raw, eos_idx=eos_idx, padding_idx=0, gpu=device, need_arg_sort=False)
 
     updater = Updater(iterator_training_data, optimizer,
                       converter=convert_mb,
