@@ -45,14 +45,15 @@ class EncoderDecoder(Chain):
                 for minibatch in batch_sort_and_split(larger_batch, size_parts = mb_size):
                     yield zip(*minibatch)
         
-        total_loss = 0
-        total_nb_predictions = 0.0     
-        for src_batch, tgt_batch in mb_provider():
-            loss = self.compute_loss(src_batch, tgt_batch, train=False, reduce="no")
-            nb_tgt_words = sum(len(seq) + 1 for seq in tgt_batch) # +1 for eos
-            total_loss += self.xp.sum(loss.data)
-            total_nb_predictions += nb_tgt_words
-        return total_loss / total_nb_predictions
+        with chainer.using_config("train", False), chainer.no_backprop_mode():
+            total_loss = 0
+            total_nb_predictions = 0.0     
+            for src_batch, tgt_batch in mb_provider():
+                loss = self.compute_loss(src_batch, tgt_batch, reduce="no")
+                nb_tgt_words = sum(len(seq) + 1 for seq in tgt_batch) # +1 for eos
+                total_loss += self.xp.sum(loss.data)
+                total_nb_predictions += nb_tgt_words
+            return total_loss / total_nb_predictions
         
     def greedy_batch_translate(self, test_data,  mb_size=64, nb_mb_for_sorting= 20, nb_steps=50):
         test_data_with_index = zip(test_data, range(len(test_data)))
@@ -78,56 +79,57 @@ class EncoderDecoder(Chain):
         assert reordered_indexes == range(len(test_data))
         return reordered_result
         
-    def compute_loss(self, src_seq, tgt_seq, train=True, reduce="mean"):
-        encoded_source, src_mask = self.encoder(src_seq, train=train)
-        loss = self.decoder.compute_loss(tgt_seq, encoded_source, src_mask, train=train, reduce=reduce)
+    def compute_loss(self, src_seq, tgt_seq, reduce="mean"):
+        encoded_source, src_mask = self.encoder(src_seq)
+        loss = self.decoder.compute_loss(tgt_seq, encoded_source, src_mask, reduce=reduce)
         return loss
         
     def greedy_translate(self, src_seq, nb_steps, cut_eos=True, sample=False):
-        encoded_source, src_mask = self.encoder(src_seq, train=False)
-        decoding_cell = self.decoder.get_conditionalized_cell(encoded_source, src_mask)
-        
-        logits, decoder_state = decoding_cell.get_initial_logits(train=False)
-        
-        mb_size = len(src_seq)
-        result = [[] for _ in xrange(mb_size)]
-        finished = [False for _ in xrange(mb_size)]
-        
-        num_step = 0
-        while 1:
-            if sample:
-                logits = logits + self.xp.random.gumbel(size=logits.data.shape).astype(self.xp.float32)
+        with chainer.using_config("train", False), chainer.no_backprop_mode():
+            encoded_source, src_mask = self.encoder(src_seq)
+            decoding_cell = self.decoder.get_conditionalized_cell(encoded_source, src_mask)
             
-#             print "logits shape", logits.shape
-            prev_word = self.xp.argmax(logits.data, axis = 1).reshape(-1, 1).astype(self.xp.int32)
-#             print "prev w shape", prev_word.shape
-            assert prev_word.shape == (mb_size, 1)
-            for i in xrange(mb_size):
-                if not finished[i]:
-                    if cut_eos and prev_word[i, 0] == self.decoder.eos_idx:
-                        finished[i] = True
-                        continue
-                    result[i].append(prev_word[i, 0])
+            logits, decoder_state = decoding_cell.get_initial_logits()
             
-            prev_word = self.xp.where(prev_word == self.decoder.eos_idx, 0, prev_word)
-            num_step += 1
-            if num_step > nb_steps:
-                break
-            logits, decoder_state = decoding_cell(decoder_state, prev_word, train=False)
+            mb_size = len(src_seq)
+            result = [[] for _ in xrange(mb_size)]
+            finished = [False for _ in xrange(mb_size)]
             
-        result = [[int(x) for x in seq] for seq in result]
-        return result
+            num_step = 0
+            while 1:
+                if sample:
+                    logits = logits + self.xp.random.gumbel(size=logits.data.shape).astype(self.xp.float32)
+                
+    #             print "logits shape", logits.shape
+                prev_word = self.xp.argmax(logits.data, axis = 1).reshape(-1, 1).astype(self.xp.int32)
+    #             print "prev w shape", prev_word.shape
+                assert prev_word.shape == (mb_size, 1)
+                for i in xrange(mb_size):
+                    if not finished[i]:
+                        if cut_eos and prev_word[i, 0] == self.decoder.eos_idx:
+                            finished[i] = True
+                            continue
+                        result[i].append(prev_word[i, 0])
+                
+                prev_word = self.xp.where(prev_word == self.decoder.eos_idx, 0, prev_word)
+                num_step += 1
+                if num_step > nb_steps:
+                    break
+                logits, decoder_state = decoding_cell(decoder_state, prev_word)
+                
+            result = [[int(x) for x in seq] for seq in result]
+            return result
             
-    def compute_logits(self, src_seq, tgt_seq, train=True):
-        encoded_source, src_mask = self.encoder(src_seq, train=train)
-        logits = self.decoder.compute_logits(tgt_seq, encoded_source, src_mask, train=train)
+    def compute_logits(self, src_seq, tgt_seq):
+        encoded_source, src_mask = self.encoder(src_seq)
+        logits = self.decoder.compute_logits(tgt_seq, encoded_source, src_mask)
         return logits
       
-    def compute_logits_step_by_step(self, src_seq, tgt_seq, train=True):
-        encoded_source, src_mask = self.encoder(src_seq, train=train)
+    def compute_logits_step_by_step(self, src_seq, tgt_seq):
+        encoded_source, src_mask = self.encoder(src_seq)
         decoding_cell = self.decoder.get_conditionalized_cell(encoded_source, src_mask)
         
-        logits, decoder_state = decoding_cell.get_initial_logits(train=train)            
+        logits, decoder_state = decoding_cell.get_initial_logits()            
         
         from nmt_chainer.models.feedforward.utils import pad_data
         padded_tgt = pad_data(tgt_seq, pad_value=0)#, add_eos=self.decoder.eos_idx)
@@ -153,17 +155,17 @@ class EncoderDecoder(Chain):
 #             print "prev w shape", prev_word.shape
             assert prev_word.shape == (mb_size, 1)
             
-            logits, decoder_state = decoding_cell(decoder_state, prev_word, train=train)
+            logits, decoder_state = decoding_cell(decoder_state, prev_word)
             result.append(logits)
             
 #         print "seq_padded_tgt", seq_padded_tgt
         return result  
             
-    def compute_loss_step_by_step(self, src_seq, tgt_seq, train=True):
-        encoded_source, src_mask = self.encoder(src_seq, train=train)
+    def compute_loss_step_by_step(self, src_seq, tgt_seq):
+        encoded_source, src_mask = self.encoder(src_seq)
         decoding_cell = self.decoder.get_conditionalized_cell(encoded_source, src_mask)
         
-        logits, decoder_state = decoding_cell.get_initial_logits(train=train)            
+        logits, decoder_state = decoding_cell.get_initial_logits()            
         
         from nmt_chainer.models.feedforward.utils import pad_data
         padded_tgt = pad_data(tgt_seq, pad_value=0)#, add_eos=self.decoder.eos_idx)

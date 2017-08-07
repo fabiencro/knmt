@@ -78,7 +78,7 @@ class ConstantSizeMultiBatchMultiHeadAttention(Chain):
         self.dropout = dropout
                                                  
                                                  
-    def __call__(self, Q, K, V, batch_mask = None, train=True):
+    def __call__(self, Q, K, V, batch_mask = None):
 #         print "Q",
 #         print Q.data
 #         print "K",
@@ -128,7 +128,7 @@ class ConstantSizeMultiBatchMultiHeadAttention(Chain):
                                            (mb_size, self.n_heads, n_Q, seq_length_K) )
         
         if self.dropout is not None:
-            addressing_weights = F.dropout(addressing_weights, ratio=self.dropout, train=train)
+            addressing_weights = F.dropout(addressing_weights, ratio=self.dropout)
         
 #         print "A", addressing_weights.data
         reorganized_V = reorganize_by_head(proj_V, self.n_heads)
@@ -199,15 +199,15 @@ class AddAndNormalizedSelfAttentionLayer(AddAndNormalizedAttentionBase):
             residual_mode=residual_mode, no_normalize=no_normalize
         )
         
-    def __call__(self, x, mask, train=True, only_last=False):
+    def __call__(self, x, mask, only_last=False):
 #         print "SELF"
         if only_last:
             x_in = self.extract_last(x)
         else:
             x_in = x
-        sub_output = self.multi_attention(x_in, x, x, mask, train=train)
+        sub_output = self.multi_attention(x_in, x, x, mask)
             
-        return self.residual_layer(sub_output, x_in, train=train)
+        return self.residual_layer(sub_output, x_in)
         
     
 class AddAndNormalizedCrossAttentionLayer(AddAndNormalizedAttentionBase):
@@ -217,13 +217,13 @@ class AddAndNormalizedCrossAttentionLayer(AddAndNormalizedAttentionBase):
             residual_mode=residual_mode, no_normalize=no_normalize
         )
         
-    def __call__(self, tgt_x, src_x, mask, train=True, only_last=False):
+    def __call__(self, tgt_x, src_x, mask, only_last=False):
 #         print "CROSS"
         if only_last:
             x_in = self.extract_last(tgt_x)
         else:
             x_in = tgt_x
-        sub_output = self.multi_attention(x_in, src_x, src_x, mask, train=train)
+        sub_output = self.multi_attention(x_in, src_x, src_x, mask)
             
-        return self.residual_layer(sub_output, x_in, train=train)
+        return self.residual_layer(sub_output, x_in)
         

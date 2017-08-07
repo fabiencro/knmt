@@ -41,11 +41,10 @@ class ConditionalizedDecoderCell(object):
     
     """
     def __init__(self, decoder_chain, compute_ctxt, mb_size, noise_on_prev_word=False,
-                 mode="test", lexicon_probability_matrix=None, lex_epsilon=1e-3, demux=False):
+                 lexicon_probability_matrix=None, lex_epsilon=1e-3, demux=False):
         self.decoder_chain = decoder_chain
         self.compute_ctxt = compute_ctxt
         self.noise_on_prev_word = noise_on_prev_word
-        self.mode = mode
         self.lexicon_probability_matrix = lexicon_probability_matrix
         self.lex_epsilon = lex_epsilon
 
@@ -76,7 +75,7 @@ class ConditionalizedDecoderCell(object):
             ci, attn = self.compute_ctxt(output_state)
         concatenated = F.concat((prev_y, ci))
 
-        new_states = self.decoder_chain.gru(previous_states, concatenated, mode=self.mode)
+        new_states = self.decoder_chain.gru(previous_states, concatenated)
         return new_states, concatenated, attn
 
     def compute_logits(self, new_states, concatenated, attn):
@@ -189,7 +188,7 @@ def compute_loss_from_decoder_cell(cell, targets, use_previous_prediction=0,
                 total_local_loss = F.concat(
                     (total_local_loss,
                      Variable(cell.xp.zeros(loss.data.shape[0] - total_local_loss.data.shape[0],
-                                            dtype=cell.xp.float32), volatile="auto")),
+                                            dtype=cell.xp.float32))),
                     axis=0)
         else:
             local_loss = F.softmax_cross_entropy(logits, targets[i])
@@ -217,7 +216,7 @@ def compute_loss_from_decoder_cell(cell, targets, use_previous_prediction=0,
             previous_word = F.softmax(logits_for_soft_predictions)
         else:
             if use_previous_prediction > 0 and random.random() < use_previous_prediction:
-                previous_word = Variable(cell.xp.argmax(logits.data[:required_next_mb_size], axis=1).astype(cell.xp.int32), volatile="auto")
+                previous_word = Variable(cell.xp.argmax(logits.data[:required_next_mb_size], axis=1).astype(cell.xp.int32))
             else:
                 if required_next_mb_size < current_mb_size:
                     previous_word, _ = F.split_axis(targets[i], (required_next_mb_size,), 0)
@@ -239,42 +238,44 @@ def sample_from_decoder_cell(cell, nb_steps, best=False, keep_attn_values=False,
     """
         Function that sample an output from a conditionalized decoder cell
     """
-    states, logits, attn = cell.get_initial_logits()
-
-    score = 0
-    sequences = []
-    attn_list = []
-
-    for _ in xrange(nb_steps):
-        if keep_attn_values:
-            attn_list.append(attn)
-
-        probs = F.softmax(logits)
-        if best:
-            curr_idx = cell.xp.argmax(probs.data, 1).astype(np.int32)
-        else:
-            #                 curr_idx = self.xp.empty((mb_size,), dtype = np.int32)
-            if cell.xp != np:
-                probs_data = cuda.to_cpu(probs.data)
+    
+    with chainer.using_config("train", False), chainer.no_backprop_mode():
+        states, logits, attn = cell.get_initial_logits()
+    
+        score = 0
+        sequences = []
+        attn_list = []
+    
+        for _ in xrange(nb_steps):
+            if keep_attn_values:
+                attn_list.append(attn)
+    
+            probs = F.softmax(logits)
+            if best:
+                curr_idx = cell.xp.argmax(probs.data, 1).astype(np.int32)
             else:
-                probs_data = probs.data
-            curr_idx = minibatch_sampling(probs_data)
-            if cell.xp != np:
-                curr_idx = cuda.to_gpu(curr_idx.astype(np.int32))
-            else:
-                curr_idx = curr_idx.astype(np.int32)
-#                 for i in xrange(mb_size):
-#                     sampler = chainer.utils.WalkerAlias(probs_data[i])
-#                     curr_idx[i] =  sampler.sample(1)[0]
-        if need_score:
-            score = score + np.log(cuda.to_cpu(probs.data)[np.arange(cell.mb_size), cuda.to_cpu(curr_idx)])
-        sequences.append(curr_idx)
-
-        previous_word = Variable(curr_idx, volatile="auto")
-
-        states, logits, attn = cell(states, previous_word)
-
-    return sequences, score, attn_list
+                #                 curr_idx = self.xp.empty((mb_size,), dtype = np.int32)
+                if cell.xp != np:
+                    probs_data = cuda.to_cpu(probs.data)
+                else:
+                    probs_data = probs.data
+                curr_idx = minibatch_sampling(probs_data)
+                if cell.xp != np:
+                    curr_idx = cuda.to_gpu(curr_idx.astype(np.int32))
+                else:
+                    curr_idx = curr_idx.astype(np.int32)
+    #                 for i in xrange(mb_size):
+    #                     sampler = chainer.utils.WalkerAlias(probs_data[i])
+    #                     curr_idx[i] =  sampler.sample(1)[0]
+            if need_score:
+                score = score + np.log(cuda.to_cpu(probs.data)[np.arange(cell.mb_size), cuda.to_cpu(curr_idx)])
+            sequences.append(curr_idx)
+    
+            previous_word = Variable(curr_idx)
+    
+            states, logits, attn = cell(states, previous_word)
+    
+        return sequences, score, attn_list
 
 
 class Decoder(Chain):
@@ -353,8 +354,7 @@ class Decoder(Chain):
             self.emb.W.data[:-1,:] = emb_vectors #no eos
         
     def give_conditionalized_cell(self, fb_concat, src_mask, noise_on_prev_word=False,
-                                  mode="test", lexicon_probability_matrix=None, lex_epsilon=1e-3, demux=False):
-        assert mode in "test train".split()
+                                  lexicon_probability_matrix=None, lex_epsilon=1e-3, demux=False):
         mb_size, nb_elems, Hi = fb_concat.data.shape
         assert Hi == self.Hi, "%i != %i" % (Hi, self.Hi)
 
@@ -362,24 +362,24 @@ class Decoder(Chain):
 
         if not demux:
             return ConditionalizedDecoderCell(self, compute_ctxt, mb_size, noise_on_prev_word=noise_on_prev_word,
-                                              mode=mode, lexicon_probability_matrix=lexicon_probability_matrix, lex_epsilon=lex_epsilon)
+                                              lexicon_probability_matrix=lexicon_probability_matrix, lex_epsilon=lex_epsilon)
         else:
             assert mb_size == 1
             assert demux >= 1
             compute_ctxt = self.attn_module.compute_ctxt_demux(fb_concat, src_mask)
             return ConditionalizedDecoderCell(self, compute_ctxt, None, noise_on_prev_word=noise_on_prev_word,
-                                              mode=mode, lexicon_probability_matrix=lexicon_probability_matrix, lex_epsilon=lex_epsilon,
+                                              lexicon_probability_matrix=lexicon_probability_matrix, lex_epsilon=lex_epsilon,
                                               demux=True)
 
     def compute_loss(self, fb_concat, src_mask, targets, raw_loss_info=False, keep_attn_values=False,
-                     noise_on_prev_word=False, use_previous_prediction=0, mode="test", per_sentence=False,
+                     noise_on_prev_word=False, use_previous_prediction=0, per_sentence=False,
                      lexicon_probability_matrix=None, lex_epsilon=1e-3,
                      use_soft_prediction_feedback=False, 
                     use_gumbel_for_soft_predictions=False,
                     temperature_for_soft_predictions=1.0
                      ):
         decoding_cell = self.give_conditionalized_cell(fb_concat, src_mask, noise_on_prev_word=noise_on_prev_word,
-                                                       mode=mode, lexicon_probability_matrix=lexicon_probability_matrix, lex_epsilon=lex_epsilon)
+                                                       lexicon_probability_matrix=lexicon_probability_matrix, lex_epsilon=lex_epsilon)
         loss, attn_list = compute_loss_from_decoder_cell(decoding_cell, targets,
                                                          use_previous_prediction=use_previous_prediction,
                                                          raw_loss_info=raw_loss_info,
@@ -393,7 +393,7 @@ class Decoder(Chain):
     def sample(self, fb_concat, src_mask, nb_steps, mb_size, lexicon_probability_matrix=None,
                lex_epsilon=1e-3, best=False, keep_attn_values=False, need_score=False):
         decoding_cell = self.give_conditionalized_cell(fb_concat, src_mask, noise_on_prev_word=False,
-                                                       mode="test", lexicon_probability_matrix=lexicon_probability_matrix,
+                                                       lexicon_probability_matrix=lexicon_probability_matrix,
                                                        lex_epsilon=lex_epsilon)
         sequences, score, attn_list = sample_from_decoder_cell(decoding_cell, nb_steps, best=best,
                                                                keep_attn_values=keep_attn_values,
