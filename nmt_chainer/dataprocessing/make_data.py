@@ -73,6 +73,11 @@ def do_make_data(config):
                                                        voc_limit2=config.processing.tgt_voc_size)
         pp = processors.BiProcessorChain()
 
+        if config.processing.source_char_conversion is not None:
+            log.info("using source char conversion %s", config.processing.source_char_conversion)
+            char_conv_dic = json.load(open(config.processing.source_char_conversion))
+            pp.add_src_processor(processors.SourceCharacterConverter(char_conv_dic))
+            
         if config.processing.latin_tgt:
             pp.add_tgt_processor(processors.LatinScriptProcess(config.processing.latin_type))
 

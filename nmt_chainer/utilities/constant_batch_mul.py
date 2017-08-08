@@ -7,7 +7,7 @@ from chainer import function
 from chainer.utils import array
 from chainer.utils import type_check
 
-from chainer.functions.math.matmul import _get_batch_mat_shape, _check_ndim, _convert_type, _get_check_index, _matmul
+from chainer.functions.math.matmul import _get_batch_mat_shape, _check_ndim, _get_check_index, _matmul
 
 try:
     from chainer.functions.math.matmul import _batch_matmul_gpu
@@ -15,7 +15,16 @@ except ImportError:
     def _batch_matmul_gpu(*args, **kwds):
         # TO DO: fix this for recent chainer
         print("Sorry, use of lexical probabilities is broken with this version of chainer")
-        raise NotImplemented
+        raise NotImplementedError
+    
+    
+try:
+    from chainer.functions.math.matmul import _convert_type
+except ImportError:
+    def _convert_type(*args, **kwds):
+        # TO DO: fix this for recent chainer
+        print("Sorry, use of lexical probabilities is broken with this version of chainer")
+        raise NotImplementedError    
 
 
 class MatMulConstant(function.Function):

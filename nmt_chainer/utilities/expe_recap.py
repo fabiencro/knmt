@@ -26,10 +26,13 @@ data_config_suffix = ".data.config"
 train_config_suffix = ".train.config"
 eval_config_suffix = ".eval.config.json"
 
+dir_sep = "W"
 
 def filenamize(path):
-    return urllib.quote_plus(path.replace("/", "xDIRx"))
-
+    filenamed =  urllib.quote_plus(path.replace("/", dir_sep))
+    if len(filenamed) >200:
+        filenamed = "__" + filenamed[:200]
+    return filenamed
 
 def process_eval_config(config_fn, dest_dir):
     log.info("processing eval config %s " % config_fn)
@@ -63,6 +66,8 @@ def process_eval_config(config_fn, dest_dir):
     training_config_fn = config.training_config
     if training_config_fn is None and config.process.load_model_config is not None and len(config.process.load_model_config) > 0:
         training_config_fn = config.process.load_model_config[0]
+        if "," in training_config_fn:
+            training_config_fn=training_config_fn.split(",")[0]
         
     config_training = load_config_train(training_config_fn, no_error=True)
     description_training = config_training.get("training_management", {}).get("description", "")
@@ -354,7 +359,7 @@ def do_recap(args):
                 timestring = "<b>%s [RCT]</b>" % time.ctime(time_last_exp)
             else:
                 timestring = "%s" % time.ctime(time_last_exp)
-            index.write('%s <a href = "train/%s">%s</a> [%s]<p/>' % (timestring, urlname, urlname.split("xDIRx")[-1], description))
+            index.write('%s <a href = "train/%s">%s</a> [%s]<p/>' % (timestring, urlname, urlname.split(dir_sep)[-1], description))
             if infos is not None:
                 for key in sorted(infos.keys()):
                     index.write("%s : %r  ||| " % (key, infos[key]))
@@ -364,7 +369,7 @@ def do_recap(args):
     for fn_full in eval_config_fn_list:
         urlname, desc = process_eval_config(fn_full, eval_dir)
         
-        index.write('<a href = "eval/%s">%s</a> <b>%f</b> %s [%i]<p/>' % (urlname, urlname.split("xDIRx")[-1], 
+        index.write('<a href = "eval/%s">%s</a> <b>%f</b> %s [%i]<p/>' % (urlname, urlname.split(dir_sep)[-1], 
                                                             desc["bleu"],
                                                             desc["description_training"],
                                                             desc["nb_models_used"] ))

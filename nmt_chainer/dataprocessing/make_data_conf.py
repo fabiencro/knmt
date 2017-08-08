@@ -71,6 +71,8 @@ def define_parser(parser):
 
     processing_group.add_argument("--latin_type", choices="all_adjoint caps_isolate".split(), default="all_adjoint", help="choose preprocessing for latin scripts to source")
 
+    processing_group.add_argument("--source_char_conversion", help="give file containing target char equivalent to source")
+
     processing_group.add_argument("--force_overwrite", default=False, action="store_true", help="Do not ask before overwiting existing files")
 
 
