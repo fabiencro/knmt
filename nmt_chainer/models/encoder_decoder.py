@@ -109,6 +109,9 @@ class EncoderDecoder(Chain):
         self.lexical_probability_dictionary = lexical_probability_dictionary
         self.lex_epsilon = lex_epsilon
 
+    def encdec_type(self):
+        return "classic"
+
     def compute_lexicon_probability_matrix(self, src_batch):
         if self.lexical_probability_dictionary is not None:
             lexicon_probability_matrix = compute_lexicon_matrix(
@@ -121,18 +124,27 @@ class EncoderDecoder(Chain):
             lexicon_probability_matrix = None
         return lexicon_probability_matrix
 
+    def initialize_embeddings(self, src_emb=None, tgt_emb=None, no_unk_src=False, no_unk_tgt=False):
+        if src_emb is None and tgt_emb is None:
+            log.warn("called initialize_embeddings with 2 None args")
+            
+        if src_emb is not None:
+            self.enc.initialize_embeddings(src_emb, no_unk=no_unk_src)
+            
+        if tgt_emb is not None:
+            self.dec.initialize_embeddings(tgt_emb, no_unk=no_unk_tgt)
+
     def __call__(self, src_batch, tgt_batch, src_mask, use_best_for_sample=False, display_attn=False,
                  raw_loss_info=False, keep_attn_values=False, need_score=False, noise_on_prev_word=False,
-                 use_previous_prediction=0, mode="test",
+                 use_previous_prediction=0,
                  use_soft_prediction_feedback=False, 
                 use_gumbel_for_soft_predictions=False,
                 temperature_for_soft_predictions=1.0
                  ):
-        assert mode in "test train".split()
 
         lexicon_probability_matrix = self.compute_lexicon_probability_matrix(src_batch)
 
-        fb_concat = self.enc(src_batch, src_mask, mode=mode)
+        fb_concat = self.enc(src_batch, src_mask)
 
         mb_size, nb_elems, Hi = fb_concat.data.shape
 
@@ -145,7 +157,7 @@ class EncoderDecoder(Chain):
         else:
             return self.dec.compute_loss(fb_concat, src_mask, tgt_batch, raw_loss_info=raw_loss_info,
                                          keep_attn_values=keep_attn_values, noise_on_prev_word=noise_on_prev_word,
-                                         use_previous_prediction=use_previous_prediction, mode="test",
+                                         use_previous_prediction=use_previous_prediction,
                                          per_sentence=False, lexicon_probability_matrix=lexicon_probability_matrix,
                                          lex_epsilon=self.lex_epsilon,
                                          use_soft_prediction_feedback=use_soft_prediction_feedback, 
@@ -153,7 +165,7 @@ class EncoderDecoder(Chain):
                                          temperature_for_soft_predictions=temperature_for_soft_predictions)
 
     def give_conditionalized_cell(self, src_batch, src_mask, noise_on_prev_word=False,
-                                  mode="test", demux=False):
+                                  demux=False):
 
         if self.lexical_probability_dictionary is not None:
             lexicon_probability_matrix = compute_lexicon_matrix(
@@ -165,13 +177,13 @@ class EncoderDecoder(Chain):
         else:
             lexicon_probability_matrix = None
 
-        fb_concat = self.enc(src_batch, src_mask, mode=mode)
+        fb_concat = self.enc(src_batch, src_mask)
 
         mb_size, nb_elems, Hi = fb_concat.data.shape
 
         return self.dec.give_conditionalized_cell(fb_concat, src_mask,
                                                   noise_on_prev_word=noise_on_prev_word,
-                                                  mode=mode, lexicon_probability_matrix=lexicon_probability_matrix,
+                                                  lexicon_probability_matrix=lexicon_probability_matrix,
                                                   lex_epsilon=self.lex_epsilon, demux=demux)
 
     def nbest_scorer(self, src_batch, src_mask, keep_attn=False):
@@ -181,12 +193,13 @@ class EncoderDecoder(Chain):
         fb_concat = self.enc(src_batch, src_mask)
 
         decoding_cell = self.dec.give_conditionalized_cell(fb_concat, src_mask, noise_on_prev_word=False,
-                                                           mode="test", lexicon_probability_matrix=lexicon_probability_matrix, lex_epsilon=self.lex_epsilon,
+                                                           lexicon_probability_matrix=lexicon_probability_matrix, lex_epsilon=self.lex_epsilon,
                                                            demux=True)
 
         def scorer(tgt_batch):
 
-            loss, attn_list = decoder_cells.compute_loss_from_decoder_cell(decoding_cell, tgt_batch,
+            with chainer.using_config("train", False), chainer.no_backprop_mode():
+                loss, attn_list = decoder_cells.compute_loss_from_decoder_cell(decoding_cell, tgt_batch,
                                                                            use_previous_prediction=0,
                                                                            raw_loss_info=True,
                                                                            per_sentence=True,

@@ -107,7 +107,7 @@ def update_next_lists(num_case, idx_in_case, new_cost, eos_idx, new_state_ensemb
                                           -new_cost))
     else:
         next_states_list.append(
-            [tuple([Variable(substates.data[int(num_case)].reshape(1, -1), volatile="auto") for substates in new_state])
+            [tuple([Variable(substates.data[int(num_case)].reshape(1, -1)) for substates in new_state])
              for new_state in new_state_ensemble]
         )
 
@@ -372,7 +372,7 @@ def advance_one_step(dec_cell_ensemble, eos_idx, current_translations_states, be
     next_translations_states = (next_translations_list,
                                 xp.array(next_score_list),
                                 concatenated_next_states_list,
-                                Variable(next_words_array, volatile="auto"),
+                                Variable(next_words_array),
                                 next_attentions_list
                                 )
 
@@ -411,65 +411,67 @@ def ensemble_beam_search(model_ensemble, src_batch, src_mask, nb_steps, eos_idx,
         list of translations
             each item in the list is a tuple (translation, score) or (translation, score, attention) if need_attention = True
     """
-    mb_size = src_batch[0].data.shape[0]
-    assert len(model_ensemble) >= 1
-    xp = model_ensemble[0].xp
-
-    dec_cell_ensemble = [model.give_conditionalized_cell(src_batch, src_mask, noise_on_prev_word=False,
-                                                         mode="test", demux=True) for model in model_ensemble]
-
-    assert mb_size == 1
-    # TODO: if mb_size == 1 then src_mask value unnecessary -> remove?
-
-    finished_translations = []
-
-    # Create the initial Translation state
-    previous_states_ensemble = [None] * len(model_ensemble)
-
-    # Current_translations_states will hold the information for the current beam
-    current_translations_states = (
-        [[]],  # translations
-        xp.array([0]),  # scores
-        previous_states_ensemble,  # previous states
-        None,  # previous words
-        [[]]  # attention
-    )
-
-    # Proceed with the search
-    for num_step in range(nb_steps):
-        current_translations_states = advance_one_step(
-            dec_cell_ensemble,
-            eos_idx,
-            current_translations_states,
-            beam_width,
-            beam_pruning_margin,
-            beam_score_length_normalization,
-            beam_score_length_normalization_strength,
-            beam_score_coverage_penalty,
-            beam_score_coverage_penalty_strength,
-            finished_translations,
-            force_finish=force_finish and num_step == (nb_steps - 1),
-            need_attention=need_attention,
-            prob_space_combination=prob_space_combination)
-
-        if current_translations_states is None:
-            break
-
-#     print(finished_translations, need_attention)
-
-    # Return finished translations
-    if len(finished_translations) == 0:
-        if use_unfinished_translation_if_none_found:
-            assert current_translations_states is not None
-            if need_attention:
-                translations, scores, _, _, attentions = current_translations_states
-                finished_translations.append(
-                    (translations[0], scores[0], attentions[0]))
+    
+    with chainer.using_config("train", False), chainer.no_backprop_mode():
+        mb_size = src_batch[0].data.shape[0]
+        assert len(model_ensemble) >= 1
+        xp = model_ensemble[0].xp
+    
+        dec_cell_ensemble = [model.give_conditionalized_cell(src_batch, src_mask, noise_on_prev_word=False,
+                                                             demux=True) for model in model_ensemble]
+    
+        assert mb_size == 1
+        # TODO: if mb_size == 1 then src_mask value unnecessary -> remove?
+    
+        finished_translations = []
+    
+        # Create the initial Translation state
+        previous_states_ensemble = [None] * len(model_ensemble)
+    
+        # Current_translations_states will hold the information for the current beam
+        current_translations_states = (
+            [[]],  # translations
+            xp.array([0]),  # scores
+            previous_states_ensemble,  # previous states
+            None,  # previous words
+            [[]]  # attention
+        )
+    
+        # Proceed with the search
+        for num_step in range(nb_steps):
+            current_translations_states = advance_one_step(
+                dec_cell_ensemble,
+                eos_idx,
+                current_translations_states,
+                beam_width,
+                beam_pruning_margin,
+                beam_score_length_normalization,
+                beam_score_length_normalization_strength,
+                beam_score_coverage_penalty,
+                beam_score_coverage_penalty_strength,
+                finished_translations,
+                force_finish=force_finish and num_step == (nb_steps - 1),
+                need_attention=need_attention,
+                prob_space_combination=prob_space_combination)
+    
+            if current_translations_states is None:
+                break
+    
+    #     print(finished_translations, need_attention)
+    
+        # Return finished translations
+        if len(finished_translations) == 0:
+            if use_unfinished_translation_if_none_found:
+                assert current_translations_states is not None
+                if need_attention:
+                    translations, scores, _, _, attentions = current_translations_states
+                    finished_translations.append(
+                        (translations[0], scores[0], attentions[0]))
+                else:
+                    finished_translations.append((translations[0], scores[0]))
             else:
-                finished_translations.append((translations[0], scores[0]))
-        else:
-            if need_attention:
-                finished_translations.append(([], 0, []))
-            else:
-                finished_translations.append(([], 0))
-    return finished_translations
+                if need_attention:
+                    finished_translations.append(([], 0, []))
+                else:
+                    finished_translations.append(([], 0))
+        return finished_translations

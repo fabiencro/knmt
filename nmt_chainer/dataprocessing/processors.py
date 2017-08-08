@@ -552,6 +552,69 @@ class SimpleSegmenter(MonoProcessor):
 
 
 @registered_processor
+class SourceCharacterConverter(MonoProcessor):
+
+    def __init__(self, char_dic):
+        self.char_dic = char_dic
+        self.is_initialized_ = False
+        
+        self.reversed_dict = dict((v,k) for (k,v) in char_dic.iteritems())
+
+    def convert(self, sentence, stats=None):
+        res = []
+        at_least_one_conversion_occured = False
+        for char in sentence:
+            assert len(char) == 1 #should operate on unsegmented sentences
+            if char is self.char_dic:
+                res.append(self.char_dic[char])
+                at_least_one_conversion_occured = True
+            else:
+                res.append(char)
+                
+        if at_least_one_conversion_occured:
+            return "".join(res)
+        else:
+            return sentence
+
+    def deconvert(self, sentence):
+        # This is not meant to be a revertible processor (only for input)
+        
+        res = []
+        at_least_one_conversion_occured = False
+        for char in sentence:
+            assert len(char) == 1 #should operate on unsegmented sentences
+            if char is self.reversed_dict:
+                res.append("[%s->%s]"%(char, self.reversed_dict[char]))
+                at_least_one_conversion_occured = True
+            else:
+                res.append(char)
+                
+        if at_least_one_conversion_occured:
+            return "".join(res)
+        else:
+            return sentence
+
+    @staticmethod
+    def processor_name():
+        return "source_character_converter"
+
+    def __str__(self):
+        return "source_character_converter"
+
+    @classmethod
+    def make_from_serializable(cls, obj):
+        res = SourceCharacterConverter(obj["char_dic"])
+        res.is_initialized_ = True
+        return res
+
+    def to_serializable(self):
+        assert self.is_initialized()
+        obj = self.make_base_serializable_object()
+        obj["char_dic"] = self.char_dic
+        return obj
+
+
+@registered_processor
 class LatinScriptProcess(MonoProcessor):
 
     CAP_CHAR = u"\u203B"

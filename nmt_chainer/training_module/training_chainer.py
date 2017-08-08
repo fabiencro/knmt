@@ -19,8 +19,9 @@ import json
 
 from nmt_chainer.utilities.utils import minibatch_provider, minibatch_provider_curiculum, make_batch_src_tgt
 from nmt_chainer.translation.evaluation import (
-    compute_loss_all, translate_to_file, sample_once)
+    compute_loss_all, translate_to_file, sample_once, sample_once_ff)
 
+import chainer.functions as F
 import chainer.iterators
 import chainer.dataset.iterator
 import chainer.training
@@ -51,6 +52,28 @@ def example_complexity(ex):
 
 import numpy
 
+# def write_encdec_loss_computation_graph(encdec, dest_file):
+#     batch = [
+#         ([0,1,2], [3,5,6,7]),
+#         ([0, 0, 0,1,1], [6]),
+#         ([5], [2,3,0])
+#         ]
+#     
+#     src_batch, tgt_batch, src_mask = make_batch_src_tgt(batch, eos_idx=8, padding_idx=0, gpu=gpu, volatile="off", need_arg_sort=False)
+# 
+#     (total_loss, total_nb_predictions), attn = encdec(src_batch, tgt_batch, src_mask, raw_loss_info=True,
+#                                                           noise_on_prev_word=noise_on_prev_word,
+#                                                           use_previous_prediction=use_previous_prediction,
+#                                                           mode="train",
+#                                                           use_soft_prediction_feedback=use_soft_prediction_feedback, 
+#                                                           use_gumbel_for_soft_predictions=use_gumbel_for_soft_predictions,
+#                                                           temperature_for_soft_predictions=temperature_for_soft_predictions)
+#     loss = total_loss / total_nb_predictions
+#     
+#     import chainer.computational_graph as c
+#     g = c.build_computational_graph([loss])
+#     with open(dest_file, 'w') as o:
+#         o.write(g.dump())
 
 class SerialIteratorWithPeek(chainer.iterators.SerialIterator):
 
@@ -168,18 +191,154 @@ class LengthBasedSerialIterator(chainer.dataset.iterator.Iterator):
 #         self.sub_iterator = serializer("sub_iterator", self.sub_iterator)
 #         self.sub_iterator.serialize(serializer["sub_iterator"])
 
+def sort_and_split_batch(batch, max_nb_elements, sort_key=lambda x: len(x[1])):
+    sorted_batch = sorted(batch, key=sort_key)
+    
+    sub_batches = [[]]
+    current_src_total = 0
+    current_tgt_total = 0
+    for sent_pair in sorted_batch:
+        src_size = len(sent_pair[0])
+        tgt_size = len(sent_pair[1])
+        if src_size > max_nb_elements or tgt_size > max_nb_elements:
+            log.warn("Had to skip sentence to long : (%i, %i) when max_nb_elements is %i"%(src_size, tgt_size, max_nb_elements))
+            continue
+        if current_src_total + src_size > max_nb_elements or current_tgt_total + tgt_size > max_nb_elements:
+            sub_batches.append([])
+            current_src_total = 0
+            current_tgt_total = 0
+        sub_batches[-1].append(sent_pair)
+        current_src_total += src_size
+        current_tgt_total += tgt_size
+        
+    return sub_batches
+
+def sort_and_split_batch_method2(batch, max_nb_elements, sort_key=lambda x: len(x[1])):
+    sorted_batch = sorted(batch, key=sort_key)
+    
+    sub_batches = [[]]
+    current_max_src_length = 0
+    current_max_tgt_length = 0
+    for sent_pair in sorted_batch:
+        src_size = len(sent_pair[0])
+        tgt_size = len(sent_pair[1])
+        if src_size > max_nb_elements or tgt_size > max_nb_elements:
+            log.warn("Had to skip sentence to long : (%i, %i) when max_nb_elements is %i"%(src_size, tgt_size, max_nb_elements))
+            continue
+        future_nb_elems_src = max(current_max_src_length, src_size) * (len(sub_batches[-1]) + 1)
+        future_nb_elems_tgt = max(current_max_tgt_length, tgt_size) * (len(sub_batches[-1]) + 1)
+        
+        if future_nb_elems_src > max_nb_elements or future_nb_elems_tgt > max_nb_elements:
+            sub_batches.append([])
+            current_max_src_length = 0
+            current_max_tgt_length = 0
+        sub_batches[-1].append(sent_pair)
+        current_max_src_length = max(src_size, current_max_src_length)
+        current_max_tgt_length = max(tgt_size, current_max_tgt_length)
+        
+    return sub_batches
+
+class DynamicLengthBasedSerialIterator(chainer.dataset.iterator.Iterator):
+    """
+    This iterator will try to return batches with sequences of similar length.
+    This is done by first extracting nb_of_batch_to_sort x batch_size sequences, sorting them by size,
+    and then successively yielding nb_of_batch_to_sort batches of size batch_size.
+    """
+
+    def __init__(self, dataset, max_nb_elements=10000, nb_sent_sort=5000, sort_key=lambda x: len(x[1]),
+                 repeat=True, shuffle=True):
+
+        self.sub_iterator = SerialIteratorWithPeek(dataset, nb_sent_sort,
+                                                   repeat=repeat, shuffle=shuffle)
+        self.dataset = dataset
+        self.index_in_sub_batch = 0
+        self.sub_batches = None
+        self.sort_key = sort_key
+        self.nb_sent_sort = nb_sent_sort
+        self.max_nb_elements = max_nb_elements
+        self.repeat = repeat
+
+    def update_sub_batch(self):
+        log.info("dynamic batching: updating sub_batches")
+        batch = list(self.sub_iterator.next())  # copy the result so that we can sort without side effects
+        if self.repeat and len(batch) != self.nb_sent_sort:
+            raise AssertionError
+        
+        self.sub_batches = sort_and_split_batch_method2(batch, self.max_nb_elements, sort_key=self.sort_key)
+        
+        self.index_in_sub_batch = 0
+            
+            
+    def __next__(self):
+        if self.sub_batches is None or self.index_in_sub_batch >= len(self.sub_batches):
+            assert self.sub_batches is None or self.index_in_sub_batch == len(self.sub_batches)
+            self.update_sub_batch()
+
+        minibatch = self.sub_batches[self.index_in_sub_batch]
+
+        self.index_in_sub_batch += 1
+
+        return minibatch
+
+    def peek(self):
+        if self.sub_batches is None or self.index_in_sub_batch >= len(self.sub_batches):
+            assert self.sub_batches is None or self.index_in_sub_batch == len(self.sub_batches)
+            batch = list(self.sub_iterator.peek())  # copy the result so that we can sort without side effects
+            sub_batches = sort_and_split_batch_method2(batch, self.max_nb_elements, sort_key=self.sort_key)
+            index_in_sub_batch = 0
+        else:
+            sub_batches = self.sub_batches
+            index_in_sub_batch = self.index_in_sub_batch
+        minibatch = sub_batches[index_in_sub_batch]
+        return minibatch
+
+    next = __next__
+
+    # It is a bit complicated to keep an accurate value for epoch detail. In practice, the beginning of a sub_batch crossing epoch will have its
+    # epoch_detail clipped to epoch
+    @property
+    def epoch_detail(self):
+        remaining_sub_batch_lenth = sum(len(sub_b) for sub_b in self.sub_batches[self.index_in_sub_batch:]) if self.sub_batches is not None else 0
+        assert remaining_sub_batch_lenth >= 0
+        epoch_discount = remaining_sub_batch_lenth / float(len(self.dataset))
+        sub_epoch_detail = self.sub_iterator.epoch_detail
+        epoch_detail = sub_epoch_detail - epoch_discount
+        epoch_detail = max(epoch_detail, self.epoch)
+        return epoch_detail
+
+    # epoch and is_new_epoch are updated as soon as the end of the current
+    # sub_batch has reached a new epoch.
+    @property
+    def epoch(self):
+        return self.sub_iterator.epoch
+
+    @property
+    def is_new_epoch(self):
+        if self.sub_iterator.is_new_epoch:
+            assert self.sub_batch is None or self.index_in_sub_batch > 0
+            if self.index_in_sub_batch == 1:
+                return True
+        return False
+
+    # We do not serialize index_in_sub_batch. A deserialized iterator will start from the next sub_batch.
+#     def serialize(self, serializer):
+#         self.sub_iterator = serializer("sub_iterator", self.sub_iterator)
+#         self.sub_iterator.serialize(serializer["sub_iterator"])
+
+
+
 
 import six
 
 
-def make_collection_of_variables(in_arrays, volatile="off"):
+def make_collection_of_variables(in_arrays):
     if isinstance(in_arrays, tuple):
-        in_vars = tuple(chainer.variable.Variable(x, volatile=volatile) for x in in_arrays)
+        in_vars = tuple(chainer.variable.Variable(x) for x in in_arrays)
     elif isinstance(in_arrays, dict):
-        in_vars = {key: chainer.variable.Variable(x, volatile=volatile)
+        in_vars = {key: chainer.variable.Variable(x)
                    for key, x in six.iteritems(in_arrays)}
     else:
-        in_vars = chainer.variable.Variable(in_arrays, volatile=volatile)
+        in_vars = chainer.variable.Variable(in_arrays)
     return in_vars
 
 
@@ -378,18 +537,21 @@ class TrainingLossSummaryExtension(chainer.training.Extension):
     def __call__(self, trainer):
         # accumulate the observations
 
-        mb_avg_loss = float(trainer.observation["mb_loss"]) / trainer.observation["mb_nb_predictions"]
-        log.info("E:%i I:%i L:%f U: %.4f = %.4f + %.4f F:%.4f" % (trainer.updater.epoch,
-                 trainer.updater.iteration, mb_avg_loss,
-                 trainer.observation["update_duration"],
-                 trainer.observation["mb_preparation_duration"],
-                 trainer.observation["optimizer_update_cycle_duration"],
-                 trainer.observation["forward_time"]))
-
-        self.total_loss += trainer.observation["mb_loss"]
-        self.total_nb_predictions += trainer.observation["mb_nb_predictions"]
-        self.total_update_time += trainer.observation["update_duration"]
-        self.nb_observations += 1
+        if "mb_loss" in trainer.observation:
+            mb_avg_loss = float(trainer.observation["mb_loss"]) / trainer.observation["mb_nb_predictions"]
+            log.info("E:%i I:%i L:%f U: %.4f = %.4f + %.4f F:%.4f" % (trainer.updater.epoch,
+                     trainer.updater.iteration, mb_avg_loss,
+                     trainer.observation["update_duration"],
+                     trainer.observation["mb_preparation_duration"],
+                     trainer.observation["optimizer_update_cycle_duration"],
+                     trainer.observation["forward_time"]))
+    
+            self.total_loss += trainer.observation["mb_loss"]
+            self.total_nb_predictions += trainer.observation["mb_nb_predictions"]
+            self.total_update_time += trainer.observation["update_duration"]
+            self.nb_observations += 1
+        else:
+            log.warn("observation seem to be missing; maybe due to minibatch being skipped")
 
         if self.update_trigger(trainer):
             # output the result
@@ -401,7 +563,7 @@ class TrainingLossSummaryExtension(chainer.training.Extension):
             chainer.reporter.report({"avg_update_time": avg_update_time})
             self.reset()
 
-
+import socket
 class SqliteLogExtension(chainer.training.Extension):
     priority = chainer.training.PRIORITY_READER
 
@@ -423,7 +585,7 @@ class SqliteLogExtension(chainer.training.Extension):
 loss real, bleu real,
 dev_loss real, dev_bleu real,
 valid_loss real, valid_bleu real,
-avg_time real, avg_training_loss real)''')
+avg_time real, avg_training_loss real, machine)''')
 
             dev_loss = trainer.observation.get("dev_loss", None)
             if dev_loss is not None:
@@ -437,6 +599,8 @@ avg_time real, avg_training_loss real)''')
             if avg_training_loss is not None:
                 avg_training_loss = float(avg_training_loss)
 
+            machine = socket.gethostname()
+
             infos = (datetime.datetime.now().strftime("%I:%M%p %B %d, %Y"),
                      trainer.observation.get("test_bleu_details", None), trainer.updater.iteration,
                      test_loss,
@@ -444,8 +608,12 @@ avg_time real, avg_training_loss real)''')
                      dev_loss,
                      trainer.observation.get("dev_bleu", None),
                      None, None,
-                     trainer.observation.get("avg_update_time", None), avg_training_loss)
-            db_cursor.execute("INSERT INTO exp_data VALUES (?,?,?,?,?,?,?,?,?,?,?)", infos)
+                     trainer.observation.get("avg_update_time", None), avg_training_loss, machine)
+            try:
+                db_cursor.execute("INSERT INTO exp_data VALUES (?,?,?,?,?,?,?,?,?,?,?,?)", infos)
+            except sqlite3.OperationalError:
+                db_cursor.execute("INSERT INTO exp_data VALUES (?,?,?,?,?,?,?,?,?,?,?)", infos[:-1])
+                
             db_connection.commit()
             db_connection.close()
 
@@ -506,14 +674,18 @@ def train_on_data_chainer(encdec, optimizer, training_data, output_files_dict,
     use_gumbel_for_soft_predictions = config_training.training.use_gumbel_for_soft_predictions
     temperature_for_soft_predictions = config_training.training.temperature_for_soft_predictions
 
-
+    generate_computation_graph = config_training.training_management.generate_computation_graph
+    
+    
+    dynamic_batching = config_training.training.get("dynamic_batching", False)
+    dynamic_batching_max_elems = config_training.training.get("dynamic_batching_max_elems", 10000)
+    dynamic_batching_nb_sent_to_sort = config_training.training.get("dynamic_batching_nb_sent_to_sort", 5000)
+    
     @chainer.training.make_extension()
     def sample_extension(trainer):
         encdec = trainer.updater.get_optimizer("main").target
         iterator = trainer.updater.get_iterator("main")
         mb_raw = iterator.peek()
-
-        src_batch, tgt_batch, src_mask = make_batch_src_tgt(mb_raw, eos_idx=eos_idx, padding_idx=0, gpu=gpu, volatile="on", need_arg_sort=False)
 
         def s_unk_tag(num, utag):
             return "S_UNK_%i" % utag
@@ -521,38 +693,102 @@ def train_on_data_chainer(encdec, optimizer, training_data, output_files_dict,
         def t_unk_tag(num, utag):
             return "T_UNK_%i" % utag
 
-        sample_once(encdec, src_batch, tgt_batch, src_mask, src_indexer, tgt_indexer, eos_idx,
-                    max_nb=20,
+        try:
+            if encdec.encdec_type() == "ff":
+                src_seqs, tgt_seqs = zip(*mb_raw)
+                sample_once_ff(encdec, src_seqs, tgt_seqs, src_indexer, tgt_indexer, max_nb=20,
                     s_unk_tag=s_unk_tag, t_unk_tag=t_unk_tag)
+            else:
+    
+                src_batch, tgt_batch, src_mask = make_batch_src_tgt(mb_raw, eos_idx=eos_idx, padding_idx=0, gpu=gpu, need_arg_sort=False)
+        
+                sample_once(encdec, src_batch, tgt_batch, src_mask, src_indexer, tgt_indexer, eos_idx,
+                            max_nb=20,
+                            s_unk_tag=s_unk_tag, t_unk_tag=t_unk_tag)
+        except CudaException:
+            log.warn("CUDARuntimeError during sample. Skipping sample")
 
-    iterator_training_data = LengthBasedSerialIterator(training_data, mb_size,
+    if dynamic_batching:
+        log.info("using dynamic matching with %i %i",dynamic_batching_max_elems, dynamic_batching_nb_sent_to_sort)
+        iterator_training_data = DynamicLengthBasedSerialIterator(training_data, max_nb_elements=dynamic_batching_max_elems,
+                                                       nb_sent_sort=dynamic_batching_nb_sent_to_sort,
+                                                       sort_key=lambda x: len(x[1]),
+                                                       repeat=True,
+                                                       shuffle=reshuffle_every_epoch)
+        
+    else:
+        iterator_training_data = LengthBasedSerialIterator(training_data, mb_size,
                                                        nb_of_batch_to_sort=nb_of_batch_to_sort,
                                                        sort_key=lambda x: len(x[0]),
                                                        repeat=True,
                                                        shuffle=reshuffle_every_epoch)
 
-    def loss_func(src_batch, tgt_batch, src_mask):
+    generate_loss_computation_graph_on_first_call = [generate_computation_graph is not None]
+    
+    if encdec.encdec_type() == "ff":
+        def loss_func(src_seq, tgt_seq):
+    
+            t0 = time.clock()
+            
+            loss = encdec.compute_loss(src_seq, tgt_seq, reduce="no")
+            total_loss = F.sum(loss)
+            total_nb_predictions = sum(len(seq) + 1 for seq in tgt_seq)
+            
+            avg_loss = total_loss / total_nb_predictions
+    
+            t1 = time.clock()
+            chainer.reporter.report({"forward_time": t1 - t0})
+    
+            chainer.reporter.report({"mb_loss": total_loss.data})
+            chainer.reporter.report({"mb_nb_predictions": total_nb_predictions})
+            chainer.reporter.report({"trg_loss": avg_loss.data})
+            
+            log.info("batch infos: %i x [%i | %i]", len(src_seq), max(len(s) for s in src_seq), max(len(s) for s in tgt_seq))
+            
+            if generate_loss_computation_graph_on_first_call[0]:
+                log.info("Writing loss computation graph to %s", generate_computation_graph)
+                import chainer.computational_graph as c
+                g = c.build_computational_graph([avg_loss])#, variable_style=None, function_style=None, show_name=False )
+                with open(generate_computation_graph, 'w') as o:
+                    o.write(g.dump())
+                generate_loss_computation_graph_on_first_call[0] = False
+            
+            return avg_loss  
+        def convert_mb(mb_raw, device):
+            return tuple(zip(*mb_raw)) 
+    else:
+        def loss_func(src_batch, tgt_batch, src_mask):
+    
+            t0 = time.clock()
+            (total_loss, total_nb_predictions), attn = encdec(src_batch, tgt_batch, src_mask, raw_loss_info=True,
+                                                              noise_on_prev_word=noise_on_prev_word,
+                                                              use_previous_prediction=use_previous_prediction,
+                                                              use_soft_prediction_feedback=use_soft_prediction_feedback, 
+                                                              use_gumbel_for_soft_predictions=use_gumbel_for_soft_predictions,
+                                                              temperature_for_soft_predictions=temperature_for_soft_predictions)
+            avg_loss = total_loss / total_nb_predictions
+    
+            t1 = time.clock()
+            chainer.reporter.report({"forward_time": t1 - t0})
+    
+            chainer.reporter.report({"mb_loss": total_loss.data})
+            chainer.reporter.report({"mb_nb_predictions": total_nb_predictions})
+            chainer.reporter.report({"trg_loss": avg_loss.data})
+            
+            log.info("batch infos: %i x [%i | %i]", src_batch[0].data.shape[0], len(src_batch), len(tgt_batch))
+            
+            if generate_loss_computation_graph_on_first_call[0]:
+                log.info("Writing loss computation graph to %s", generate_computation_graph)
+                import chainer.computational_graph as c
+                g = c.build_computational_graph([avg_loss])
+                with open(generate_computation_graph, 'w') as o:
+                    o.write(g.dump())
+                generate_loss_computation_graph_on_first_call[0] = False
+                
+            return avg_loss
 
-        t0 = time.clock()
-        (total_loss, total_nb_predictions), attn = encdec(src_batch, tgt_batch, src_mask, raw_loss_info=True,
-                                                          noise_on_prev_word=noise_on_prev_word,
-                                                          use_previous_prediction=use_previous_prediction,
-                                                          mode="train",
-                                                          use_soft_prediction_feedback=use_soft_prediction_feedback, 
-                                                          use_gumbel_for_soft_predictions=use_gumbel_for_soft_predictions,
-                                                          temperature_for_soft_predictions=temperature_for_soft_predictions)
-        avg_loss = total_loss / total_nb_predictions
-
-        t1 = time.clock()
-        chainer.reporter.report({"forward_time": t1 - t0})
-
-        chainer.reporter.report({"mb_loss": total_loss.data})
-        chainer.reporter.report({"mb_nb_predictions": total_nb_predictions})
-        chainer.reporter.report({"trg_loss": avg_loss.data})
-        return avg_loss
-
-    def convert_mb(mb_raw, device):
-        return make_batch_src_tgt(mb_raw, eos_idx=eos_idx, padding_idx=0, gpu=device, volatile="off", need_arg_sort=False)
+        def convert_mb(mb_raw, device):
+            return make_batch_src_tgt(mb_raw, eos_idx=eos_idx, padding_idx=0, gpu=device, need_arg_sort=False)
 
     updater = Updater(iterator_training_data, optimizer,
                       converter=convert_mb,
