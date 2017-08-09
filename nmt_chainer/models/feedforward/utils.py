@@ -180,4 +180,3 @@ def cut_minibatch(minibatch, new_mb_size):
     new_minibatch, _ = F.split_axis(minibatch, (new_mb_size,), axis=0, force_tuple=True)
     return new_minibatch
 
-    

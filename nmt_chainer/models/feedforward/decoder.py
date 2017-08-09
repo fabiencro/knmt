@@ -313,4 +313,3 @@ class Decoder(Chain):
         loss = F.softmax_cross_entropy(F.reshape(logits, (-1, self.V+1)), padded_target_with_eos.reshape(-1,), reduce=reduce)
         return loss
     
-    

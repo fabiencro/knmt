@@ -32,4 +32,3 @@ def test_context_memory(config_filename, search_engine, src_sentence):
     
     # (later) do some tests with ctxt_mem
     
-    
