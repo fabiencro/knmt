@@ -199,4 +199,3 @@ class EncoderDecoder(Chain):
             logits, decoder_state = decoding_cell(decoder_state, prev_word, train=train)
         return result    
         
-        

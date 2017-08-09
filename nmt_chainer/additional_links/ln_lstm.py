@@ -364,4 +364,3 @@ class LNStatelessLSTM(link.Chain):
         h = o_gate * self.output_ln(ungated_h)
         return c_next, h
     
-    
