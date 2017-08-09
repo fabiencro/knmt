@@ -46,8 +46,6 @@ import copy
 
 # logger = logging.getLogger()#"Decoder")
 
-__metaclass__ = type
-
 escape_dict = {"0": "", "\\": "\\", "n": "\n", "_": " ", "p": "|", "c": ":"}
 
 
@@ -68,7 +66,7 @@ def de_escape(string):
     return "".join(res)
 
 
-class Edge:
+class Edge(object):
     def __init__(self):
         self.type = None
         self.v_start = None
@@ -177,7 +175,7 @@ def parse_lattice_file(f):
     return edges_per_lattice
 
 
-class Lattice:
+class Lattice(object):
     kInitial = 0
     kFinal = 1
     EOS = "<EOS>"
@@ -202,7 +200,7 @@ class Lattice:
 
 # import copy
 #
-# class Path:
+# class Path(object):
 #     def __init__(self, path, level = 0):
 #         assert isinstance(path, tuple)
 #         assert len(path) == 0 or isinstance(path[0], tuple)
@@ -251,7 +249,7 @@ class Lattice:
 #         self.path = self.path[:-1]
 #
 #
-# class PathList:
+# class PathList(object):
 #     def count(self):
 #         raise NotImplemented
 #     def extremities(self):
@@ -402,7 +400,7 @@ class Lattice:
 #             res1[w].append(next_path_set)
 
 #
-# class IdGenerator:
+# class IdGenerator(object):
 #     def __init__(self):
 #         self.id_ = 0
 #     def get_new_id(self):
@@ -411,7 +409,7 @@ class Lattice:
 #         return res
 
 
-class PosElem:
+class PosElem(object):
     def __init__(self, p, child_node=None):
         self.p = p
         self.child_node = child_node
@@ -445,7 +443,7 @@ class PosElem:
         return res
 
 
-class Node:
+class Node(object):
     def __init__(self, lattice_id):
         self.lattice_id = lattice_id
 #         self.id_generator = IdGenerator()

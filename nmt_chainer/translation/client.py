@@ -12,9 +12,7 @@ import os.path
 import re
 from xml.sax.saxutils import escape
 
-__metaclass__ = type
-
-class Client:
+class Client(object):
 
     def __init__(self, server_ip, server_port):
         self.ip = server_ip

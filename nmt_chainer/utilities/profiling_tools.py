@@ -7,8 +7,6 @@ from collections import defaultdict
 import time
 import numpy
 
-__metaclass__ = type
-
 def function_namer(function, in_data):
     in_shapes = []
     for in_elem in in_data:
@@ -25,7 +23,7 @@ def function_namer(function, in_data):
     return (function.__class__, in_shapes)
 
 
-class TimerElem:
+class TimerElem(object):
     def __init__(self):
         self.fwd = 0
         self.bwd = 0
