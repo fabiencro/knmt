@@ -6,9 +6,7 @@ logging.basicConfig()
 log = logging.getLogger("rnns:indexer")
 log.setLevel(logging.INFO)
 
-__metaclass__ = type
-
-class Indexer:
+class Indexer(object):
 
     def __init__(self, unk_tag="#UNK#"):
         self.dic = {}
@@ -153,7 +151,7 @@ class Indexer:
         elif isinstance(datas, dict) and "type" in datas and datas["type"] == "simple_indexer":
             return True
 
-# class Indexer:
+# class Indexer(object):
 #     def __init__(self, unk_tag = "#UNK#"):
 #         self.dic = {}
 #         self.lst = []

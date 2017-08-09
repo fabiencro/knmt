@@ -37,9 +37,7 @@ logging.basicConfig()
 log = logging.getLogger("rnns:server")
 log.setLevel(logging.INFO)
 
-__metaclass__ = type
-
-class Translator:
+class Translator(object):
 
     def __init__(self, config_server):
         self.config_server = config_server

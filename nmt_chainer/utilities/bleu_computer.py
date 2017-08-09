@@ -18,9 +18,7 @@ import sys
 if sys.version_info < (3, 0):
     from itertools import izip
 
-__metaclass__ = type
-
-class BleuComputer:
+class BleuComputer(object):
     def __init__(self):
         self.ngrams_corrects = {1: 0, 2: 0, 3: 0, 4: 0}
         self.ngrams_total = {1: 0, 2: 0, 3: 0, 4: 0}

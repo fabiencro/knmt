@@ -16,8 +16,6 @@ import re
 import copy
 import sys
 
-__metaclass__ = type
-
 logging.basicConfig()
 log = logging.getLogger("rnns:processors")
 log.setLevel(logging.INFO)
@@ -41,7 +39,7 @@ def build_index_from_iterable(iterable, voc_limit=None):
     return res
 
 
-class ApplyToMultiIterator:
+class ApplyToMultiIterator(object):
     def __init__(self, iterable, function, can_iter=False):
         self.iterable = iterable
         self.function = function
@@ -57,7 +55,7 @@ class ApplyToMultiIterator:
 
     next = __next__
 
-class ApplyToMultiIteratorPair:
+class ApplyToMultiIteratorPair(object):
     def __init__(self, iterable1, iterable2, function, can_iter=False):
         self.iterable1 = iterable1
         self.iterable2 = iterable2
@@ -78,7 +76,7 @@ class ApplyToMultiIteratorPair:
     next = __next__
 
 
-class FileMultiIterator:
+class FileMultiIterator(object):
     def __init__(self, filename, max_nb_ex=None, can_iter=False):
         self.filename = filename
         self.max_nb_ex = max_nb_ex
@@ -126,7 +124,7 @@ def registered_processor(cls):
     return cls
 
 
-class PreProcessor:
+class PreProcessor(object):
     def __init__(self):
         self.is_initialized_ = False
 
@@ -202,7 +200,7 @@ class ProcessorChain(MonoProcessor):
     def __init__(self, processor_list=[]):
         self.processor_list = processor_list
 
-#     class Stats:
+#     class Stats(object):
 #         def __init__(self, stats_list):
 #             self.stats_list = stats_list
 #
@@ -763,7 +761,7 @@ class LatinScriptProcess(MonoProcessor):
         return obj
 
 
-#     class IterableIterator:
+#     class IterableIterator(object):
 #         def __init__(self, filename):
 #             self.filename = filename
 #         def make_iter(self):
@@ -802,7 +800,7 @@ class IndexingPrePostProcessorBase(MonoProcessor):
         sentence = self.deconvert_post(sentence)
         return sentence
 
-    class Stats:
+    class Stats(object):
         def make_report(self):
             return "nothing to report"
 
@@ -922,7 +920,7 @@ class IndexingPrePostProcessor(IndexingPrePostProcessorBase):
         self.is_initialized_ = False
         self.preprocessor = None
 
-    class Stats:
+    class Stats(object):
         def __init__(self):
             self.unk_cnt = 0
             self.token = 0
