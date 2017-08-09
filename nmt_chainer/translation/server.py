@@ -24,10 +24,7 @@ import time
 import timeit
 import socket
 import threading
-if sys.version_info < (3, 0):
-    import SocketServer
-else:
-    import socketserver
+from six.moves import socketserver
 import xml.etree.ElementTree as ET
 import re
 import subprocess
@@ -120,11 +117,7 @@ class Translator(object):
 
 
 
-if sys.version_info < (3, 0):
-    base_class = SocketServer.BaseRequestHandler
-else:
-    base_class = socketserver.BaseRequestHandler
-class RequestHandler(base_class):
+class RequestHandler(socketserver.BaseRequestHandler):
 
     def handle(self):
         start_request = timeit.default_timer()
@@ -300,13 +293,7 @@ class RequestHandler(base_class):
         self.request.sendall(response.encode('utf-8'))
 
 
-if sys.version_info < (3, 0):
-    base_class_1 = SocketServer.ThreadingMixIn
-    base_class_2 = SocketServer.TCPServer
-else:
-    base_class_1 = socketserver.ThreadingMixIn
-    base_class_2 = socketserver.TCPServer
-class Server(base_class_1, base_class_2):
+class Server(socketserver.ThreadingMixIn, socketserver.TCPServer):
 
     daemon_threads = True
     allow_reuse_address = True
@@ -319,10 +306,7 @@ class Server(base_class_1, base_class_2):
             segmenter_format,
             translator,
             pp_command):
-        if sys.version_info < (3, 0):
-            SocketServer.TCPServer.__init__(self, server_address, handler_class)
-        else:
-            socketserver.TCPServer.__init__(self, server_address, handler_class)
+        socketserver.TCPServer.__init__(self, server_address, handler_class)
         self.segmenter_command = segmenter_command
         self.segmenter_format = segmenter_format
         self.translator = translator
