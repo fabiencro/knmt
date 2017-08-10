@@ -14,7 +14,7 @@ import six
 def build_prefix_list(lst, op=max):
     res = [None] * len(lst)
     res[0] = lst[0]
-    for k in range(1, len(lst)):
+    for k in six.moves.range(1, len(lst)):
         res[k] = op(res[k - 1], lst[k])
     return res
 

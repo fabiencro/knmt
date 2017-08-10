@@ -13,6 +13,7 @@ from chainer import cuda, Variable
 from chainer import Link, Chain, ChainList
 import chainer.functions as F
 import chainer.links as L
+import six
 
 from . import rnn_cells
 from nmt_chainer.utilities.utils import compute_lexicon_matrix
@@ -27,7 +28,7 @@ log.setLevel(logging.INFO)
 class BNList(ChainList):
     def __init__(self, size, max_length):
         super(BNList, self).__init__()
-        for _ in range(max_length):
+        for _ in six.moves.range(max_length):
             bn = L.BatchNormalization(size)
             bn.gamma.data.fill(0.1)
             self.add_link(bn)
@@ -247,12 +248,12 @@ class EncoderDecoder(Chain):
 #             noise_mean = Variable(self.xp.ones_like(prev_y.data, dtype = self.xp.float32))
 #             noise_lnvar = Variable(self.xp.zeros_like(prev_y.data, dtype = self.xp.float32))
 #
-#         for i in range(len(targets)):
+#         for i in six.moves.range(len(targets)):
 #             assert i == 0 or previous_states[0].data.shape[0] == previous_word.data.shape[0]
 #             current_mb_size = targets[i].data.shape[0]
 #             if current_mb_size < len(previous_states[0].data):
 #                 truncated_states = [None] * len(previous_states)
-#                 for num_state in range(len(previous_states)):
+#                 for num_state in six.moves.range(len(previous_states)):
 #                     truncated_states[num_state], _ = F.split_axis(previous_states[num_state], (current_mb_size,), 0)
 #                 previous_states = tuple(truncated_states)
 #
@@ -354,12 +355,12 @@ class EncoderDecoder(Chain):
 #
 #         total_nb_predictions = sum(t.data.shape[0] for t in targets)
 #
-#         for i in range(len(targets)):
+#         for i in six.moves.range(len(targets)):
 #             assert i == 0 or previous_states[0].data.shape[0] == previous_word.data.shape[0]
 #             current_mb_size = targets[i].data.shape[0]
 #             if current_mb_size < len(previous_states[0].data):
 #                 truncated_states = [None] * len(previous_states)
-#                 for num_state in range(len(previous_states)):
+#                 for num_state in six.moves.range(len(previous_states)):
 #                     truncated_states[num_state], _ = F.split_axis(previous_states[num_state], (current_mb_size,), 0)
 #                 previous_states = tuple(truncated_states)
 #
@@ -578,7 +579,7 @@ class EncoderDecoder(Chain):
 #         from utils import de_batch
 #         from bleu_computer import BleuComputer
 #         total_score = 0
-#         for i in range(nb_samples):
+#         for i in six.moves.range(nb_samples):
 #             sentences, score = sampler.next()
 #
 #             deb = de_batch(sentences, mask = None, eos_idx = eos_idx, is_variable = False)
@@ -587,7 +588,7 @@ class EncoderDecoder(Chain):
 #             assert len(deb) == mb_size
 #
 #             bleu_vec = np.zeros((mb_size, 1), dtype = np.float32)
-#             for num_t in range(len(deb)):
+#             for num_t in six.moves.range(len(deb)):
 #                 t = deb[num_t]
 #                 if t[-1] == eos_idx:
 #                     t = t[:-1]
@@ -799,7 +800,7 @@ class EncoderDecoder(Chain):
 #         loss_size = 0.5 * (size_precision* (sizes - size_mean) ) **2 - F.log(size_precision)
 #         loss = F.sum(loss_size)/ current_mb_size
 #
-#         for i in range(len(targets)):
+#         for i in six.moves.range(len(targets)):
 #             assert i == 0 or previous_state.data.shape[0] == previous_word.data.shape[0]
 #             current_mb_size = targets[i].data.shape[0]
 #             if current_mb_size < len(previous_state.data):

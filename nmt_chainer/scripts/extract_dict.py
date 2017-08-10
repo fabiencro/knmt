@@ -118,8 +118,8 @@ def commandline():
             break
         if num % 1000 == 0:
             log.info("%i sentences processed" % num)
-        unaligned_pos_left = set(range(len(sentence_src)))
-        unaligned_pos_right = set(range(len(sentence_tgt)))
+        unaligned_pos_left = set(six.moves.range(len(sentence_src)))
+        unaligned_pos_right = set(six.moves.range(len(sentence_tgt)))
         for left, right in alignment:
             for spos in left:
                 if spos in unaligned_pos_left:

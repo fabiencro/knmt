@@ -6,6 +6,7 @@ import numpy as np
 import chainer.functions as F
 import chainer.links as L
 from chainer import Variable, Chain, ChainList
+import six
 
 from nmt_chainer.models.feedforward.utils import (
     generate_pos_vectors, make_batch_mask, pad_data, FeedForward, apply_linear_layer_to_last_dims, cut_minibatch)
@@ -76,7 +77,7 @@ class DecoderMultiLayer(ChainList):
     def __init__(self, d_model, n_heads, d_ff=2048, experimental_relu=False, dropout=None, nb_layers=6,
                  residual_mode="normal", no_normalize=False):
         super(DecoderMultiLayer, self).__init__()
-        for _ in range(nb_layers):
+        for _ in six.moves.range(nb_layers):
             self.add_link(DecoderLayer(d_model, n_heads, d_ff=d_ff, experimental_relu=experimental_relu, dropout=dropout,
                                        residual_mode=residual_mode, no_normalize=no_normalize))
         

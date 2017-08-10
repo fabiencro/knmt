@@ -97,7 +97,7 @@ def greedy_batch_translate(encdec, eos_idx, src_data, batch_size=80, gpu=None, g
         nb_batch = nb_ex / batch_size + (1 if nb_ex % batch_size != 0 else 0)
         res = []
         attn_all = []
-        for i in range(int(nb_batch)):
+        for i in six.moves.range(int(nb_batch)):
             current_batch_raw_data = src_data[i * batch_size: (i + 1) * batch_size]
     
             if reverse_src:
@@ -153,7 +153,7 @@ def reverse_rescore(encdec, src_batch, src_mask, eos_idx, translations, gpu=None
     
         assert len(arg_sort) == len(scores)
         de_sorted_scores = [None] * len(scores)
-        for xpos in range(len(arg_sort)):
+        for xpos in six.moves.range(len(arg_sort)):
             original_pos = arg_sort[xpos]
             de_sorted_scores[original_pos] = scores[xpos]
         return de_sorted_scores
@@ -168,7 +168,7 @@ def beam_search_translate(encdec, eos_idx, src_data, beam_width=20, beam_pruning
                           reverse_encdec=None, use_unfinished_translation_if_none_found=False,
                           nbest=None):
     nb_ex = len(src_data)
-    for num_ex in range(nb_ex):
+    for num_ex in six.moves.range(nb_ex):
         src_batch, src_mask = make_batch_src([src_data[num_ex]], gpu=gpu)
         assert len(src_mask) == 0
         if nb_steps_ratio is not None:
@@ -208,7 +208,7 @@ def beam_search_translate(encdec, eos_idx, src_data, beam_width=20, beam_pruning
             reverse_scores = reverse_rescore(
                 reverse_encdec, src_batch, src_mask, eos_idx, [
                     t[0] for t in translations], gpu)
-            for num_t in range(len(translations)):
+            for num_t in six.moves.range(len(translations)):
                 tr, sc, attn = translations[num_t]
                 rescored_translations.append(
                     (tr, sc + reverse_scores[num_t], attn))
@@ -237,9 +237,9 @@ def beam_search_translate(encdec, eos_idx, src_data, beam_width=20, beam_pruning
                     coverage_penalty = post_score_coverage_penalty_strength * xp.sum(log_of_min_of_sum_over_j)
                     # log.info("cp={0}".format(coverage_penalty))
                     # cp = 0
-                    # for i in range(len(src_data[num_ex])):
+                    # for i in six.moves.range(len(src_data[num_ex])):
                     #    attn_sum = 0
-                    #    for j in range(len(x[0])):
+                    #    for j in six.moves.range(len(x[0])):
                     #        attn_sum += x[2][j][i]
                     #    #log.info("attn_sum={0}".format(attn_sum))
                     #    #log.info("min={0}".format(min(attn_sum, 1.0)))
@@ -272,7 +272,7 @@ def batch_align(encdec, eos_idx, src_tgt_data, batch_size=80, gpu=None):
     nb_batch = nb_ex / batch_size + (1 if nb_ex % batch_size != 0 else 0)
     sum_loss = 0
     attn_all = []
-    for i in range(nb_batch):
+    for i in six.moves.range(nb_batch):
         current_batch_raw_data = src_tgt_data[i * batch_size: (i + 1) * batch_size]
 #         print(current_batch_raw_data)
         src_batch, tgt_batch, src_mask, arg_sort = make_batch_src_tgt(
@@ -282,7 +282,7 @@ def batch_align(encdec, eos_idx, src_tgt_data, batch_size=80, gpu=None):
 
         assert len(arg_sort) == len(deb_attn)
         de_sorted_attn = [None] * len(deb_attn)
-        for xpos in range(len(arg_sort)):
+        for xpos in six.moves.range(len(arg_sort)):
             original_pos = arg_sort[xpos]
             de_sorted_attn[original_pos] = deb_attn[xpos]
 
@@ -327,7 +327,7 @@ def sample_once_ff(encdec, src_seqs, tgt_seqs, src_indexer, tgt_indexer, max_nb=
 
     sample_random = encdec.greedy_translate(src_seqs, nb_steps=50, sample=True)
     
-    for sent_num in range(len(src_seqs)):
+    for sent_num in six.moves.range(len(src_seqs)):
         if max_nb is not None and sent_num > max_nb:
             break
         src_idx_seq = src_seqs[sent_num]
@@ -366,7 +366,7 @@ def sample_once(encdec, src_batch, tgt_batch, src_mask, src_indexer, tgt_indexer
         
         debatched_sample_random = de_batch(sample_random, eos_idx=eos_idx)
     
-        for sent_num in range(len(debatched_src)):
+        for sent_num in six.moves.range(len(debatched_src)):
             if max_nb is not None and sent_num > max_nb:
                 break
             src_idx_seq = debatched_src[sent_num]

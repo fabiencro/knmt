@@ -11,6 +11,7 @@ from chainer.links.connection import linear
 from chainer import cuda
 from chainer import function
 from chainer.utils import type_check
+import six
 
 if cuda.cudnn_enabled:
     cudnn = cuda.cudnn
@@ -526,10 +527,10 @@ def test_perf(args):
         st = cuda.to_gpu(st, args.gpu)
 
     print("start")
-    for _ in range(300):
+    for _ in six.moves.range(300):
         x_v = Variable(x)
         st_v = Variable(st)
-        for _ in range(20):
+        for _ in six.moves.range(20):
             st_v = gru(st_v, x_v)
         loss = chainer.functions.sum(st_v)
         loss.backward()

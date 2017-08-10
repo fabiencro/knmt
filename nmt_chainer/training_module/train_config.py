@@ -210,7 +210,7 @@ def make_config_from_args(args, readonly=True):
             for option_name in args.set_false_in_config:
                 path_option = option_name.split(".")
                 last_dict = config_base
-                for level in range(len(path_option) -1):
+                for level in six.moves.range(len(path_option) -1):
                     last_dict = config_base[path_option[level]]
                 last_dict[path_option[-1]] = False
             
