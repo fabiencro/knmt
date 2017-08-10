@@ -217,7 +217,7 @@ def learn_bpe_from_sentence_iterable(iterable, output, symbols=10000, min_freque
     big_stats = copy.deepcopy(stats)
     # threshold is inspired by Zipfian assumption, but should only affect speed
     threshold = max(stats.values()) / 10
-    for i in range(symbols):
+    for i in six.moves.range(symbols):
         if stats:
             most_frequent = max(stats, key=stats.get)
 
@@ -260,7 +260,7 @@ if __name__ == '__main__':
     big_stats = copy.deepcopy(stats)
     # threshold is inspired by Zipfian assumption, but should only affect speed
     threshold = max(stats.values()) / 10
-    for i in range(args.symbols):
+    for i in six.moves.range(args.symbols):
         if stats:
             most_frequent = max(stats, key=stats.get)
 

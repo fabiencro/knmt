@@ -15,6 +15,7 @@ import sys
 # import h5py
 
 import math
+import six
 
 from nmt_chainer.utilities.utils import minibatch_provider, minibatch_provider_curiculum
 from nmt_chainer.translation.evaluation import (
@@ -239,7 +240,7 @@ def train_on_data(encdec, optimizer, training_data, output_files_dict,
         prev_i = None
         total_loss_this_interval = 0
         total_nb_predictions_this_interval = 0
-        for i in range(sys.maxsize):
+        for i in six.moves.range(sys.maxsize):
             if max_nb_iters is not None and max_nb_iters <= i:
                 break
             print(i,)
