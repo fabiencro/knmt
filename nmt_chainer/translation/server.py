@@ -14,6 +14,7 @@ from chainer import cuda
 import logging
 import sys
 import tempfile
+import six
 
 from nmt_chainer.dataprocessing.processors import build_dataset_one_side_pp
 import nmt_chainer.translation.eval
@@ -24,7 +25,6 @@ import time
 import timeit
 import socket
 import threading
-from six.moves import socketserver
 import xml.etree.ElementTree as ET
 import re
 import subprocess
@@ -117,7 +117,7 @@ class Translator(object):
 
 
 
-class RequestHandler(socketserver.BaseRequestHandler):
+class RequestHandler(six.moves.socketserver.BaseRequestHandler):
 
     def handle(self):
         start_request = timeit.default_timer()
@@ -293,7 +293,7 @@ class RequestHandler(socketserver.BaseRequestHandler):
         self.request.sendall(response.encode('utf-8'))
 
 
-class Server(socketserver.ThreadingMixIn, socketserver.TCPServer):
+class Server(six.moves.socketserver.ThreadingMixIn, six.moves.socketserver.TCPServer):
 
     daemon_threads = True
     allow_reuse_address = True
@@ -306,7 +306,7 @@ class Server(socketserver.ThreadingMixIn, socketserver.TCPServer):
             segmenter_format,
             translator,
             pp_command):
-        socketserver.TCPServer.__init__(self, server_address, handler_class)
+        six.moves.socketserver.TCPServer.__init__(self, server_address, handler_class)
         self.segmenter_command = segmenter_command
         self.segmenter_format = segmenter_format
         self.translator = translator
