@@ -70,11 +70,7 @@ def replace_unk(translations, src_file, dest, dic_fn, remove_unk, normalize_unic
     if dic_fn is not None:
         dic = json.load(open(dic_fn))
 
-    if sys.version_info < (3, 0):
-        iterator = enumerate(itertools.izip(ft, fs))
-    else:
-        iterator = enumerate(zip(ft, fs))
-    for num_line, (line_t, line_s) in iterator:
+    for num_line, (line_t, line_s) in enumerate(six.moves.zip(ft, fs)):
         splitted_t = line_t.strip().split(" ")
         splitted_s = line_s.strip().split(" ")
         new_t = []
