@@ -8,8 +8,6 @@ __status__ = "Development"
 
 import io 
 import sys
-if sys.version_info < (3, 0):
-    import itertools
 import json
 import unicodedata
 import logging
