@@ -6,6 +6,7 @@ import argparse
 import json
 import datetime
 import sys
+import six
 import nmt_chainer.utilities.versioning_tools as versioning_tools
 
 class OrderedNamespace(OrderedDict):
@@ -50,7 +51,7 @@ class OrderedNamespace(OrderedDict):
     @classmethod
     def convert_to_ordered_namespace(cls, ordered_dict):
         ns = OrderedNamespace()
-        for k, v in ordered_dict.items():
+        for k, v in six.iteritems(ordered_dict):
             if isinstance(v, OrderedDict):
                 converted_v = cls.convert_to_ordered_namespace(v)
                 ns[k] = converted_v
@@ -63,7 +64,7 @@ class OrderedNamespace(OrderedDict):
             raise ValueError()
         if self.readonly:
             raise ValueError()
-        for key, val in other.items():
+        for key, val in six.iteritems(other):
             if isinstance(val, OrderedNamespace):
                 if key in self:
                     if not (isinstance(self[key], OrderedNamespace)):
@@ -80,7 +81,7 @@ class OrderedNamespace(OrderedDict):
                     self[key] = val
 
     def pretty_print(self, indent=4, discard_section=("metadata",)):
-        for k, v in self.items():
+        for k, v in six.iteritems(self):
             if isinstance(v, OrderedNamespace) and k not in discard_section:
                 print(" " * indent, k, ":")
                 v.pretty_print(indent=indent + 4, discard_section=())
@@ -89,7 +90,7 @@ class OrderedNamespace(OrderedDict):
 
     def copy(self, readonly=None):
         res = OrderedNamespace()
-        for k, v in self.items():
+        for k, v in six.iteritems(self):
             if isinstance(v, OrderedNamespace):
                 res[k] = v.copy(readonly)
             else:

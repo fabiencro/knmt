@@ -3,6 +3,7 @@ from __future__ import absolute_import, division, print_function, unicode_litera
 import logging
 import io 
 import exceptions
+import six
 from collections import defaultdict
 
 """extract_dict.py: Simple utility to extract a dictionary from aligned data"""
@@ -154,7 +155,7 @@ def commandline():
         log.info("selecting best")
         res = {}
         for ws in counter:
-            translations = counter[ws].items()
+            translations = six.iteritems(counter[ws])
             translations.sort(key=operator.itemgetter(1), reverse=True)
             res[ws] = translations[0][0]
 

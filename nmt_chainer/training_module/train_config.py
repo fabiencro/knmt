@@ -3,6 +3,7 @@ from __future__ import absolute_import, division, print_function, unicode_litera
 
 import logging
 import sys
+import six
 
 from nmt_chainer.utilities import argument_parsing_tools
 
@@ -131,7 +132,7 @@ class CommandLineValuesException(Exception):
 
 
 def get_parse_option_orderer():
-    description_to_config_section = dict((v, k) for (k, v) in _CONFIG_SECTION_TO_DESCRIPTION.items())
+    description_to_config_section = dict((v, k) for (k, v) in six.iteritems(_CONFIG_SECTION_TO_DESCRIPTION))
     por = argument_parsing_tools.ParseOptionRecorder(group_title_to_section=description_to_config_section,
                                                      ignore_positional_arguments=set(["save_prefix", "data_prefix"]))
     define_parser(por)
