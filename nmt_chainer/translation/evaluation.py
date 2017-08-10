@@ -13,6 +13,7 @@ import logging
 import numpy as np
 import math
 import io
+import six
 import operator
 from . import beam_search
 import chainer
@@ -86,7 +87,7 @@ def greedy_batch_translate(encdec, eos_idx, src_data, batch_size=80, gpu=None, g
             result = encdec.greedy_batch_translate(src_data,  mb_size=batch_size, nb_steps=nb_steps)
             if get_attention:
                 dummy_attention = []
-                for src, tgt in zip(src_data, result):
+                for src, tgt in six.moves.zip(src_data, result):
                     dummy_attention.append(np.zeros((len(src), len(tgt)), dtype = np.float32))
                 return result, dummy_attention 
             else:
@@ -336,7 +337,7 @@ def sample_once_ff(encdec, src_seqs, tgt_seqs, src_indexer, tgt_indexer, max_nb=
 
         print("sent num", sent_num)
 
-        for name, seq, unk_tag, indexer in zip("src tgt sample sample_random".split(" "),
+        for name, seq, unk_tag, indexer in six.moves.zip("src tgt sample sample_random".split(" "),
                                                              [src_idx_seq, tgt_idx_seq, sample_idx_seq, sample_random_idx_seq],
                                                              [s_unk_tag, t_unk_tag, t_unk_tag, t_unk_tag],
                                                              [src_indexer, tgt_indexer, tgt_indexer, tgt_indexer]):
@@ -375,7 +376,7 @@ def sample_once(encdec, src_batch, tgt_batch, src_mask, src_indexer, tgt_indexer
     
             print("sent num", sent_num)
     
-            for name, seq, unk_tag, indexer, this_eos_idx in zip("src tgt sample sample_random".split(" "),
+            for name, seq, unk_tag, indexer, this_eos_idx in six.moves.zip("src tgt sample sample_random".split(" "),
                                                                  [src_idx_seq, tgt_idx_seq, sample_idx_seq, sample_random_idx_seq],
                                                                  [s_unk_tag, t_unk_tag, t_unk_tag, t_unk_tag],
                                                                  [src_indexer, tgt_indexer, tgt_indexer, tgt_indexer],

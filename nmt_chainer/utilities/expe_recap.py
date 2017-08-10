@@ -133,11 +133,11 @@ table, th, td {
     if os.path.isfile(eval_prefix + ".unk_replaced"):
         lst_outputs.append(("unk_repl", io.open(eval_prefix + ".unk_replaced", 'rt', encoding = "utf8")))
     
-    tags_list, files_list = zip(*lst_outputs)
-    for num_line, line_list in enumerate(itertools.izip(*files_list)):
+    tags_list, files_list = list(six.moves.zip(*lst_outputs))
+    for num_line, line_list in enumerate(six.moves.zip(*files_list)):
         f.write("""<table style="width:100%">""")
         f.write("<tr><td>%s</td><td>%i</td></tr>\n"%("NUM", num_line))
-        for tag, line in zip(tags_list, line_list):
+        for tag, line in list(six.moves.zip(tags_list, line_list)):
             f.write("<tr><td>%s</td><td>%s</td></tr>\n"%(tag, cgi.escape(line.encode("utf8"))))
         f.write("</table>")     
             
@@ -215,7 +215,7 @@ def process_train_config(config_fn, dest_dir):
         c = db.cursor()
 
         c.execute("SELECT date, bleu_info, iteration, loss, bleu, dev_loss, dev_bleu, avg_time, avg_training_loss FROM exp_data")
-        date, bleu_info, iteration, test_loss, test_bleu, dev_loss, dev_bleu, avg_time, avg_training_loss = zip(*list(c.fetchall()))
+        date, bleu_info, iteration, test_loss, test_bleu, dev_loss, dev_bleu, avg_time, avg_training_loss = list(six.moves.zip(*list(c.fetchall())))
 
         infos = dict(
             last_nb_iterations=iteration[-1],

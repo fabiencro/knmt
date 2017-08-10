@@ -13,6 +13,7 @@ if sys.version_info < (3, 0):
 import json
 import unicodedata
 import logging
+import six
 logging.basicConfig()
 log = logging.getLogger("rnns:replace_tgt")
 log.setLevel(logging.INFO)

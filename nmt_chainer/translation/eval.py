@@ -22,6 +22,7 @@ from nmt_chainer.utilities.file_infos import create_filename_infos
 from nmt_chainer.utilities.argument_parsing_tools import OrderedNamespace
 import time
 import os.path
+import six
 from nmt_chainer.utilities.utils import ensure_path
 # from utils import make_batch_src, make_batch_src_tgt, minibatch_provider, compute_bleu_with_unk_as_wrong, de_batch
 from nmt_chainer.translation.evaluation import (greedy_batch_translate,
@@ -357,7 +358,7 @@ def create_encdec(config_eval):
     if 'additional_training_config' in config_eval.process and config_eval.process.additional_training_config is not None:
         assert len(config_eval.process.additional_training_config) == len(config_eval.process.additional_trained_model)
 
-        for (config_training_fn, trained_model_fn) in zip(config_eval.process.additional_training_config,
+        for (config_training_fn, trained_model_fn) in six.moves.zip(config_eval.process.additional_training_config,
                                                           config_eval.process.additional_trained_model):
             this_encdec, this_eos_idx, this_src_indexer, this_tgt_indexer = create_and_load_encdec_from_files(
                 config_training_fn, trained_model_fn)
@@ -610,7 +611,7 @@ def do_eval(config_eval):
         with cuda.get_device(gpu):
             assert len(encdec_list) == 1
             loss, attn_all = batch_align(
-                encdec_list[0], eos_idx, zip(src_data, tgt_data), batch_size=mb_size, gpu=gpu)
+                encdec_list[0], eos_idx, list(six.moves.zip(src_data, tgt_data)), batch_size=mb_size, gpu=gpu)
 #         tgt_voc_with_unk = tgt_voc + ["#T_UNK#"]
 #         src_voc_with_unk = src_voc + ["#S_UNK#"]
 
