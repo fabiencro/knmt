@@ -14,6 +14,7 @@ from collections import defaultdict
 import math
 import io
 import sys
+import six
 
 if sys.version_info < (3, 0):
     from itertools import izip
@@ -84,7 +85,7 @@ class BleuComputer(object):
                 ngram = tuple(translation[start: start + n])
 #                 print(ngram)
                 translation_ngrams[ngram] += 1
-            for ngram, translation_freq in translation_ngrams.items():
+            for ngram, translation_freq in six.iteritems(translation_ngrams):
                 reference_freq = reference_ngrams[ngram]
                 self.ngrams_total[n] += translation_freq
                 if ngram in reference_ngrams:
@@ -131,7 +132,7 @@ class BleuComputer(object):
         reference_ngrams, ref_len = reference_info
         translation_ngrams, t_len = translation_info
 
-        for ngram, translation_freq in translation_ngrams.items():
+        for ngram, translation_freq in six.iteritems(translation_ngrams):
             n = len(ngram)
             reference_freq = reference_ngrams[ngram]
             ngrams_total[n] += translation_freq
@@ -157,7 +158,7 @@ class BleuComputer(object):
                 ngram = tuple(translation[start: start + n])
 #                 print(ngram)
                 translation_ngrams[ngram] += 1
-            for ngram, translation_freq in translation_ngrams.items():
+            for ngram, translation_freq in six.iteritems(translation_ngrams):
                 reference_freq = reference_ngrams[ngram]
                 ngrams_total[n] += translation_freq
                 if ngram in reference_ngrams:

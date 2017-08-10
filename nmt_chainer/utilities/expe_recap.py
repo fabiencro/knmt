@@ -16,6 +16,7 @@ from collections import defaultdict
 import io
 import itertools
 import cgi
+import six
 
 import logging
 logging.basicConfig()
@@ -330,14 +331,14 @@ def do_recap(args):
         data_to_srctgt[data_prefix] = src_tgt_fn
 
     index.write("<h1>DATA</h1><p>")
-    for src_tgt_fn, urlname_list in data_urlname_list.items():
+    for src_tgt_fn, urlname_list in six.iteritems(data_urlname_list):
         index.write("<h3>** src: %s | tgt: %s **</h3>" % src_tgt_fn)
         urlname_list.sort(reverse=True)
         for time_config_created, urlname, data_prefix, src_voc_size, tgt_voc_size in urlname_list:
             index.write('%s s:%i t:%i \t<a href = "data/%s">%s</a><p/>' % (time.ctime(time_config_created),
                                                                            src_voc_size, tgt_voc_size, urlname, data_prefix))
     train_urlname_list_src_tgt = defaultdict(list)
-    for data_path, urlname_list in train_urlname_list.items():
+    for data_path, urlname_list in six.iteritems(train_urlname_list):
         if data_path in data_to_srctgt:
             train_urlname_list_src_tgt[data_to_srctgt[data_path]
                                        ] += urlname_list

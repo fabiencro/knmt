@@ -6,6 +6,7 @@ from chainer import cuda
 from collections import defaultdict
 import time
 import numpy
+import six
 
 def function_namer(function, in_data):
     in_shapes = []
@@ -114,8 +115,8 @@ class MyTimerHook(function.FunctionHook):
         return sum(
             t.total for (
                 _,
-                t) in self.call_times_per_classes.items())
+                t) in six.iteritems(self.call_times_per_classes))
 
     def print_sorted(self):
-        for name, time in sorted(self.call_times_per_classes.items(), key=lambda x: x[1].total):
+        for name, time in sorted(six.iteritems(self.call_times_per_classes), key=lambda x: x[1].total):
             print(name, time)

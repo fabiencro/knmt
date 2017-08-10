@@ -15,6 +15,7 @@ import itertools
 import re
 import copy
 import sys
+import six
 
 logging.basicConfig()
 log = logging.getLogger("rnns:processors")
@@ -28,7 +29,7 @@ def build_index_from_iterable(iterable, voc_limit=None):
             counts[w] += 1
 
     sorted_counts = sorted(
-        counts.items(), key=operator.itemgetter(1), reverse=True)
+        six.iteritems(counts), key=operator.itemgetter(1), reverse=True)
 
     res = Indexer()
 
@@ -556,7 +557,7 @@ class SourceCharacterConverter(MonoProcessor):
         self.char_dic = char_dic
         self.is_initialized_ = False
         
-        self.reversed_dict = dict((v,k) for (k,v) in char_dic.iteritems())
+        self.reversed_dict = dict((v,k) for (k,v) in six.iteritems(char_dic))
 
     def convert(self, sentence, stats=None):
         res = []
