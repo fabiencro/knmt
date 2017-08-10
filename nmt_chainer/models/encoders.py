@@ -12,6 +12,7 @@ from chainer import cuda, Variable
 from chainer import Link, Chain, ChainList
 import chainer.functions as F
 import chainer.links as L
+import six
 
 from . import rnn_cells
 
@@ -203,7 +204,7 @@ class Encoder(Chain):
 
         assert len(backward_seq) == len(forward_seq)
         res = []
-        for xf, xb in zip(forward_seq, reversed(backward_seq)):
+        for xf, xb in list(six.moves.zip(forward_seq, reversed(backward_seq))):
             res.append(F.reshape(F.concat((xf, xb), 1), (-1, 1, 2 * self.Hi)))
 
         return F.concat(res, 1)

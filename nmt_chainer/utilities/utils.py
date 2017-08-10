@@ -58,9 +58,9 @@ def make_batch_src(src_data, padding_idx=0, gpu=None):
 
 def make_batch_src_tgt(training_data, eos_idx=1, padding_idx=0, gpu=None, need_arg_sort=False):
     if need_arg_sort:
-        training_data_with_argsort = zip(training_data, range(len(training_data)))
+        training_data_with_argsort = list(six.moves.zip(training_data, range(len(training_data))))
         training_data_with_argsort.sort(key=lambda x: len(x[0][1]), reverse=True)
-        training_data, argsort = zip(*training_data_with_argsort)
+        training_data, argsort = list(six.moves.zip(*training_data_with_argsort))
     else:
         training_data = sorted(training_data, key=lambda x: len(x[1]), reverse=True)
 #     max_src_size = max(len(x) for x, y  in training_data)
@@ -106,9 +106,9 @@ def make_batch_src_tgt(training_data, eos_idx=1, padding_idx=0, gpu=None, need_a
 
 def make_batch_tgt(training_data, eos_idx=1, gpu=None, need_arg_sort=False):
     if need_arg_sort:
-        training_data_with_argsort = zip(training_data, range(len(training_data)))
+        training_data_with_argsort = list(six.moves.zip(training_data, range(len(training_data))))
         training_data_with_argsort.sort(key=lambda x: len(x[0]), reverse=True)
-        training_data, argsort = zip(*training_data_with_argsort)
+        training_data, argsort = list(six.moves.zip(*training_data_with_argsort))
     else:
         training_data = sorted(training_data, key=lambda x: len(x), reverse=True)
 #     max_src_size = max(len(x) for x, y  in training_data)
@@ -268,7 +268,7 @@ def compute_bleu_with_unk_as_wrong(references, candidates, is_unk_id, new_unk_id
     from . import bleu_computer
     assert new_unk_id_ref != new_unk_id_cand
     bc = bleu_computer.BleuComputer()
-    for ref, cand in zip(references, candidates):
+    for ref, cand in list(six.moves.zip(references, candidates)):
         ref_mod = tuple((x if not is_unk_id(x) else new_unk_id_ref)
                         for x in ref)
         cand_mod = tuple((int(x) if not is_unk_id(int(x))

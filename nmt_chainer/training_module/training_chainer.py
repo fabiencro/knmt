@@ -695,7 +695,7 @@ def train_on_data_chainer(encdec, optimizer, training_data, output_files_dict,
 
         try:
             if encdec.encdec_type() == "ff":
-                src_seqs, tgt_seqs = zip(*mb_raw)
+                src_seqs, tgt_seqs = list(six.moves.zip(*mb_raw))
                 sample_once_ff(encdec, src_seqs, tgt_seqs, src_indexer, tgt_indexer, max_nb=20,
                     s_unk_tag=s_unk_tag, t_unk_tag=t_unk_tag)
             else:
@@ -755,7 +755,7 @@ def train_on_data_chainer(encdec, optimizer, training_data, output_files_dict,
             
             return avg_loss  
         def convert_mb(mb_raw, device):
-            return tuple(zip(*mb_raw)) 
+            return tuple(list(six.moves.zip(*mb_raw))) 
     else:
         def loss_func(src_batch, tgt_batch, src_mask):
     

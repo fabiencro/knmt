@@ -13,7 +13,7 @@ from chainer import cuda, Variable
 from chainer import Link, Chain, ChainList
 import chainer.functions as F
 import chainer.links as L
-
+import six
 
 import logging
 logging.basicConfig()
@@ -268,13 +268,13 @@ def compute_next_states_and_scores(dec_cell_ensemble, current_states_ensemble, c
     xp = dec_cell_ensemble[0].xp
 
     if current_words is not None:
-        states_logits_attn_ensemble = [dec_cell(states, current_words) for (dec_cell, states) in zip(
+        states_logits_attn_ensemble = [dec_cell(states, current_words) for (dec_cell, states) in six.moves.zip(
             dec_cell_ensemble, current_states_ensemble)]
     else:
         assert all(x is None for x in current_states_ensemble)
         states_logits_attn_ensemble = [dec_cell.get_initial_logits(1) for dec_cell in dec_cell_ensemble]
 
-    new_state_ensemble, logits_ensemble, attn_ensemble = zip(*states_logits_attn_ensemble)
+    new_state_ensemble, logits_ensemble, attn_ensemble = list(six.moves.zip(*states_logits_attn_ensemble))
 
     # Combine the scores of the ensembled models
     combined_scores = xp.zeros((logits_ensemble[0].data.shape), dtype=xp.float32)
@@ -364,9 +364,9 @@ def advance_one_step(dec_cell_ensemble, eos_idx, current_translations_states, be
         next_words_array = cuda.to_gpu(next_words_array)
 
     concatenated_next_states_list = []
-    for next_states_list_one_model in zip(*next_states_list):
+    for next_states_list_one_model in six.moves.zip(*next_states_list):
         concatenated_next_states_list.append(
-            tuple([F.concat(substates, axis=0) for substates in zip(*next_states_list_one_model)])
+            tuple([F.concat(substates, axis=0) for substates in six.moves.zip(*next_states_list_one_model)])
         )
 
     next_translations_states = (next_translations_list,

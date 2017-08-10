@@ -10,6 +10,7 @@ from chainer import Variable, Chain, ChainList
 from nmt_chainer.models.feedforward.encoder import Encoder
 from nmt_chainer.models.feedforward.decoder import Decoder
 from nmt_chainer.utilities.utils import batch_sort_and_split
+import six
 # from __builtin__ import True
     
 import logging
@@ -46,7 +47,7 @@ class EncoderDecoder(Chain):
                 larger_batch = test_data[cursor:cursor+required_data]
                 cursor += required_data
                 for minibatch in batch_sort_and_split(larger_batch, size_parts = mb_size):
-                    yield zip(*minibatch)
+                    yield six.moves.zip(*minibatch)
         
         with chainer.using_config("train", False), chainer.no_backprop_mode():
             total_loss = 0
@@ -59,7 +60,7 @@ class EncoderDecoder(Chain):
             return total_loss / total_nb_predictions
         
     def greedy_batch_translate(self, test_data,  mb_size=64, nb_mb_for_sorting= 20, nb_steps=50):
-        test_data_with_index = zip(test_data, range(len(test_data)))
+        test_data_with_index = list(six.moves.zip(test_data, range(len(test_data))))
         def mb_provider(): #TODO: optimize by sorting by size
             required_data = nb_mb_for_sorting * mb_size
             cursor = 0
@@ -73,12 +74,12 @@ class EncoderDecoder(Chain):
                 
         result = []
         for src_batch_with_index in mb_provider():
-            src_batch, indexes = zip(*src_batch_with_index)
+            src_batch, indexes = list(six.moves.zip(*src_batch_with_index))
             translated = self.greedy_translate(src_batch, nb_steps=nb_steps)
-            result += zip(indexes, translated) 
+            result += list(six.moves.zip(indexes, translated))
             
         result.sort(key=lambda x:x[0])
-        reordered_indexes, reordered_result = zip(*result)
+        reordered_indexes, reordered_result = list(six.moves.zip(*result))
         assert reordered_indexes == range(len(test_data))
         return reordered_result
         

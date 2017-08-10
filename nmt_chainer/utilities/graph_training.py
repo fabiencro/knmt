@@ -8,6 +8,7 @@ __email__ = "fabien.cromieres@gmail.com"
 __status__ = "Development"
 
 import sqlite3
+import six
 
 
 def build_prefix_list(lst, op=max):
@@ -41,8 +42,8 @@ def generate_graph(sqldb, dest, title="Training Evolution"):
     c = db.cursor()
 
     c.execute("SELECT date, bleu_info, iteration, loss, bleu, dev_loss, dev_bleu, avg_time, avg_training_loss FROM exp_data")
-    date, bleu_info, iteration, test_loss, test_bleu, dev_loss, dev_bleu, avg_time, avg_training_loss = zip(
-        *list(c.fetchall()))
+    date, bleu_info, iteration, test_loss, test_bleu, dev_loss, dev_bleu, avg_time, avg_training_loss = list(six.moves.zip(
+        *list(c.fetchall())))
 #     all = [[], [], [], []]
 #     for line in c.fetchall():
 #         print(line)
@@ -67,7 +68,7 @@ def generate_graph(sqldb, dest, title="Training Evolution"):
     #         random_y2 = np.random.randn(N)-5
     #
     # Create traces
-    text_trg = ["i:%i\n%s\nt:%r" % (i, d, t) for i, d, t in zip(iteration, date, avg_time)]
+    text_trg = ["i:%i\n%s\nt:%r" % (i, d, t) for i, d, t in list(six.moves.zip(iteration, date, avg_time))]
     text_bleu = []
     for bli in bleu_info:
         if bli is None:
