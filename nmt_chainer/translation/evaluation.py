@@ -97,7 +97,7 @@ def greedy_batch_translate(encdec, eos_idx, src_data, batch_size=80, gpu=None, g
         nb_batch = nb_ex // batch_size + (1 if nb_ex % batch_size != 0 else 0)
         res = []
         attn_all = []
-        for i in six.moves.range(int(nb_batch)):
+        for i in six.moves.range(nb_batch):
             current_batch_raw_data = src_data[i * batch_size: (i + 1) * batch_size]
     
             if reverse_src:
