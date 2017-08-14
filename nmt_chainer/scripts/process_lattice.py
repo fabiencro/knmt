@@ -536,7 +536,7 @@ class Node(object):
     def pos_iter(self):
         return (x for x in itertools.chain(
             iter(self.leaf_lst),
-            itertools.chain(*self.inner_lst.values())) if x is not None)
+            itertools.chain(six.itervalues(*self.inner_lst))) if x is not None)
 
 #     def replace(self, elem, new_elems):
 #         assert elem.is_leaf()
@@ -1004,10 +1004,10 @@ def command_line2():
 
     log.info("removing epsilons")
     log.info("nb edges before %i" % sum(
-        len(edge_list) for lattice in lattice_map for edge_list in lattice.outgoing.values()))
+        len(edge_list) for lattice in lattice_map for edge_list in six.itervalues(lattice.outgoing))
     remove_all_epsilons(lattice_map)
     log.info("nb edges before %i" % sum(
-        len(edge_list) for lattice in lattice_map for edge_list in lattice.outgoing.values()))
+        len(edge_list) for lattice in lattice_map for edge_list in six.itervalues(lattice.outgoing))
 
     if args.gpu is not None:
         seq_as_batch = [Variable(cuda.to_gpu(np.array([x], dtype=np.int32), args.gpu), volatile="on") for x in src_seq]
@@ -1027,7 +1027,7 @@ def command_line2():
         next_words_set = current_path.get_next_w(
             lattice_map, global_memoizer, global_count_memoizer)
         for w in next_words_set:
-            next_words_set[w] = sum(next_words_set[w].values())
+            next_words_set[w] = sum(six.itervalues(next_words_set[w]))
         has_eos = Lattice.EOS in next_words_set
         next_words_list = sorted(
             list(w for w in next_words_set if w != Lattice.EOS))
@@ -1123,9 +1123,9 @@ def commandline():
     print("built lattices")
 
     print("removing epsilons")
-    print("nb edges before", sum(len(edge_list) for lattice in lattice_map for edge_list in lattice.outgoing.values()))
+    print("nb edges before", sum(len(edge_list) for lattice in lattice_map for edge_list in six.itervalues(lattice.outgoing)))
     remove_all_epsilons(lattice_map)
-    print("nb edges after", sum(len(edge_list) for lattice in lattice_map for edge_list in lattice.outgoing.values()))
+    print("nb edges after", sum(len(edge_list) for lattice in lattice_map for edge_list in six.itervalues(lattice.outgoing)))
 
 #     pos0 = Path.make_initial(top_lattice_id, lattice_map)
 #
@@ -1284,13 +1284,13 @@ END""".split("\n")
     print("built lattices")
 
     print("removing epsilons")
-    print("nb edges before", sum(len(edge_list) for lattice in lattice_map for edge_list in lattice.outgoing.values()))
+    print("nb edges before", sum(len(edge_list) for lattice in lattice_map for edge_list in six.itervalues(lattice.outgoing)))
     is_epsilonpotent = remove_all_epsilons(lattice_map)
     print("is_epsilonpotent", is_epsilonpotent)
-    print("nb edges after", sum(len(edge_list) for lattice in lattice_map for edge_list in lattice.outgoing.values()))
+    print("nb edges after", sum(len(edge_list) for lattice in lattice_map for edge_list in six.itervalues(lattice.outgoing)))
     for num_lattice, lattice in enumerate(lattice_map):
         remove_unreachable(lattice)
-    print("nb edges after removing unreachable", sum(len(edge_list) for lattice in lattice_map for edge_list in lattice.outgoing.values()))
+    print("nb edges after removing unreachable", sum(len(edge_list) for lattice in lattice_map for edge_list in six.itervalues(lattice.outgoing)))
 
     for num_lattice, lattice in enumerate(lattice_map):
         print("L:", num_lattice)

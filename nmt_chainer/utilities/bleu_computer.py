@@ -47,15 +47,15 @@ class BleuComputer(object):
     __str__ = __repr__
 
     def bleu(self):
-        if min(self.ngrams_corrects.values()) <= 0:
+        if min(six.itervalues(self.ngrams_corrects)) <= 0:
             return 0
-        assert min(self.ngrams_total.values()) >= 0
-        assert min(self.ngrams_total.values()) >= min(self.ngrams_corrects.values())
+        assert min(six.itervalues(self.ngrams_total)) >= 0
+        assert min(six.itervalues(self.ngrams_total)) >= min(six.itervalues(self.ngrams_corrects))
 
         log_brevity_penalty = min(0, 1.0 - float(self.ref_length) / self.total_length)
         log_average_precision = 0.25 * (
-            sum(math.log(v) for v in self.ngrams_corrects.values()) -
-            sum(math.log(v) for v in self.ngrams_total.values())
+            sum(math.log(v) for v in six.itervalues(self.ngrams_corrects)) -
+            sum(math.log(v) for v in six.itervalues(self.ngrams_total))
         )
         res = math.exp(log_brevity_penalty + log_average_precision)
         return res
@@ -63,8 +63,8 @@ class BleuComputer(object):
     def bleu_plus_alpha(self, alpha=1.0):
         log_brevity_penalty = min(0, 1.0 - float(self.ref_length) / self.total_length)
         log_average_precision = 0.25 * (
-            sum(math.log(v + alpha) for v in self.ngrams_corrects.values()) -
-            sum(math.log(v + alpha) for v in self.ngrams_total.values())
+            sum(math.log(v + alpha) for v in six.itervalues(self.ngrams_corrects)) -
+            sum(math.log(v + alpha) for v in six.itervalues(self.ngrams_total))
         )
         res = math.exp(log_brevity_penalty + log_average_precision)
         return res

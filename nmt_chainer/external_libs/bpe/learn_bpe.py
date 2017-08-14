@@ -216,7 +216,7 @@ def learn_bpe_from_sentence_iterable(iterable, output, symbols=10000, min_freque
     stats, indices = get_pair_statistics(sorted_vocab)
     big_stats = copy.deepcopy(stats)
     # threshold is inspired by Zipfian assumption, but should only affect speed
-    threshold = max(stats.values()) / 10
+    threshold = max(six.itervalues(stats)) / 10
     for i in six.moves.range(symbols):
         if stats:
             most_frequent = max(stats, key=stats.get)
@@ -259,7 +259,7 @@ if __name__ == '__main__':
     stats, indices = get_pair_statistics(sorted_vocab)
     big_stats = copy.deepcopy(stats)
     # threshold is inspired by Zipfian assumption, but should only affect speed
-    threshold = max(stats.values()) / 10
+    threshold = max(six.itervalues(stats)) / 10
     for i in six.moves.range(args.symbols):
         if stats:
             most_frequent = max(stats, key=stats.get)
