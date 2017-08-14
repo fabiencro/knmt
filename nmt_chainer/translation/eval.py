@@ -699,7 +699,7 @@ def do_eval(config_eval):
             assert len(encdec_list) == 1
             scorer = encdec_list[0].nbest_scorer(src_batch, src_mask)
 
-            nb_batches = (len(tgt_list) + mb_size - 1) / mb_size
+            nb_batches = (len(tgt_list) + mb_size - 1) // mb_size
             for num_batch in six.moves.range(nb_batches):
                 tgt_batch, arg_sort = utils.make_batch_tgt(tgt_list[num_batch * nb_batches: (num_batch + 1) * nb_batches],
                                                            eos_idx=eos_idx, gpu=gpu, volatile="on", need_arg_sort=True)
