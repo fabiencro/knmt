@@ -21,7 +21,7 @@ class OrderedNamespace(OrderedDict):
 
     def set_readonly(self):
         self.readonly = True
-        for v in self.values():
+        for v in six.itervalues(self):
             if isinstance(v, OrderedNamespace):
                 v.set_readonly()
 

@@ -146,7 +146,7 @@ def commandline():
             if ws is None:
                 continue
             res[ws] = {}
-            sum_count = sum(counter[ws].values())
+            sum_count = sum(six.itervalues(counter[ws]))
             for wt in counter[ws]:
                 if wt is None:
                     continue
