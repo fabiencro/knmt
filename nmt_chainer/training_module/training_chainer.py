@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 """training.py: training procedures."""
+from __future__ import absolute_import, division, print_function, unicode_literals
 from nmt_chainer.utilities import argument_parsing_tools
 __author__ = "Fabien Cromieres"
 __license__ = "undecided"

@@ -94,7 +94,7 @@ def greedy_batch_translate(encdec, eos_idx, src_data, batch_size=80, gpu=None, g
                 return result
         
         nb_ex = len(src_data)
-        nb_batch = nb_ex / batch_size + (1 if nb_ex % batch_size != 0 else 0)
+        nb_batch = nb_ex // batch_size + (1 if nb_ex % batch_size != 0 else 0)
         res = []
         attn_all = []
         for i in six.moves.range(int(nb_batch)):
@@ -269,7 +269,7 @@ def beam_search_translate(encdec, eos_idx, src_data, beam_width=20, beam_pruning
 
 def batch_align(encdec, eos_idx, src_tgt_data, batch_size=80, gpu=None):
     nb_ex = len(src_tgt_data)
-    nb_batch = nb_ex / batch_size + (1 if nb_ex % batch_size != 0 else 0)
+    nb_batch = nb_ex // batch_size + (1 if nb_ex % batch_size != 0 else 0)
     sum_loss = 0
     attn_all = []
     for i in six.moves.range(nb_batch):

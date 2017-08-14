@@ -191,7 +191,7 @@ def batch_sort_and_split(batch, size_parts, sort_key=lambda x: len(x[1]), inplac
     if not inplace:
         batch = list(batch)
     batch.sort(key=sort_key)
-    nb_mb_for_sorting = int(len(batch) / size_parts + (1 if len(batch) % size_parts != 0 else 0))
+    nb_mb_for_sorting = len(batch) // size_parts + (1 if len(batch) % size_parts != 0 else 0)
     for num_batch in six.moves.range(nb_mb_for_sorting):
         mb_raw = batch[num_batch * size_parts: (num_batch + 1) * size_parts]
         yield mb_raw
