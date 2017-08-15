@@ -6,7 +6,40 @@ from chainer import function
 from chainer.utils import array
 from chainer.utils import type_check
 
-from chainer.functions.math.matmul import _get_batch_mat_shape, _check_ndim, _get_check_index, _matmul, _get_size, _batch_matmul
+from chainer.functions.math.matmul import _check_ndim, _get_check_index, _matmul
+
+def _get_size(typ, index, vector_ndim):
+    if type_check.eval(typ.ndim) == vector_ndim and \
+       type_check.eval(index) == vector_ndim:
+        return 1
+    else:
+        return typ.shape[index]
+
+
+def _get_batch_mat_shape(shape):
+    s = 1
+    for x in shape[2:]:
+        s *= x
+    return shape[:2] + (s,)
+
+def _batch_matmul(a, b, transa=False, transb=False, transout=False):
+    a = a.reshape(a.shape[:2] + (-1,))
+    b = b.reshape(b.shape[:2] + (-1,))
+    trans_axis = (0, 2, 1)
+    if transout:
+        transa, transb = not transb, not transa
+        a, b = b, a
+    if transa:
+        a = a.transpose(trans_axis)
+    if transb:
+        b = b.transpose(trans_axis)
+    xp = cuda.get_array_module(a)
+    if xp is numpy:
+        ret = numpy.empty(a.shape[:2] + b.shape[2:], dtype=a.dtype)
+        for i in six.moves.range(len(a)):
+            ret[i] = numpy.dot(a[i], b[i])
+        return ret
+    return xp.matmul(a, b)
 
 class MatMulConstant(function.Function):
 

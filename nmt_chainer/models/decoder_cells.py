@@ -121,8 +121,8 @@ class ConditionalizedDecoderCell(object):
         if self.noise_on_prev_word:
             current_mb_size = prev_y.data.shape[0]
             assert self.mb_size is None or current_mb_size <= self.mb_size
-            prev_y = prev_y * F.gaussian(Variable(self.noise_mean[:current_mb_size], volatile="auto"),
-                                         Variable(self.noise_lnvar[:current_mb_size], volatile="auto"))
+            prev_y = prev_y * F.gaussian(Variable(self.noise_mean[:current_mb_size]),
+                                         Variable(self.noise_lnvar[:current_mb_size]))
 
         new_states, concatenated, attn = self.advance_state(previous_states, prev_y)
 

@@ -18,6 +18,12 @@ logging.basicConfig()
 log = logging.getLogger("rnns:attn")
 log.setLevel(logging.INFO)
 
+try:
+    batch_matmul = F.batch_matmul
+except AttributeError: # for chainer>=3
+    def batch_matmul(a, b, transa=False, transb=False):
+        return F.matmul(a[:, :, None], b, transa=transa, transb=transb)
+
 
 class AttentionModule(Chain):
     """ Attention Module for computing the current context during decoding.
@@ -104,7 +110,7 @@ class AttentionModule(Chain):
 
             attn = F.softmax(a_coeffs)
 
-            ci = F.reshape(F.batch_matmul(attn, used_fb_concat, transa=True), (current_mb_size, self.Hi))
+            ci = F.reshape(batch_matmul(attn, used_fb_concat, transa=True), (current_mb_size, self.Hi))
 
             return ci, attn
 
@@ -214,7 +220,7 @@ class CopyMechanism(Chain):
         )
 
         def compute_copy_coefficients(state):
-            betas = F.reshape(F.batch_matmul(precomp, state), (mb_size, -1))
+            betas = F.reshape(batch_matmul(precomp, state), (mb_size, -1))
             masked_betas = betas + precomp_mask_penalties
             return masked_betas
 
