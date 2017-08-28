@@ -192,14 +192,15 @@ class MailHandler:
         client = Client(server_data['host'], server_data['port'])
         resp = client.query(sentence,
                             nb_steps_ratio=2.5,
-                            beam_score_length_normalization='google',
-                            beam_score_length_normalization_strength=0.2,
-                            post_score_length_normalization='google',
-                            post_score_length_normalization_strength=0.2,
-                            beam_score_coverage_penalty='google',
-                            beam_score_coverage_penalty_strength=0.2,
-                            post_score_coverage_penalty='google',
-                            post_score_coverage_penalty_strength=0.2)
+                            # beam_score_length_normalization='google',
+                            # beam_score_length_normalization_strength=0.2,
+                            # post_score_length_normalization='google',
+                            # post_score_length_normalization_strength=0.2,
+                            # beam_score_coverage_penalty='google',
+                            # beam_score_coverage_penalty_strength=0.2,
+                            # post_score_coverage_penalty='google',
+                            # post_score_coverage_penalty_strength=0.2
+                            )
         # self.logger.info("resp={0}".format(resp))
         json_resp = json.loads(resp)
 
