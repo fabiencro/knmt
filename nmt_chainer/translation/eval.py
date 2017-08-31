@@ -424,7 +424,7 @@ def do_eval(config_eval):
 
     encdec_list, eos_idx, src_indexer, tgt_indexer, reverse_encdec, model_infos_list = create_encdec(config_eval)
 
-    if config_eval.process.server is None:
+    if config_eval.process.server is None and config_eval.process.multiserver_config is None:
         eval_dir_placeholder = "@eval@/"
         if dest_fn.startswith(eval_dir_placeholder):
             if config_eval.trained_model is not None:
@@ -509,6 +509,9 @@ def do_eval(config_eval):
         if config_eval.process.server is not None:
             from nmt_chainer.translation.server import do_start_server
             do_start_server(config_eval)
+        elif config_eval.process.multiserver_config is not None:
+            from nmt_chainer.translation.multiserver import do_start_server
+            do_start_server(config_eval.process.multiserver_config)
         else:
             translate_to_file_with_beam_search(dest_fn, gpu, encdec_list, eos_idx, src_data,
                                                beam_width=beam_width,

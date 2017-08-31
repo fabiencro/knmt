@@ -68,6 +68,7 @@ def define_parser(parser):
     management_group.add_argument("--reverse_trained_model", help="prefix of the trained model")
 #     management_group.add_argument("--config", help = "load eval config file")
     management_group.add_argument("--server", help="host:port for listening request")
+    management_group.add_argument("--multiserver_config", help="config file for multiserver")
     management_group.add_argument("--segmenter_command", help="command to communicate with the segmenter server")
     management_group.add_argument("--segmenter_format", help="format to expect from the segmenter (parse_server, morph)", default='plain')
     management_group.add_argument("--description", help="Optional message to be stored in the configuration file")
@@ -93,7 +94,7 @@ def make_config_eval(args):
     config_eval.add_metadata_infos(version_num=1)
     config_eval.set_readonly()
 
-    if config_eval.process.server is None:
+    if config_eval.process.server is None and config_eval.process.multiserver_config is None:
         if config_eval.process.dest_fn is None:
             raise CommandLineValuesException("dest_fn need to be set either on the command line or in a config file")
 
@@ -140,7 +141,7 @@ def do_eval(args):
             raise CommandLineValuesException(
                 "If specifying a model via the training_config argument, you also need to specify the trained_model argument")
     else:
-        if config_eval.process.load_model_config is None:
+        if config_eval.process.multiserver_config is None and config_eval.process.load_model_config is None:
             raise CommandLineValuesException(
                 "You need to specify either the training_config positional argument, or the load_model_config option, or both")
 
