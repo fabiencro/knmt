@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+
+display_usage() {
+    echo "This script must be run in a proper python environment."
+    echo ""
+    echo "Usage:"
+    echo "knmt-multiserver config"
+    echo ""
+    echo "Example:"
+    echo "knmt-server multiserver.conf 2>&1 | tee multiserver.log"
+}
+
+if [ $# -lt 1 ]
+then
+    display_usage
+    exit 1
+fi
+
+CONFIG="$1"
+
+multiserver_cmd="knmt eval --multiserver_config $CONFIG --mode beam_search"
+echo "$multiserver_cmd"
+eval "$multiserver_cmd"
