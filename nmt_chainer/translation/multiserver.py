@@ -269,12 +269,22 @@ class Server(SocketServer.ThreadingMixIn, SocketServer.TCPServer):
                 str_data = self.request.recv(4096)
                 log.info("data={0}".format(str_data))
                 json_data = json.loads(str_data)
-
-                self.manager.translation_request_queue.put(json_data)
+                
+                if json_data['type'] == 'translate':
+                    self.manager.translation_request_queue.put(json_data)
+                    response = {'msg': 'Translation request has been added to queue.'}
+                elif json_data['type'] == 'debug':
+                    log.info(list(self.manager.translation_request_queue.queue))
+                    response = {
+                        'translation_request_queue': list(self.manager.translation_request_queue.queue),
+                        'clients': dict(self.manager.clients)
+                    }
+                else:
+                    response = {'msg': 'Unknown request type. Request has been ignored.'}
+                    pass
                 log.info("q={0} sz={1}".format(self.manager.translation_request_queue, self.manager.translation_request_queue.qsize()))
                 log.info("Request processed in {0} s. by {1}".format(
                     timeit.default_timer() - start_request, threading.current_thread().name))
-                response = {'msg': 'Translation request has been added to queue.'}
                 response = json.dumps(response)
                 self.request.sendall(response)
 
