@@ -58,6 +58,15 @@ class Worker(threading.Thread):
                 r = requests.post(splitter_url, data)
                 if r.status_code == 200:
                     json_resp = r.json()
+
+                    sentence_count = len(json_resp['sentences'])
+                    if translation_request['session_id'] in self.manager.client_responses:
+                        response_queue = self.manager.client_responses[translation_request['session_id']]
+                    else:
+                        response_queue = Queue.Queue()
+                        self.manager.client_responses[translation_request['session_id']] = response_queue
+                    response_queue.put(json_resp)
+
                     for index, sentence in enumerate(json_resp['sentences']):
                         translate_sentence_request = dict(translation_request)
                         del translate_sentence_request['text']
@@ -85,11 +94,7 @@ class Worker(threading.Thread):
                 json_resp = json.loads(resp)
                 if 'out' in json_resp:
                     log.info("TRANSLATION: {0}".format(json_resp['out'].encode('utf-8')))
-                    if  translation_request['session_id'] in self.manager.client_responses:
-                        response_queue = self.manager.client_responses[translation_request['session_id']]
-                    else:
-                        response_queue = Queue.Queue()
-                        self.manager.client_responses[translation_request['session_id']] = response_queue
+                    response_queue = self.manager.client_responses[translation_request['session_id']]
                     response_queue.put(json_resp)
                 else:
                     log.info("RESPONSE: {0}".format(json_resp))
