@@ -79,11 +79,18 @@ class Worker(threading.Thread):
                     normalize_unicode_unk=translation_request['normalize_unicode_unk'],
                     remove_unk=translation_request['remove_unk'],
                     attempt_to_relocate_unk_source=translation_request['attempt_to_relocate_unk_source'],
-                    sentence_id=translation_request['sentence_number'])
-                #log.info("resp={0}".format(resp))
+                    sentence_id=translation_request['sentence_number'],
+                    attn_graph_width=translation_request['attn_graph_width'],
+                    attn_graph_height=translation_request['attn_graph_height'])
                 json_resp = json.loads(resp)
                 if 'out' in json_resp:
                     log.info("TRANSLATION: {0}".format(json_resp['out'].encode('utf-8')))
+                    if  translation_request['session_id'] in self.manager.client_responses:
+                        response_queue = self.manager.client_responses[translation_request['session_id']]
+                    else:
+                        response_queue = Queue.Queue()
+                        self.manager.client_responses[translation_request['session_id']] = response_queue
+                    response_queue.put(json_resp)
                 else:
                     log.info("RESPONSE: {0}".format(json_resp))
 
@@ -92,7 +99,7 @@ class Worker(threading.Thread):
 class Manager(object):
 
     def __init__(self, translation_server_config):
-        self.clients = {}
+        self.client_responses = {}
         self.translation_request_queues = {}
         self.workers = {}
         for key in translation_server_config:
@@ -108,6 +115,12 @@ class Manager(object):
         for k, q in list(self.translation_request_queues.items()):
             q.join()
 
+    def poll(self, session_id):
+        resp = []
+        if session_id in self.client_responses:
+            while not self.client_responses[session_id].empty():
+                resp.append(self.client_responses[session_id].get(False))
+        return resp
 
 class Server(SocketServer.ThreadingMixIn, SocketServer.TCPServer):
 
@@ -132,6 +145,8 @@ class Server(SocketServer.ThreadingMixIn, SocketServer.TCPServer):
                 if json_data['type'] == 'translate':
                     self.manager.translation_request_queues[key].put(json_data)
                     response = {'msg': 'Translation request has been added to queue.'}
+                elif json_data['type'] == 'poll':
+                    response = self.manager.poll(json_data['session_id'])
                 elif json_data['type'] == 'debug':
                     log.info(self.manager.translation_request_queues)
                     trans_queues = {}
@@ -140,7 +155,7 @@ class Server(SocketServer.ThreadingMixIn, SocketServer.TCPServer):
                         trans_queues[k] = list(q.queue)
                     response = {
                         'translation_request_queue': trans_queues,
-                        'clients': dict(self.manager.clients)
+                        'clients': dict(self.manager.client_responses)
                     }
                 else:
                     response = {'msg': 'Unknown request type. Request has been ignored.'}
