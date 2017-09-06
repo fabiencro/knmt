@@ -20,7 +20,7 @@ class Client:
 
     def query(self, sentence, article_id=1, beam_width=30, nb_steps=50, nb_steps_ratio=1.5,
               prob_space_combination=False, normalize_unicode_unk=True, remove_unk=False, attempt_to_relocate_unk_source=False,
-              sentence_id=1):
+              sentence_id=1, attn_graph_width=0, attn_graph_height=0):
 
         query = """<?xml version="1.0" encoding="utf-8"?>
 <article id="{0}"
@@ -30,9 +30,11 @@ class Client:
     prob_space_combination="{4}"
     normalize_unicode_unk="{5}"
     remove_unk="{6}"
-    attempt_to_relocate_unk_source="{7}">
-    <sentence id="{8}">
-        <i_sentence>{9}</i_sentence>
+    attempt_to_relocate_unk_source="{7}"
+    attn_graph_width="{8}"
+    attn_graph_height="{9}">
+    <sentence id="{10}">
+        <i_sentence>{11}</i_sentence>
     </sentence>
 </article>"""
 
@@ -44,6 +46,8 @@ class Client:
                              str(normalize_unicode_unk).lower(), 
                              str(remove_unk).lower(), 
                              str(attempt_to_relocate_unk_source).lower(), 
+                             str(attn_graph_width),
+                             str(attn_graph_height),
                              sentence_id, 
                              escape(sentence))
 
