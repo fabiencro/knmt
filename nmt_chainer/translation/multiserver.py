@@ -45,7 +45,7 @@ class RequestQueue(Queue.PriorityQueue):
         log.info('begin')
         while self._qsize() > 0:
             priority, item = self._get()
-	    #log.info("priority={0} item={1}".format(priority, item))
+            #log.info("priority={0} item={1}".format(priority, item))
             #log.info("{0} {1}".format(item['session_id'], item['msg_id']))
             #log.info("{0} {1}".format(item['session_id'], item['article_id']))
             if 'sentence_number' in item:
@@ -57,19 +57,20 @@ class RequestQueue(Queue.PriorityQueue):
             temp[item['session_id']].append((priority, item))
         log.info('end')
         keys = temp.keys()[:]
-	log.info('keys={0}'.format(keys))
+        log.info('keys={0}'.format(keys))
         log.info('begin2')
-	r = 0
+        r = 0
         while keys:
             for k in keys:
                 priority, item = temp[k].popleft()
-		new_priority = SENTENCE_REQ_PRIORITY + r
-		r += 1
                 if 'sentence_number' in item:
+                    new_priority = SENTENCE_REQ_PRIORITY + r
                     log.info("{0} {1} {2}".format(new_priority, item['session_id'], item['sentence_number']))
                 elif 'type' in item:
+                    new_priority = TEXT_REQ_PRIORITY + r
                     log.info("{0} {1} {2}".format(new_priority, item['session_id'], item['type']))
-		#log.info("priority={0} item={1}".format(new_priority, item))
+                r += 1
+                #log.info("priority={0} item={1}".format(new_priority, item))
                 self._put((new_priority, item))
             keys = [k for k in keys if temp[k]]
         log.info('end2')
@@ -89,7 +90,7 @@ class Worker(threading.Thread):
         self.manager = manager
 
     def run(self):
-	key = "{0}-{1}".format(self.src_lang, self.tgt_lang)
+        key = "{0}-{1}".format(self.src_lang, self.tgt_lang)
         while True:
             request_priority, translation_request = self.manager.translation_request_queues[key].get(True)
             log.info("request={0}".format(translation_request))
@@ -208,7 +209,7 @@ class Server(SocketServer.ThreadingMixIn, SocketServer.TCPServer):
                     # self.manager.translation_request_queues[key].redistribute_requests()
                     response = {'msg': 'Translation request has been added to queue.'}
                 elif json_data['type'] == 'poll':
-		    log.info("POLL from {0}".format(json_data['session_id']))	
+                    log.info("POLL from {0}".format(json_data['session_id']))   
                     response = self.manager.poll(json_data['session_id'])
                 elif json_data['type'] == 'debug':
                     log.info('debug!')
@@ -243,9 +244,6 @@ def timestamped_msg(msg):
  
 def do_start_server(config_file):
     config = json.load(open(config_file))
-    log.info("config={0}".format(config))
-    log.info("host={0} port={1}".format(config['host'], config['port']))
-    log.info("servers={0}".format(config['servers']))
     server = Server((config['host'], int(config['port'])), config['servers'])
     ip, port = server.server_address
     log.info(timestamped_msg("Start listening for requests on {0}:{1}...".format( socket.gethostname(), port)))
