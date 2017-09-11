@@ -48,13 +48,15 @@ class RequestQueue(Queue.PriorityQueue):
             #log.info("priority={0} item={1}".format(priority, item))
             #log.info("{0} {1}".format(item['session_id'], item['msg_id']))
             #log.info("{0} {1}".format(item['session_id'], item['article_id']))
+            key = "{0}-{1}".format(item['session_id'], item['client_tab_id'])
             if 'sentence_number' in item:
-                log.info("{0} {1} {2}".format(priority, item['session_id'], item['sentence_number']))
+                log.info("{0} {1} {2}".format(priority, key, item['sentence_number']))
             elif 'type' in item:
-                log.info("{0} {1} {2}".format(priority, item['session_id'], item['type']))
-            if not item['session_id'] in temp:
-                temp[item['session_id']] = deque()
-            temp[item['session_id']].append((priority, item))
+                log.info("{0} {1} {2}".format(priority, key, item['type']))
+
+            if not key in temp:
+                temp[key] = deque()
+            temp[key].append((priority, item))
         log.info('end')
         keys = temp.keys()[:]
         log.info('keys={0}'.format(keys))
@@ -63,12 +65,13 @@ class RequestQueue(Queue.PriorityQueue):
         while keys:
             for k in keys:
                 priority, item = temp[k].popleft()
+                key = "{0}-{1}".format(item['session_id'], item['client_tab_id'])
                 if 'sentence_number' in item:
                     new_priority = SENTENCE_REQ_PRIORITY + r
-                    log.info("{0} {1} {2}".format(new_priority, item['session_id'], item['sentence_number']))
+                    log.info("{0} {1} {2}".format(new_priority, key, item['sentence_number']))
                 elif 'type' in item:
                     new_priority = TEXT_REQ_PRIORITY + r
-                    log.info("{0} {1} {2}".format(new_priority, item['session_id'], item['type']))
+                    log.info("{0} {1} {2}".format(new_priority, key, item['type']))
                 r += 1
                 #log.info("priority={0} item={1}".format(new_priority, item))
                 self._put((new_priority, item))
@@ -90,12 +93,13 @@ class Worker(threading.Thread):
         self.manager = manager
 
     def run(self):
-        key = "{0}-{1}".format(self.src_lang, self.tgt_lang)
+        lang_pair = "{0}-{1}".format(self.src_lang, self.tgt_lang)
         while True:
-            request_priority, translation_request = self.manager.translation_request_queues[key].get(True)
+            request_priority, translation_request = self.manager.translation_request_queues[lang_pair].get(True)
             log.info("request={0}".format(translation_request))
+            key = "{0}-{1}".format(translation_request['session_id'], translation_request['client_tab_id']) 
             start_request = timeit.default_timer()
-            log.info(timestamped_msg("Thread {0}: Handling request: {1}:{2}".format(self.name, translation_request['session_id'], translation_request['article_id'])))
+            log.info(timestamped_msg("Thread {0}: Handling request: {1}:{2}".format(self.name, key, translation_request['article_id'])))
 
             if 'text' in translation_request:
                 log.info("TEXT: {0} {1}".format(datetime.datetime.fromtimestamp(time.time()).strftime('%Y-%m-%d %H:%M:%S') ,translation_request['text'].encode('utf-8')))
@@ -110,11 +114,11 @@ class Worker(threading.Thread):
                     json_resp = r.json()
 
                     sentence_count = len(json_resp['sentences'])
-                    if translation_request['session_id'] in self.manager.client_responses:
-                        response_queue = self.manager.client_responses[translation_request['session_id']]
+                    if key in self.manager.client_responses:
+                        response_queue = self.manager.client_responses[key]
                     else:
                         response_queue = Queue.Queue()
-                        self.manager.client_responses[translation_request['session_id']] = response_queue
+                        self.manager.client_responses[key] = response_queue
                     response_queue.put(json_resp)
 
                     log.info("sentenceCount={0}".format(len(json_resp['sentences'])))
@@ -126,10 +130,10 @@ class Worker(threading.Thread):
                         translate_sentence_request['lang_source'] = self.src_lang
                         translate_sentence_request['lang_target'] = self.tgt_lang
                         log.info("new_req={0}".format(translate_sentence_request))
-                        self.manager.translation_request_queues[key].put((SENTENCE_REQ_PRIORITY, translate_sentence_request))
-                    log.info("q before sz={0}".format(self.manager.translation_request_queues[key].qsize()))
-                    self.manager.translation_request_queues[key].redistribute_requests()
-                    log.info("q after sz={0}".format(self.manager.translation_request_queues[key].qsize()))
+                        self.manager.translation_request_queues[lang_pair].put((SENTENCE_REQ_PRIORITY, translate_sentence_request))
+                    log.info("q before sz={0}".format(self.manager.translation_request_queues[lang_pair].qsize()))
+                    self.manager.translation_request_queues[lang_pair].redistribute_requests()
+                    log.info("q after sz={0}".format(self.manager.translation_request_queues[lang_pair].qsize()))
             elif 'sentence' in translation_request:
                 log.info("SENTENCE for worker {0}:{1}: {2}".format(self.host, self.port, translation_request['sentence'].encode('utf-8')))
                 client = Client(self.host, self.port)
@@ -148,12 +152,12 @@ class Worker(threading.Thread):
                 json_resp = json.loads(resp)
                 if 'out' in json_resp:
                     log.info("TRANSLATION: {0}".format(json_resp['out'].encode('utf-8')))
-                    response_queue = self.manager.client_responses[translation_request['session_id']]
+                    response_queue = self.manager.client_responses[key]
                     response_queue.put(json_resp)
                 else:
                     log.info("RESPONSE: {0}".format(json_resp))
 
-            log.info("Request processed in {0} s. by {1} [{2}:{3}]".format(timeit.default_timer() - start_request, self.name, translation_request['session_id'], translation_request['article_id']))
+            log.info("Request processed in {0} s. by {1} [{2}:{3}]".format(timeit.default_timer() - start_request, self.name, key, translation_request['article_id']))
 
 class Manager(object):
 
@@ -175,11 +179,11 @@ class Manager(object):
         for k, q in list(self.translation_request_queues.items()):
             q.join()
 
-    def poll(self, session_id):
+    def poll(self, key):
         resp = []
-        if session_id in self.client_responses:
-            while not self.client_responses[session_id].empty():
-                resp.append(self.client_responses[session_id].get(False))
+        if key in self.client_responses:
+            while not self.client_responses[key].empty():
+                resp.append(self.client_responses[key].get(False))
         return resp
 
 class Server(SocketServer.ThreadingMixIn, SocketServer.TCPServer):
@@ -202,15 +206,16 @@ class Server(SocketServer.ThreadingMixIn, SocketServer.TCPServer):
                 json_data = json.loads(str_data)
                 
                 response = {}
-                key = "{0}-{1}".format(json_data['src_lang'], json_data['tgt_lang'])
+                lang_pair = "{0}-{1}".format(json_data['src_lang'], json_data['tgt_lang'])
+                key = "{0}-{1}".format(json_data['session_id'], json_data['client_tab_id']) 
                 if json_data['type'] == 'translate':
-                    log.info("TRANSLATE!!!! {0} from {1}".format(datetime.datetime.fromtimestamp(time.time()).strftime('%Y-%m-%d %H:%M:%S'), json_data['session_id']))
-                    self.manager.translation_request_queues[key].put((TEXT_REQ_PRIORITY, json_data))
-                    # self.manager.translation_request_queues[key].redistribute_requests()
+                    log.info("TRANSLATE!!!! {0} from {1}".format(datetime.datetime.fromtimestamp(time.time()).strftime('%Y-%m-%d %H:%M:%S'), key))
+                    self.manager.translation_request_queues[lang_pair].put((TEXT_REQ_PRIORITY, json_data))
+                    # self.manager.translation_request_queues[lang_pair].redistribute_requests()
                     response = {'msg': 'Translation request has been added to queue.'}
                 elif json_data['type'] == 'poll':
-                    log.info("POLL from {0}".format(json_data['session_id']))   
-                    response = self.manager.poll(json_data['session_id'])
+                    log.info("POLL from {0}".format(key))   
+                    response = self.manager.poll(key)
                 elif json_data['type'] == 'debug':
                     log.info('debug!')
                     log.info(self.manager.translation_request_queues)
@@ -225,7 +230,7 @@ class Server(SocketServer.ThreadingMixIn, SocketServer.TCPServer):
                 else:
                     response = {'msg': 'Unknown request type. Request has been ignored.'}
 
-                log.info("q={0} sz={1}".format(self.manager.translation_request_queues[key], self.manager.translation_request_queues[key].qsize()))
+                log.info("q={0} sz={1}".format(self.manager.translation_request_queues[lang_pair], self.manager.translation_request_queues[lang_pair].qsize()))
                 log.info("Request processed in {0} s. by {1}".format(timeit.default_timer() - start_request, threading.current_thread().name))
                 response = json.dumps(response)
                 self.request.sendall(response)
