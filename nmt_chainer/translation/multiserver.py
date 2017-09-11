@@ -80,6 +80,30 @@ class RequestQueue(Queue.PriorityQueue):
         self.mutex.release()
         log.info("redistribute_requests end")
 
+    # A faster approach would be to tag the requests as stale (given that we have a reference on them)
+    # instead of removing them from the queue.
+    def cancel_requests_from(self, key_to_remove):
+        log.info("cancel_requests_from {0} begin".format(key_to_remove)) 
+        self.mutex.acquire()
+        temp = deque()
+        while self._qsize() > 0:
+            priority, item = self._get()
+            item_key = "{0}-{1}".format(item['session_id'], item['client_tab_id'])
+            if 'sentence_number' in item:
+                log.info("{0} {1} {2}".format(priority, item_key, item['sentence_number']))
+            elif 'type' in item:
+                log.info("{0} {1} {2}".format(priority, item_key, item['type']))
+
+            if item_key != key_to_remove:
+                temp.append((priority, item))
+        log.info('begin2')
+        while len(temp) > 0:
+            priority, item = temp.pop()
+            self._put((priority, item))
+        log.info('end2')
+        self.mutex.release()
+        log.info("cancel_requests_from {0} end".format(key_to_remove)) 
+
 
 class Worker(threading.Thread):
 
@@ -111,6 +135,8 @@ class Worker(threading.Thread):
                 splitter_url = 'http://lotus.kuee.kyoto-u.ac.jp/~frederic/webmt-rnnsearch-multiple-requests/cgi-bin/split_sentences.cgi'
                 r = requests.post(splitter_url, data)
                 if r.status_code == 200:
+                    self.manager.client_cancellations[key] = False 
+
                     json_resp = r.json()
 
                     sentence_count = len(json_resp['sentences'])
@@ -152,8 +178,9 @@ class Worker(threading.Thread):
                 json_resp = json.loads(resp)
                 if 'out' in json_resp:
                     log.info("TRANSLATION: {0}".format(json_resp['out'].encode('utf-8')))
-                    response_queue = self.manager.client_responses[key]
-                    response_queue.put(json_resp)
+                    if not key in self.manager.client_cancellations or not self.manager.client_cancellations[key]:
+                        response_queue = self.manager.client_responses[key]
+                        response_queue.put(json_resp)
                 else:
                     log.info("RESPONSE: {0}".format(json_resp))
 
@@ -163,6 +190,7 @@ class Manager(object):
 
     def __init__(self, translation_server_config):
         self.client_responses = {}
+        self.client_cancellations = {}
         self.translation_request_queues = {}
         self.workers = {}
         for key in translation_server_config:
@@ -216,6 +244,11 @@ class Server(SocketServer.ThreadingMixIn, SocketServer.TCPServer):
                 elif json_data['type'] == 'poll':
                     log.info("POLL from {0}".format(key))   
                     response = self.manager.poll(key)
+                elif json_data['type'] == 'cancelTranslation':
+                    log.info("CANCEL from {0}".format(key))
+                    self.manager.client_cancellations[key] = True
+                    self.manager.translation_request_queues[lang_pair].cancel_requests_from(key)
+                    response = {'msg': 'Translation request has been cancelled.'}
                 elif json_data['type'] == 'debug':
                     log.info('debug!')
                     log.info(self.manager.translation_request_queues)
