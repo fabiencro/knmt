@@ -38,6 +38,17 @@ class RequestQueue(Queue.PriorityQueue):
     def __init__(self):
         Queue.Queue.__init__(self)
 
+    def get_stats(self):
+        self.mutex.acquire()
+        clients = set()
+        for item in self.queue:
+            priority, actual_item = item
+            if 'session_id' in actual_item and 'client_tab_id' in actual_item:
+                client_key = "{0}-{1}".format(actual_item['session_id'], actual_item['client_tab_id'])
+                clients.add(client_key)
+        self.mutex.release()
+        return {'clients': len(clients), 'requests': self._qsize()};
+
     def redistribute_requests(self):
         log.info("redistribute_requests begin")
         self.mutex.acquire()
@@ -60,6 +71,7 @@ class RequestQueue(Queue.PriorityQueue):
         log.info('end')
         keys = temp.keys()[:]
         log.info('keys={0}'.format(keys))
+        
         log.info('begin2')
         r = 0
         while keys:
@@ -193,13 +205,13 @@ class Manager(object):
         self.client_cancellations = {}
         self.translation_request_queues = {}
         self.workers = {}
-        for key in translation_server_config:
-            src_lang, tgt_lang = key.split("-")
-            #self.translation_request_queues[key] = Queue.Queue()
-            self.translation_request_queues[key] = RequestQueue()
+        for lang_pair in translation_server_config:
+            src_lang, tgt_lang = lang_pair.split("-")
+            #self.translation_request_queues[lang_pair] = Queue.Queue()
+            self.translation_request_queues[lang_pair] = RequestQueue()
             workerz = []
-            self.workers[key] = workerz
-            for idx, server in enumerate(translation_server_config[key]):
+            self.workers[lang_pair] = workerz
+            for idx, server in enumerate(translation_server_config[lang_pair]):
                 worker = Worker("Translater-{0}({1}-{2})".format(idx, src_lang, tgt_lang), src_lang, tgt_lang, server['host'], server['port'], self)
                 workerz.append(worker)
                 worker.start()
@@ -207,11 +219,25 @@ class Manager(object):
         for k, q in list(self.translation_request_queues.items()):
             q.join()
 
-    def poll(self, key):
-        resp = []
+    def poll(self, lang_pair, key):
+        resp = {};
+
+        resp['workload'] = {
+            'workers': len(self.workers[lang_pair])
+        };
+        resp['workload'].update(self.translation_request_queues[lang_pair].get_stats())
+        req_per_worker = resp['workload']['requests'] / resp['workload']['workers']
+        resp['workload']['factor'] = req_per_worker
+        if resp['workload']['clients'] > resp['workload']['workers']:
+            resp['workload']['factor'] += (resp['workload']['clients'] - resp['workload']['workers']) * req_per_worker
+        log.info("req/work={0} r={1} c={2} w={3} f={4}".format(req_per_worker, resp['workload']['requests'], resp['workload']['clients'], resp['workload']['workers'], resp['workload']['factor']))
+
+        responses = []
         if key in self.client_responses:
             while not self.client_responses[key].empty():
-                resp.append(self.client_responses[key].get(False))
+                responses.append(self.client_responses[key].get(False))
+        resp['responses'] = responses;
+
         return resp
 
 class Server(SocketServer.ThreadingMixIn, SocketServer.TCPServer):
@@ -243,7 +269,7 @@ class Server(SocketServer.ThreadingMixIn, SocketServer.TCPServer):
                     response = {'msg': 'Translation request has been added to queue.'}
                 elif json_data['type'] == 'poll':
                     log.info("POLL from {0}".format(key))   
-                    response = self.manager.poll(key)
+                    response = self.manager.poll(lang_pair, key)
                 elif json_data['type'] == 'cancelTranslation':
                     log.info("CANCEL from {0}".format(key))
                     self.manager.client_cancellations[key] = True
