@@ -10,6 +10,12 @@ use CompoundNounExtractor;
 use Juman::Grammar qw/ $FORM $TYPE $HINSI/;
 use Encode;
 
+autoflush STDIN 1;
+autoflush STDOUT 1;
+autoflush STDERR 1;
+
+autoflush OUT 1;
+
 # -e 用の置換マップ
 my %FILTER = (
  "あ" => "え", "い" => "え", "う" => "え", "え" => "え", "お" => "え",
@@ -63,7 +69,7 @@ sub get_type_id {
     my( $x ) = @_;
 
     if (utf8::is_utf8($x)) { # encode if the input has utf8_flag
-	    $x = Encode::encode('utf-8', $x);
+        $x = Encode::encode('utf-8', $x);
     }
 
     if( &_zerop($x) ){
