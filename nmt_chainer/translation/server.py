@@ -6,6 +6,8 @@ __version__ = "1.0"
 __email__ = "bergeron@pa.jst.jp"
 __status__ = "Development"
 
+import hashlib
+import os.path
 import datetime
 import json
 import numpy as np
@@ -98,7 +100,8 @@ class Translator:
 
             rich_output_file.seek(0)
             rich_output_data = json.loads(rich_output_file.read())
-            unk_mapping = rich_output_data[0]['unk_mapping']
+            if len(rich_output_data) > 0 and 'unk_mapping' in rich_output_data[0]:
+                unk_mapping = rich_output_data[0]['unk_mapping']
 
             attn_graph_script_file.seek(0)
             script = attn_graph_script_file.read()
@@ -122,6 +125,8 @@ class RequestHandler(SocketServer.BaseRequestHandler):
         start_request = timeit.default_timer()
         log.info(timestamped_msg("Handling request..."))
         data = self.request.recv(4096)
+        text_uid = hashlib.sha1("{0}_{1}".format(start_request, data)).hexdigest()
+        kw_filename = '/tmp/{0}.kw'.format(text_uid)
 
         response = {}
         if (data):
@@ -203,7 +208,8 @@ class RequestHandler(SocketServer.BaseRequestHandler):
                     text = sentence.findtext('i_sentence').strip()
                     log.info("text=@@@%s@@@" % text)
 
-                    cmd = self.server.segmenter_command % text
+                    cmd = re.sub(r'%SENTENCE_ID', '/tmp/' + text_uid, self.server.segmenter_command)
+                    cmd = cmd % text
                     log.info("cmd=%s" % cmd)
                     start_cmd = timeit.default_timer()
 
@@ -246,7 +252,8 @@ class RequestHandler(SocketServer.BaseRequestHandler):
                     out += translation
 
                     if self.server.pp_command is not None:
-                        pp_cmd = self.server.pp_command % out.replace("'", "''")
+                        pp_cmd = re.sub(r'%SENTENCE_ID', '/tmp/' + text_uid, self.server.pp_command)
+                        pp_cmd = pp_cmd % out.replace("'", "''")
                         log.info("pp_cmd=%s" % pp_cmd)
 
                         start_pp_cmd = timeit.default_timer()
@@ -291,6 +298,8 @@ class RequestHandler(SocketServer.BaseRequestHandler):
 
         response = json.dumps(response)
         self.request.sendall(response)
+        if os.path.isfile(kw_filename):
+            os.remove(kw_filename)
 
 
 class Server(SocketServer.ThreadingMixIn, SocketServer.TCPServer):
