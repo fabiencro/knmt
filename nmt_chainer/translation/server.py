@@ -252,17 +252,20 @@ class RequestHandler(SocketServer.BaseRequestHandler):
                     out += translation
 
                     if self.server.pp_command is not None:
-                        pp_cmd = re.sub(r'%SENTENCE_ID', '/tmp/' + text_uid, self.server.pp_command)
-                        pp_cmd = pp_cmd % out.replace("'", "''")
-                        log.info("pp_cmd=%s" % pp_cmd)
+                        def apply_pp(str):
+                            pp_cmd = re.sub(r'%SENTENCE_ID', '/tmp/' + text_uid, self.server.pp_command)
+                            pp_cmd = pp_cmd % str.replace("'", "''")
+                            log.info("pp_cmd=%s" % pp_cmd)
 
-                        start_pp_cmd = timeit.default_timer()
+                            start_pp_cmd = timeit.default_timer()
 
-                        pp_output = subprocess.check_output(pp_cmd, shell=True)
+                            pp_output = subprocess.check_output(pp_cmd, shell=True)
 
-                        log.info("Postprocessor request processede in {} s.".format(timeit.default_timer() - start_pp_cmd))
-                        log.info("pp_output=%s" % pp_output)
-                        out = pp_output
+                            log.info("Postprocessor request processede in {} s.".format(timeit.default_timer() - start_pp_cmd))
+                            log.info("pp_output=%s" % pp_output)
+                            return pp_output
+                        out = apply_pp(out)
+                        translation = apply_pp(translation)
 
                     segmented_input.append(splitted_sentence)
                     segmented_output.append(translation)
