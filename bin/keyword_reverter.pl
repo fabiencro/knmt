@@ -10,6 +10,8 @@ my %dic;
 open(DIC, "<:encoding(utf8)", $ARGV[0]) || die;
 while (<DIC>) {
     chomp;
+    my ($source, $target) = split(/\t/);
+    $dic{$source} = $target;
 }
 close DIC;
 
