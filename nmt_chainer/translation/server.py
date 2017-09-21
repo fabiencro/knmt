@@ -6,6 +6,7 @@ __version__ = "1.0"
 __email__ = "bergeron@pa.jst.jp"
 __status__ = "Development"
 
+import codecs
 import hashlib
 import os.path
 import datetime
@@ -34,6 +35,15 @@ import bokeh.embed
 logging.basicConfig()
 log = logging.getLogger("rnns:server")
 log.setLevel(logging.INFO)
+
+
+def read_keyword_file(kw_filename):
+    keywords = {}
+    with codecs.open(kw_filename, 'r', encoding='utf-8') as f:
+        for line in f:
+            key, value = line.split(': ')
+            keywords[key] = value
+    return keywords
 
 
 class Translator:
@@ -243,6 +253,13 @@ class RequestHandler(SocketServer.BaseRequestHandler):
                     splitted_sentence = ' '.join(words)
                     # log.info("splitted_sentence=" + splitted_sentence)
 
+                    splitted_sentence_without_kw = splitted_sentence
+                    if os.path.isfile(kw_filename):
+                        keywords = read_keyword_file(kw_filename)
+                        for kw, val in keywords.iteritems():
+                            splitted_sentence_without_kw = re.sub("<{0}>".format(kw), val.encode('utf-8'), splitted_sentence_without_kw)
+                        # log.info("splitted_sentence_without_kw={0}".format(splitted_sentence_without_kw))
+
                     log.info(timestamped_msg("Translating sentence %d" % idx))
                     decoded_sentence = splitted_sentence.decode('utf-8')
                     translation, script, div, unk_mapping = self.server.translator.translate(decoded_sentence,
@@ -252,19 +269,22 @@ class RequestHandler(SocketServer.BaseRequestHandler):
                     out += translation
 
                     if self.server.pp_command is not None:
-                        pp_cmd = re.sub(r'%SENTENCE_ID', '/tmp/' + text_uid, self.server.pp_command)
-                        pp_cmd = pp_cmd % out.replace("'", "''")
-                        log.info("pp_cmd=%s" % pp_cmd)
+                        def apply_pp(str):
+                            pp_cmd = re.sub(r'%SENTENCE_ID', '/tmp/' + text_uid, self.server.pp_command)
+                            pp_cmd = pp_cmd % str.replace("'", "''")
+                            log.info("pp_cmd=%s" % pp_cmd)
 
-                        start_pp_cmd = timeit.default_timer()
+                            start_pp_cmd = timeit.default_timer()
 
-                        pp_output = subprocess.check_output(pp_cmd, shell=True)
+                            pp_output = subprocess.check_output(pp_cmd, shell=True)
 
-                        log.info("Postprocessor request processede in {} s.".format(timeit.default_timer() - start_pp_cmd))
-                        log.info("pp_output=%s" % pp_output)
-                        out = pp_output
+                            log.info("Postprocessor request processede in {} s.".format(timeit.default_timer() - start_pp_cmd))
+                            log.info("pp_output=%s" % pp_output)
+                            return pp_output
+                        out = apply_pp(out)
+                        translation = apply_pp(translation)
 
-                    segmented_input.append(splitted_sentence)
+                    segmented_input.append(splitted_sentence_without_kw)
                     segmented_output.append(translation)
                     mapping.append(unk_mapping)
                     graph_data.append(
