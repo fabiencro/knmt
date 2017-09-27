@@ -311,7 +311,7 @@ class Server(SocketServer.ThreadingMixIn, SocketServer.TCPServer):
             def handle(self):
                 start_request = timeit.default_timer()
                 log.info(timestamped_msg("Handling request..."))
-                str_data = self.request.recv(4096)
+                str_data = self.request.recv(16384)
                 log.info("data={0}".format(str_data))
                 json_data = json.loads(str_data)
                 
