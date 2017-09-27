@@ -38,17 +38,6 @@ class RequestQueue(Queue.PriorityQueue):
     def __init__(self):
         Queue.Queue.__init__(self)
 
-    def get_stats(self):
-        self.mutex.acquire()
-        clients = set()
-        for item in self.queue:
-            priority, actual_item = item
-            if 'session_id' in actual_item and 'client_tab_id' in actual_item:
-                client_key = "{0}-{1}".format(actual_item['session_id'], actual_item['client_tab_id'])
-                clients.add(client_key)
-        self.mutex.release()
-        return {'clients': len(clients), 'requests': self._qsize()};
-
     def redistribute_requests(self):
         log.info("redistribute_requests begin")
         self.mutex.acquire()
@@ -116,6 +105,12 @@ class RequestQueue(Queue.PriorityQueue):
         self.mutex.release()
         log.info("cancel_requests_from {0} end".format(key_to_remove)) 
 
+    def content(self):
+        # Beware, if the base class changes, this will break.
+        self.mutex.acquire()
+        queue_copy = list(self.queue)
+        self.mutex.release()
+        return queue_copy
 
 class Worker(threading.Thread):
 
@@ -174,6 +169,7 @@ class Worker(threading.Thread):
                     log.info("q after sz={0}".format(self.manager.translation_request_queues[lang_pair].qsize()))
             elif 'sentence' in translation_request:
                 log.info("SENTENCE for worker {0}:{1}: {2}".format(self.host, self.port, translation_request['sentence'].encode('utf-8')))
+                self.manager.add_active_translation(lang_pair, translation_request)
                 client = Client(self.host, self.port)
                 resp = client.query(translation_request['sentence'].encode('utf-8'), 
                     article_id=translation_request['article_id'],
@@ -187,6 +183,7 @@ class Worker(threading.Thread):
                     sentence_id=translation_request['sentence_number'],
                     attn_graph_width=translation_request['attn_graph_width'],
                     attn_graph_height=translation_request['attn_graph_height'])
+                self.manager.remove_active_translation(lang_pair, translation_request)
                 json_resp = json.loads(resp)
                 if 'out' in json_resp:
                     log.info("TRANSLATION: {0}".format(json_resp['out'].encode('utf-8')))
@@ -204,11 +201,13 @@ class Manager(object):
         self.client_responses = {}
         self.client_cancellations = {}
         self.translation_request_queues = {}
+        self.active_translations = {}
         self.workers = {}
+        self.mutex = threading.Lock()
         for lang_pair in translation_server_config:
             src_lang, tgt_lang = lang_pair.split("-")
-            #self.translation_request_queues[lang_pair] = Queue.Queue()
             self.translation_request_queues[lang_pair] = RequestQueue()
+            self.active_translations[lang_pair] = []
             workerz = []
             self.workers[lang_pair] = workerz
             for idx, server in enumerate(translation_server_config[lang_pair]):
@@ -219,13 +218,37 @@ class Manager(object):
         for k, q in list(self.translation_request_queues.items()):
             q.join()
 
+    def add_active_translation(self, lang_pair, req):
+        self.mutex.acquire()
+        self.active_translations[lang_pair].append(req)
+        self.mutex.release()
+
+    def remove_active_translation(self, lang_pair, req):
+        self.mutex.acquire()
+        self.active_translations[lang_pair].remove(req)
+        self.mutex.release()
+
+    def get_stats(self, lang_pair):
+        clients = set()
+        all_requests = self.translation_request_queues[lang_pair].content() + self.active_translations[lang_pair]
+        log.info("all_req={0}".format(all_requests))
+        for item in all_requests:
+            if len(item) == 2:
+                priority, actual_item = item
+            else:
+                actual_item = item
+            if 'session_id' in actual_item and 'client_tab_id' in actual_item:
+                client_key = "{0}-{1}".format(actual_item['session_id'], actual_item['client_tab_id'])
+                clients.add(client_key)
+        return {'clients': len(clients), 'requests': len(all_requests)};
+
     def poll(self, lang_pair, key):
         resp = {};
 
         resp['workload'] = {
             'workers': len(self.workers[lang_pair])
         };
-        resp['workload'].update(self.translation_request_queues[lang_pair].get_stats())
+        resp['workload'].update(self.get_stats(lang_pair))
         req_per_worker = resp['workload']['requests'] / resp['workload']['workers']
         resp['workload']['factor'] = req_per_worker
         if resp['workload']['clients'] > resp['workload']['workers']:
@@ -263,7 +286,7 @@ class Server(SocketServer.ThreadingMixIn, SocketServer.TCPServer):
                 lang_pair = "{0}-{1}".format(json_data['src_lang'], json_data['tgt_lang'])
                 key = "{0}-{1}".format(json_data['session_id'], json_data['client_tab_id']) 
                 if json_data['type'] == 'translate':
-                    log.info("TRANSLATE!!!! {0} from {1}".format(datetime.datetime.fromtimestamp(time.time()).strftime('%Y-%m-%d %H:%M:%S'), key))
+                    log.info("TRANSLATE from {0}: {1}".format(key, datetime.datetime.fromtimestamp(time.time()).strftime('%Y-%m-%d %H:%M:%S')))
                     self.manager.translation_request_queues[lang_pair].put((TEXT_REQ_PRIORITY, json_data))
                     # self.manager.translation_request_queues[lang_pair].redistribute_requests()
                     response = {'msg': 'Translation request has been added to queue.'}
