@@ -39,29 +39,29 @@ class RequestQueue(Queue.PriorityQueue):
         Queue.Queue.__init__(self)
 
     def redistribute_requests(self):
-        log.info("redistribute_requests begin")
+        log.debug("redistribute_requests begin")
         self.mutex.acquire()
         temp = {}
-        log.info('begin')
+        log.debug('begin')
         while self._qsize() > 0:
             priority, item = self._get()
-            #log.info("priority={0} item={1}".format(priority, item))
-            #log.info("{0} {1}".format(item['session_id'], item['msg_id']))
-            #log.info("{0} {1}".format(item['session_id'], item['article_id']))
+            #log.debug("priority={0} item={1}".format(priority, item))
+            #log.debug("{0} {1}".format(item['session_id'], item['msg_id']))
+            #log.debug("{0} {1}".format(item['session_id'], item['article_id']))
             key = "{0}-{1}".format(item['session_id'], item['client_tab_id'])
             if 'sentence_number' in item:
-                log.info("{0} {1} {2}".format(priority, key, item['sentence_number']))
+                log.debug("{0} {1} {2}".format(priority, key, item['sentence_number']))
             elif 'type' in item:
-                log.info("{0} {1} {2}".format(priority, key, item['type']))
+                log.debug("{0} {1} {2}".format(priority, key, item['type']))
 
             if not key in temp:
                 temp[key] = deque()
             temp[key].append((priority, item))
-        log.info('end')
+        log.debug('end')
         keys = temp.keys()[:]
-        log.info('keys={0}'.format(keys))
+        log.debug('keys={0}'.format(keys))
         
-        log.info('begin2')
+        log.debug('begin2')
         r = 0
         while keys:
             for k in keys:
@@ -69,22 +69,22 @@ class RequestQueue(Queue.PriorityQueue):
                 key = "{0}-{1}".format(item['session_id'], item['client_tab_id'])
                 if 'sentence_number' in item:
                     new_priority = SENTENCE_REQ_PRIORITY + r
-                    log.info("{0} {1} {2}".format(new_priority, key, item['sentence_number']))
+                    log.debug("{0} {1} {2}".format(new_priority, key, item['sentence_number']))
                 elif 'type' in item:
                     new_priority = TEXT_REQ_PRIORITY + r
-                    log.info("{0} {1} {2}".format(new_priority, key, item['type']))
+                    log.debug("{0} {1} {2}".format(new_priority, key, item['type']))
                 r += 1
-                #log.info("priority={0} item={1}".format(new_priority, item))
+                #log.debug("priority={0} item={1}".format(new_priority, item))
                 self._put((new_priority, item))
             keys = [k for k in keys if temp[k]]
-        log.info('end2')
+        log.debug('end2')
         self.mutex.release()
-        log.info("redistribute_requests end")
+        log.debug("redistribute_requests end")
 
     # A faster approach would be to tag the requests as stale (given that we have a reference on them)
     # instead of removing them from the queue.
-    def cancel_requests_from(self, key_to_remove):
-        log.info("cancel_requests_from {0} begin".format(key_to_remove)) 
+    def cancel_requests_from(self, client_id):
+        log.info("cancel_requests_from {0} begin".format(client_id)) 
         self.mutex.acquire()
         temp = deque()
         while self._qsize() > 0:
@@ -95,7 +95,7 @@ class RequestQueue(Queue.PriorityQueue):
             elif 'type' in item:
                 log.info("{0} {1} {2}".format(priority, item_key, item['type']))
 
-            if item_key != key_to_remove:
+            if item_key != client_id:
                 temp.append((priority, item))
         log.info('begin2')
         while len(temp) > 0:
@@ -103,7 +103,7 @@ class RequestQueue(Queue.PriorityQueue):
             self._put((priority, item))
         log.info('end2')
         self.mutex.release()
-        log.info("cancel_requests_from {0} end".format(key_to_remove)) 
+        log.info("cancel_requests_from {0} end".format(client_id)) 
 
     def content(self):
         # Beware, if the base class changes, this will break.
@@ -111,6 +111,34 @@ class RequestQueue(Queue.PriorityQueue):
         queue_copy = list(self.queue)
         self.mutex.release()
         return queue_copy
+
+    def refresh_keepalive_timer(self, client_id, timestamp):
+        self.mutex.acquire()
+        for item in self.queue:
+            priority, trans_req = item
+            key = "{0}-{1}".format(trans_req['session_id'], trans_req['client_tab_id']) 
+            if key == client_id:
+                trans_req['keepalive'] = timestamp
+        self.mutex.release()
+
+    def remove_expired_requests(self):
+        now = time.time()
+        self.mutex.acquire()
+        self.queue = [x for x in self.queue if now - x[1]['keepalive'] < 10]
+        self.mutex.release()
+
+class QueueCleaner(threading.Thread):
+
+    def __init__(self, queues, delay=10):
+        threading.Thread.__init__(self)
+        self.queues = queues
+        self.delay = delay
+
+    def run(self):
+        while True:
+            time.sleep(self.delay)
+            for k in self.queues:
+                self.queues[k].remove_expired_requests()
 
 class Worker(threading.Thread):
 
@@ -162,6 +190,7 @@ class Worker(threading.Thread):
                         translate_sentence_request['sentence_number'] = index
                         translate_sentence_request['lang_source'] = self.src_lang
                         translate_sentence_request['lang_target'] = self.tgt_lang
+                        translate_sentence_request['keepalive'] = time.time()
                         log.info("new_req={0}".format(translate_sentence_request))
                         self.manager.translation_request_queues[lang_pair].put((SENTENCE_REQ_PRIORITY, translate_sentence_request))
                     log.info("q before sz={0}".format(self.manager.translation_request_queues[lang_pair].qsize()))
@@ -215,6 +244,8 @@ class Manager(object):
                 workerz.append(worker)
                 worker.start()
         log.info("qs={0}".format(self.translation_request_queues))
+        self.translation_request_queue_cleaner = QueueCleaner(self.translation_request_queues)
+        self.translation_request_queue_cleaner.start()
         for k, q in list(self.translation_request_queues.items()):
             q.join()
 
@@ -242,7 +273,9 @@ class Manager(object):
                 clients.add(client_key)
         return {'clients': len(clients), 'requests': len(all_requests)};
 
-    def poll(self, lang_pair, key):
+    def poll(self, lang_pair, client_id):
+        self.translation_request_queues[lang_pair].refresh_keepalive_timer(client_id, time.time())
+
         resp = {};
 
         resp['workload'] = {
@@ -256,9 +289,9 @@ class Manager(object):
         log.info("req/work={0} r={1} c={2} w={3} f={4}".format(req_per_worker, resp['workload']['requests'], resp['workload']['clients'], resp['workload']['workers'], resp['workload']['factor']))
 
         responses = []
-        if key in self.client_responses:
-            while not self.client_responses[key].empty():
-                responses.append(self.client_responses[key].get(False))
+        if client_id in self.client_responses:
+            while not self.client_responses[client_id].empty():
+                responses.append(self.client_responses[client_id].get(False))
         resp['responses'] = responses;
 
         return resp
@@ -287,6 +320,7 @@ class Server(SocketServer.ThreadingMixIn, SocketServer.TCPServer):
                 key = "{0}-{1}".format(json_data['session_id'], json_data['client_tab_id']) 
                 if json_data['type'] == 'translate':
                     log.info("TRANSLATE from {0}: {1}".format(key, datetime.datetime.fromtimestamp(time.time()).strftime('%Y-%m-%d %H:%M:%S')))
+                    json_data['keepalive'] = time.time()
                     self.manager.translation_request_queues[lang_pair].put((TEXT_REQ_PRIORITY, json_data))
                     # self.manager.translation_request_queues[lang_pair].redistribute_requests()
                     response = {'msg': 'Translation request has been added to queue.'}
