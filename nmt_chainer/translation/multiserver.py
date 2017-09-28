@@ -172,7 +172,8 @@ class Worker(threading.Thread):
 
 class Manager(object):
 
-    def __init__(self, translation_server_config):
+    def __init__(self, translation_server_config, text_to_sentences_splitter):
+        self.text_to_sentences_splitter = text_to_sentences_splitter
         self.client_responses = {}
         self.client_cancellations = {}
         self.translation_request_queues = {}
@@ -208,7 +209,6 @@ class Manager(object):
     def get_stats(self, lang_pair):
         clients = set()
         all_requests = self.translation_request_queues[lang_pair].content() + self.active_translations[lang_pair]
-        log.info("all_req={0}".format(all_requests))
         for item in all_requests:
             if 'session_id' in item and 'client_tab_id' in item:
                 client_key = "{0}-{1}".format(item['session_id'], item['client_tab_id'])
@@ -266,8 +266,7 @@ class Server(SocketServer.ThreadingMixIn, SocketServer.TCPServer):
                         'lang_source': json_data['src_lang'],
                         'lang_target': json_data['tgt_lang']
                     }
-                    splitter_url = 'http://lotus.kuee.kyoto-u.ac.jp/~frederic/webmt-rnnsearch-multiple-requests/cgi-bin/split_sentences.cgi'
-                    r = requests.post(splitter_url, data)
+                    r = requests.post(self.manager.text_to_sentences_splitter, data)
                     log.info('Splitter Status: {0}'.format(r.status_code))
                     if r.status_code == 200:
                         self.manager.client_cancellations[key] = False 
@@ -291,11 +290,8 @@ class Server(SocketServer.ThreadingMixIn, SocketServer.TCPServer):
                             translate_sentence_request['lang_source'] = translate_sentence_request['src_lang']
                             translate_sentence_request['lang_target'] = translate_sentence_request['tgt_lang']
                             translate_sentence_request['keepalive'] = time.time()
-                            log.info("new_req={0}".format(translate_sentence_request))
                             self.manager.translation_request_queues[lang_pair].put(translate_sentence_request)
-                        log.info("q before sz={0}".format(self.manager.translation_request_queues[lang_pair].qsize()))
                         self.manager.translation_request_queues[lang_pair].redistribute_requests()
-                        log.info("q after sz={0}".format(self.manager.translation_request_queues[lang_pair].qsize()))
                         response = {'msg': 'All sentences have been queued.'}
                 elif json_data['type'] == 'poll':
                     log.info("POLL from {0}".format(key))   
@@ -325,8 +321,8 @@ class Server(SocketServer.ThreadingMixIn, SocketServer.TCPServer):
 
         return ServerRequestHandler
 
-    def __init__(self, server_address, translation_server_config):
-        self.manager = Manager(translation_server_config)
+    def __init__(self, server_address, translation_server_config, text_to_sentences_splitter):
+        self.manager = Manager(translation_server_config, text_to_sentences_splitter)
         handler_class = self.make_request_handler(self.manager)
         SocketServer.TCPServer.__init__(self, server_address, handler_class)
 
@@ -337,7 +333,7 @@ def timestamped_msg(msg):
  
 def do_start_server(config_file):
     config = json.load(open(config_file))
-    server = Server((config['host'], int(config['port'])), config['servers'])
+    server = Server((config['host'], int(config['port'])), config['servers'], config['text_to_sentences_splitter'])
     ip, port = server.server_address
     log.info(timestamped_msg("Start listening for requests on {0}:{1}...".format( socket.gethostname(), port)))
 
