@@ -84,11 +84,9 @@ class RequestQueue(Queue.Queue):
 
             if item_key != client_id:
                 temp.append(item)
-        log.info('begin2')
         while len(temp) > 0:
             item = temp.pop()
             self._put(item)
-        log.info('end2')
         self.mutex.release()
         log.info("cancel_requests_from {0} end".format(client_id)) 
 
@@ -141,7 +139,7 @@ class Worker(threading.Thread):
         lang_pair = "{0}-{1}".format(self.src_lang, self.tgt_lang)
         while True:
             translation_request = self.manager.translation_request_queues[lang_pair].get(True)
-            log.info("request={0}".format(translation_request))
+            log.info("Request for worker={0}".format(translation_request))
             key = "{0}-{1}".format(translation_request['session_id'], translation_request['client_tab_id']) 
             start_request = timeit.default_timer()
             log.info(timestamped_msg("Thread {0}: Handling request: {1}:{2}".format(self.name, key, translation_request['article_id'])))
@@ -151,25 +149,25 @@ class Worker(threading.Thread):
             client = Client(self.host, self.port)
             resp = client.query(translation_request['sentence'].encode('utf-8'), 
                 article_id=translation_request['article_id'],
-                beam_width=translation_request['beam_width'],
-                nb_steps=translation_request['nb_steps'],
-                nb_steps_ratio=translation_request['nb_steps_ratio'],
-                beam_pruning_margin=translation_request['beam_pruning_margin'],
-                beam_score_length_normalization=translation_request['beam_score_length_normalization'],
-                beam_score_length_normalization_strength=translation_request['beam_score_length_normalization_strength'],
-                post_score_length_normalization=translation_request['post_score_length_normalization'],
-                post_score_length_normalization_strength=translation_request['post_score_length_normalization_strength'],
-                beam_score_coverage_penalty=translation_request['beam_score_coverage_penalty'],
-                beam_score_coverage_penalty_strength=translation_request['beam_score_coverage_penalty_strength'],
-                post_score_coverage_penalty=translation_request['post_score_coverage_penalty'],
-                post_score_coverage_penalty_strength=translation_request['post_score_coverage_penalty_strength'],
-                prob_space_combination=translation_request['prob_space_combination'],
-                normalize_unicode_unk=translation_request['normalize_unicode_unk'],
-                remove_unk=translation_request['remove_unk'],
-                attempt_to_relocate_unk_source=translation_request['attempt_to_relocate_unk_source'],
+                beam_width=translation_request['beam_width'] if 'beam_width' in translation_request else 30,
+                nb_steps=translation_request['nb_steps'] if 'nb_steps' in translation_request else 50,
+                nb_steps_ratio=translation_request['nb_steps_ratio'] if 'nb_steps_ratio' in translation_request else 1.2,
+                beam_pruning_margin=translation_request['beam_pruning_margin'] if 'beam_pruning_margin' in translation_request else 'none',
+                beam_score_length_normalization=translation_request['beam_score_length_normalization'] if 'beam_score_length_normalization' in translation_request else 'none',
+                beam_score_length_normalization_strength=translation_request['beam_score_length_normalization_strength'] if 'beam_score_length_normalization_strength' in translation_request else 0.2,
+                post_score_length_normalization=translation_request['post_score_length_normalization'] if 'post_score_length_normalization' in translation_request else 'simple',
+                post_score_length_normalization_strength=translation_request['post_score_length_normalization_strength'] if 'post_score_length_normalization_strength' in translation_request else 0.2,
+                beam_score_coverage_penalty=translation_request['beam_score_coverage_penalty'] if 'beam_score_coverage_penalty' in translation_request else 'none',
+                beam_score_coverage_penalty_strength=translation_request['beam_score_coverage_penalty_strength'] if 'beam_score_coverage_penalty_strength' in translation_request else 0.2,
+                post_score_coverage_penalty=translation_request['post_score_coverage_penalty'] if 'post_score_coverage_penalty' in translation_request else 'none',
+                post_score_coverage_penalty_strength=translation_request['post_score_coverage_penalty_strength'] if 'post_score_coverage_penalty_strength' in translation_request else 0.2,
+                prob_space_combination=translation_request['prob_space_combination'] if 'prob_space_combination' in translation_request else 'false',
+                normalize_unicode_unk=translation_request['normalize_unicode_unk'] if 'normalize_unicode_unk' in translation_request else 'true',
+                remove_unk=translation_request['remove_unk'] if 'remove_unk' in translation_request else 'false',
+                attempt_to_relocate_unk_source=translation_request['attempt_to_relocate_unk_source'] if 'attempt_to_relocate_unk_source' in translation_request else 'false',
                 sentence_id=translation_request['sentence_number'],
-                attn_graph_width=translation_request['attn_graph_width'],
-                attn_graph_height=translation_request['attn_graph_height'])
+                attn_graph_width=translation_request['attn_graph_width'] if 'attn_graph_width' in translation_request else 0,
+                attn_graph_height=translation_request['attn_graph_height'] if 'attn_graph_height' in translation_request else 0)
             self.manager.remove_active_translation(lang_pair, translation_request)
             json_resp = json.loads(resp)
             log.info("TRANSLATION: {0}".format(json_resp['out'].encode('utf-8')))
@@ -199,7 +197,6 @@ class Manager(object):
                 worker = Worker("Translater-{0}({1}-{2})".format(idx, src_lang, tgt_lang), src_lang, tgt_lang, server['host'], server['port'], self)
                 workerz.append(worker)
                 worker.start()
-        log.info("qs={0}".format(self.translation_request_queues))
         self.translation_request_queue_cleaner = QueueCleaner(self.translation_request_queues)
         self.translation_request_queue_cleaner.start()
         for k, q in list(self.translation_request_queues.items()):
@@ -263,7 +260,7 @@ class Server(SocketServer.ThreadingMixIn, SocketServer.TCPServer):
                 start_request = timeit.default_timer()
                 log.info(timestamped_msg("Handling request..."))
                 str_data = self.request.recv(16384)
-                log.info("data={0}".format(str_data))
+                log.info("Request to server={0}".format(str_data))
                 response = {}
                 json_data = json.loads(str_data)
                 lang_pair = "{0}-{1}".format(json_data['src_lang'], json_data['tgt_lang'])
@@ -310,22 +307,12 @@ class Server(SocketServer.ThreadingMixIn, SocketServer.TCPServer):
                     self.manager.client_cancellations[key] = True
                     self.manager.translation_request_queues[lang_pair].cancel_requests_from(key)
                     response = {'msg': 'Translation request has been cancelled.'}
-                elif json_data['type'] == 'debug':
-                    log.info('debug!')
-                    log.info(self.manager.translation_request_queues)
-                    trans_queues = {}
-                    for k, q in list(self.manager.translation_request_queues.items()):
-                        log.info("k={0} q={1}".format(k, q))
-                        trans_queues[k] = list(q.queue)
-                    response = {
-                        'translation_request_queue': trans_queues,
-                        'clients': dict(self.manager.client_responses)
-                    }
                 else:
                     response = {'msg': 'Unknown request type. Request has been ignored.'}
 
                 log.info("Request processed in {0} s. by {1}".format(timeit.default_timer() - start_request, threading.current_thread().name))
                 response = json.dumps(response)
+                log.info("Response from server={0}".format(response))
                 self.request.sendall(response)
 
         return ServerRequestHandler
