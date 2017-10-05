@@ -19,9 +19,6 @@ use warnings;
 binmode(STDIN, ":utf8");
 binmode(STDOUT, ":utf8");
 
-autoflush STDOUT 1;
-autoflush STDERR 1;
-
 use warnings;
 use FindBin qw($RealBin);
 use strict;
