@@ -18,8 +18,24 @@ class Client:
         self.ip = server_ip
         self.port = server_port
 
-    def query(self, sentence, article_id=1, beam_width=30, nb_steps=50, nb_steps_ratio=1.5,
-              prob_space_combination=False, normalize_unicode_unk=True, remove_unk=False, attempt_to_relocate_unk_source=False,
+    def query(self,
+              sentence,
+              article_id=1,
+              beam_width=30,
+              nb_steps=50,
+              nb_steps_ratio=1.5,
+              beam_score_length_normalization='none',
+              beam_score_length_normalization_strength=0.2,
+              post_score_length_normalization='simple',
+              post_score_length_normalization_strength=0.2,
+              beam_score_coverage_penalty='none',
+              beam_score_coverage_penalty_strength=0.2,
+              post_score_coverage_penalty='none',
+              post_score_coverage_penalty_strength=0.2,
+              prob_space_combination=False,
+              normalize_unicode_unk=True,
+              remove_unk=False,
+              attempt_to_relocate_unk_source=False,
               sentence_id=1):
 
         query = """<?xml version="1.0" encoding="utf-8"?>
@@ -27,24 +43,40 @@ class Client:
     beam_width="{1}"
     nb_steps="{2}"
     nb_steps_ratio="{3}"
-    prob_space_combination="{4}"
-    normalize_unicode_unk="{5}"
-    remove_unk="{6}"
-    attempt_to_relocate_unk_source="{7}">
-    <sentence id="{8}">
-        <i_sentence>{9}</i_sentence>
+    beam_score_length_normalization="{4}"
+    beam_score_length_normalization_strength="{5}"
+    post_score_length_normalization="{6}"
+    post_score_length_normalization_strength="{7}"
+    beam_score_coverage_penalty="{8}"
+    beam_score_coverage_penalty_strength="{9}"
+    post_score_coverage_penalty="{10}"
+    post_score_coverage_penalty_strength="{11}"
+    prob_space_combination="{12}"
+    normalize_unicode_unk="{13}"
+    remove_unk="{14}"
+    attempt_to_relocate_unk_source="{15}">
+    <sentence id="{16}">
+        <i_sentence>{17}</i_sentence>
     </sentence>
 </article>"""
 
-        query = query.format(article_id, 
-                             beam_width, 
-                             nb_steps, 
-                             nb_steps_ratio, 
+        query = query.format(article_id,
+                             beam_width,
+                             nb_steps,
+                             nb_steps_ratio,
+                             beam_score_length_normalization,
+                             beam_score_length_normalization_strength,
+                             post_score_length_normalization,
+                             post_score_length_normalization_strength,
+                             beam_score_coverage_penalty,
+                             beam_score_coverage_penalty_strength,
+                             post_score_coverage_penalty,
+                             post_score_coverage_penalty_strength,
                              str(prob_space_combination).lower(),
-                             str(normalize_unicode_unk).lower(), 
-                             str(remove_unk).lower(), 
-                             str(attempt_to_relocate_unk_source).lower(), 
-                             sentence_id, 
+                             str(normalize_unicode_unk).lower(),
+                             str(remove_unk).lower(),
+                             str(attempt_to_relocate_unk_source).lower(),
+                             sentence_id,
                              escape(sentence))
 
         s = socket.socket()
