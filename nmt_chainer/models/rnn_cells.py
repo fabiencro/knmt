@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 """rnn_cells.py: Wrappers around various RNN Cell types"""
+import nmt_chainer
 __author__ = "Fabien Cromieres"
 __license__ = "undecided"
 __version__ = "1.0"
@@ -27,7 +28,7 @@ class GRUCell(Chain):
     def __init__(self, in_size, out_size, init=None, inner_init=None, bias_init=None):
         log.info("Creating GRUCell(%i, %i)" % (in_size, out_size))
         super(GRUCell, self).__init__(
-            gru=L.GRU(out_size, in_size, init=init, inner_init=inner_init, bias_init=bias_init),
+            gru=L.StatelessGRU(in_size, out_size, init=init, inner_init=inner_init, bias_init=bias_init),
         )
         self.add_param("initial_state", (1, out_size))
         self.initial_state.data[...] = self.xp.random.randn(out_size)
@@ -39,8 +40,7 @@ class GRUCell(Chain):
             self.initial_state, (1, self.out_size)), (mb_size, self.out_size))
         return (mb_initial_state,)
 
-    def __call__(self, prev_states, x_in, mode="test"):
-        assert mode in "test train".split()
+    def __call__(self, prev_states, x_in):
         assert len(prev_states) == 1
         prev_state = prev_states[0]
         new_state = self.gru(prev_state, x_in)
@@ -66,8 +66,7 @@ class FastGRUCell(Chain):
             self.initial_state, (1, self.out_size)), (mb_size, self.out_size))
         return (mb_initial_state,)
 
-    def __call__(self, prev_states, x_in, mode="test"):
-        assert mode in "test train".split()
+    def __call__(self, prev_states, x_in):
         assert len(prev_states) == 1
         prev_state = prev_states[0]
         new_state = self.gru(prev_state, x_in)
@@ -76,12 +75,21 @@ class FastGRUCell(Chain):
     def get_nb_states(self):
         return 1
 
+import nmt_chainer.additional_links.ln_lstm
 
 class LSTMCell(Chain):
-    def __init__(self, in_size, out_size, lateral_init=None, upward_init=None, bias_init=None, forget_bias_init=None):
-        log.info("Creating LSTMCell(%i, %i)" % (in_size, out_size))
+    def __init__(self, in_size, out_size, lateral_init=None, upward_init=None, bias_init=None, forget_bias_init=None,
+                 layer_normalization=False):
+        
+        if layer_normalization:
+            LSTMType = nmt_chainer.additional_links.ln_lstm.LNStatelessLSTM
+            log.info("Creating LSTMCell(%i, %i) with LN" % (in_size, out_size))
+        else:
+            LSTMType = L.StatelessLSTM
+            log.info("Creating LSTMCell(%i, %i)" % (in_size, out_size))
+            
         super(LSTMCell, self).__init__(
-            lstm=L.StatelessLSTM(in_size, out_size,
+            lstm=LSTMType(in_size, out_size,
                                  lateral_init=lateral_init, upward_init=upward_init,
                                  bias_init=bias_init, forget_bias_init=forget_bias_init)
         )
@@ -93,11 +101,10 @@ class LSTMCell(Chain):
 
     def get_initial_states(self, mb_size):
         mb_initial_state = F.broadcast_to(F.reshape(self.initial_state, (1, self.out_size)), (mb_size, self.out_size))
-        mb_initial_cell = Variable(self.xp.broadcast_to(self.initial_cell, (mb_size, self.out_size)), volatile="auto")
+        mb_initial_cell = Variable(self.xp.broadcast_to(self.initial_cell, (mb_size, self.out_size)))
         return (mb_initial_cell, mb_initial_state)
 
-    def __call__(self, prev_states, x_in, mode="test"):
-        assert mode in "test train".split()
+    def __call__(self, prev_states, x_in):
         prev_cell, prev_state = prev_states
         new_cell, new_state = self.lstm(prev_cell, prev_state, x_in)
         return new_cell, new_state
@@ -124,12 +131,11 @@ class GatedLSTMCell(Chain):
 
     def get_initial_states(self, mb_size):
         mb_initial_state = F.broadcast_to(F.reshape(self.initial_state, (1, self.out_size)), (mb_size, self.out_size))
-        mb_initial_cell = Variable(self.xp.broadcast_to(self.initial_cell, (mb_size, self.out_size)), volatile="auto")
-        mb_initial_output = Variable(self.xp.broadcast_to(self.initial_output, (mb_size, self.out_size)), volatile="auto")
+        mb_initial_cell = Variable(self.xp.broadcast_to(self.initial_cell, (mb_size, self.out_size)))
+        mb_initial_output = Variable(self.xp.broadcast_to(self.initial_output, (mb_size, self.out_size)))
         return (mb_initial_cell, mb_initial_state, mb_initial_output)
 
-    def __call__(self, prev_states, x_in, mode="test"):
-        assert mode in "test train".split()
+    def __call__(self, prev_states, x_in):
         prev_cell, prev_state, old_output = prev_states
         new_cell, new_state = self.lstm(prev_cell, prev_state, x_in)
 
@@ -146,7 +152,8 @@ class StackedCell(ChainList):
     def __init__(self, in_size, out_size, cell_type=LSTMCell, nb_stacks=2,
                  dropout=0.5, residual_connection=False, no_dropout_on_input=False,
                  no_residual_connection_on_output=False, no_residual_connection_on_input=False,
-                 init=None, inner_init=None, lateral_init=None, upward_init=None, bias_init=None, forget_bias_init=None):
+                 init=None, inner_init=None, lateral_init=None, upward_init=None, bias_init=None, forget_bias_init=None,
+                 layer_normalization=False):
         nb_stacks = nb_stacks or 2
         cell_type = cell_type or LSTMCell
 
@@ -155,7 +162,8 @@ class StackedCell(ChainList):
         self.nb_of_states = []
 
         if cell_type in (LSTMCell, GatedLSTMCell):
-            cell0 = cell_type(in_size, out_size, lateral_init=lateral_init, upward_init=upward_init, bias_init=bias_init, forget_bias_init=forget_bias_init)
+            cell0 = cell_type(in_size, out_size, lateral_init=lateral_init, upward_init=upward_init, bias_init=bias_init, forget_bias_init=forget_bias_init,
+                              layer_normalization=layer_normalization)
         elif cell_type == GRUCell:
             cell0 = cell_type(in_size, out_size, init=init, inner_init=inner_init, bias_init=bias_init)
         elif cell_type == FastGRUCell:
@@ -167,7 +175,8 @@ class StackedCell(ChainList):
 
         for i in xrange(1, nb_stacks):
             if cell_type in (LSTMCell, GatedLSTMCell):
-                cell = cell_type(out_size, out_size, lateral_init=lateral_init, upward_init=upward_init, bias_init=bias_init, forget_bias_init=forget_bias_init)
+                cell = cell_type(out_size, out_size, lateral_init=lateral_init, upward_init=upward_init, bias_init=bias_init, forget_bias_init=forget_bias_init,
+                                 layer_normalization=layer_normalization)
             elif cell_type == GRUCell:
                 cell = cell_type(out_size, out_size, init=init, inner_init=inner_init, bias_init=bias_init)
             elif cell_type == FastGRUCell:
@@ -190,16 +199,14 @@ class StackedCell(ChainList):
             res += list(self[i].get_initial_states(mb_size))
         return tuple(res)
 
-    def __call__(self, prev_states, x_in, mode="test"):
-        assert mode in "test train".split()
+    def __call__(self, prev_states, x_in):
         input_below = x_in
         states_cursor = 0
         res = []
         for i in xrange(len(self)):
             if self.dropout is not None and not (self.no_dropout_on_input and i == 0):
-                input_below = F.dropout(input_below, ratio=self.dropout, train=(mode == "train"))
-            new_states = self[i](prev_states[states_cursor:states_cursor + self.nb_of_states[i]], input_below,
-                                 mode=mode)
+                input_below = F.dropout(input_below, ratio=self.dropout)
+            new_states = self[i](prev_states[states_cursor:states_cursor + self.nb_of_states[i]], input_below)
             states_cursor += self.nb_of_states[i]
 
             if (self.residual_connection and
@@ -228,14 +235,13 @@ class NStepsCell(Chain):
 
     def get_initial_states(self, mb_size):
         mb_initial_state = F.broadcast_to(self.initial_state, (self.nb_stacks, mb_size, self.out_size))
-        mb_initial_cell = Variable(self.xp.broadcast_to(self.initial_cell, (self.nb_stacks, mb_size, self.out_size)), volatile="auto")
+        mb_initial_cell = Variable(self.xp.broadcast_to(self.initial_cell, (self.nb_stacks, mb_size, self.out_size)))
         return (mb_initial_cell, mb_initial_state)
 
-    def apply_to_seq(self, seq_list, mode="test"):
-        assert mode in "test train".split()
+    def apply_to_seq(self, seq_list):
         mb_size = len(seq_list)
         mb_initial_cell, mb_initial_state = self.get_initial_states(mb_size)
-        return self.nstep_lstm(mb_initial_cell, mb_initial_state, seq_list, train=mode == "train")
+        return self.nstep_lstm(mb_initial_cell, mb_initial_state, seq_list)
 
 
 # class DoubleGRU(Chain):
@@ -294,7 +300,8 @@ cell_description_keywords = {
     "lateral_init_fillvalue": float,
     "upward_init_fillvalue": float,
     "bias_init_fillvalue": float,
-    "forget_bias_init_fillvalue": float
+    "forget_bias_init_fillvalue": float,
+    "layer_normalization": int
 }
 
 
@@ -411,6 +418,8 @@ def create_cell_model(type_str, **cell_parameters):
                 params['no_residual_connection_on_output'] = cell_parameters['no_residual_connection_on_output']
             if 'no_residual_connection_on_input' in cell_parameters:
                 params['no_residual_connection_on_input'] = cell_parameters['no_residual_connection_on_input']
+            if "layer_normalization" in cell_parameters:
+                params['layer_normalization'] = cell_parameters['layer_normalization']
             params['init'] = init
             params['inner_init'] = inner_init
             params['lateral_init'] = lateral_init
@@ -422,7 +431,8 @@ def create_cell_model(type_str, **cell_parameters):
     else:
         def instantiate(in_size, out_size):
             if type_str in ("lstm", "glstm"):
-                return cell_type(in_size, out_size, lateral_init=lateral_init, upward_init=upward_init, bias_init=bias_init, forget_bias_init=forget_bias_init)
+                return cell_type(in_size, out_size, lateral_init=lateral_init, upward_init=upward_init, bias_init=bias_init, forget_bias_init=forget_bias_init,
+                                 layer_normalization=cell_parameters.get("layer_normalization", False))
             elif type_str == "slow_gru":
                 return cell_type(in_size, out_size, init=init, inner_init=inner_init, bias_init=bias_init)
             elif type_str == "gru":
