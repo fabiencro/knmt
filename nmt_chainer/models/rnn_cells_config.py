@@ -27,7 +27,8 @@ cell_description_keywords = OrderedDict([
     ("lateral_init_fillvalue", float),
     ("upward_init_fillvalue", float),
     ("bias_init_fillvalue", float),
-    ("forget_bias_init_fillvalue", float)
+    ("forget_bias_init_fillvalue", float),
+    ("layer_normalization", int)
 ])
 
 

@@ -299,6 +299,8 @@ def get_src_tgt_dev_from_config_eval(config_eval):
         training_config_file = config_eval.training_config
     elif 'load_model_config' in config_eval.process and config_eval.process.load_model_config is not None:
         training_config_file = config_eval.process.load_model_config[0]
+        if "," in training_config_file:
+            training_config_file=training_config_file.split(",")[0]
     log.info("attempting to retrieve dev/test files from %s", training_config_file)
     training_config = train_config.load_config_train(training_config_file)
     data_prefix = training_config.training_management.data_prefix
@@ -323,14 +325,22 @@ def create_encdec(config_eval):
         encdec_list.append(encdec)
 
     if 'load_model_config' in config_eval.process and config_eval.process.load_model_config is not None:
-        for config_filename in config_eval.process.load_model_config:
+        for config_filename_and_others in config_eval.process.load_model_config:
+            other_models_for_averaging = None
+            if "," in config_filename_and_others:
+                config_filename_and_others_splitted = config_filename_and_others.split(",")
+                config_filename = config_filename_and_others_splitted[0]
+                other_models_for_averaging = config_filename_and_others_splitted[1:]
+            else:
+                config_filename = config_filename_and_others
             log.info(
                 "loading model and parameters from config %s" %
                 config_filename)
             config_training = train_config.load_config_train(config_filename)
             (encdec, this_eos_idx, this_src_indexer, this_tgt_indexer), model_infos = train.create_encdec_and_indexers_from_config_dict(config_training,
                                                                                                                                         load_config_model="yes",
-                                                                                                                                        return_model_infos=True)
+                                                                                                                                        return_model_infos=True,
+                                                                                                                                        additional_models_parameters_for_averaging=other_models_for_averaging)
             model_infos_list.append(model_infos)
             if eos_idx is None:
                 assert len(encdec_list) == 0
