@@ -164,7 +164,8 @@ def beam_search_translate(encdec, eos_idx, src_data, beam_width=20, beam_pruning
                           groundhog=False, force_finish=False,
                           prob_space_combination=False,
                           reverse_encdec=None, use_unfinished_translation_if_none_found=False,
-                          nbest=None):
+                          nbest=None,
+                          thread=None):
     nb_ex = len(src_data)
     for num_ex in range(nb_ex):
         src_batch, src_mask = make_batch_src([src_data[num_ex]], gpu=gpu)
@@ -192,7 +193,8 @@ def beam_search_translate(encdec, eos_idx, src_data, beam_width=20, beam_pruning
                                                         beam_score_coverage_penalty_strength=beam_score_coverage_penalty_strength,
                                                         need_attention=need_attention, force_finish=force_finish,
                                                         prob_space_combination=prob_space_combination,
-                                                        use_unfinished_translation_if_none_found=use_unfinished_translation_if_none_found)
+                                                        use_unfinished_translation_if_none_found=use_unfinished_translation_if_none_found,
+                                                        thread=thread)
 
         # TODO: This is a quick patch, but actually ensemble_beam_search probably should not return empty translations except when no translation found
         if len(translations) > 1:

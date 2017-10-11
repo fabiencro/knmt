@@ -34,6 +34,105 @@ log = logging.getLogger("rnns:server")
 log.setLevel(logging.INFO)
 
 
+class TranslatorThread(threading.Thread):
+    """Thread class with a stop() method useful to interrupt the translation before it ends."""
+
+    def __init__(self, 
+                 dest_filename, gpu, encdec, eos_idx, src_data, beam_width, beam_pruning_margin,
+                 beam_score_coverage_penalty=None,
+                 beam_score_coverage_penalty_strength=None,
+                 nb_steps=None,
+                 nb_steps_ratio=None,
+                 beam_score_length_normalization=None,
+                 beam_score_length_normalization_strength=None,
+                 post_score_length_normalization=None,
+                 post_score_length_normalization_strength=None,
+                 post_score_coverage_penalty=None,
+                 post_score_coverage_penalty_strength=None,
+                 groundhog=None,
+                 tgt_unk_id=None,
+                 tgt_indexer=None,
+                 force_finish=None,
+                 prob_space_combination=None, reverse_encdec=None,
+                 generate_attention_html=None,
+                 attn_graph_with_sum=None,
+                 attn_graph_attribs=None, src_indexer=None,
+                 rich_output_filename=None,
+                 use_unfinished_translation_if_none_found=None,
+                 replace_unk=None, src=None, dic=None,
+                 remove_unk=None, normalize_unicode_unk=None, attempt_to_relocate_unk_source=None):
+        threading.Thread.__init__(self)
+        self._stop_event = threading.Event()
+        self.dest_filename = dest_filename
+        self.gpu = gpu
+        self.encdec = encdec
+        self.eos_idx = eos_idx
+        self.src_data = src_data
+        self.beam_width = beam_width
+        self.beam_pruning_margin = beam_pruning_margin
+        self.beam_score_coverage_penalty=beam_score_coverage_penalty
+        self.beam_score_coverage_penalty_strength=beam_score_coverage_penalty_strength
+        self.nb_steps=nb_steps
+        self.nb_steps_ratio=nb_steps_ratio
+        self.beam_score_length_normalization=beam_score_length_normalization
+        self.beam_score_length_normalization_strength=beam_score_length_normalization_strength
+        self.post_score_length_normalization=post_score_length_normalization
+        self.post_score_length_normalization_strength=post_score_length_normalization_strength
+        self.post_score_coverage_penalty=post_score_coverage_penalty
+        self.post_score_coverage_penalty_strength=post_score_coverage_penalty_strength
+        self.groundhog=groundhog
+        self.tgt_unk_id=tgt_unk_id
+        self.tgt_indexer=tgt_indexer
+        self.force_finish=force_finish
+        self.prob_space_combination=prob_space_combination
+        self.reverse_encdec=reverse_encdec
+        self.generate_attention_html=generate_attention_html
+        self.attn_graph_with_sum=attn_graph_with_sum
+        self.attn_graph_attribs=attn_graph_attribs
+        self.src_indexer=src_indexer
+        self.rich_output_filename=rich_output_filename
+        self.use_unfinished_translation_if_none_found=use_unfinished_translation_if_none_found
+        self.replace_unk=replace_unk
+        self.src=src
+        self.dic=dic
+        self.remove_unk=remove_unk
+        self.normalize_unicode_unk=normalize_unicode_unk
+        self.attempt_to_relocate_unk_source=attempt_to_relocate_unk_source
+
+    def stop(self):
+        self._stop_event.set()
+
+    def stopped(self):
+        return self._stop_event.is_set()
+
+    def run(self):
+        from nmt_chainer.translation.eval import translate_to_file_with_beam_search
+        translate_to_file_with_beam_search(self.dest_filename, self.gpu, self.encdec, self.eos_idx, self.src_data, self.beam_width, self.beam_pruning_margin,
+                                           beam_score_coverage_penalty=self.beam_score_coverage_penalty,
+                                           beam_score_coverage_penalty_strength=self.beam_score_coverage_penalty_strength,
+                                           nb_steps=self.nb_steps,
+                                           nb_steps_ratio=self.nb_steps_ratio,
+                                           beam_score_length_normalization=self.beam_score_length_normalization,
+                                           beam_score_length_normalization_strength=self.beam_score_length_normalization_strength,
+                                           post_score_length_normalization=self.post_score_length_normalization,
+                                           post_score_length_normalization_strength=self.post_score_length_normalization_strength,
+                                           post_score_coverage_penalty=self.post_score_coverage_penalty,
+                                           post_score_coverage_penalty_strength=self.post_score_coverage_penalty_strength,
+                                           groundhog=self.groundhog,
+                                           tgt_unk_id=self.tgt_unk_id,
+                                           tgt_indexer=self.tgt_indexer,
+                                           force_finish=self.force_finish,
+                                           prob_space_combination=self.prob_space_combination, reverse_encdec=self.reverse_encdec,
+                                           generate_attention_html=self.generate_attention_html,
+                                           attn_graph_with_sum=self.attn_graph_with_sum,
+                                           attn_graph_attribs=self.attn_graph_attribs, src_indexer=self.src_indexer,
+                                           rich_output_filename=self.rich_output_filename,
+                                           use_unfinished_translation_if_none_found=self.use_unfinished_translation_if_none_found,
+                                           replace_unk=self.replace_unk, src=self.src, dic=self.dic,
+                                           remove_unk=self.remove_unk, normalize_unicode_unk=self.normalize_unicode_unk, attempt_to_relocate_unk_source=self.attempt_to_relocate_unk_source, 
+                                           thread=self)
+
+
 class Translator:
 
     def __init__(self, config_server):
@@ -43,6 +142,7 @@ class Translator:
             config_server)
 
         self.encdec_list = [self.encdec]
+        self.translator_thread = None
 
     def translate(self, sentence, beam_width, beam_pruning_margin, beam_score_coverage_penalty, beam_score_coverage_penalty_strength, nb_steps, nb_steps_ratio,
                   remove_unk, normalize_unicode_unk, attempt_to_relocate_unk_source, beam_score_length_normalization, beam_score_length_normalization_strength, post_score_length_normalization, post_score_length_normalization_strength,
@@ -68,30 +168,31 @@ class Translator:
 
             src_data, stats_src_pp = build_dataset_one_side_pp(src_file.name, self.src_indexer, max_nb_ex=self.config_server.process.max_nb_ex)
 
-            from nmt_chainer.translation.eval import translate_to_file_with_beam_search
-            translate_to_file_with_beam_search(dest_file.name, self.config_server.process.gpu, self.encdec, self.eos_idx, src_data, beam_width, beam_pruning_margin,
-                                               beam_score_coverage_penalty=beam_score_coverage_penalty,
-                                               beam_score_coverage_penalty_strength=beam_score_coverage_penalty_strength,
-                                               nb_steps=nb_steps,
-                                               nb_steps_ratio=nb_steps_ratio,
-                                               beam_score_length_normalization=beam_score_length_normalization,
-                                               beam_score_length_normalization_strength=beam_score_length_normalization_strength,
-                                               post_score_length_normalization=post_score_length_normalization,
-                                               post_score_length_normalization_strength=post_score_length_normalization_strength,
-                                               post_score_coverage_penalty=post_score_coverage_penalty,
-                                               post_score_coverage_penalty_strength=post_score_coverage_penalty_strength,
-                                               groundhog=groundhog,
-                                               tgt_unk_id=self.config_server.output.tgt_unk_id,
-                                               tgt_indexer=self.tgt_indexer,
-                                               force_finish=force_finish,
-                                               prob_space_combination=prob_space_combination, reverse_encdec=self.reverse_encdec,
-                                               generate_attention_html=(attn_graph_script_file.name, attn_graph_div_file.name),
-                                               attn_graph_with_sum=False,
-                                               attn_graph_attribs={'title': '', 'toolbar_location': 'below', 'plot_width': attn_graph_width, 'plot_height': attn_graph_height}, src_indexer=self.src_indexer,
-                                               rich_output_filename=rich_output_file.name,
-                                               use_unfinished_translation_if_none_found=True,
-                                               replace_unk=True, src=sentence, dic=self.config_server.output.dic,
-                                               remove_unk=remove_unk, normalize_unicode_unk=normalize_unicode_unk, attempt_to_relocate_unk_source=attempt_to_relocate_unk_source)
+            self.translator_thread = TranslatorThread(dest_file.name, self.config_server.process.gpu, self.encdec, self.eos_idx, src_data, beam_width, beam_pruning_margin,
+                                                 beam_score_coverage_penalty=beam_score_coverage_penalty,
+                                                 beam_score_coverage_penalty_strength=beam_score_coverage_penalty_strength,
+                                                 nb_steps=nb_steps,
+                                                 nb_steps_ratio=nb_steps_ratio,
+                                                 beam_score_length_normalization=beam_score_length_normalization,
+                                                 beam_score_length_normalization_strength=beam_score_length_normalization_strength,
+                                                 post_score_length_normalization=post_score_length_normalization,
+                                                 post_score_length_normalization_strength=post_score_length_normalization_strength,
+                                                 post_score_coverage_penalty=post_score_coverage_penalty,
+                                                 post_score_coverage_penalty_strength=post_score_coverage_penalty_strength,
+                                                 groundhog=groundhog,
+                                                 tgt_unk_id=self.config_server.output.tgt_unk_id,
+                                                 tgt_indexer=self.tgt_indexer,
+                                                 force_finish=force_finish,
+                                                 prob_space_combination=prob_space_combination, reverse_encdec=self.reverse_encdec,
+                                                 generate_attention_html=(attn_graph_script_file.name, attn_graph_div_file.name),
+                                                 attn_graph_with_sum=False,
+                                                 attn_graph_attribs={'title': '', 'toolbar_location': 'below', 'plot_width': attn_graph_width, 'plot_height': attn_graph_height}, src_indexer=self.src_indexer,
+                                                 rich_output_filename=rich_output_file.name,
+                                                 use_unfinished_translation_if_none_found=True,
+                                                 replace_unk=True, src=sentence, dic=self.config_server.output.dic,
+                                                 remove_unk=remove_unk, normalize_unicode_unk=normalize_unicode_unk, attempt_to_relocate_unk_source=attempt_to_relocate_unk_source)
+            self.translator_thread.start()
+            self.translator_thread.join()
 
             dest_file.seek(0)
             out = dest_file.read()
@@ -115,6 +216,9 @@ class Translator:
 
         return out, script, div, unk_mapping
 
+    def stop(self):
+        if self.translator_thread:
+            self.translator_thread.stop()
 
 class RequestHandler(SocketServer.BaseRequestHandler):
 
@@ -129,154 +233,159 @@ class RequestHandler(SocketServer.BaseRequestHandler):
                 cur_thread = threading.current_thread()
 
                 log.info("data={0}".format(data))
-                root = ET.fromstring(data)
-                article_id = root.get('id')
-                try:
-                    attn_graph_width = int(root.get('attn_graph_width', 0))
-                except BaseException:
-                    attn_graph_width = 0
-                try:
-                    attn_graph_height = int(root.get('attn_graph_height', 0))
-                except BaseException:
-                    attn_graph_height = 0
-                beam_width = int(root.get('beam_width', 30))
-                nb_steps = int(root.get('nb_steps', 50))
-                beam_pruning_margin = None
-                try:
-                    beam_pruning_margin = float(root.get('beam_pruning_margin'))
-                except BaseException:
-                    pass
-                beam_score_coverage_penalty = root.get(
-                    'beam_score_coverage_penalty', 'none')
-                beam_score_coverage_penalty_strength = None
-                try:
-                    beam_score_coverage_penalty_strength = float(root.get('beam_score_coverage_penalty_strength', 0.2))
-                except BaseException:
-                    pass
-                nb_steps_ratio = None
-                try:
-                    nb_steps_ratio = float(root.get('nb_steps_ratio', 1.2))
-                except BaseException:
-                    pass
-                groundhog = ('true' == root.get('groundhog', 'false'))
-                force_finish = ('true' == root.get('force_finish', 'false'))
-                beam_score_length_normalization = root.get(
-                    'beam_score_length_normalization', 'none')
-                beam_score_length_normalization_strength = None
-                try:
-                    beam_score_length_normalization_strength = float(root.get('beam_score_length_normalization_strength', 0.2))
-                except BaseException:
-                    pass
-                post_score_length_normalization = root.get(
-                    'post_score_length_normalization', 'simple')
-                post_score_length_normalization_strength = None
-                try:
-                    post_score_length_normalization_strength = float(root.get('post_score_length_normalization_strength', 0.2))
-                except BaseException:
-                    pass
-                post_score_coverage_penalty = root.get(
-                    'post_score_coverage_penalty', 'none')
-                post_score_coverage_penalty_strength = None
-                try:
-                    post_score_coverage_penalty_strength = float(root.get('post_score_coverage_penalty_strength', 0.2))
-                except BaseException:
-                    pass
-                prob_space_combination = (
-                    'true' == root.get(
-                        'prob_space_combination', 'false'))
-                remove_unk = ('true' == root.get('remove_unk', 'false'))
-                normalize_unicode_unk = (
-                    'true' == root.get(
-                        'normalize_unicode_unk', 'true'))
-                log.info('normalize_unicode_unk=' + str(normalize_unicode_unk))
-                attempt_to_relocate_unk_source = ('true' == root.get(
-                    'attempt_to_relocate_unk_source', 'false'))
-                log.info("Article id: %s" % article_id)
-                out = ""
-                graph_data = []
-                segmented_input = []
-                segmented_output = []
-                mapping = []
-                sentences = root.findall('sentence')
-                for idx, sentence in enumerate(sentences):
-                    sentence_number = sentence.get('id')
-                    text = sentence.findtext('i_sentence').strip()
-                    log.info("text=@@@%s@@@" % text)
 
-                    cmd = self.server.segmenter_command % text
-                    log.info("cmd=%s" % cmd)
-                    start_cmd = timeit.default_timer()
-
-                    parser_output = subprocess.check_output(cmd, shell=True)
-
-                    log.info(
-                        "Segmenter request processed in {} s.".format(
-                            timeit.default_timer() - start_cmd))
-                    log.info("parser_output=%s" % parser_output)
-
-                    words = []
-                    if 'parse_server' == self.server.segmenter_format:
-                        for line in parser_output.split("\n"):
-                            if (line.startswith('#')):
-                                continue
-                            elif (not line.strip()):
-                                break
-                            else:
-                                parts = line.split("\t")
-                                word = parts[2]
-                                words.append(word)
-                    elif 'morph' == self.server.segmenter_format:
-                        for pair in parser_output.split(' '):
-                            if pair != '':
-                                word, pos = pair.split('_')
-                                words.append(word)
-                    elif 'plain' == self.server.segmenter_format:
-                        words = parser_output.split(' ')
-                    else:
+                if "cancel_translation" in data:
+                    self.server.translator.stop()
+                else:
+                    root = ET.fromstring(data)
+                    article_id = root.get('id')
+                    try:
+                        attn_graph_width = int(root.get('attn_graph_width', 0))
+                    except BaseException:
+                        attn_graph_width = 0
+                    try:
+                        attn_graph_height = int(root.get('attn_graph_height', 0))
+                    except BaseException:
+                        attn_graph_height = 0
+                    beam_width = int(root.get('beam_width', 30))
+                    nb_steps = int(root.get('nb_steps', 50))
+                    beam_pruning_margin = None
+                    try:
+                        beam_pruning_margin = float(root.get('beam_pruning_margin'))
+                    except BaseException:
                         pass
-                    splitted_sentence = ' '.join(words)
-                    # log.info("splitted_sentence=" + splitted_sentence)
+                    beam_score_coverage_penalty = root.get(
+                        'beam_score_coverage_penalty', 'none')
+                    beam_score_coverage_penalty_strength = None
+                    try:
+                        beam_score_coverage_penalty_strength = float(root.get('beam_score_coverage_penalty_strength', 0.2))
+                    except BaseException:
+                        pass
+                    nb_steps_ratio = None
+                    try:
+                        nb_steps_ratio = float(root.get('nb_steps_ratio', 1.2))
+                    except BaseException:
+                        pass
+                    groundhog = ('true' == root.get('groundhog', 'false'))
+                    force_finish = ('true' == root.get('force_finish', 'false'))
+                    beam_score_length_normalization = root.get(
+                        'beam_score_length_normalization', 'none')
+                    beam_score_length_normalization_strength = None
+                    try:
+                        beam_score_length_normalization_strength = float(root.get('beam_score_length_normalization_strength', 0.2))
+                    except BaseException:
+                        pass
+                    post_score_length_normalization = root.get(
+                        'post_score_length_normalization', 'simple')
+                    post_score_length_normalization_strength = None
+                    try:
+                        post_score_length_normalization_strength = float(root.get('post_score_length_normalization_strength', 0.2))
+                    except BaseException:
+                        pass
+                    post_score_coverage_penalty = root.get(
+                        'post_score_coverage_penalty', 'none')
+                    post_score_coverage_penalty_strength = None
+                    try:
+                        post_score_coverage_penalty_strength = float(root.get('post_score_coverage_penalty_strength', 0.2))
+                    except BaseException:
+                        pass
+                    prob_space_combination = (
+                        'true' == root.get(
+                            'prob_space_combination', 'false'))
+                    remove_unk = ('true' == root.get('remove_unk', 'false'))
+                    normalize_unicode_unk = (
+                        'true' == root.get(
+                            'normalize_unicode_unk', 'true'))
+                    log.info('normalize_unicode_unk=' + str(normalize_unicode_unk))
+                    attempt_to_relocate_unk_source = ('true' == root.get(
+                        'attempt_to_relocate_unk_source', 'false'))
+                    log.info("Article id: %s" % article_id)
+                    out = ""
+                    graph_data = []
+                    segmented_input = []
+                    segmented_output = []
+                    mapping = []
+                    sentences = root.findall('sentence')
+                    for idx, sentence in enumerate(sentences):
+                        sentence_number = sentence.get('id')
+                        text = sentence.findtext('i_sentence').strip()
+                        log.info("text=@@@%s@@@" % text)
 
-                    log.info(timestamped_msg("Translating sentence %d" % idx))
-                    decoded_sentence = splitted_sentence.decode('utf-8')
-                    translation, script, div, unk_mapping = self.server.translator.translate(decoded_sentence,
-                                                                                             beam_width, beam_pruning_margin, beam_score_coverage_penalty, beam_score_coverage_penalty_strength, nb_steps, nb_steps_ratio, remove_unk, normalize_unicode_unk, attempt_to_relocate_unk_source,
-                                                                                             beam_score_length_normalization, beam_score_length_normalization_strength, post_score_length_normalization, post_score_length_normalization_strength, post_score_coverage_penalty, post_score_coverage_penalty_strength,
-                                                                                             groundhog, force_finish, prob_space_combination, attn_graph_width, attn_graph_height)
-                    out += translation
+                        cmd = self.server.segmenter_command % text
+                        log.info("cmd=%s" % cmd)
+                        start_cmd = timeit.default_timer()
 
-                    if self.server.pp_command is not None:
-                        pp_cmd = self.server.pp_command % out.replace("'", "''")
-                        log.info("pp_cmd=%s" % pp_cmd)
+                        parser_output = subprocess.check_output(cmd, shell=True)
 
-                        start_pp_cmd = timeit.default_timer()
+                        log.info(
+                            "Segmenter request processed in {} s.".format(
+                                timeit.default_timer() - start_cmd))
+                        log.info("parser_output=%s" % parser_output)
 
-                        pp_output = subprocess.check_output(pp_cmd, shell=True)
+                        words = []
+                        if 'parse_server' == self.server.segmenter_format:
+                            for line in parser_output.split("\n"):
+                                if (line.startswith('#')):
+                                    continue
+                                elif (not line.strip()):
+                                    break
+                                else:
+                                    parts = line.split("\t")
+                                    word = parts[2]
+                                    words.append(word)
+                        elif 'morph' == self.server.segmenter_format:
+                            for pair in parser_output.split(' '):
+                                if pair != '':
+                                    word, pos = pair.split('_')
+                                    words.append(word)
+                        elif 'plain' == self.server.segmenter_format:
+                            words = parser_output.split(' ')
+                        else:
+                            pass
+                        splitted_sentence = ' '.join(words)
+                        # log.info("splitted_sentence=" + splitted_sentence)
 
-                        log.info("Postprocessor request processede in {} s.".format(timeit.default_timer() - start_pp_cmd))
-                        log.info("pp_output=%s" % pp_output)
-                        out = pp_output
+                        log.info(timestamped_msg("Translating sentence %d" % idx))
+                        decoded_sentence = splitted_sentence.decode('utf-8')
+                        translation, script, div, unk_mapping = self.server.translator.translate(decoded_sentence,
+                                                                                                 beam_width, beam_pruning_margin, beam_score_coverage_penalty, beam_score_coverage_penalty_strength, nb_steps, nb_steps_ratio, remove_unk, normalize_unicode_unk, attempt_to_relocate_unk_source,
+                                                                                                 beam_score_length_normalization, beam_score_length_normalization_strength, post_score_length_normalization, post_score_length_normalization_strength, post_score_coverage_penalty, post_score_coverage_penalty_strength,
+                                                                                                 groundhog, force_finish, prob_space_combination, attn_graph_width, attn_graph_height)
+                        out += translation
 
-                    segmented_input.append(splitted_sentence)
-                    segmented_output.append(translation)
-                    mapping.append(unk_mapping)
-                    graph_data.append(
-                        (script.encode('utf-8'), div.encode('utf-8')))
+                        if self.server.pp_command is not None:
+                            pp_cmd = self.server.pp_command % out.replace("'", "''")
+                            log.info("pp_cmd=%s" % pp_cmd)
 
-                    # There should always be only one sentence for now. - FB
-                    break
+                            start_pp_cmd = timeit.default_timer()
 
-                response['article_id'] = article_id
-                response['sentence_number'] = sentence_number
-                response['out'] = out
-                response['segmented_input'] = segmented_input
-                response['segmented_output'] = segmented_output
-                response['mapping'] = map(lambda x: ' '.join(x), mapping)
-                graphes = []
-                for gd in graph_data:
-                    script, div = gd
-                    graphes.append({'script': script, 'div': div})
-                response['attn_graphes'] = graphes
+                            pp_output = subprocess.check_output(pp_cmd, shell=True)
+
+                            log.info("Postprocessor request processede in {} s.".format(timeit.default_timer() - start_pp_cmd))
+                            log.info("pp_output=%s" % pp_output)
+                            out = pp_output
+
+                        segmented_input.append(splitted_sentence)
+                        segmented_output.append(translation)
+                        mapping.append(unk_mapping)
+                        graph_data.append(
+                            (script.encode('utf-8'), div.encode('utf-8')))
+
+                        # There should always be only one sentence for now. - FB
+                        break
+
+                    response['article_id'] = article_id
+                    response['sentence_number'] = sentence_number
+                    response['out'] = out
+                    log.info("Setting out={0}".format(out))
+                    response['segmented_input'] = segmented_input
+                    response['segmented_output'] = segmented_output
+                    response['mapping'] = map(lambda x: ' '.join(x), mapping)
+                    graphes = []
+                    for gd in graph_data:
+                        script, div = gd
+                        graphes.append({'script': script, 'div': div})
+                    response['attn_graphes'] = graphes
             except BaseException:
                 traceback.print_exc()
                 error_lines = traceback.format_exc().splitlines()

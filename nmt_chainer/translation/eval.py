@@ -126,7 +126,8 @@ def beam_search_all(gpu, encdec, eos_idx, src_data, beam_width, beam_pruning_mar
                     remove_unk=False,
                     normalize_unicode_unk=False,
                     attempt_to_relocate_unk_source=False,
-                    nbest=None):
+                    nbest=None,
+                    thread=None):
 
     log.info("starting beam search translation of %i sentences" % len(src_data))
     if isinstance(encdec, (list, tuple)) and len(encdec) > 1:
@@ -150,7 +151,8 @@ def beam_search_all(gpu, encdec, eos_idx, src_data, beam_width, beam_pruning_mar
             prob_space_combination=prob_space_combination,
             reverse_encdec=reverse_encdec,
             use_unfinished_translation_if_none_found=use_unfinished_translation_if_none_found,
-            nbest=nbest)
+            nbest=nbest,
+            thread=thread)
 
         for num_t, translations in enumerate(translations_gen):
             res_trans = []
@@ -214,7 +216,8 @@ def translate_to_file_with_beam_search(dest_fn, gpu, encdec, eos_idx, src_data, 
                                        normalize_unicode_unk=False,
                                        attempt_to_relocate_unk_source=False,
                                        unprocessed_output_filename=None,
-                                       nbest=None):
+                                       nbest=None,
+                                       thread=None):
 
     log.info("writing translation to %s " % dest_fn)
     out = codecs.open(dest_fn, "w", encoding="utf8")
@@ -232,7 +235,8 @@ def translate_to_file_with_beam_search(dest_fn, gpu, encdec, eos_idx, src_data, 
                                            remove_unk=remove_unk,
                                            normalize_unicode_unk=normalize_unicode_unk,
                                            attempt_to_relocate_unk_source=attempt_to_relocate_unk_source,
-                                           nbest=nbest)
+                                           nbest=nbest,
+                                           thread=thread)
 
     attn_vis = None
     if generate_attention_html is not None:

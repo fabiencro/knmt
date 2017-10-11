@@ -68,8 +68,6 @@ class RequestQueue(Queue.Queue):
         self.mutex.release()
         log.debug("redistribute_requests end")
 
-    # A faster approach would be to tag the requests as stale (given that we have a reference on them)
-    # instead of removing them from the queue.
     def cancel_requests_from(self, client_id):
         log.info("cancel_requests_from {0} begin".format(client_id)) 
         self.mutex.acquire()
@@ -134,15 +132,20 @@ class Worker(threading.Thread):
         self.host = host
         self.port = port
         self.manager = manager
+        self.current_client_key = None
+
+    def stop(self):
+        client = Client(self.host, self.port)
+        resp = client.cancel()
 
     def run(self):
         lang_pair = "{0}-{1}".format(self.src_lang, self.tgt_lang)
         while True:
             translation_request = self.manager.translation_request_queues[lang_pair].get(True)
             log.info("Request for worker={0}".format(translation_request))
-            key = "{0}-{1}".format(translation_request['session_id'], translation_request['client_tab_id']) 
+            self.current_client_key = "{0}-{1}".format(translation_request['session_id'], translation_request['client_tab_id']) 
             start_request = timeit.default_timer()
-            log.info(timestamped_msg("Thread {0}: Handling request: {1}:{2}".format(self.name, key, translation_request['article_id'])))
+            log.info(timestamped_msg("Thread {0}: Handling request: {1}:{2}".format(self.name, self.current_client_key, translation_request['article_id'])))
 
             log.info("SENTENCE for worker {0}:{1}: {2}".format(self.host, self.port, translation_request['sentence'].encode('utf-8')))
             self.manager.add_active_translation(lang_pair, translation_request)
@@ -171,11 +174,11 @@ class Worker(threading.Thread):
             self.manager.remove_active_translation(lang_pair, translation_request)
             json_resp = json.loads(resp)
             log.info("TRANSLATION: {0}".format(json_resp['out'].encode('utf-8')))
-            if not key in self.manager.client_cancellations or not self.manager.client_cancellations[key]:
-                response_queue = self.manager.client_responses[key]
+            if not self.current_client_key in self.manager.client_cancellations or not self.manager.client_cancellations[self.current_client_key]:
+                response_queue = self.manager.client_responses[self.current_client_key]
                 response_queue.put(json_resp)
 
-            log.info("Request processed in {0} s. by {1} [{2}:{3}]".format(timeit.default_timer() - start_request, self.name, key, translation_request['article_id']))
+            log.info("Request processed in {0} s. by {1} [{2}:{3}]".format(timeit.default_timer() - start_request, self.name, self.current_client_key, translation_request['article_id']))
 
 class Manager(object):
 
@@ -244,6 +247,14 @@ class Manager(object):
 
         return resp
 
+    def cancel(self, lang_pair, client_id):
+        self.client_cancellations[client_id] = True
+        self.translation_request_queues[lang_pair].cancel_requests_from(client_id)
+        for worker in self.workers[lang_pair]:
+            if worker.current_client_key == client_id:
+                worker.stop()
+
+
 class Server(SocketServer.ThreadingMixIn, SocketServer.TCPServer):
 
     daemon_threads = True
@@ -304,8 +315,7 @@ class Server(SocketServer.ThreadingMixIn, SocketServer.TCPServer):
                     response = self.manager.poll(lang_pair, key)
                 elif json_data['type'] == 'cancelTranslation':
                     log.info("CANCEL from {0}".format(key))
-                    self.manager.client_cancellations[key] = True
-                    self.manager.translation_request_queues[lang_pair].cancel_requests_from(key)
+                    self.manager.cancel(lang_pair, key)
                     response = {'msg': 'Translation request has been cancelled.'}
                 else:
                     response = {'msg': 'Unknown request type. Request has been ignored.'}
