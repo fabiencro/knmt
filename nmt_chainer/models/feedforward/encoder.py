@@ -17,9 +17,9 @@ class EncoderLayer(Chain):
         )
         
         
-    def __call__(self, x, mask, train=True):
-        y1 = self.self_attention_layer(x, mask, train)
-        y2 = self.ff_layer(y1, train=train)
+    def __call__(self, x, mask):
+        y1 = self.self_attention_layer(x, mask)
+        y2 = self.ff_layer(y1)
         return y2
    
 class EncoderMultiLayer(ChainList):
@@ -30,9 +30,9 @@ class EncoderMultiLayer(ChainList):
             self.add_link(EncoderLayer(d_model, n_heads, d_ff=d_ff, experimental_relu=experimental_relu, dropout=dropout,
                                 residual_mode=residual_mode, no_normalize=no_normalize))
         
-    def __call__(self, x, mask, train=True):
+    def __call__(self, x, mask):
         for link in self:
-            x = link(x, mask, train=train)
+            x = link(x, mask)
         return x
         
         
@@ -86,18 +86,15 @@ class Encoder(Chain):
             
         return padded_data, mask
     
-    def __call__(self, seq_list, train=True):
+    def __call__(self, seq_list):
         mb_size = len(seq_list)
         max_length_1 = max(len(x) for x in seq_list)
         x, mask = self.make_batch(seq_list)
     
-        if not train:
-            x = Variable(x, volatile="on")
-        
         encoded = self.emb(x)
         encoded += self.get_pos_vect(mb_size, max_length_1)
         
         if self.dropout is not None:
-            encoded = F.dropout(encoded, self.dropout, train=train)
+            encoded = F.dropout(encoded, self.dropout)
         
-        return self.encoding_layers(encoded, mask, train=train), mask
+        return self.encoding_layers(encoded, mask), mask

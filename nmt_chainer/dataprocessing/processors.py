@@ -547,6 +547,8 @@ class SourceCharacterConverter(MonoProcessor):
     def __init__(self, char_dic):
         self.char_dic = char_dic
         self.is_initialized_ = False
+        
+        self.reversed_dict = dict((v,k) for (k,v) in char_dic.iteritems())
 
     def convert(self, sentence, stats=None):
         res = []
@@ -566,7 +568,21 @@ class SourceCharacterConverter(MonoProcessor):
 
     def deconvert(self, sentence):
         # This is not meant to be a revertible processor (only for input)
-        return sentence
+        
+        res = []
+        at_least_one_conversion_occured = False
+        for char in sentence:
+            assert len(char) == 1 #should operate on unsegmented sentences
+            if char is self.reversed_dict:
+                res.append("[%s->%s]"%(char, self.reversed_dict[char]))
+                at_least_one_conversion_occured = True
+            else:
+                res.append(char)
+                
+        if at_least_one_conversion_occured:
+            return "".join(res)
+        else:
+            return sentence
 
     @staticmethod
     def processor_name():
