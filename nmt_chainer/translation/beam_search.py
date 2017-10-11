@@ -386,7 +386,7 @@ def ensemble_beam_search(model_ensemble, src_batch, src_mask, nb_steps, eos_idx,
                          beam_score_coverage_penalty_strength=0.2,
                          need_attention=False,
                          force_finish=False,
-                         prob_space_combination=False, use_unfinished_translation_if_none_found=False):
+                         prob_space_combination=False, use_unfinished_translation_if_none_found=False, thread=None):
     """
     Compute translations using a beam-search algorithm.
 
@@ -405,6 +405,7 @@ def ensemble_beam_search(model_ensemble, src_batch, src_mask, nb_steps, eos_idx,
         force_finish: force the generation of EOS if we did not find a translation after nb_steps steps
         prob_space_combination: if true, ensemble scores are combined by geometric average instead of arithmetic average
         use_unfinished_translation_if_none_found: will ureturn unfinished translation if we did not find a translation after nb_steps steps
+        thread: stoppable thread in which the beam search is running.  If none, the beam search runs in the main thread and cannot be stopped.
 
     Return:
         list of translations
@@ -438,6 +439,10 @@ def ensemble_beam_search(model_ensemble, src_batch, src_mask, nb_steps, eos_idx,
     
         # Proceed with the search
         for num_step in xrange(nb_steps):
+            # Interrupt the search when the thread is forcefully stopped.
+            if thread is not None and thread.stopped():
+                break
+
             current_translations_states = advance_one_step(
                 dec_cell_ensemble,
                 eos_idx,

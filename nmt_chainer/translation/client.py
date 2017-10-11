@@ -18,6 +18,27 @@ class Client:
         self.ip = server_ip
         self.port = server_port
 
+    def submit_request(self, request):
+        s = socket.socket()
+        s.connect((self.ip, self.port))
+        s.send(request)
+
+        try:
+            resp = ''
+            while True:
+                data = s.recv(1024)
+                resp += data
+                if not data:
+                    break
+            return resp
+        finally:
+            s.close()
+
+
+    def cancel(self):
+        query = """<?xml version="1.0" encoding="utf-8"?><cancel_translation/>"""
+        return self.submit_request(query)
+
     def query(self, 
               sentence, 
               article_id=1, 
@@ -88,17 +109,4 @@ class Client:
                              sentence_id, 
                              escape(sentence))
 
-        s = socket.socket()
-        s.connect((self.ip, self.port))
-        s.send(query)
-
-        try:
-            resp = ''
-            while True:
-                data = s.recv(1024)
-                resp += data
-                if not data:
-                    break
-            return resp
-        finally:
-            s.close()
+        return self.submit_request(query)
