@@ -31,13 +31,13 @@ class DecoderLayer(Chain):
         self.n_heads = n_heads
         self.d_model = d_model
     
-    def __call__(self, tgt, src, mask, mask_input, train=True):
-        y1 = self.self_attention_layer(tgt, mask, train=train)
-        y2 = self.cross_attention_layer(y1, src, mask_input, train=train)
-        y3 = self.ff_layer(y2, train=train)
+    def __call__(self, tgt, src, mask, mask_input):
+        y1 = self.self_attention_layer(tgt, mask)
+        y2 = self.cross_attention_layer(y1, src, mask_input)
+        y3 = self.ff_layer(y2)
         return y3
     
-    def one_step(self, new_inpt, prev_states, src, mask_input, train=True):
+    def one_step(self, new_inpt, prev_states, src, mask_input):
         mb_size_inpt, nQ_inpt, d_model_inpt = new_inpt.data.shape
         assert nQ_inpt == 1
         assert d_model_inpt == self.d_model
@@ -58,15 +58,15 @@ class DecoderLayer(Chain):
         else:
             full_tgt = new_inpt
             
-        y1_last = self.self_attention_layer(full_tgt, mask = None, train=train, only_last=True)
+        y1_last = self.self_attention_layer(full_tgt, mask = None, only_last=True)
         
         if prev_states is not None:
             full_y1 = F.concat((prev_cross_attn, y1_last) , axis=1)
         else:
             full_y1 = y1_last
             
-        y2_last = self.cross_attention_layer(full_y1, src, mask_input, train=train, only_last=True)
-        y3_last = self.ff_layer(y2_last, train=train)
+        y2_last = self.cross_attention_layer(full_y1, src, mask_input, only_last=True)
+        y3_last = self.ff_layer(y2_last)
         return y3_last, (full_tgt, full_y1)
     
 class DecoderMultiLayer(ChainList):
@@ -77,17 +77,17 @@ class DecoderMultiLayer(ChainList):
             self.add_link(DecoderLayer(d_model, n_heads, d_ff=d_ff, experimental_relu=experimental_relu, dropout=dropout,
                                        residual_mode=residual_mode, no_normalize=no_normalize))
         
-    def __call__(self, tgt, src, mask, mask_input, train=True):
+    def __call__(self, tgt, src, mask, mask_input):
         for link in self:
-            tgt = link(tgt, src, mask, mask_input, train=train)
+            tgt = link(tgt, src, mask, mask_input)
         return tgt
     
-    def one_step(self, new_inpt, prev_states, src, mask_input, train=True):
+    def one_step(self, new_inpt, prev_states, src, mask_input):
         assert prev_states is None or len(prev_states) == len(self)
         new_prev_tgt = []
         tgt_last = new_inpt
         for num_link, link in enumerate(self):
-            tgt_last, this_prev_tgt = link.one_step(tgt_last, prev_states[num_link] if prev_states is not None else None, src, mask_input, train=train)
+            tgt_last, this_prev_tgt = link.one_step(tgt_last, prev_states[num_link] if prev_states is not None else None, src, mask_input)
             new_prev_tgt.append(this_prev_tgt)
         return tgt_last, tuple(new_prev_tgt)      
     
@@ -161,7 +161,7 @@ class ConditionalizedDecoderCell(object):
         self.src_mb_size = src_mb_size
         self.mask_input = mask_input
         
-    def get_initial_logits(self, mb_size = None, train=True):
+    def get_initial_logits(self, mb_size = None):
         if mb_size is None:
             mb_size = self.src_mb_size
         else:
@@ -173,12 +173,12 @@ class ConditionalizedDecoderCell(object):
         cross_mask = self.decoder_chain.xp.broadcast_to(self.mask_input[:,0:1,0:1,:], (self.mask_input.shape[0], self.decoder_chain.n_heads, 1, self.mask_input.shape[3]))
         
         final_layer, prev_states =  self.decoder_chain.encoding_layers.one_step(bos_encoding, None,
-                                                               self.src_encoding, cross_mask, train=train)
+                                                               self.src_encoding, cross_mask)
         
         logits = self.decoder_chain.logits_layer(F.reshape(final_layer, (mb_size, self.decoder_chain.d_model)))
         return logits, DecoderState(pos=-1, prev_states=prev_states)
     
-    def __call__(self, prev_decoder_state, inpt, train=True):
+    def __call__(self, prev_decoder_state, inpt):
         current_mb_size = inpt.shape[0]
 #         mask = np.zeros((current_mb_size, ), dtype = np.float32)
 #         padded = np.zeros((current_mb_size, ), dtype = np.float32)
@@ -195,14 +195,14 @@ class ConditionalizedDecoderCell(object):
         encoded = encoded + pos_vect
         
         if self.decoder_chain.dropout is not None:
-            encoded = F.dropout(encoded, self.decoder_chain.dropout, train=train)
+            encoded = F.dropout(encoded, self.decoder_chain.dropout)
             
         cross_mask = self.decoder_chain.xp.broadcast_to(
             self.mask_input[:,0:1,0:1,:], 
             (self.mask_input.shape[0], self.decoder_chain.n_heads, 1, self.mask_input.shape[3]))
        
         final_layer, prev_states =  self.decoder_chain.encoding_layers.one_step(encoded, prev_decoder_state.get_states(),
-                                                               self.src_encoding, cross_mask, train=train)
+                                                               self.src_encoding, cross_mask)
        
 #         logits = apply_linear_layer_to_last_dims(final_layer, self.decoder_chain.logits_layer)
         logits = self.decoder_chain.logits_layer(F.reshape(final_layer, (current_mb_size, self.decoder_chain.d_model)))
@@ -279,7 +279,7 @@ class Decoder(Chain):
                 
         return padded_data, mask
     
-    def compute_logits(self, seq_list, encoded_input, mask_input, train=True):
+    def compute_logits(self, seq_list, encoded_input, mask_input):
         mb_size = len(seq_list)
         max_length_1 = max(len(x) for x in seq_list)
         x, mask = self.make_batch(seq_list)
@@ -293,18 +293,18 @@ class Decoder(Chain):
         encoded += self.get_pos_vect(mb_size, max_length_1)
         
         if self.dropout is not None:
-            encoded = F.dropout(encoded, self.dropout, train=train)
+            encoded = F.dropout(encoded, self.dropout)
         
         bos_plus_encoded = F.concat((F.broadcast_to(self.bos_encoding, (mb_size, 1, self.d_model)), encoded), axis=1)
         
         cross_mask = self.xp.broadcast_to(mask_input[:,0:1,0:1,:], (mask_input.shape[0], self.n_heads, bos_plus_encoded.data.shape[1], mask_input.shape[3]))
         
-        final_layer =  self.encoding_layers(bos_plus_encoded, encoded_input, mask, cross_mask, train=train)
+        final_layer =  self.encoding_layers(bos_plus_encoded, encoded_input, mask, cross_mask)
         logits = apply_linear_layer_to_last_dims(final_layer, self.logits_layer)
         return logits
     
-    def compute_loss(self, seq_list, encoded_input, mask_input, train=True, reduce="mean"):
-        logits = self.compute_logits(seq_list, encoded_input, mask_input, train=train)
+    def compute_loss(self, seq_list, encoded_input, mask_input, reduce="mean"):
+        logits = self.compute_logits(seq_list, encoded_input, mask_input)
         padded_target_with_eos = pad_data(seq_list, pad_value=-1, add_eos=self.eos_idx)
         padded_target_with_eos = self.move_np_array_to_correct_device(padded_target_with_eos)
         loss = F.softmax_cross_entropy(F.reshape(logits, (-1, self.V+1)), padded_target_with_eos.reshape(-1,), reduce=reduce)
