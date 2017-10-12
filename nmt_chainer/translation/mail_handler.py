@@ -198,8 +198,8 @@ class MailHandler:
                             # post_score_length_normalization_strength=0.2,
                             # beam_score_coverage_penalty='google',
                             # beam_score_coverage_penalty_strength=0.2,
-                            # post_score_coverage_penalty='google',
-                            # post_score_coverage_penalty_strength=0.2
+                            post_score_coverage_penalty='google',
+                            post_score_coverage_penalty_strength=0.01
                             )
         # self.logger.info("resp={0}".format(resp))
         json_resp = json.loads(resp)
