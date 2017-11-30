@@ -157,13 +157,9 @@ class Translator:
 
         dest_file = tempfile.NamedTemporaryFile()
         rich_output_file = tempfile.NamedTemporaryFile()
-        attn_graph_script_file = tempfile.NamedTemporaryFile()
-        attn_graph_div_file = tempfile.NamedTemporaryFile()
 
         try:
             out = ''
-            script = ''
-            div = '<div/>'
             unk_mapping = []
 
             src_data, stats_src_pp = build_dataset_one_side_pp(src_file.name, self.src_indexer, max_nb_ex=self.config_server.process.max_nb_ex)
@@ -184,7 +180,7 @@ class Translator:
                                                  tgt_indexer=self.tgt_indexer,
                                                  force_finish=force_finish,
                                                  prob_space_combination=prob_space_combination, reverse_encdec=self.reverse_encdec,
-                                                 generate_attention_html=(attn_graph_script_file.name, attn_graph_div_file.name),
+                                                 generate_attention_html=None,
                                                  attn_graph_with_sum=False,
                                                  attn_graph_attribs={'title': '', 'toolbar_location': 'below', 'plot_width': attn_graph_width, 'plot_height': attn_graph_height}, src_indexer=self.src_indexer,
                                                  rich_output_filename=rich_output_file.name,
@@ -201,20 +197,12 @@ class Translator:
             rich_output_data = json.loads(rich_output_file.read())
             unk_mapping = rich_output_data[0]['unk_mapping']
 
-            attn_graph_script_file.seek(0)
-            script = attn_graph_script_file.read()
-
-            attn_graph_div_file.seek(0)
-            div = attn_graph_div_file.read()
-
         finally:
             src_file.close()
             dest_file.close()
             rich_output_file.close()
-            attn_graph_script_file.close()
-            attn_graph_div_file.close()
 
-        return out, script, div, unk_mapping
+        return out, unk_mapping
 
     def stop(self):
         if self.translator_thread:
@@ -301,7 +289,6 @@ class RequestHandler(SocketServer.BaseRequestHandler):
                         'attempt_to_relocate_unk_source', 'false'))
                     log.info("Article id: %s" % article_id)
                     out = ""
-                    graph_data = []
                     segmented_input = []
                     segmented_output = []
                     mapping = []
@@ -347,7 +334,7 @@ class RequestHandler(SocketServer.BaseRequestHandler):
 
                         log.info(timestamped_msg("Translating sentence %d" % idx))
                         decoded_sentence = splitted_sentence.decode('utf-8')
-                        translation, script, div, unk_mapping = self.server.translator.translate(decoded_sentence,
+                        translation, unk_mapping = self.server.translator.translate(decoded_sentence,
                                                                                                  beam_width, beam_pruning_margin, beam_score_coverage_penalty, beam_score_coverage_penalty_strength, nb_steps, nb_steps_ratio, remove_unk, normalize_unicode_unk, attempt_to_relocate_unk_source,
                                                                                                  beam_score_length_normalization, beam_score_length_normalization_strength, post_score_length_normalization, post_score_length_normalization_strength, post_score_coverage_penalty, post_score_coverage_penalty_strength,
                                                                                                  groundhog, force_finish, prob_space_combination, attn_graph_width, attn_graph_height)
@@ -368,8 +355,6 @@ class RequestHandler(SocketServer.BaseRequestHandler):
                         segmented_input.append(splitted_sentence)
                         segmented_output.append(translation)
                         mapping.append(unk_mapping)
-                        graph_data.append(
-                            (script.encode('utf-8'), div.encode('utf-8')))
 
                         # There should always be only one sentence for now. - FB
                         break
@@ -381,11 +366,6 @@ class RequestHandler(SocketServer.BaseRequestHandler):
                     response['segmented_input'] = segmented_input
                     response['segmented_output'] = segmented_output
                     response['mapping'] = map(lambda x: ' '.join(x), mapping)
-                    graphes = []
-                    for gd in graph_data:
-                        script, div = gd
-                        graphes.append({'script': script, 'div': div})
-                    response['attn_graphes'] = graphes
             except BaseException:
                 traceback.print_exc()
                 error_lines = traceback.format_exc().splitlines()
