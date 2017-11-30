@@ -34,7 +34,6 @@ class Client:
         finally:
             s.close()
 
-
     def cancel(self):
         query = """<?xml version="1.0" encoding="utf-8"?><cancel_translation/>"""
         return self.submit_request(query)
@@ -58,6 +57,7 @@ class Client:
               normalize_unicode_unk=True, 
               remove_unk=False, 
               attempt_to_relocate_unk_source=False,
+              force_finish=False,
               sentence_id=1, 
               attn_graph_width=0, 
               attn_graph_height=0):
@@ -80,10 +80,11 @@ class Client:
     normalize_unicode_unk="{14}"
     remove_unk="{15}"
     attempt_to_relocate_unk_source="{16}"
-    attn_graph_width="{17}"
-    attn_graph_height="{18}">
-    <sentence id="{19}">
-        <i_sentence>{20}</i_sentence>
+    force_finish="{17}"
+    attn_graph_width="{18}"
+    attn_graph_height="{19}">
+    <sentence id="{20}">
+        <i_sentence>{21}</i_sentence>
     </sentence>
 </article>"""
 
@@ -104,6 +105,7 @@ class Client:
                              str(normalize_unicode_unk).lower(), 
                              str(remove_unk).lower(), 
                              str(attempt_to_relocate_unk_source).lower(), 
+                             str(force_finish).lower(), 
                              str(attn_graph_width),
                              str(attn_graph_height),
                              sentence_id, 
