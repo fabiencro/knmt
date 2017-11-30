@@ -168,6 +168,7 @@ class Worker(threading.Thread):
                 normalize_unicode_unk=translation_request['normalize_unicode_unk'] if 'normalize_unicode_unk' in translation_request else 'true',
                 remove_unk=translation_request['remove_unk'] if 'remove_unk' in translation_request else 'false',
                 attempt_to_relocate_unk_source=translation_request['attempt_to_relocate_unk_source'] if 'attempt_to_relocate_unk_source' in translation_request else 'false',
+                force_finish=translation_request['force_finish'] if 'force_finish' in translation_request else 'false',
                 sentence_id=translation_request['sentence_number'],
                 attn_graph_width=translation_request['attn_graph_width'] if 'attn_graph_width' in translation_request else 0,
                 attn_graph_height=translation_request['attn_graph_height'] if 'attn_graph_height' in translation_request else 0)
