@@ -124,11 +124,12 @@ class QueueCleaner(threading.Thread):
 
 class Worker(threading.Thread):
 
-    def __init__(self, name, src_lang, tgt_lang, host, port, manager):
+    def __init__(self, name, category, host, port, manager):
         threading.Thread.__init__(self)
         self.name = name
-        self.src_lang = src_lang
-        self.tgt_lang = tgt_lang
+        self.category = category
+        self.lang_pair, self.model = category.split("_")
+        self.src_lang, self.tgt_lang = self.lang_pair.split("-")
         self.host = host
         self.port = port
         self.manager = manager
@@ -139,16 +140,15 @@ class Worker(threading.Thread):
         resp = client.cancel()
 
     def run(self):
-        lang_pair = "{0}-{1}".format(self.src_lang, self.tgt_lang)
         while True:
-            translation_request = self.manager.translation_request_queues[lang_pair].get(True)
+            translation_request = self.manager.translation_request_queues[self.category].get(True)
             log.info("Request for worker={0}".format(translation_request))
             self.current_client_key = "{0}-{1}".format(translation_request['session_id'], translation_request['client_tab_id']) 
             start_request = timeit.default_timer()
             log.info(timestamped_msg("Thread {0}: Handling request: {1}:{2}".format(self.name, self.current_client_key, translation_request['article_id'])))
 
             log.info("SENTENCE for worker {0}:{1}: {2}".format(self.host, self.port, translation_request['sentence'].encode('utf-8')))
-            self.manager.add_active_translation(lang_pair, translation_request)
+            self.manager.add_active_translation(self.category, translation_request)
             client = Client(self.host, self.port)
             resp = client.query(translation_request['sentence'].encode('utf-8'), 
                 article_id=translation_request['article_id'],
@@ -172,7 +172,7 @@ class Worker(threading.Thread):
                 sentence_id=translation_request['sentence_number'],
                 attn_graph_width=translation_request['attn_graph_width'] if 'attn_graph_width' in translation_request else 0,
                 attn_graph_height=translation_request['attn_graph_height'] if 'attn_graph_height' in translation_request else 0)
-            self.manager.remove_active_translation(lang_pair, translation_request)
+            self.manager.remove_active_translation(self.category, translation_request)
             json_resp = json.loads(resp)
             log.info("TRANSLATION: {0}".format(json_resp['out'].encode('utf-8')))
             if not self.current_client_key in self.manager.client_cancellations or not self.manager.client_cancellations[self.current_client_key]:
@@ -184,6 +184,7 @@ class Worker(threading.Thread):
 class Manager(object):
 
     def __init__(self, translation_server_config, text_to_sentences_splitter):
+        self.translation_server_config = translation_server_config
         self.text_to_sentences_splitter = text_to_sentences_splitter
         self.client_responses = {}
         self.client_cancellations = {}
@@ -191,14 +192,13 @@ class Manager(object):
         self.active_translations = {}
         self.workers = {}
         self.mutex = threading.Lock()
-        for lang_pair in translation_server_config:
-            src_lang, tgt_lang = lang_pair.split("-")
-            self.translation_request_queues[lang_pair] = RequestQueue()
-            self.active_translations[lang_pair] = []
+        for server_category in translation_server_config:
+            self.translation_request_queues[server_category] = RequestQueue()
+            self.active_translations[server_category] = []
             workerz = []
-            self.workers[lang_pair] = workerz
-            for idx, server in enumerate(translation_server_config[lang_pair]):
-                worker = Worker("Translater-{0}({1}-{2})".format(idx, src_lang, tgt_lang), src_lang, tgt_lang, server['host'], server['port'], self)
+            self.workers[server_category] = workerz
+            for idx, server in enumerate(translation_server_config[server_category]):
+                worker = Worker("Translater-{0}({1})".format(idx, server), server_category, server['host'], server['port'], self)
                 workerz.append(worker)
                 worker.start()
         self.translation_request_queue_cleaner = QueueCleaner(self.translation_request_queues)
@@ -206,39 +206,42 @@ class Manager(object):
         for k, q in list(self.translation_request_queues.items()):
             q.join()
 
-    def add_active_translation(self, lang_pair, req):
+    def add_active_translation(self, category, req):
         self.mutex.acquire()
-        self.active_translations[lang_pair].append(req)
+        self.active_translations[category].append(req)
         self.mutex.release()
 
-    def remove_active_translation(self, lang_pair, req):
+    def remove_active_translation(self, category, req):
         self.mutex.acquire()
-        self.active_translations[lang_pair].remove(req)
+        self.active_translations[category].remove(req)
         self.mutex.release()
 
-    def get_stats(self, lang_pair):
+    def get_stats(self, category):
         clients = set()
-        all_requests = self.translation_request_queues[lang_pair].content() + self.active_translations[lang_pair]
+        all_requests = self.translation_request_queues[category].content() + self.active_translations[category]
         for item in all_requests:
             if 'session_id' in item and 'client_tab_id' in item:
                 client_key = "{0}-{1}".format(item['session_id'], item['client_tab_id'])
                 clients.add(client_key)
         return {'clients': len(clients), 'requests': len(all_requests)};
 
-    def poll(self, lang_pair, client_id):
-        self.translation_request_queues[lang_pair].refresh_keepalive_timer(client_id, time.time())
+    def poll(self, category, client_id):
+        if category and category in self.translation_request_queues:
+            self.translation_request_queues[category].refresh_keepalive_timer(client_id, time.time())
 
         resp = {};
-
-        resp['workload'] = {
-            'workers': len(self.workers[lang_pair])
-        };
-        resp['workload'].update(self.get_stats(lang_pair))
-        req_per_worker = resp['workload']['requests'] / resp['workload']['workers']
-        resp['workload']['factor'] = req_per_worker
-        if resp['workload']['clients'] > resp['workload']['workers']:
-            resp['workload']['factor'] += (resp['workload']['clients'] - resp['workload']['workers']) * req_per_worker
-        log.info("req/work={0} r={1} c={2} w={3} f={4}".format(req_per_worker, resp['workload']['requests'], resp['workload']['clients'], resp['workload']['workers'], resp['workload']['factor']))
+        if category is None:
+            resp['servers'] = self.translation_server_config.keys()
+        else:
+            resp['workload'] = {
+                'workers': len(self.workers[category])
+            };
+            resp['workload'].update(self.get_stats(category))
+            req_per_worker = resp['workload']['requests'] / resp['workload']['workers']
+            resp['workload']['factor'] = req_per_worker
+            if resp['workload']['clients'] > resp['workload']['workers']:
+                resp['workload']['factor'] += (resp['workload']['clients'] - resp['workload']['workers']) * req_per_worker
+            log.info("req/work={0} r={1} c={2} w={3} f={4}".format(req_per_worker, resp['workload']['requests'], resp['workload']['clients'], resp['workload']['workers'], resp['workload']['factor']))
 
         responses = []
         if client_id in self.client_responses:
@@ -248,10 +251,10 @@ class Manager(object):
 
         return resp
 
-    def cancel(self, lang_pair, client_id):
+    def cancel(self, category, client_id):
         self.client_cancellations[client_id] = True
-        self.translation_request_queues[lang_pair].cancel_requests_from(client_id)
-        for worker in self.workers[lang_pair]:
+        self.translation_request_queues[category].cancel_requests_from(client_id)
+        for worker in self.workers[category]:
             if worker.current_client_key == client_id:
                 worker.stop()
 
@@ -275,8 +278,17 @@ class Server(SocketServer.ThreadingMixIn, SocketServer.TCPServer):
                 log.info("Request to server={0}".format(str_data))
                 response = {}
                 json_data = json.loads(str_data)
-                lang_pair = "{0}-{1}".format(json_data['src_lang'], json_data['tgt_lang'])
+                lang_pair = None
+                if json_data['src_lang'] and json_data['tgt_lang']:
+                    lang_pair = "{0}-{1}".format(json_data['src_lang'], json_data['tgt_lang'])
+                model = None
+                if json_data['model']:
+                    model = json_data['model']
+                category = None
+                if lang_pair and model:
+                    category = "{0}_{1}".format(lang_pair, model)
                 key = "{0}-{1}".format(json_data['session_id'], json_data['client_tab_id']) 
+                log.info("lang_pair={0} model={1} category={2}".format(lang_pair, model, category))
                 if json_data['type'] == 'translate':
                     log.info("TRANSLATE from {0}: {1}".format(key, datetime.datetime.fromtimestamp(time.time()).strftime('%Y-%m-%d %H:%M:%S')))
                     data = {
@@ -308,15 +320,15 @@ class Server(SocketServer.ThreadingMixIn, SocketServer.TCPServer):
                             translate_sentence_request['lang_source'] = translate_sentence_request['src_lang']
                             translate_sentence_request['lang_target'] = translate_sentence_request['tgt_lang']
                             translate_sentence_request['keepalive'] = time.time()
-                            self.manager.translation_request_queues[lang_pair].put(translate_sentence_request)
-                        self.manager.translation_request_queues[lang_pair].redistribute_requests()
+                            self.manager.translation_request_queues[category].put(translate_sentence_request)
+                        self.manager.translation_request_queues[category].redistribute_requests()
                         response = {'msg': 'All sentences have been queued.'}
                 elif json_data['type'] == 'poll':
                     log.info("POLL from {0}".format(key))   
-                    response = self.manager.poll(lang_pair, key)
+                    response = self.manager.poll(category, key)
                 elif json_data['type'] == 'cancelTranslation':
                     log.info("CANCEL from {0}".format(key))
-                    self.manager.cancel(lang_pair, key)
+                    self.manager.cancel(category, key)
                     response = {'msg': 'Translation request has been cancelled.'}
                 else:
                     response = {'msg': 'Unknown request type. Request has been ignored.'}

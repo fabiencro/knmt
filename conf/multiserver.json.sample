@@ -2,9 +2,11 @@
     "host": "localhost",
     "port": 45000,
     "servers": {
-        "ja-en": [
+        "ja-en_model1": [
             {"host": "localhost", "port": 44200},
             {"host": "localhost", "port": 44201},
+        ],
+        "ja-en_model2": [
             {"host": "localhost", "port": 44202},
             {"host": "localhost", "port": 44203}
         ],
