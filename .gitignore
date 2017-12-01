@@ -13,4 +13,5 @@ dist/
 .settings/
 knmt.egg-info/
 *.log
+logs/*
 conf/*.json
