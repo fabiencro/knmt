@@ -51,6 +51,7 @@ def define_parser(parser):
     output_group.add_argument("--remove_unk", default=False, action="store_true")
     output_group.add_argument("--normalize_unicode_unk", default=False, action="store_true")
     output_group.add_argument("--attempt_to_relocate_unk_source", default=False, action="store_true")
+    output_group.add_argument("--log_config", nargs="?", help="Log configuration file.", default="conf/knmt_logging.conf")
 
     management_group = parser.add_argument_group(_CONFIG_SECTION_TO_DESCRIPTION["process"])
     management_group.add_argument("--gpu", type=int, help="specify gpu number to use, if any")
