@@ -11,6 +11,7 @@ import json
 import numpy as np
 from chainer import cuda
 import logging
+import logging.config
 import sys
 import tempfile
 
@@ -29,10 +30,7 @@ import re
 import subprocess
 import bokeh.embed
 
-logging.basicConfig()
-log = logging.getLogger("rnns:server")
-log.setLevel(logging.INFO)
-
+log = None
 
 class TranslatorThread(threading.Thread):
     """Thread class with a stop() method useful to interrupt the translation before it ends."""
@@ -428,6 +426,11 @@ def timestamped_msg(msg):
 
 
 def do_start_server(config_server):
+    logging.config.fileConfig(config_server.output.log_config)
+    global log
+    log = logging.getLogger("default")
+    log.setLevel(logging.INFO)
+
     translator = Translator(config_server)
     server_host, server_port = config_server.process.server.split(":")
     server = Server(
