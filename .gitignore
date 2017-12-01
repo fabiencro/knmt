@@ -12,3 +12,5 @@ build/
 dist/
 .settings/
 knmt.egg-info/
+*.log
+conf/*.json
