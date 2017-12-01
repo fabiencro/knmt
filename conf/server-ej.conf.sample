@@ -8,6 +8,7 @@ LANG_DST=ja
 HOST=localhost
 PORT=44668
 
+LOGGING_CONF_FILE=conf/server-ej_logging.conf
 
 #
 # RNN-Search

@@ -8,6 +8,7 @@ LANG_DST=ja
 HOST=localhost
 PORT=44667
 
+LOGGING_CONF_FILE=conf/server-cj_logging.conf
 
 #
 # RNN-Search
