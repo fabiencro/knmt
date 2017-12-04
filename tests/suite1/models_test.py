@@ -1,6 +1,5 @@
 #!/usr/bin/env python
 """models_tests.py: Some correctness tests"""
-from __future__ import absolute_import, division, print_function, unicode_literals
 __author__ = "Fabien Cromieres"
 __license__ = "undecided"
 __version__ = "1.0"
@@ -78,7 +77,7 @@ class TestEncoder:
         fb = enc(input_seq, mask)
 
         for i in range(len(raw_seq)):
-            #             print(i, fb.data[0][i], fb_naive[i].data[0], np.max(np.abs(fb.data[0][i] - fb_naive[i].data[0])))
+            #             print i, fb.data[0][i], fb_naive[i].data[0], np.max(np.abs(fb.data[0][i] - fb_naive[i].data[0]))
             assert np.all(fb.data[0][i] == fb_naive[i].data[0])
 #             assert False
 
@@ -95,12 +94,12 @@ class TestEncoder:
         src_batch, src_mask = utils.make_batch_src(src_data)
         fb = enc(src_batch, src_mask)
 
-        for i in range(len(src_data)):
+        for i in xrange(len(src_data)):
             raw_s = src_data[i]
             input_seq = [Variable(np.array([v], dtype=np.int32)) for v in raw_s]
             fb_naive = enc.naive_call(input_seq, None)
             for j in range(len(raw_s)):
-                print("maxdiff:", np.max(np.abs(fb.data[i][j] - fb_naive[j].data[0])))
+                print "maxdiff:", np.max(np.abs(fb.data[i][j] - fb_naive[j].data[0]))
                 assert np.allclose(fb.data[i][j], fb_naive[j].data[0], atol=1e-6)
 
     def test_multibatch_error(self):
@@ -116,10 +115,10 @@ class TestEncoder:
         src_batch, src_mask = utils.make_batch_src(src_data)
 
         assert len(src_mask) == 5
-        print([e.data for e in src_mask])
+        print [e.data for e in src_mask]
 
         src_mask[0][0] = True
-        print([e.data for e in src_mask])
+        print [e.data for e in src_mask]
 
         fb = enc(src_batch, src_mask)
 
@@ -128,7 +127,7 @@ class TestEncoder:
         input_seq = [Variable(np.array([v], dtype=np.int32)) for v in raw_s]
         fb_naive = enc.naive_call(input_seq, None)
         for j in range(len(raw_s)):
-            print("maxdiff:", np.max(np.abs(fb.data[i][j] - fb_naive[j].data[0])))
+            print "maxdiff:", np.max(np.abs(fb.data[i][j] - fb_naive[j].data[0]))
             assert not np.allclose(fb.data[i][j], fb_naive[j].data[0], atol=1e-6)
 
 
@@ -178,7 +177,7 @@ class AttentionModuleNaive(nmt_chainer.models.attention.AttentionModule):
 
             splitted_attn = F.split_axis(attn, len(fb_concat), 1)
             ci = None
-            for i in range(nb_elems):
+            for i in xrange(nb_elems):
                 contrib = F.broadcast_to(
                     splitted_attn[i], (mb_size, Hi)) * used_fb_concat[i]
                 ci = ci + contrib if ci is not None else contrib
@@ -236,16 +235,16 @@ class TestAttention:
 
         ci, attn = compute_ctxt(state)
 
-        for i in range(len(src_data)):
+        for i in xrange(len(src_data)):
             raw_s = src_data[i]
             input_seq = [Variable(np.array([v], dtype=np.int32)) for v in raw_s]
             fb_naive = enc.naive_call(input_seq, None)
             compute_ctxt_naive = attn_model.naive_call(fb_naive, None)
             ci_naive, attn_naive = compute_ctxt_naive(Variable(state_raw[i].reshape(1, -1)))
-            print("maxdiff ci:", np.max(np.abs(ci.data[i] - ci_naive.data[0])))
+            print "maxdiff ci:", np.max(np.abs(ci.data[i] - ci_naive.data[0]))
             assert np.allclose(ci.data[i], ci_naive.data[0], atol=1e-6)
-#             print(attn.data.shape, attn_naive.data.shape)
-            print("maxdiff attn:", np.max(np.abs(attn.data[i][:len(raw_s)] - attn_naive.data[0])))
+#             print attn.data.shape, attn_naive.data.shape
+            print "maxdiff attn:", np.max(np.abs(attn.data[i][:len(raw_s)] - attn_naive.data[0]))
             assert np.allclose(attn.data[i][:len(raw_s)], attn_naive.data[0], atol=1e-6)
             assert np.all(attn.data[i][len(raw_s):] == 0)
 
@@ -269,12 +268,12 @@ class DecoderNaive(decoder_cells.Decoder):
         previous_word = None
         attn_list = []
         total_nb_predictions = 0
-        for i in range(len(targets)):
+        for i in xrange(len(targets)):
             if previous_word is not None:  # else we are using the initial prev_y
                 prev_y = self.emb(previous_word)
             ci, attn = compute_ctxt(previous_states[-1])
             concatenated = F.concat((prev_y, ci))
-    #             print(concatenated.data.shape)
+    #             print concatenated.data.shape
             new_states = self.gru(previous_states, concatenated)
 
             all_concatenated = F.concat((concatenated, new_states[-1]))
@@ -347,7 +346,7 @@ class TestEncoderDecoder:
 
         total_loss_naive = 0
         total_length = 0
-        for i in range(len(trg_data)):
+        for i in xrange(len(trg_data)):
             raw_s_raw = trg_data[i]
             raw_s = [raw_s_raw[0], raw_s_raw[1] + [eos_idx]]
             input_seq = [Variable(np.array([v], dtype=np.int32)) for v in raw_s[0]]

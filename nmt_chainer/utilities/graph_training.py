@@ -1,6 +1,5 @@
 #!/usr/bin/env python
 """graph_training.py: visualize training process"""
-from __future__ import absolute_import, division, print_function, unicode_literals
 __author__ = "Fabien Cromieres"
 __license__ = "undecided"
 __version__ = "1.0"
@@ -8,13 +7,12 @@ __email__ = "fabien.cromieres@gmail.com"
 __status__ = "Development"
 
 import sqlite3
-import six
 
 
 def build_prefix_list(lst, op=max):
     res = [None] * len(lst)
     res[0] = lst[0]
-    for k in six.moves.range(1, len(lst)):
+    for k in xrange(1, len(lst)):
         res[k] = op(res[k - 1], lst[k])
     return res
 
@@ -42,11 +40,11 @@ def generate_graph(sqldb, dest, title="Training Evolution"):
     c = db.cursor()
 
     c.execute("SELECT date, bleu_info, iteration, loss, bleu, dev_loss, dev_bleu, avg_time, avg_training_loss FROM exp_data")
-    date, bleu_info, iteration, test_loss, test_bleu, dev_loss, dev_bleu, avg_time, avg_training_loss = list(six.moves.zip(
-        *list(c.fetchall())))
+    date, bleu_info, iteration, test_loss, test_bleu, dev_loss, dev_bleu, avg_time, avg_training_loss = zip(
+        *list(c.fetchall()))
 #     all = [[], [], [], []]
 #     for line in c.fetchall():
-#         print(line)
+#         print line
 # #         _, _, _, test_loss, test_bleu, dev_loss, dev_bleu = line
 #         test_loss, test_bleu, dev_loss, dev_bleu, avg_training_loss = line
 #         all[0].append(test_loss)
@@ -68,7 +66,7 @@ def generate_graph(sqldb, dest, title="Training Evolution"):
     #         random_y2 = np.random.randn(N)-5
     #
     # Create traces
-    text_trg = ["i:%i\n%s\nt:%r" % (i, d, t) for i, d, t in list(six.moves.zip(iteration, date, avg_time))]
+    text_trg = ["i:%i\n%s\nt:%r" % (i, d, t) for i, d, t in zip(iteration, date, avg_time)]
     text_bleu = []
     for bli in bleu_info:
         if bli is None:

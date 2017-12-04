@@ -13,14 +13,14 @@ Proceedings of the 54th Annual Meeting of the Association for Computational Ling
 
 # Dec. 2016: Edited by Raj Dabre
 
-from __future__ import absolute_import, division, print_function, unicode_literals
+from __future__ import unicode_literals
 
 import sys
+import codecs
 import re
 import copy
 import argparse
 from collections import defaultdict, Counter
-import six
 
 # hack for python2/3 compatibility
 from io import open
@@ -167,7 +167,11 @@ def replace_pair(pair, vocab, indices):
             ' ' +
             second) +
         r'(?!\S)')
-    for j, freq in six.iteritems(indices[pair]):
+    if sys.version_info < (3, 0):
+        iterator = indices[pair].iteritems()
+    else:
+        iterator = indices[pair].items()
+    for j, freq in iterator:
         if freq < 1:
             continue
         word, freq = vocab[j]
@@ -188,7 +192,7 @@ def prune_stats(stats, big_stats, threshold):
     (until we the most frequent pair is less frequent than a pair we previously pruned)
     big_stats keeps full statistics for when we need to access pruned items
     """
-    for item, freq in list(six.iteritems(stats)):
+    for item, freq in list(stats.items()):
         if freq < threshold:
             del stats[item]
             if freq < 0:
@@ -210,14 +214,14 @@ def get_vocabulary_from_iterable(iterable):
 
 def learn_bpe_from_sentence_iterable(iterable, output, symbols=10000, min_frequency=2, verbose=True):
     vocab = get_vocabulary_from_iterable(iterable)
-    vocab = dict([(tuple(x) + ('</w>',), y) for (x, y) in six.iteritems(vocab)])
-    sorted_vocab = sorted(six.iteritems(vocab), key=lambda x: x[1], reverse=True)
+    vocab = dict([(tuple(x) + ('</w>',), y) for (x, y) in vocab.items()])
+    sorted_vocab = sorted(vocab.items(), key=lambda x: x[1], reverse=True)
 
     stats, indices = get_pair_statistics(sorted_vocab)
     big_stats = copy.deepcopy(stats)
     # threshold is inspired by Zipfian assumption, but should only affect speed
-    threshold = max(six.itervalues(stats)) / 10
-    for i in six.moves.range(symbols):
+    threshold = max(stats.values()) / 10
+    for i in range(symbols):
         if stats:
             most_frequent = max(stats, key=stats.get)
 
@@ -253,14 +257,14 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     vocab = get_vocabulary(args.input)
-    vocab = dict([(tuple(x) + ('</w>',), y) for (x, y) in six.iteritems(vocab)])
-    sorted_vocab = sorted(six.iteritems(vocab), key=lambda x: x[1], reverse=True)
+    vocab = dict([(tuple(x) + ('</w>',), y) for (x, y) in vocab.items()])
+    sorted_vocab = sorted(vocab.items(), key=lambda x: x[1], reverse=True)
 
     stats, indices = get_pair_statistics(sorted_vocab)
     big_stats = copy.deepcopy(stats)
     # threshold is inspired by Zipfian assumption, but should only affect speed
-    threshold = max(six.itervalues(stats)) / 10
-    for i in six.moves.range(args.symbols):
+    threshold = max(stats.values()) / 10
+    for i in range(args.symbols):
         if stats:
             most_frequent = max(stats, key=stats.get)
 
