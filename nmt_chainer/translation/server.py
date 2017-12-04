@@ -426,7 +426,8 @@ def timestamped_msg(msg):
 
 
 def do_start_server(config_server):
-    logging.config.fileConfig(config_server.output.log_config)
+    if config_server.output.log_config:
+        logging.config.fileConfig(config_server.output.log_config)
     global log
     log = logging.getLogger("default")
     log.setLevel(logging.INFO)

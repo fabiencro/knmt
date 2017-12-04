@@ -50,10 +50,8 @@ class AttentionVisualizer(object):
         from nmt_chainer.utilities import visualisation
         alignment = np.zeros((len(src_w) + 1, len(tgt_w)))
         sum_al = [0] * len(tgt_w)
-        log.info("len(src_w)={0} len(tgt_w)={1}".format(len(src_w), len(tgt_w)))
         for i in xrange(len(src_w)):
             for j in xrange(len(tgt_w)):
-                log.info("i={0} j={1}".format(i,j))
                 alignment[i, j] = attn[j][i]
                 sum_al[j] += alignment[i, j]
         for j in xrange(len(tgt_w)):
