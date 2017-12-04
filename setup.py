@@ -55,8 +55,7 @@ def write_build_info():
     try:
         git_diff = subprocess.check_output(['git', 'diff'],
                                            cwd=module_dir,
-                                           stderr=subprocess.STDOUT,
-                                           universal_newlines=True)
+                                           stderr=subprocess.STDOUT)
     except BaseException:
         git_diff = '**Could not retrieve git-diff**'
 

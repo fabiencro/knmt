@@ -1,7 +1,6 @@
 #!/usr/bin/env python
 """rnn_cells.py: Wrappers around various RNN Cell types"""
-from __future__ import absolute_import, division, print_function, unicode_literals
-
+import nmt_chainer
 __author__ = "Fabien Cromieres"
 __license__ = "undecided"
 __version__ = "1.0"
@@ -15,7 +14,6 @@ from chainer import Link, Chain, ChainList
 import chainer.functions as F
 import chainer.links as L
 from chainer import initializers
-import six
 
 import logging
 logging.basicConfig()
@@ -175,7 +173,7 @@ class StackedCell(ChainList):
         self.add_link(cell0)
         self.nb_of_states.append(cell0.get_nb_states())
 
-        for i in six.moves.range(1, nb_stacks):
+        for i in xrange(1, nb_stacks):
             if cell_type in (LSTMCell, GatedLSTMCell):
                 cell = cell_type(out_size, out_size, lateral_init=lateral_init, upward_init=upward_init, bias_init=bias_init, forget_bias_init=forget_bias_init,
                                  layer_normalization=layer_normalization)
@@ -197,7 +195,7 @@ class StackedCell(ChainList):
 
     def get_initial_states(self, mb_size):
         res = []
-        for i in six.moves.range(len(self)):
+        for i in xrange(len(self)):
             res += list(self[i].get_initial_states(mb_size))
         return tuple(res)
 
@@ -205,7 +203,7 @@ class StackedCell(ChainList):
         input_below = x_in
         states_cursor = 0
         res = []
-        for i in six.moves.range(len(self)):
+        for i in xrange(len(self)):
             if self.dropout is not None and not (self.no_dropout_on_input and i == 0):
                 input_below = F.dropout(input_below, ratio=self.dropout)
             new_states = self[i](prev_states[states_cursor:states_cursor + self.nb_of_states[i]], input_below)

@@ -1,6 +1,5 @@
 #!/usr/bin/env python
 """client.py: Client that can issue requests to KNMT Server."""
-from __future__ import absolute_import, division, print_function, unicode_literals
 __author__ = "Frederic Bergeron"
 __license__ = "undecided"
 __version__ = "1.0"
@@ -12,7 +11,8 @@ import os.path
 import re
 from xml.sax.saxutils import escape
 
-class Client(object):
+
+class Client:
 
     def __init__(self, server_ip, server_port):
         self.ip = server_ip
@@ -49,15 +49,15 @@ class Client(object):
 
         s = socket.socket()
         s.connect((self.ip, self.port))
-        s.send(query.encode('utf-8'))
+        s.send(query)
 
         try:
-            resp = bytearray()
+            resp = ''
             while True:
                 data = s.recv(1024)
+                resp += data
                 if not data:
                     break
-                resp += data
-            return resp.decode('utf-8')
+            return resp
         finally:
             s.close()

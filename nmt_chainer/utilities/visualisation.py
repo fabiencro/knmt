@@ -1,6 +1,5 @@
 #!/usr/bin/env python
 """visualisation.py: visualize attention model"""
-from __future__ import absolute_import, division, print_function, unicode_literals
 __author__ = "Fabien Cromieres"
 __license__ = "undecided"
 __version__ = "1.0"
@@ -40,7 +39,7 @@ def make_alignment_figure(src, tgt, alignment, title="Attention Model", toolbar_
             count.append(alignment[i, j])
 
 #     for x, y, a in zip(xname, yname, alpha):
-#         print(x, y, a)
+#         print x, y, a
 
     source = ColumnDataSource(
         data=dict(
@@ -85,7 +84,7 @@ if __name__ == '__main__':
          [2, 4, 6, 7],
          [9, 1, 3, 3]]
     ) / 10.0
-    print(alignment)
+    print alignment
     p1 = make_alignment_figure(src, tgt, alignment)
     p2 = make_alignment_figure(src, tgt, alignment)
     p_all = Column(p1, p2)

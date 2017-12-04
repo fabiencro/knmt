@@ -13,10 +13,10 @@ Proceedings of the 54th Annual Meeting of the Association for Computational Ling
 
 # Dec. 2016: Edited by Raj Dabre
 
-from __future__ import absolute_import, division, print_function, unicode_literals
+from __future__ import unicode_literals, division
 
 import sys
-import io
+import codecs
 import argparse
 from collections import defaultdict
 
@@ -30,11 +30,14 @@ argparse.open = open
 #   sys.stdout = codecs.getwriter('UTF-8')(sys.stdout)
 #   sys.stdin = codecs.getreader('UTF-8')(sys.stdin)
 
+import codecs
+
+
 class BPE(object):
 
     def __init__(self, codes, separator='__'):
 
-        with io.open(codes.name, 'rt', encoding='utf-8') as codes:
+        with codecs.open(codes.name, encoding='utf-8') as codes:
             self.bpe_codes = [tuple(item.split()) for item in codes]
 
         # some hacking to deal with duplicates (only consider first instance)
@@ -52,7 +55,7 @@ class BPE(object):
             for item in new_word[:-1]:
                 output.append(item + self.separator)
             output.append(new_word[-1])
-        # print(output)
+        # print output
         return ' '.join(output)
 
     def segment_splitted(self, sentence):
@@ -64,7 +67,7 @@ class BPE(object):
             for item in new_word[:-1]:
                 output.append(item + self.separator)
             output.append(new_word[-1])
-        # print(output)
+        # print output
         return output
 
 

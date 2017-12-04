@@ -1,6 +1,5 @@
 #!/usr/bin/env python
 """utils_tests.py: Some correctness tests"""
-from __future__ import absolute_import, division, print_function, unicode_literals
 __author__ = "Fabien Cromieres"
 __license__ = "undecided"
 __version__ = "1.0"
@@ -65,8 +64,8 @@ class TestDeBatch:
         mask = [np.array([True, True, False, True]), np.array([True, True, False, False])]
         seq_list = de_batch(batch, mask=mask)
         assert seq_list == [[1, 1, 7], [3, 5, 5], [4], [8, 9]]
-#         print(seq_list)
-#         print(seq_list == [[1,1,[7,9],10], [3,5,[5,8]], [4,6], [8,9]])
+#         print seq_list
+#         print seq_list == [[1,1,[7,9],10], [3,5,[5,8]], [4,6], [8,9]]
 #         assert np.all(seq_list == [[1,1,[7,9],10], [3,5,[5,8]], [4,6], [8,9]])
 
 
