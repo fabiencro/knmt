@@ -1,3 +1,4 @@
+from __future__ import absolute_import, division, print_function, unicode_literals
 import chainer
 import chainer.function_hooks
 from chainer import function
@@ -5,7 +6,7 @@ from chainer import cuda
 from collections import defaultdict
 import time
 import numpy
-
+import six
 
 def function_namer(function, in_data):
     in_shapes = []
@@ -61,9 +62,9 @@ class MyTimerHook(function.FunctionHook):
         self.call_times_per_classes = defaultdict(TimerElem)
 
     def __exit__(self, *_):
-        print self
+        print(self)
         self.print_sorted()
-        print "total time:"
+        print("total time:")
         print(self.total_time())
         super(MyTimerHook, self).__exit__(*_)
 
@@ -114,8 +115,8 @@ class MyTimerHook(function.FunctionHook):
         return sum(
             t.total for (
                 _,
-                t) in self.call_times_per_classes.iteritems())
+                t) in six.iteritems(self.call_times_per_classes))
 
     def print_sorted(self):
-        for name, time in sorted(self.call_times_per_classes.items(), key=lambda x: x[1].total):
-            print name, time
+        for name, time in sorted(six.iteritems(self.call_times_per_classes), key=lambda x: x[1].total):
+            print(name, time)

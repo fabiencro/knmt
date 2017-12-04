@@ -1,11 +1,13 @@
 #!/usr/bin/env python
 """eval.py: Use a RNNSearch Model"""
+from __future__ import absolute_import, division, print_function, unicode_literals
 __author__ = "Fabien Cromieres"
 __license__ = "undecided"
 __version__ = "1.0"
 __email__ = "fabien.cromieres@gmail.com"
 __status__ = "Development"
 
+import io
 import json
 import numpy as np
 from chainer import cuda, serializers
@@ -20,6 +22,7 @@ from nmt_chainer.utilities.file_infos import create_filename_infos
 from nmt_chainer.utilities.argument_parsing_tools import OrderedNamespace
 import time
 import os.path
+import six
 from nmt_chainer.utilities.utils import ensure_path
 # from utils import make_batch_src, make_batch_src_tgt, minibatch_provider, compute_bleu_with_unk_as_wrong, de_batch
 from nmt_chainer.translation.evaluation import (greedy_batch_translate,
@@ -32,7 +35,6 @@ from nmt_chainer.translation.evaluation import (greedy_batch_translate,
 # import visualisation
 from nmt_chainer.utilities import bleu_computer
 import logging
-import codecs
 # import h5py
 import bokeh.embed
 
@@ -40,7 +42,6 @@ import bokeh.embed
 logging.basicConfig()
 log = logging.getLogger("rnns:eval")
 log.setLevel(logging.INFO)
-
 
 class AttentionVisualizer(object):
     def __init__(self):
@@ -50,11 +51,11 @@ class AttentionVisualizer(object):
         from nmt_chainer.utilities import visualisation
         alignment = np.zeros((len(src_w) + 1, len(tgt_w)))
         sum_al = [0] * len(tgt_w)
-        for i in xrange(len(src_w)):
-            for j in xrange(len(tgt_w)):
+        for i in six.moves.range(len(src_w)):
+            for j in six.moves.range(len(tgt_w)):
                 alignment[i, j] = attn[j][i]
                 sum_al[j] += alignment[i, j]
-        for j in xrange(len(tgt_w)):
+        for j in six.moves.range(len(tgt_w)):
             alignment[len(src_w), j] = sum_al[j]
 
         src = src_w
@@ -75,9 +76,9 @@ class AttentionVisualizer(object):
         if isinstance(output_file, tuple):
             script_output_fn, div_output_fn = output_file
             script, div = bokeh.embed.components(p_all)
-            with open(script_output_fn, 'w') as f:
-                f.write(script.encode('utf-8'))
-            with open(div_output_fn, 'w') as f:
+            with open(script_output_fn, 'wt') as f:
+                f.write(script)
+            with open(div_output_fn, 'wt') as f:
                 f.write(div)
         else:
             visualisation.output_file(output_file)
@@ -157,9 +158,9 @@ def beam_search_all(gpu, encdec, eos_idx, src_data, beam_width, beam_pruning_mar
             for trans in translations:
                 (t, score, attn) = trans
                 if num_t % 200 == 0:
-                    print >>sys.stderr, num_t,
+                    print(num_t, file=sys.stderr)
                 elif num_t % 40 == 0:
-                    print >>sys.stderr, "*",
+                    print("*", file=sys.stderr)
 #                 t, score = bests[1]
 #                 ct = convert_idx_to_string(t, tgt_voc + ["#T_UNK#"])
 #                 ct = convert_idx_to_string_with_attn(t, tgt_voc, attn, unk_idx = len(tgt_voc))
@@ -196,7 +197,7 @@ def beam_search_all(gpu, encdec, eos_idx, src_data, beam_width, beam_pruning_mar
 
             yield res_trans
 
-        print >>sys.stderr
+        print('', file=sys.stderr)
 
 
 def translate_to_file_with_beam_search(dest_fn, gpu, encdec, eos_idx, src_data, beam_width, beam_pruning_margin, beam_score_coverage_penalty, beam_score_coverage_penalty_strength, nb_steps,
@@ -217,7 +218,7 @@ def translate_to_file_with_beam_search(dest_fn, gpu, encdec, eos_idx, src_data, 
                                        nbest=None):
 
     log.info("writing translation to %s " % dest_fn)
-    out = codecs.open(dest_fn, "w", encoding="utf8")
+    out = io.open(dest_fn, "wt", encoding="utf8")
 
     translation_iterator = beam_search_all(gpu, encdec, eos_idx, src_data, beam_width, beam_pruning_margin, beam_score_coverage_penalty, beam_score_coverage_penalty_strength, nb_steps,
                                            nb_steps_ratio, beam_score_length_normalization, beam_score_length_normalization_strength, post_score_length_normalization, post_score_length_normalization_strength,
@@ -245,7 +246,7 @@ def translate_to_file_with_beam_search(dest_fn, gpu, encdec, eos_idx, src_data, 
 
     unprocessed_output = None
     if unprocessed_output_filename is not None:
-        unprocessed_output = codecs.open(unprocessed_output_filename, "w", encoding="utf8")
+        unprocessed_output = io.open(unprocessed_output_filename, "wt", encoding="utf8")
 
     for idx, translations in enumerate(translation_iterator):
         for src, translated, t, score, attn, unk_mapping in translations:
@@ -357,7 +358,7 @@ def create_encdec(config_eval):
     if 'additional_training_config' in config_eval.process and config_eval.process.additional_training_config is not None:
         assert len(config_eval.process.additional_training_config) == len(config_eval.process.additional_trained_model)
 
-        for (config_training_fn, trained_model_fn) in zip(config_eval.process.additional_training_config,
+        for (config_training_fn, trained_model_fn) in six.moves.zip(config_eval.process.additional_training_config,
                                                           config_eval.process.additional_trained_model):
             this_encdec, this_eos_idx, this_src_indexer, this_tgt_indexer = create_and_load_encdec_from_files(
                 config_training_fn, trained_model_fn)
@@ -507,7 +508,7 @@ def do_eval(config_eval):
             assert len(encdec_list) == 1
             translations = greedy_batch_translate(
                 encdec_list[0], eos_idx, src_data, batch_size=mb_size, gpu=gpu, nb_steps=nb_steps)
-        out = codecs.open(dest_fn, "w", encoding="utf8")
+        out = io.open(dest_fn, "wt", encoding="utf8")
         for t in translations:
             if t[-1] == eos_idx:
                 t = t[:-1]
@@ -551,11 +552,11 @@ def do_eval(config_eval):
             if mode == "eval_bleu":
                 if ref is not None:
                     bc = bleu_computer.get_bc_from_files(ref, dest_fn)
-                    print "bleu before unk replace:", bc
+                    print("bleu before unk replace:", bc)
                     translation_infos["bleu"] = bc.bleu()
                     translation_infos["bleu_infos"] = str(bc)
                 else:
-                    print "bleu before unk replace: No Ref Provided"
+                    print("bleu before unk replace: No Ref Provided")
 
                 from nmt_chainer.utilities import replace_tgt_unk
                 replace_tgt_unk.replace_unk(dest_fn, src_fn, dest_fn + ".unk_replaced", dic, remove_unk,
@@ -565,11 +566,11 @@ def do_eval(config_eval):
 
                 if ref is not None:
                     bc = bleu_computer.get_bc_from_files(ref, dest_fn + ".unk_replaced")
-                    print "bleu after unk replace:", bc
+                    print("bleu after unk replace:", bc)
                     translation_infos["post_unk_bleu"] = bc.bleu()
                     translation_infos["post_unk_bleu_infos"] = str(bc)
                 else:
-                    print "bleu before unk replace: No Ref Provided"
+                    print("bleu before unk replace: No Ref Provided")
 
     elif mode == "translate_attn":
         log.info("writing translation + attention as html to %s" % dest_fn)
@@ -583,7 +584,7 @@ def do_eval(config_eval):
         assert len(translations) == len(src_data)
         assert len(attn_all) == len(src_data)
         attn_vis = AttentionVisualizer()
-        for num_t in xrange(len(src_data)):
+        for num_t in six.moves.range(len(src_data)):
             src_idx_list = src_data[num_t]
             tgt_idx_list = translations[num_t][:-1]
             attn = attn_all[num_t]
@@ -593,10 +594,10 @@ def do_eval(config_eval):
             tgt_w = tgt_indexer.deconvert_swallow(tgt_idx_list, unk_tag="#T_UNK#")
 #             src_w = [src_voc_with_unk[idx] for idx in src_idx_list] + ["SUM_ATTN"]
 #             tgt_w = [tgt_voc_with_unk[idx] for idx in tgt_idx_list]
-#             for j in xrange(len(tgt_idx_list)):
+#             for j in six.moves.range(len(tgt_idx_list)):
 #                 tgt_idx_list.append(tgt_voc_with_unk[t_and_attn[j][0]])
 #
-    #         print [src_voc_with_unk[idx] for idx in src_idx_list], tgt_idx_list
+    #         print([src_voc_with_unk[idx] for idx in src_idx_list], tgt_idx_list)
 
             attn_vis.add_plot(src_w, tgt_w, attn)
 
@@ -610,13 +611,13 @@ def do_eval(config_eval):
         with cuda.get_device(gpu):
             assert len(encdec_list) == 1
             loss, attn_all = batch_align(
-                encdec_list[0], eos_idx, zip(src_data, tgt_data), batch_size=mb_size, gpu=gpu)
+                encdec_list[0], eos_idx, list(six.moves.zip(src_data, tgt_data)), batch_size=mb_size, gpu=gpu)
 #         tgt_voc_with_unk = tgt_voc + ["#T_UNK#"]
 #         src_voc_with_unk = src_voc + ["#S_UNK#"]
 
         assert len(attn_all) == len(src_data)
         plots_list = []
-        for num_t in xrange(len(src_data)):
+        for num_t in six.moves.range(len(src_data)):
             src_idx_list = src_data[num_t]
             tgt_idx_list = tgt_data[num_t]
             attn = attn_all[num_t]
@@ -624,21 +625,21 @@ def do_eval(config_eval):
 
             alignment = np.zeros((len(src_idx_list) + 1, len(tgt_idx_list)))
             sum_al = [0] * len(tgt_idx_list)
-            for i in xrange(len(src_idx_list)):
-                for j in xrange(len(tgt_idx_list)):
+            for i in six.moves.range(len(src_idx_list)):
+                for j in six.moves.range(len(tgt_idx_list)):
                     alignment[i, j] = attn[j][i]
                     sum_al[j] += alignment[i, j]
-            for j in xrange(len(tgt_idx_list)):
+            for j in six.moves.range(len(tgt_idx_list)):
                 alignment[len(src_idx_list), j] = sum_al[j]
 
             src_w = src_indexer.deconvert_swallow(src_idx_list, unk_tag="#S_UNK#") + ["SUM_ATTN"]
             tgt_w = tgt_indexer.deconvert_swallow(tgt_idx_list, unk_tag="#T_UNK#")
 #             src_w = [src_voc_with_unk[idx] for idx in src_idx_list] + ["SUM_ATTN"]
 #             tgt_w = [tgt_voc_with_unk[idx] for idx in tgt_idx_list]
-#             for j in xrange(len(tgt_idx_list)):
+#             for j in six.moves.range(len(tgt_idx_list)):
 #                 tgt_idx_list.append(tgt_voc_with_unk[t_and_attn[j][0]])
 #
-    #         print [src_voc_with_unk[idx] for idx in src_idx_list], tgt_idx_list
+    #         print([src_voc_with_unk[idx] for idx in src_idx_list], tgt_idx_list)
             p1 = visualisation.make_alignment_figure(
                 src_w, tgt_w, alignment)
 #             p2 = visualisation.make_alignment_figure(
@@ -649,14 +650,14 @@ def do_eval(config_eval):
         visualisation.show(p_all)
 #     for t in translations_with_attn:
 #         for x, attn in t:
-#             print x, attn
+#             print(x, attn)
 
 
 #         out.write(convert_idx_to_string([x for x, attn in t], tgt_voc + ["#T_UNK#"]) + "\n")
 
     elif mode == "score_nbest":
         log.info("opening nbest file %s" % nbest_to_rescore)
-        nbest_f = codecs.open(nbest_to_rescore, encoding="utf8")
+        nbest_f = io.open(nbest_to_rescore, 'rt', encoding="utf8")
         nbest_list = [[]]
         for line in nbest_f:
             line = line.strip().split("|||")
@@ -685,11 +686,11 @@ def do_eval(config_eval):
         log.info("starting scoring")
         from nmt_chainer.utilities import utils
         res = []
-        for num in xrange(len(nbest_converted)):
+        for num in six.moves.range(len(nbest_converted)):
             if num % 200 == 0:
-                print >>sys.stderr, num,
+                print(num, file=sys.stderr)
             elif num % 50 == 0:
-                print >>sys.stderr, "*",
+                print("*", file=sys.stderr)
 
             res.append([])
             src, tgt_list = src_data[num], nbest_converted[num]
@@ -698,8 +699,8 @@ def do_eval(config_eval):
             assert len(encdec_list) == 1
             scorer = encdec_list[0].nbest_scorer(src_batch, src_mask)
 
-            nb_batches = (len(tgt_list) + mb_size - 1) / mb_size
-            for num_batch in xrange(nb_batches):
+            nb_batches = (len(tgt_list) + mb_size - 1) // mb_size
+            for num_batch in six.moves.range(nb_batches):
                 tgt_batch, arg_sort = utils.make_batch_tgt(tgt_list[num_batch * nb_batches: (num_batch + 1) * nb_batches],
                                                            eos_idx=eos_idx, gpu=gpu, volatile="on", need_arg_sort=True)
                 scores, attn = scorer(tgt_batch)
@@ -708,14 +709,14 @@ def do_eval(config_eval):
 
                 assert len(arg_sort) == len(scores)
                 de_sorted_scores = [None] * len(scores)
-                for xpos in xrange(len(arg_sort)):
+                for xpos in six.moves.range(len(arg_sort)):
                     original_pos = arg_sort[xpos]
                     de_sorted_scores[original_pos] = scores[xpos]
                 res[-1] += de_sorted_scores
-        print >>sys.stderr
+        print('', file=sys.stderr)
         log.info("writing scores to %s" % dest_fn)
-        out = codecs.open(dest_fn, "w", encoding="utf8")
-        for num in xrange(len(res)):
+        out = io.open(dest_fn, "wt", encoding="utf8")
+        for num in six.moves.range(len(res)):
             for score in res[num]:
                 out.write("%i %f\n" % (num, score))
 
