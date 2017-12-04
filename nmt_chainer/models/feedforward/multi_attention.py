@@ -1,3 +1,7 @@
+#!/usr/bin/env python
+"""models.py: Implementation of RNNSearch in Chainer"""
+from __future__ import absolute_import, division, print_function, unicode_literals
+
 import chainer
 import numpy as np
 import chainer.functions as F
@@ -15,7 +19,7 @@ from nmt_chainer.models.feedforward.utils import apply_linear_layer_to_last_dims
 def reorganize_by_head(Q, n_heads):
     mb_size, n_Q, d_model = Q.data.shape
     assert d_model%n_heads == 0
-    head_size = d_model / n_heads
+    head_size = d_model // n_heads
     reshaped_Q = F.reshape(Q, (mb_size, n_Q, n_heads, head_size))
     return F.swapaxes(reshaped_Q, 1, 2)
 
@@ -68,7 +72,7 @@ class ConstantSizeMultiBatchMultiHeadAttention(Chain):
         
         self.d_model = d_model
         self.n_heads = n_heads
-        self.head_size = d_model / n_heads
+        self.head_size = d_model // n_heads
         
         scaling_factor = 1.0 / self.xp.sqrt(self.xp.array([[[[self.head_size]]]], dtype=self.xp.float32))
         self.add_persistent("scaling_factor", scaling_factor) #added as persistent so that it works with to_gpu/to_cpu

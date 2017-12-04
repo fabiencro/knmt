@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 """bleu_computer.py: compute BLEU score"""
+from __future__ import absolute_import, division, print_function, unicode_literals
 __author__ = "Fabien Cromieres"
 __license__ = "undecided"
 __version__ = "1.0"
@@ -11,9 +12,9 @@ import os
 
 from collections import defaultdict
 import math
-import codecs
-from itertools import izip
-
+import io
+import sys
+import six
 
 class BleuComputer(object):
     def __init__(self):
@@ -33,7 +34,7 @@ class BleuComputer(object):
     def __repr__(self):
         res = []
         res.append("bleu:%f%%   " % (self.bleu() * 100))
-        for n in xrange(1, 5):
+        for n in six.moves.range(1, 5):
             if self.ngrams_total[n] == 0:
                 assert self.ngrams_corrects[n] == 0
                 ratio_n = 1
@@ -46,15 +47,15 @@ class BleuComputer(object):
     __str__ = __repr__
 
     def bleu(self):
-        if min(self.ngrams_corrects.values()) <= 0:
+        if min(six.itervalues(self.ngrams_corrects)) <= 0:
             return 0
-        assert min(self.ngrams_total.values()) >= 0
-        assert min(self.ngrams_total.values()) >= min(self.ngrams_corrects.values())
+        assert min(six.itervalues(self.ngrams_total)) >= 0
+        assert min(six.itervalues(self.ngrams_total)) >= min(six.itervalues(self.ngrams_corrects))
 
         log_brevity_penalty = min(0, 1.0 - float(self.ref_length) / self.total_length)
         log_average_precision = 0.25 * (
-            sum(math.log(v) for v in self.ngrams_corrects.values()) -
-            sum(math.log(v) for v in self.ngrams_total.values())
+            sum(math.log(v) for v in six.itervalues(self.ngrams_corrects)) -
+            sum(math.log(v) for v in six.itervalues(self.ngrams_total))
         )
         res = math.exp(log_brevity_penalty + log_average_precision)
         return res
@@ -62,8 +63,8 @@ class BleuComputer(object):
     def bleu_plus_alpha(self, alpha=1.0):
         log_brevity_penalty = min(0, 1.0 - float(self.ref_length) / self.total_length)
         log_average_precision = 0.25 * (
-            sum(math.log(v + alpha) for v in self.ngrams_corrects.values()) -
-            sum(math.log(v + alpha) for v in self.ngrams_total.values())
+            sum(math.log(v + alpha) for v in six.itervalues(self.ngrams_corrects)) -
+            sum(math.log(v + alpha) for v in six.itervalues(self.ngrams_total))
         )
         res = math.exp(log_brevity_penalty + log_average_precision)
         return res
@@ -71,17 +72,17 @@ class BleuComputer(object):
     def update(self, reference, translation):
         self.ref_length += len(reference)
         self.total_length += len(translation)
-        for n in xrange(1, 5):
+        for n in six.moves.range(1, 5):
             reference_ngrams = defaultdict(int)
             translation_ngrams = defaultdict(int)
-            for start in xrange(0, len(reference) - n + 1):
+            for start in six.moves.range(0, len(reference) - n + 1):
                 ngram = tuple(reference[start: start + n])
                 reference_ngrams[ngram] += 1
-            for start in xrange(0, len(translation) - n + 1):
+            for start in six.moves.range(0, len(translation) - n + 1):
                 ngram = tuple(translation[start: start + n])
-#                 print ngram
+#                 print(ngram)
                 translation_ngrams[ngram] += 1
-            for ngram, translation_freq in translation_ngrams.iteritems():
+            for ngram, translation_freq in six.iteritems(translation_ngrams):
                 reference_freq = reference_ngrams[ngram]
                 self.ngrams_total[n] += translation_freq
                 if ngram in reference_ngrams:
@@ -92,7 +93,7 @@ class BleuComputer(object):
 
     def update_plus(self, diff):
         ngrams_corrects, ngrams_total, t_len, r_len = diff
-        for n in xrange(1, 5):
+        for n in six.moves.range(1, 5):
             self.ngrams_corrects[n] += ngrams_corrects[n]
             self.ngrams_total[n] += ngrams_total[n]
         self.ref_length += r_len
@@ -100,7 +101,7 @@ class BleuComputer(object):
 
     def update_minus(self, diff):
         ngrams_corrects, ngrams_total, t_len, r_len = diff
-        for n in xrange(1, 5):
+        for n in six.moves.range(1, 5):
             self.ngrams_corrects[n] -= ngrams_corrects[n]
             self.ngrams_total[n] -= ngrams_total[n]
             assert self.ngrams_corrects[n] >= 0
@@ -114,8 +115,8 @@ class BleuComputer(object):
     @staticmethod
     def compute_ngram_info(sentence):
         infos = defaultdict(int)
-        for n in xrange(1, 5):
-            for start in xrange(0, len(sentence) - n + 1):
+        for n in six.moves.range(1, 5):
+            for start in six.moves.range(0, len(sentence) - n + 1):
                 ngram = tuple(sentence[start: start + n])
                 infos[ngram] += 1
         return infos, len(sentence)
@@ -128,7 +129,7 @@ class BleuComputer(object):
         reference_ngrams, ref_len = reference_info
         translation_ngrams, t_len = translation_info
 
-        for ngram, translation_freq in translation_ngrams.iteritems():
+        for ngram, translation_freq in six.iteritems(translation_ngrams):
             n = len(ngram)
             reference_freq = reference_ngrams[ngram]
             ngrams_total[n] += translation_freq
@@ -144,17 +145,17 @@ class BleuComputer(object):
         ngrams_corrects = {1: 0, 2: 0, 3: 0, 4: 0}
         ngrams_total = {1: 0, 2: 0, 3: 0, 4: 0}
 
-        for n in xrange(1, 5):
+        for n in six.moves.range(1, 5):
             reference_ngrams = defaultdict(int)
             translation_ngrams = defaultdict(int)
-            for start in xrange(0, len(reference) - n + 1):
+            for start in six.moves.range(0, len(reference) - n + 1):
                 ngram = tuple(reference[start: start + n])
                 reference_ngrams[ngram] += 1
-            for start in xrange(0, len(translation) - n + 1):
+            for start in six.moves.range(0, len(translation) - n + 1):
                 ngram = tuple(translation[start: start + n])
-#                 print ngram
+#                 print(ngram)
                 translation_ngrams[ngram] += 1
-            for ngram, translation_freq in translation_ngrams.iteritems():
+            for ngram, translation_freq in six.iteritems(translation_ngrams):
                 reference_freq = reference_ngrams[ngram]
                 ngrams_total[n] += translation_freq
                 if ngram in reference_ngrams:
@@ -167,10 +168,10 @@ class BleuComputer(object):
 
 def sample_bleu(ref_fn, trans_fn):
     import numpy
-    ref_file = codecs.open(ref_fn, "r", encoding="utf8")
-    trans_file = codecs.open(trans_fn, "r", encoding="utf8")
+    ref_file = io.open(ref_fn, "rt", encoding="utf8")
+    trans_file = io.open(trans_fn, "rt", encoding="utf8")
     infos_list = []
-    for line_ref, line_trans in izip(ref_file, trans_file):
+    for line_ref, line_trans in six.moves.zip(ref_file, trans_file):
         r = line_ref.strip().split(" ")
         t = line_trans.strip().split(" ")
         infos_list.append(BleuComputer.compute_update_diff(r, t))
@@ -184,11 +185,11 @@ def sample_bleu(ref_fn, trans_fn):
 
 
 def get_bc_from_files(ref_fn, trans_fn):
-    ref_file = codecs.open(ref_fn, "r", encoding="utf8")
-    trans_file = codecs.open(trans_fn, "r", encoding="utf8")
+    ref_file = io.open(ref_fn, "rt", encoding="utf8")
+    trans_file = io.open(trans_fn, "rt", encoding="utf8")
 
     bc = BleuComputer()
-    for line_ref, line_trans in izip(ref_file, trans_file):
+    for line_ref, line_trans in six.moves.zip(ref_file, trans_file):
         r = line_ref.strip().split(" ")
         t = line_trans.strip().split(" ")
         bc.update(r, t)
@@ -206,15 +207,14 @@ def compute_confidence_interval_from_sampler(bleu_sampler, nb_resampling, confid
     lower = bleu_list[threshold_95]
     higher = bleu_list[-threshold_95 - 1]
     sampled_mean = sum(bleu_list) / nb_resampling
-#     print bleu_list[0], lower, higher, bleu_list[-1]
+#     print(bleu_list[0], lower, higher, bleu_list[-1])
     return lower, higher, sampled_mean
 
 
 def compute_pairwise_superiority_from_sampler_pair(bleu_sampler, other_bleu_sampler, nb_resampling):
     this = 0.0
     other = 0.0
-    for num_sample, (bc, bc_other) in enumerate(
-            izip(bleu_sampler, other_bleu_sampler)):
+    for num_sample, (bc, bc_other) in enumerate(six.moves.zip(bleu_sampler, other_bleu_sampler)):
         if num_sample >= nb_resampling:
             break
         this_bleu = bc.bleu()
@@ -236,7 +236,7 @@ def define_parser(parser):
 def do_bleu(args):
     if args.bootstrap is None:
         bc = get_bc_from_files(args.ref, args.translations)
-        print bc
+        print(bc)
     else:
         bleu_sampler = sample_bleu(args.ref, args.translations)
         lower, higher, sampled_mean = compute_confidence_interval_from_sampler(bleu_sampler,
@@ -244,8 +244,8 @@ def do_bleu(args):
                                                                                confidence_interval=0.95)
 
         bc = get_bc_from_files(args.ref, args.translations)
-        print bc
-        print "95%% confidence interval: %.02f - %.02f  (sampled mean:%.02f)" % (lower * 100, higher * 100, sampled_mean * 100)
+        print(bc)
+        print("95%% confidence interval: %.02f - %.02f  (sampled mean:%.02f)" % (lower * 100, higher * 100, sampled_mean * 100))
 
         if args.other_translation is not None:
             other_bleu_sampler = sample_bleu(args.ref, args.other_translation)
@@ -253,16 +253,16 @@ def do_bleu(args):
                                                                                    nb_resampling=args.bootstrap,
                                                                                    confidence_interval=0.95)
             bc = get_bc_from_files(args.ref, args.other_translation)
-            print "\nOther translation:"
-            print bc
-            print "95%% confidence interval: %.02f - %.02f  (sampled mean:%.02f)" % (lower * 100, higher * 100, sampled_mean * 100)
+            print("\nOther translation:")
+            print(bc)
+            print("95%% confidence interval: %.02f - %.02f  (sampled mean:%.02f)" % (lower * 100, higher * 100, sampled_mean * 100))
 
             this_better, other_better = compute_pairwise_superiority_from_sampler_pair(
                 bleu_sampler, other_bleu_sampler, nb_resampling=args.bootstrap)
 
             print
-            print "better than other:", this_better * 100, "% of times"
-            print "worse than other:", other_better * 100, "% of times"
+            print("better than other:", this_better * 100, "% of times")
+            print("worse than other:", other_better * 100, "% of times")
 
 
 def command_line():

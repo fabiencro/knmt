@@ -1,3 +1,4 @@
+from __future__ import absolute_import, division, print_function, unicode_literals
 import os.path
 import pytest
 
@@ -13,7 +14,7 @@ class TestCommandLine:
         test_data_dir = os.path.join(
             os.path.dirname(
                 os.path.abspath(__file__)),
-            "tests_data")
+            "../tests_data")
         train_dir = tmpdir.mkdir("train")
         data_prefix = str(train_dir.join("test1.data"))
         data_src_file = os.path.join(test_data_dir, "src2.txt")
@@ -26,7 +27,7 @@ class TestCommandLine:
         test_data_dir = os.path.join(
             os.path.dirname(
                 os.path.abspath(__file__)),
-            "tests_data")
+            "../tests_data")
         train_dir = tmpdir.mkdir("train")
         data_prefix = str(train_dir.join("test1.data"))
         train_prefix = str(train_dir.join("test1.train"))
@@ -51,7 +52,8 @@ class TestCommandLine:
         test_data_dir = os.path.join(
             os.path.dirname(
                 os.path.abspath(__file__)),
-            "tests_data")
+            "../tests_data")
+        print("test_data_dir={0}", format(test_data_dir))
         train_dir = tmpdir.mkdir("train")
         data_prefix = str(train_dir.join("test1.data"))
         train_prefix = str(train_dir.join("test1.train"))

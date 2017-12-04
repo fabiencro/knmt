@@ -1,9 +1,10 @@
+from __future__ import absolute_import, division, print_function, unicode_literals
+
 import logging
 
 logging.basicConfig()
 log = logging.getLogger("rnns:indexer")
 log.setLevel(logging.INFO)
-
 
 class Indexer(object):
 
