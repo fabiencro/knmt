@@ -1,8 +1,6 @@
 #!/usr/bin/env python -O
 # PYTHON_ARGCOMPLETE_OK
 
-from __future__ import absolute_import, division, print_function, unicode_literals
-
 import argparse
 import nmt_chainer.training_module.train_config as train
 import nmt_chainer.translation.eval_config as eval_module
@@ -29,24 +27,24 @@ def run_in_pdb(func, args):
             pdb.runcall(func, args)
             if pdb._user_requested_quit:
                 break
-            print("The program finished and will be restarted")
+            print "The program finished and will be restarted"
         except pdb_module.Restart:
-            print("Restarting with arguments:")
-            print("\t" + " ".join(sys.argv[1:]))
+            print "Restarting with arguments:"
+            print "\t" + " ".join(sys.argv[1:])
         except SystemExit:
             # In most cases SystemExit does not warrant a post-mortem session.
-            print("The program exited via sys.exit(). Exit status: ",)
-            print(sys.exc_info()[1])
+            print "The program exited via sys.exit(). Exit status: ",
+            print sys.exc_info()[1]
         except SyntaxError:
             traceback.print_exc()
             sys.exit(1)
         except BaseException:
             traceback.print_exc()
-            print("Uncaught exception. Entering post mortem debugging")
-            print("Running 'cont' or 'step' will restart the program")
+            print "Uncaught exception. Entering post mortem debugging"
+            print "Running 'cont' or 'step' will restart the program"
             t = sys.exc_info()[2]
             pdb.interaction(None, t)
-            print("Post mortem debugger finished. The program will be restarted")
+            print "Post mortem debugger finished. The program will be restarted"
 
 
 def main(arguments=None):

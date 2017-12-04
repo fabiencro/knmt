@@ -1,6 +1,5 @@
 #!/usr/bin/env python
 """decoder_cells.py: Implementation of RNNSearch in Chainer"""
-from __future__ import absolute_import, division, print_function, unicode_literals
 __author__ = "Fabien Cromieres"
 __license__ = "undecided"
 __version__ = "1.0"
@@ -14,20 +13,19 @@ from chainer import Link, Chain, ChainList
 import chainer.functions as F
 import chainer.links as L
 import random
-import sys
-import six
 
-from . import rnn_cells
+import rnn_cells
 from nmt_chainer.utilities.utils import ortho_init, minibatch_sampling
 
 from nmt_chainer.utilities.constant_batch_mul import batch_matmul_constant, matmul_constant
 
-from .attention import AttentionModule
+from attention import AttentionModule
 
 import logging
 logging.basicConfig()
 log = logging.getLogger("rnns:dec")
 log.setLevel(logging.INFO)
+
 
 class ConditionalizedDecoderCell(object):
     """
@@ -65,7 +63,7 @@ class ConditionalizedDecoderCell(object):
 
         if current_mb_size < len(previous_states[0].data):
             truncated_states = [None] * len(previous_states)
-            for num_state in six.moves.range(len(previous_states)):
+            for num_state in xrange(len(previous_states)):
                 truncated_states[num_state], _ = F.split_axis(
                     previous_states[num_state], (current_mb_size,), 0)
             previous_states = tuple(truncated_states)
@@ -178,7 +176,7 @@ def compute_loss_from_decoder_cell(cell, targets, use_previous_prediction=0,
 
     total_nb_predictions = 0
 
-    for i in six.moves.range(len(targets)):
+    for i in xrange(len(targets)):
         if keep_attn:
             attn_list.append(attn)
 
@@ -248,7 +246,7 @@ def sample_from_decoder_cell(cell, nb_steps, best=False, keep_attn_values=False,
         sequences = []
         attn_list = []
     
-        for _ in six.moves.range(nb_steps):
+        for _ in xrange(nb_steps):
             if keep_attn_values:
                 attn_list.append(attn)
     
@@ -266,7 +264,7 @@ def sample_from_decoder_cell(cell, nb_steps, best=False, keep_attn_values=False,
                     curr_idx = cuda.to_gpu(curr_idx.astype(np.int32))
                 else:
                     curr_idx = curr_idx.astype(np.int32)
-    #                 for i in six.moves.range(mb_size):
+    #                 for i in xrange(mb_size):
     #                     sampler = chainer.utils.WalkerAlias(probs_data[i])
     #                     curr_idx[i] =  sampler.sample(1)[0]
             if need_score:
@@ -312,8 +310,7 @@ class Decoder(Chain):
         #         elif cell_type == "slow_gru":
         #             gru = L.GRU(Ho, Eo + Hi)
 
-
-        if isinstance(cell_type, (str, six.text_type)):
+        if isinstance(cell_type, (str, unicode)):
             cell_type = rnn_cells.create_cell_model_from_string(cell_type)
 
         gru = cell_type(Eo + Hi, Ho)
