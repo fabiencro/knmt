@@ -29,7 +29,7 @@
 #
 #     def compute_valid():
 #         loss, attn = encdec(valid_src_batch, valid_tgt_batch, valid_src_mask)
-#         for i in range(len(attn)):
+#         for i in xrange(len(attn)):
 #             print attn[i].data[:, i]
 #             print "argmax", np.argmax(attn[i].data,1)
 #         print loss.data
@@ -39,7 +39,7 @@
 #         while 1:
 #             training_data_double = gen_data_double(20, 50, mb_size * nb_mb_for_sorting)
 #             training_data_double.sort(key = lambda x:len(x[1]))
-#             for num_batch in range(nb_mb_for_sorting):
+#             for num_batch in xrange(nb_mb_for_sorting):
 #                 mb_raw = training_data_double[num_batch * mb_size : num_batch*mb_size + mb_size]
 #                 src_batch, tgt_batch, src_mask = used_make_batch(mb_raw, gpu = gpu)
 #                 yield src_batch, tgt_batch, src_mask
@@ -63,7 +63,7 @@
 #         optimizer.update()
 #
 #     try:
-#         for i in range(10000):
+#         for i in xrange(10000):
 #             print i,
 #             train_once_random_data()
 #             if i%100 == 0:

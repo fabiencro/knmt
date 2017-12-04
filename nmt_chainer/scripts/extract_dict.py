@@ -1,9 +1,7 @@
-from __future__ import absolute_import, division, print_function, unicode_literals
 # from _dbus_bindings import Int32
 import logging
-import io 
+import codecs
 import exceptions
-import six
 from collections import defaultdict
 
 """extract_dict.py: Simple utility to extract a dictionary from aligned data"""
@@ -68,9 +66,9 @@ def read_one_align_info_from_file_object(f):
 
 
 def load_aligned_corpus(src_fn, tgt_fn, align_fn, skip_empty_align=True, invert_alignment_links=False):
-    src = io.open(src_fn, 'rt', encoding="utf8")
-    tgt = io.open(tgt_fn, 'rt', encoding="utf8")
-    align_f = io.open(align_fn, 'rt', encoding="utf8")
+    src = codecs.open(src_fn, encoding="utf8")
+    tgt = codecs.open(tgt_fn, encoding="utf8")
+    align_f = codecs.open(align_fn, encoding="utf8")
 
     num_sentence = 0
     while True:
@@ -118,8 +116,8 @@ def commandline():
             break
         if num % 1000 == 0:
             log.info("%i sentences processed" % num)
-        unaligned_pos_left = set(six.moves.range(len(sentence_src)))
-        unaligned_pos_right = set(six.moves.range(len(sentence_tgt)))
+        unaligned_pos_left = set(range(len(sentence_src)))
+        unaligned_pos_right = set(range(len(sentence_tgt)))
         for left, right in alignment:
             for spos in left:
                 if spos in unaligned_pos_left:
@@ -146,7 +144,7 @@ def commandline():
             if ws is None:
                 continue
             res[ws] = {}
-            sum_count = sum(six.itervalues(counter[ws]))
+            sum_count = sum(counter[ws].values())
             for wt in counter[ws]:
                 if wt is None:
                     continue
@@ -155,7 +153,7 @@ def commandline():
         log.info("selecting best")
         res = {}
         for ws in counter:
-            translations = six.iteritems(counter[ws])
+            translations = counter[ws].items()
             translations.sort(key=operator.itemgetter(1), reverse=True)
             res[ws] = translations[0][0]
 

@@ -1,6 +1,5 @@
 #!/usr/bin/env python
 """process_lattice.py: Use a RNNSearch Model"""
-from __future__ import absolute_import, division, print_function, unicode_literals
 __author__ = "Fabien Cromieres"
 __license__ = "undecided"
 __version__ = "1.0"
@@ -12,7 +11,6 @@ import numpy as np
 from chainer import cuda, serializers, Variable
 
 import models
-import six
 from make_data import Indexer, build_dataset_one_side
 # from utils import make_batch_src, make_batch_src_tgt, minibatch_provider, compute_bleu_with_unk_as_wrong, de_batch
 from evaluation import (greedy_batch_translate,
@@ -25,7 +23,7 @@ from evaluation import (greedy_batch_translate,
 from nmt_chainer.utilities import visualisation
 
 import logging
-import io
+import codecs
 # import h5py
 
 logging.basicConfig()
@@ -35,6 +33,7 @@ log.setLevel(logging.INFO)
 from collections import defaultdict
 import functools
 import re
+import codecs
 import sys
 import operator
 import itertools
@@ -190,7 +189,7 @@ class Lattice(object):
 
     def __str__(self):
         res = []
-        for v_start, edges in six.iteritems(self.outgoing):
+        for v_start, edges in self.outgoing.iteritems():
             if v_start == Lattice.kFinal:
                 assert len(edges) == 0
                 continue
@@ -338,7 +337,7 @@ class Lattice(object):
 #         if self.extremities_with_prefix_ is None:
 #             res = {}
 #             subres = self.path_list.extremities_with_prefix()
-#             for pos, pref in six.iteritems(subres):
+#             for pos, pref in subres.iteritems():
 #                 res[pos] = [self.prefix, pref]
 #             self.extremities_with_prefix_ = res
 #         return self.extremities_with_prefix_
@@ -362,7 +361,7 @@ class Lattice(object):
 #         if self.extremities_with_prefix_ is None:
 #             res = {}
 #             subres = self.path_list.extremities_with_prefix()
-#             for pos, pref in six.iteritems(subres):
+#             for pos, pref in subres.iteritems():
 #                 res[pos] = [self.prefix, pref]
 #             self.extremities_with_prefix_ = res
 #         return self.extremities_with_prefix_
@@ -374,7 +373,7 @@ class Lattice(object):
 #
 #
 # def merge_sub(current_lattice, res, sub_result, v_end, memoizer, lattice_map):
-#     for w, next_path_set in six.iteritems(sub_result):
+#     for w, next_path_set in sub_result.iteritems():
 #         assert w != Lattice.EPSILON
 # #         if w == Lattice.EPSILON:
 # #             continue
@@ -393,9 +392,9 @@ class Lattice(object):
 
 # def merge_in(res1, res2):
 # #     res1[w].append(res2)
-#     for w, next_path_set in six.iteritems(res2):
+#     for w, next_path_set in res2.iteritems():
 #         if res1[w].contains_elem(next_path_set):
-# #             print("double epsilon entry for", w)
+# #             print "double epsilon entry for", w
 #             pass
 #         else:
 #             res1[w].append(next_path_set)
@@ -536,7 +535,7 @@ class Node(object):
     def pos_iter(self):
         return (x for x in itertools.chain(
             iter(self.leaf_lst),
-            itertools.chain(six.itervalues(*self.inner_lst))) if x is not None)
+            itertools.chain(*self.inner_lst.itervalues())) if x is not None)
 
 #     def replace(self, elem, new_elems):
 #         assert elem.is_leaf()
@@ -565,7 +564,7 @@ class Node(object):
 #                 self.add_elem(new_e)
 
 #         found = False
-#         for i in six.moves.range(len(self.pos_lst[elem.p])):
+#         for i in xrange(len(self.pos_lst[elem.p])):
 #             existing = self.pos_lst[elem.p][i]
 #             if existing is None:
 #                 continue
@@ -601,7 +600,7 @@ class Node(object):
         else:
             found = False
             pos_lst = self.inner_lst[elem.p]
-            for i in six.moves.range(len(pos_lst)):
+            for i in xrange(len(pos_lst)):
                 existing = pos_lst[i]
                 if existing is None:
                     continue
@@ -625,7 +624,7 @@ class Node(object):
                 if pos_elem.is_leaf():
                     position = (self.lattice_id, pos_elem.p)
                     next_result = next_words_simple_pos3(position, global_memoizer, lattice_map)
-                    for w, sub_node in six.iteritems(next_result):
+                    for w, sub_node in next_result.iteritems():
                         res[w][id(self)] += sub_node.count_unique_leaves()  # res.get(w, 0) + sub_node.count_unique_leaves() #count_paths(global_count_memoizer)
                 else:
                     sub_res = pos_elem.child_node.get_next_w(
@@ -649,7 +648,7 @@ class Node(object):
             if pos_elem.is_leaf():
                 position = (self.lattice_id, pos_elem.p)
                 next_result = next_words_simple_pos3(position, global_memoizer, lattice_map).get(w, None)
-#                 print("next_result", self, pos_elem, w, str(next_result))
+#                 print "next_result", self, pos_elem, w, str(next_result)
                 if next_result is not None:
                     #                     next_result = copy.deepcopy(next_result)
                     #                     self.replace(pos_elem, next_result)
@@ -695,7 +694,7 @@ class Node(object):
             if pos_elem.is_leaf():
                 position = (self.lattice_id, pos_elem.p)
                 next_result = next_words_simple_pos3(position, global_memoizer, lattice_map).get(w, None)
-#                 print("next_result", self, pos_elem, w, str(next_result))
+#                 print "next_result", self, pos_elem, w, str(next_result)
                 if next_result is not None:
                     #                     next_result = copy.deepcopy(next_result)
                     #                     self.replace(pos_elem, next_result)
@@ -735,15 +734,15 @@ class Node(object):
             return
         else:
             local_memoizer.add(id(self))
-#         print("remove_final for", id(self))
+#         print "remove_final for", id(self)
         for elem in list(self.pos_iter()):
             if elem.is_final() or elem.is_empty():
-                #                 print("remove_final", elem)
+                #                 print "remove_final", elem
                 self.remove(elem)
             elif not elem.is_leaf():
                 elem.child_node._remove_final_pos(local_memoizer)
                 if elem.is_empty():
-                    #                     print("remove_final 2", elem)
+                    #                     print "remove_final 2", elem
                     self.remove(elem)
 
     def reduce(self):
@@ -770,7 +769,7 @@ def next_words_simple_pos3(position, memoizer, lattice_map):
                 pos_sublattice = (edge.sublattice_id, Lattice.kInitial)
                 sub_result = next_words_simple_pos3(pos_sublattice, memoizer, lattice_map)  # new_pos.next_words_simple(memoizer)
 #                 merge_sub(current_lattice, res, sub_result, edge.v_end, memoizer, lattice_map)
-                for w, next_node in six.iteritems(sub_result):
+                for w, next_node in sub_result.iteritems():
                     pos_elem = PosElem(edge.v_end, next_node)
                     res[w].add_elem(pos_elem)
             elif edge.type == "E":
@@ -782,8 +781,8 @@ def next_words_simple_pos3(position, memoizer, lattice_map):
                 assert False
         assert len(res) > 0, position
         memoizer[position] = res
-#         print("updated position", position, len(res), len(memoizer))
-    #     print("updated memoizer", len(memoizer), lattice_num, vertex)
+#         print "updated position", position, len(res), len(memoizer)
+    #     print "updated memoizer", len(memoizer), lattice_num, vertex
     return memoizer[position]
 
 # def next_words_simple_pos2(position, memoizer, lattice_map):
@@ -811,8 +810,8 @@ def next_words_simple_pos3(position, memoizer, lattice_map):
 #                 assert False
 #         assert len(res) > 0, position
 #         memoizer[position] = res
-#         print("updated position", position, len(res), len(memoizer))
-#     #     print("updated memoizer", len(memoizer), lattice_num, vertex)
+#         print "updated position", position, len(res), len(memoizer)
+#     #     print "updated memoizer", len(memoizer), lattice_num, vertex
 #     return memoizer[position]
 
 
@@ -964,7 +963,7 @@ def command_line2():
     Vi = len(src_indexer)  # + UNK
     Vo = len(tgt_indexer)  # + UNK
 
-    print(config_training)
+    print config_training
 
     Ei = config_training["command_line"]["Ei"]
     Hi = config_training["command_line"]["Hi"]
@@ -982,8 +981,8 @@ def command_line2():
     if args.gpu is not None:
         encdec = encdec.to_gpu(args.gpu)
 
-    src_sent_f = io.open(args.source_sentence_fn, 'rt', encoding="utf8")
-    for _ in six.moves.range(args.skip_in_src):
+    src_sent_f = codecs.open(args.source_sentence_fn, encoding="utf8")
+    for _ in xrange(args.skip_in_src):
         src_sent_f.readline()
     src_sentence = src_sent_f.readline().strip().split(" ")
     log.info("translating sentence %s" % (" ".join(src_sentence)))
@@ -991,7 +990,7 @@ def command_line2():
     log.info("src seq: %r" % src_seq)
 
     log.info("loading lattice %s" % args.lattice_fn)
-    lattice_f = io.open(args.lattice_fn, "rt", encoding="utf8")
+    lattice_f = codecs.open(args.lattice_fn, "r", encoding="utf8")
     all_edges = parse_lattice_file(lattice_f)
     log.info("loaded")
 
@@ -1004,10 +1003,10 @@ def command_line2():
 
     log.info("removing epsilons")
     log.info("nb edges before %i" % sum(
-        len(edge_list) for lattice in lattice_map for edge_list in six.itervalues(lattice.outgoing))
+        len(edge_list) for lattice in lattice_map for edge_list in lattice.outgoing.itervalues()))
     remove_all_epsilons(lattice_map)
     log.info("nb edges before %i" % sum(
-        len(edge_list) for lattice in lattice_map for edge_list in six.itervalues(lattice.outgoing))
+        len(edge_list) for lattice in lattice_map for edge_list in lattice.outgoing.itervalues()))
 
     if args.gpu is not None:
         seq_as_batch = [Variable(cuda.to_gpu(np.array([x], dtype=np.int32), args.gpu), volatile="on") for x in src_seq]
@@ -1022,29 +1021,29 @@ def command_line2():
     current_path = initial_node
     selected_seq = []
     while True:
-        print("#node current_path", current_path.count_distincts_subnodes())
+        print "#node current_path", current_path.count_distincts_subnodes()
         current_path.assert_is_reduced_and_consistent()
         next_words_set = current_path.get_next_w(
             lattice_map, global_memoizer, global_count_memoizer)
         for w in next_words_set:
-            next_words_set[w] = sum(six.itervalues(next_words_set[w]))
+            next_words_set[w] = sum(next_words_set[w].itervalues())
         has_eos = Lattice.EOS in next_words_set
         next_words_list = sorted(
             list(w for w in next_words_set if w != Lattice.EOS))
-        print("next_words_set", next_words_set)
+        print "next_words_set", next_words_set
         voc_choice = tgt_indexer.convert(next_words_list)
         if has_eos:
             voc_choice.append(eos_idx)
         chosen = predictor(voc_choice)
 
         if chosen != eos_idx and tgt_indexer.is_unk_idx(chosen):
-            print("warning: unk chosen")
+            print "warning: unk chosen"
             unk_list = []
             for ix, t_idx in enumerate(voc_choice):
                 if tgt_indexer.is_unk_idx(t_idx):
                     unk_list.append((next_words_set[next_words_list[ix]], next_words_list[ix]))
             unk_list.sort(reverse=True)
-            print("UNK:", unk_list)
+            print "UNK:", unk_list
             selected_w = unk_list[0][1]
         else:
             idx_chosen = voc_choice.index(chosen)  # TODO: better handling when several tgt candidates map to UNK
@@ -1052,21 +1051,21 @@ def command_line2():
             selected_w = (next_words_list + [Lattice.EOS])[idx_chosen]
 
 #         for num_word, word in enumerate(next_words_list):
-#             print(num_word, word)
-#         print("selected_seq", selected_seq)
+#             print num_word, word
+#         print "selected_seq", selected_seq
 #         i = int(raw_input("choice\n"))
 #         selected_w = next_words_list[i]
 #
 
         selected_seq.append(selected_w)
-        print("selected_seq", selected_seq)
+        print "selected_seq", selected_seq
 
         current_path.update_better(selected_w, lattice_map, global_memoizer)
         current_path.reduce()
         if current_path.is_empty_node():
-            print("DONE")
+            print "DONE"
             break
-    print("final seq:", selected_seq)
+    print "final seq:", selected_seq
 
 
 def build_word_tree(lattice_map, top_lattice_id):
@@ -1076,20 +1075,20 @@ def build_word_tree(lattice_map, top_lattice_id):
     initial_node.add_elem(PosElem(Lattice.kInitial))
 
     def build_word_tree_rec(current_path):
-        print("bwt", repr(current_path), str(current_path), current_path.count_distincts_subnodes())
+        print "bwt", repr(current_path), str(current_path), current_path.count_distincts_subnodes()
         current_path.assert_is_reduced_and_consistent()
         next_words_set = current_path.get_next_w(
             lattice_map, global_count_memoizer, global_memoizer)
-        print(next_words_set)
+        print next_words_set
         res = []
         for w in next_words_set:
             current_path_copy = copy.deepcopy(current_path)
-# print(str(current_path_copy),)
+# print str(current_path_copy),
 # current_path_copy.count_distincts_subnodes()
             current_path_copy.update_better(w, lattice_map, global_memoizer)
-#             print(" -> ", w, " ->", str(current_path_copy),)
+#             print " -> ", w, " ->", str(current_path_copy),
             current_path_copy.reduce()
-#             print(" -> reduced ->", str(current_path_copy))
+#             print " -> reduced ->", str(current_path_copy)
             if not current_path_copy.is_empty_node():
                 sub_word_tree = build_word_tree_rec(current_path_copy)
                 res.append({0: w, 1: sub_word_tree})
@@ -1108,33 +1107,33 @@ def commandline():
 
     args = parser.parse_args()
 
-    lattice_f = io.open(args.lattice_fn, "rt", encoding="utf8")
+    lattice_f = codecs.open(args.lattice_fn, "r", encoding="utf8")
 
-    print("loading", args.lattice_fn)
+    print "loading", args.lattice_fn
     all_edges = parse_lattice_file(lattice_f)
 
-    print("loaded")
+    print "loaded"
 
     lattice_map = [None] * len(all_edges)
     for num_lattice, edge_list in enumerate(all_edges):
         lattice_map[num_lattice] = Lattice(edge_list)
         top_lattice_id = num_lattice
 
-    print("built lattices")
+    print "built lattices"
 
-    print("removing epsilons")
-    print("nb edges before", sum(len(edge_list) for lattice in lattice_map for edge_list in six.itervalues(lattice.outgoing)))
+    print "removing epsilons"
+    print "nb edges before", sum(len(edge_list) for lattice in lattice_map for edge_list in lattice.outgoing.itervalues())
     remove_all_epsilons(lattice_map)
-    print("nb edges after", sum(len(edge_list) for lattice in lattice_map for edge_list in six.itervalues(lattice.outgoing)))
+    print "nb edges after", sum(len(edge_list) for lattice in lattice_map for edge_list in lattice.outgoing.itervalues())
 
 #     pos0 = Path.make_initial(top_lattice_id, lattice_map)
 #
-#     print(pos0)
+#     print pos0
 #
 #     if 0:
 #         memoize_simple = {}
 #         wordset = next_words_simple(top_lattice_id, Lattice.kInitial, memoize_simple)
-#         print(wordset)
+#         print wordset
 #         sys.exit(0)
 
     if 1:
@@ -1149,17 +1148,17 @@ def commandline():
                 lattice_map, global_memoizer)
             next_words_list = sorted(list(next_words_set))
             for num_word, word in enumerate(next_words_list):
-                print(num_word, word)
-            print("selected_seq", selected_seq)
+                print num_word, word
+            print "selected_seq", selected_seq
             i = int(raw_input("choice\n"))
             selected_w = next_words_list[i]
             selected_seq.append(selected_w)
             current_path.update(selected_w, lattice_map, global_memoizer)
             current_path.reduce()
             if current_path.is_empty_node():
-                print("DONE")
+                print "DONE"
                 break
-        print("final seq:", selected_seq)
+        print "final seq:", selected_seq
 #     if 0:
 # #         import operator
 #         memoize_simple = {}
@@ -1167,7 +1166,7 @@ def commandline():
 #         selected_seq = []
 #         current_path = None
 #         while 1:
-#             print(position)
+#             print position
 #             next_dict = next_words_simple_pos2(position, memoize_simple, lattice_map)
 #
 #
@@ -1180,20 +1179,20 @@ def commandline():
 # #                 del next_dict[Lattice.EPSILON]
 # #                 upper_pos, levels = current_path.return_popped_reduced_extremity()
 # #                 upper_dict = next_words_simple_pos2(upper_pos, memoize_simple, lattice_map)
-# #                 for upper_w, upper_next_pos in six.iteritems(upper_dict):
+# #                 for upper_w, upper_next_pos in upper_dict.iteritems():
 # #                     if upper_w in next_dict:
 # #                         next_dict[upper_w].append(FactoredLevelPath(1, upper_next_pos))
 # #                     else:
 # #                         next_dict[upper_w] = FactoredLevelPath(1, upper_next_pos)
 #             wmap = []
-#             for idx, (w, next_pos) in enumerate(sorted(six.iteritems(next_dict), key = lambda x:x[1].count())):
-#                 print(idx, w, next_pos.count(), next_pos.extremities())
-#                 print(len(next_pos.extremities_with_prefix()))
-# #                 print(next_pos.extract_one())
+#             for idx, (w, next_pos) in enumerate(sorted(next_dict.items(), key = lambda x:x[1].count())):
+#                 print idx, w, next_pos.count(), next_pos.extremities()
+#                 print len(next_pos.extremities_with_prefix())
+# #                 print next_pos.extract_one()
 #                 print
 #                 wmap.append(w)
-#             print("selected_seq", selected_seq)
-#             print("current_path", current_path)
+#             print "selected_seq", selected_seq
+#             print "current_path", current_path
 #             i = int(raw_input("choice\n"))
 # #             if wmap[i] == Lattice.EPSILON:
 # #                 assert next_dict[wmap[i]].count() == 0
@@ -1207,25 +1206,25 @@ def commandline():
 #                 current_path = current_path + subpath
 #             current_path.reduce()
 #             if current_path.is_empty():
-#                 print("DONE")
+#                 print "DONE"
 #                 break
 #             position = current_path.extremity()
 # #             if current_path is None:
 # #                 subpath = subpath.copy()
 # #             else:
 #
-# #             print(next_dict[wmap[i]].extremities_with_prefix()[0])
+# #             print next_dict[wmap[i]].extremities_with_prefix()[0]
 # #             position = next(iter(next_dict[wmap[i]].extremities()))
 #             selected_seq.append(wmap[i])
 #         sys.exit(0)
 #     if 0:
 #         memoize = {}
 #         while 1:
-#             print(pos0)
+#             print pos0
 #
 #             nexts = list(pos0.next_words(memoize))
 #             for i, next_pos in enumerate(nexts):
-#                 print(i, next_pos[0])
+#                 print i, next_pos[0]
 #             i = int(raw_input("choice"))
 #             pos0 = nexts[i][1]
 
@@ -1274,32 +1273,32 @@ END""".split("\n")
 
     all_edges = parse_lattice_file(latt_desc)
 
-    print("loaded")
+    print "loaded"
 
     lattice_map = [None] * len(all_edges)
     for num_lattice, edge_list in enumerate(all_edges):
         lattice_map[num_lattice] = Lattice(edge_list)
         top_lattice_id = num_lattice
 
-    print("built lattices")
+    print "built lattices"
 
-    print("removing epsilons")
-    print("nb edges before", sum(len(edge_list) for lattice in lattice_map for edge_list in six.itervalues(lattice.outgoing)))
+    print "removing epsilons"
+    print "nb edges before", sum(len(edge_list) for lattice in lattice_map for edge_list in lattice.outgoing.itervalues())
     is_epsilonpotent = remove_all_epsilons(lattice_map)
-    print("is_epsilonpotent", is_epsilonpotent)
-    print("nb edges after", sum(len(edge_list) for lattice in lattice_map for edge_list in six.itervalues(lattice.outgoing)))
+    print "is_epsilonpotent", is_epsilonpotent
+    print "nb edges after", sum(len(edge_list) for lattice in lattice_map for edge_list in lattice.outgoing.itervalues())
     for num_lattice, lattice in enumerate(lattice_map):
         remove_unreachable(lattice)
-    print("nb edges after removing unreachable", sum(len(edge_list) for lattice in lattice_map for edge_list in six.itervalues(lattice.outgoing)))
+    print "nb edges after removing unreachable", sum(len(edge_list) for lattice in lattice_map for edge_list in lattice.outgoing.itervalues())
 
     for num_lattice, lattice in enumerate(lattice_map):
-        print("L:", num_lattice)
-        print(str(lattice))
+        print "L:", num_lattice
+        print str(lattice)
 
     word_tree = build_word_tree(lattice_map, top_lattice_id)
     import pprint
     pp = pprint.PrettyPrinter(indent=2)
-    print(json.dumps(word_tree, indent=4))
+    print json.dumps(word_tree, indent=4)
 
 
 if __name__ == '__main__':

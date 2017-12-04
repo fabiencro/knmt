@@ -1,6 +1,3 @@
-#!/usr/bin/env python
-from __future__ import absolute_import, division, print_function, unicode_literals
-
 import numpy
 import six
 
@@ -363,4 +360,5 @@ class LNStatelessLSTM(link.Chain):
         c_next, ungated_h, o_gate = lstm_with_ungated_output(c, lstm_in)
         h = o_gate * self.output_ln(ungated_h)
         return c_next, h
+    
     

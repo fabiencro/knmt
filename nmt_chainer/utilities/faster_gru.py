@@ -1,4 +1,3 @@
-from __future__ import absolute_import, division, print_function, unicode_literals
 import numpy
 
 import chainer
@@ -11,7 +10,6 @@ from chainer.links.connection import linear
 from chainer import cuda
 from chainer import function
 from chainer.utils import type_check
-import six
 
 if cuda.cudnn_enabled:
     cudnn = cuda.cudnn
@@ -455,17 +453,17 @@ def test_correctness(args):
     with chainer.function_hooks.PrintHook():
         with chainer.function_hooks.TimerHook() as m:
             st_classic = gru_classic(st_v, x_v)
-            print(m)
+            print m
             print(m.total_time())
-            print(sorted(m.call_history, key=operator.itemgetter(1)))
+            print sorted(m.call_history, key=operator.itemgetter(1))
 
         with chainer.function_hooks.TimerHook() as m:
             my_st = my_gru.faster_call2(st_v2, x_v2)
-            print(m)
+            print m
             print(m.total_time())
-            print(sorted(m.call_history, key=operator.itemgetter(1)))
+            print sorted(m.call_history, key=operator.itemgetter(1))
 
-    print(np.max(np.abs(cuda.to_cpu(my_st.data - st_classic.data))))
+    print np.max(np.abs(cuda.to_cpu(my_st.data - st_classic.data)))
     gradient_check.assert_allclose(my_st.data, st_classic.data)
 
     my_st.grad = grad_output
@@ -526,15 +524,15 @@ def test_perf(args):
         x = cuda.to_gpu(x, args.gpu)
         st = cuda.to_gpu(st, args.gpu)
 
-    print("start")
-    for _ in six.moves.range(300):
+    print "start"
+    for _ in xrange(300):
         x_v = Variable(x)
         st_v = Variable(st)
-        for _ in six.moves.range(20):
+        for _ in xrange(20):
             st_v = gru(st_v, x_v)
         loss = chainer.functions.sum(st_v)
         loss.backward()
-    print("done")
+    print "done"
 
 
 def test2():
@@ -569,8 +567,8 @@ def test2():
     r2 = gru_model.faster_call(st_v, x_v)
     r3 = gru_model.faster_call2(st_v, x_v)
 
-    print(r2.data - r2.data)
-    print(r3.data - r3.data)
+    print r2.data - r2.data
+    print r3.data - r3.data
 
     from chainer import gradient_check
 
@@ -582,8 +580,8 @@ def test2():
         return (gru_model.faster_call(st_v, x_v).data,)
 
     g_st, g_x = gradient_check.numerical_grad(f, (st_v.data, x_v.data), (r3.grad,))
-    print(np.max(np.abs(g_st - st_v.grad)))
-    print(np.max(np.abs(g_x - x_v.grad)))
+    print np.max(np.abs(g_st - st_v.grad))
+    print np.max(np.abs(g_x - x_v.grad))
     gradient_check.assert_allclose(g_st, st_v.grad, atol=1e-3)
     gradient_check.assert_allclose(g_x, x_v.grad, atol=1e-3)
 

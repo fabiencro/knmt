@@ -1,9 +1,7 @@
 """train_config.py: Parse training arguments and create config dictionnary."""
-from __future__ import absolute_import, division, print_function, unicode_literals
 
 import logging
 import sys
-import six
 
 from nmt_chainer.utilities import argument_parsing_tools
 
@@ -132,7 +130,7 @@ class CommandLineValuesException(Exception):
 
 
 def get_parse_option_orderer():
-    description_to_config_section = dict((v, k) for (k, v) in six.iteritems(_CONFIG_SECTION_TO_DESCRIPTION))
+    description_to_config_section = dict((v, k) for (k, v) in _CONFIG_SECTION_TO_DESCRIPTION.iteritems())
     por = argument_parsing_tools.ParseOptionRecorder(group_title_to_section=description_to_config_section,
                                                      ignore_positional_arguments=set(["save_prefix", "data_prefix"]))
     define_parser(por)
@@ -210,7 +208,7 @@ def make_config_from_args(args, readonly=True):
             for option_name in args.set_false_in_config:
                 path_option = option_name.split(".")
                 last_dict = config_base
-                for level in six.moves.range(len(path_option) -1):
+                for level in range(len(path_option) -1):
                     last_dict = config_base[path_option[level]]
                 last_dict[path_option[-1]] = False
             
@@ -227,7 +225,7 @@ def make_config_from_args(args, readonly=True):
             if getattr(args, argname) is None:
                 args_given_set.remove(argname)
 
-        print("args_given_set", args_given_set)
+        print "args_given_set", args_given_set
         config_base.update_recursive(config_training, valid_keys=args_given_set, add_absent_keys=args.update_old_config_file_with_default_values)
         config_training = config_base
     else:

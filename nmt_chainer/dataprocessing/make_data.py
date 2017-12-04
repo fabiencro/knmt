@@ -1,8 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 """make_data.py: prepare data for training"""
-from __future__ import absolute_import, division, print_function, unicode_literals
-
 import nmt_chainer
 __author__ = "Fabien Cromieres"
 __license__ = "undecided"
@@ -12,6 +10,7 @@ __status__ = "Development"
 
 import collections
 import logging
+import codecs
 import json
 import operator
 import os.path
@@ -58,7 +57,7 @@ def do_make_data(config):
         if os.path.exists(filename):
             already_existing_files.append(filename)
     if len(already_existing_files) > 0 and not config.processing.force_overwrite:
-        print("Warning: existing files are going to be replaced: ", already_existing_files)
+        print "Warning: existing files are going to be replaced: ", already_existing_files
         raw_input("Press Enter to Continue")
 
     if config.processing.use_voc is not None:
@@ -163,5 +162,5 @@ def do_make_data(config):
     if dev_data is not None:
         data_all["dev"] = dev_data
 
-    with gzip.open(data_fn, "w") as output_file:
-        output_file.write(json.dumps(data_all, indent=2, separators=(',', ': ')).encode('utf-8'))
+    json.dump(data_all, gzip.open(data_fn, "wb"),
+              indent=2, separators=(',', ': '))
