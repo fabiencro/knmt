@@ -1,3 +1,5 @@
+from __future__ import absolute_import, division, print_function, unicode_literals
+
 from collections import OrderedDict
 import nmt_chainer.utilities.argument_parsing_tools
 
@@ -27,7 +29,8 @@ cell_description_keywords = OrderedDict([
     ("lateral_init_fillvalue", float),
     ("upward_init_fillvalue", float),
     ("bias_init_fillvalue", float),
-    ("forget_bias_init_fillvalue", float)
+    ("forget_bias_init_fillvalue", float),
+    ("layer_normalization", int)
 ])
 
 

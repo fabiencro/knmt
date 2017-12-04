@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 """encoders.py: Implementation of RNNSearch in Chainer"""
+from __future__ import absolute_import, division, print_function, unicode_literals
 __author__ = "Fabien Cromieres"
 __license__ = "undecided"
 __version__ = "1.0"
@@ -11,8 +12,9 @@ from chainer import cuda, Variable
 from chainer import Link, Chain, ChainList
 import chainer.functions as F
 import chainer.links as L
+import six
 
-import rnn_cells
+from . import rnn_cells
 
 from nmt_chainer.utilities.utils import ortho_init
 
@@ -62,39 +64,38 @@ class EncoderNSteps(Chain):
         )
         self.Hi = Hi
 
-    def __call__(self, sequence, mask, mode="test"):
-        assert mode in "test train".split()
+    def __call__(self, sequence, mask):
 
         mb_size = sequence[0].data.shape[0]
         max_length_size = len(sequence)
 
         seq_length = [None] * mb_size
-        for num_seq in range(mb_size):
-            seq_length[num_seq] = len(sequence) - sum(not mask[i][num_seq] for i in range(len(mask)))
+        for num_seq in six.moves.range(mb_size):
+            seq_length[num_seq] = len(sequence) - sum(not mask[i][num_seq] for i in six.moves.range(len(mask)))
 
         de_batched_seq = []
-        for num_seq in range(mb_size):
+        for num_seq in six.moves.range(mb_size):
             de_batched_seq.append(self.xp.empty((seq_length[num_seq],), dtype=self.xp.int32))
-            for i in xrange(seq_length[num_seq]):
+            for i in six.moves.range(seq_length[num_seq]):
                 de_batched_seq[-1][i] = sequence[i].data[num_seq]
-            de_batched_seq[-1] = Variable(de_batched_seq[-1], volatile="auto")
+            de_batched_seq[-1] = Variable(de_batched_seq[-1])
 
         embedded_seq = []
         for elem in de_batched_seq:
             embedded_seq.append(self.emb(elem))
 
-        hx, cx, forward_seq = self.gru_f.apply_to_seq(embedded_seq, mode=mode)
+        hx, cx, forward_seq = self.gru_f.apply_to_seq(embedded_seq)
 
         reversed_embedded_seq = []
         for elem in de_batched_seq:
             reversed_embedded_seq.append(self.emb(elem[::-1]))
 
-        hxb, cxb, backward_seq = self.gru_b.apply_to_seq(reversed_embedded_seq, mode=mode)
+        hxb, cxb, backward_seq = self.gru_b.apply_to_seq(reversed_embedded_seq)
 
         assert len(backward_seq) == len(forward_seq) == mb_size
 
         res = []
-        for num_seq in xrange(mb_size):
+        for num_seq in six.moves.range(mb_size):
             assert backward_seq[num_seq].data.shape[0] == forward_seq[num_seq].data.shape[0]
             fb_concatenated = F.concat(
                 (forward_seq[num_seq], backward_seq[num_seq][::-1]), 1)
@@ -148,9 +149,14 @@ class Encoder(Chain):
             ortho_init(self.gru_f)
             ortho_init(self.gru_b)
 
-    def __call__(self, sequence, mask, mode="test"):
-        assert mode in "test train".split()
+    def initialize_embeddings(self, emb_vectors, no_unk=False):
+        log.info("initializing with precomputed source embeddings")
+        if no_unk:
+            self.emb.W.data[:-1,:] = emb_vectors
+        else:
+            self.emb.W.data[:,:] = emb_vectors
 
+    def __call__(self, sequence, mask):
         mb_size = sequence[0].data.shape[0]
 
         mb_initial_states_f = self.gru_f.get_initial_states(mb_size)
@@ -163,7 +169,7 @@ class Encoder(Chain):
         prev_states = mb_initial_states_f
         forward_seq = []
         for i, x in enumerate(embedded_seq):
-            prev_states = self.gru_f(prev_states, x, mode=mode)
+            prev_states = self.gru_f(prev_states, x)
             output = prev_states[-1]
             forward_seq.append(output)
 
@@ -177,18 +183,18 @@ class Encoder(Chain):
         backward_seq = []
         for pos, x in reversed(list(enumerate(embedded_seq))):
             if pos < mask_offset:
-                prev_states = self.gru_b(prev_states, x, mode=mode)
+                prev_states = self.gru_b(prev_states, x)
                 output = prev_states[-1]
             else:
                 reshaped_mask = F.broadcast_to(
                     Variable(self.xp.reshape(mask[pos - mask_offset],
-                                             (mb_size, 1)), volatile="auto"), (mb_size, self.Hi))
+                                             (mb_size, 1))), (mb_size, self.Hi))
 
-                prev_states = self.gru_b(prev_states, x, mode=mode)
+                prev_states = self.gru_b(prev_states, x)
                 output = prev_states[-1]
 
                 masked_prev_states = [None] * len(prev_states)
-                for num_state in xrange(len(prev_states)):
+                for num_state in six.moves.range(len(prev_states)):
                     masked_prev_states[num_state] = F.where(reshaped_mask,
                                                             prev_states[num_state], mb_initial_states_b[num_state])  # TODO: optimize?
                 prev_states = tuple(masked_prev_states)
@@ -198,7 +204,7 @@ class Encoder(Chain):
 
         assert len(backward_seq) == len(forward_seq)
         res = []
-        for xf, xb in zip(forward_seq, reversed(backward_seq)):
+        for xf, xb in list(six.moves.zip(forward_seq, reversed(backward_seq))):
             res.append(F.reshape(F.concat((xf, xb), 1), (-1, 1, 2 * self.Hi)))
 
         return F.concat(res, 1)

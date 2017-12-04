@@ -1,5 +1,8 @@
+from __future__ import absolute_import, division, print_function, unicode_literals
+
 from nmt_chainer.utilities import argument_parsing_tools
 import logging
+import six
 
 logging.basicConfig()
 log = logging.getLogger("rnns:make_data_config")
@@ -69,6 +72,8 @@ def define_parser(parser):
 
     processing_group.add_argument("--latin_type", choices="all_adjoint caps_isolate".split(), default="all_adjoint", help="choose preprocessing for latin scripts to source")
 
+    processing_group.add_argument("--source_char_conversion", help="give file containing target char equivalent to source")
+
     processing_group.add_argument("--force_overwrite", default=False, action="store_true", help="Do not ask before overwiting existing files")
 
 
@@ -95,7 +100,7 @@ def cmdline(arguments=None):
 
 
 def get_parse_option_orderer():
-    description_to_config_section = dict((v, k) for (k, v) in _CONFIG_SECTION_TO_DESCRIPTION.iteritems())
+    description_to_config_section = dict((v, k) for (k, v) in six.iteritems(_CONFIG_SECTION_TO_DESCRIPTION))
     por = argument_parsing_tools.ParseOptionRecorder(group_title_to_section=description_to_config_section,
                                                      ignore_positional_arguments=set(["save_prefix", "data_prefix"]))
     define_parser(por)

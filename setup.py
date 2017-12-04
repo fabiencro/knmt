@@ -55,7 +55,8 @@ def write_build_info():
     try:
         git_diff = subprocess.check_output(['git', 'diff'],
                                            cwd=module_dir,
-                                           stderr=subprocess.STDOUT)
+                                           stderr=subprocess.STDOUT,
+                                           universal_newlines=True)
     except BaseException:
         git_diff = '**Could not retrieve git-diff**'
 
@@ -110,5 +111,6 @@ setup(name='knmt',
       #           ]
       #                      },
 
-      install_requires=['numpy>=1.10.0', 'chainer>=1.18.0,<2.0.0', 'bokeh', 'plotly']
+
+      install_requires=['numpy>=1.10.0', 'chainer>=2.0.0', 'bokeh', 'plotly']
       )

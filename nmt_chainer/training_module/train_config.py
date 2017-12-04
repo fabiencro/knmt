@@ -1,7 +1,9 @@
 """train_config.py: Parse training arguments and create config dictionnary."""
+from __future__ import absolute_import, division, print_function, unicode_literals
 
 import logging
 import sys
+import six
 
 from nmt_chainer.utilities import argument_parsing_tools
 
@@ -38,7 +40,19 @@ def define_parser(parser):
     model_description_group.add_argument("--init_orth", default=False, action="store_true")
     model_description_group.add_argument("--use_bn_length", default=0, type=int)
     model_description_group.add_argument("--use_goto_attention", default=False, action="store_true")
-
+    
+    model_description_group.add_argument("--use_ff_model", default=False, action="store_true")
+    model_description_group.add_argument("--ff_d_model", type=int, default=512, help="FF model d_model")
+    model_description_group.add_argument("--ff_n_heads", type=int, default=8, help="FF model number of attention heads")
+    model_description_group.add_argument("--ff_nb_layers_src", type=int, default=6, help="FF model number of source layers")
+    model_description_group.add_argument("--ff_nb_layers_tgt", type=int, default=6, help="FF model number of target layers")
+    model_description_group.add_argument("--ff_dropout", type=float, help="FF model dropout")
+    model_description_group.add_argument("--ff_d_ff", type=int, default=2048, help="FF model d_ff")
+    model_description_group.add_argument("--ff_use_exp_relu", default=False, action="store_true")
+    model_description_group.add_argument("--ff_residual_mode", default="normal", choices="normal none after".split())
+    model_description_group.add_argument("--ff_no_normalize", default=False, action="store_true")
+    model_description_group.add_argument("--use_own_layer_normalization", default=False, action="store_true")
+    
     training_paramenters_group = parser.add_argument_group(_CONFIG_SECTION_TO_DESCRIPTION["training"])
     training_paramenters_group.add_argument("--mb_size", type=int, default=64, help="Minibatch size")
     training_paramenters_group.add_argument("--nb_batch_to_sort", type=int, default=20, help="Sort this many batches by size.")
@@ -47,7 +61,7 @@ def define_parser(parser):
     training_paramenters_group.add_argument("--hard_gradient_clipping", type=float, nargs=2, help="hard gradient clipping.")
     training_paramenters_group.add_argument("--weight_decay", type=float, help="Weight decay value. ")
     training_paramenters_group.add_argument("--optimizer", choices=["sgd", "rmsprop", "rmspropgraves",
-                                                                    "momentum", "nesterov", "adam", "adagrad", "adadelta"],
+                                                                    "momentum", "nesterov", "adam", "scheduled_adam", "adagrad", "adadelta"],
                                             default="adam", help="Optimizer type.")
     training_paramenters_group.add_argument("--learning_rate", type=float, default=0.01, help="Learning Rate")
     training_paramenters_group.add_argument("--momentum", type=float, default=0.9, help="Momentum term")
@@ -62,6 +76,14 @@ def define_parser(parser):
     training_paramenters_group.add_argument("--use_soft_prediction_feedback", default=False, action="store_true")
     training_paramenters_group.add_argument("--use_gumbel_for_soft_predictions", default=False, action="store_true")
     training_paramenters_group.add_argument("--temperature_for_soft_predictions", type=float, default=1.0)
+
+
+    training_paramenters_group.add_argument("--dynamic_batching", default=False, action="store_true")
+    training_paramenters_group.add_argument("--dynamic_batching_max_elems", type=int, default=10000)
+    training_paramenters_group.add_argument("--dynamic_batching_nb_sent_to_sort", type=int, default=5000)
+    
+    training_paramenters_group.add_argument("--load_initial_source_embeddings")
+    training_paramenters_group.add_argument("--load_initial_target_embeddings")
 
     training_monitoring_group = parser.add_argument_group(_CONFIG_SECTION_TO_DESCRIPTION["training_management"])
     training_monitoring_group.add_argument("--config", help="load a training config file")
@@ -97,6 +119,9 @@ def define_parser(parser):
     training_monitoring_group.add_argument("--update_old_config_file_with_default_values", 
                                            default=False, action="store_true", help="When using older config files")
 
+    training_monitoring_group.add_argument("--generate_computation_graph", help="will generate computation graph of the first loss computed")
+
+    training_monitoring_group.add_argument("--disable_cudnn_softmax", default=False, action="store_true")
 
 class CommandLineValuesException(Exception):
     pass
@@ -107,7 +132,7 @@ class CommandLineValuesException(Exception):
 
 
 def get_parse_option_orderer():
-    description_to_config_section = dict((v, k) for (k, v) in _CONFIG_SECTION_TO_DESCRIPTION.iteritems())
+    description_to_config_section = dict((v, k) for (k, v) in six.iteritems(_CONFIG_SECTION_TO_DESCRIPTION))
     por = argument_parsing_tools.ParseOptionRecorder(group_title_to_section=description_to_config_section,
                                                      ignore_positional_arguments=set(["save_prefix", "data_prefix"]))
     define_parser(por)
@@ -185,7 +210,7 @@ def make_config_from_args(args, readonly=True):
             for option_name in args.set_false_in_config:
                 path_option = option_name.split(".")
                 last_dict = config_base
-                for level in range(len(path_option) -1):
+                for level in six.moves.range(len(path_option) -1):
                     last_dict = config_base[path_option[level]]
                 last_dict[path_option[-1]] = False
             
@@ -202,7 +227,7 @@ def make_config_from_args(args, readonly=True):
             if getattr(args, argname) is None:
                 args_given_set.remove(argname)
 
-        print "args_given_set", args_given_set
+        print("args_given_set", args_given_set)
         config_base.update_recursive(config_training, valid_keys=args_given_set, add_absent_keys=args.update_old_config_file_with_default_values)
         config_training = config_base
     else:

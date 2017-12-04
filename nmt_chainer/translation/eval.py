@@ -1,11 +1,13 @@
 #!/usr/bin/env python
 """eval.py: Use a RNNSearch Model"""
+from __future__ import absolute_import, division, print_function, unicode_literals
 __author__ = "Fabien Cromieres"
 __license__ = "undecided"
 __version__ = "1.0"
 __email__ = "fabien.cromieres@gmail.com"
 __status__ = "Development"
 
+import io
 import json
 import numpy as np
 from chainer import cuda, serializers
@@ -20,6 +22,7 @@ from nmt_chainer.utilities.file_infos import create_filename_infos
 from nmt_chainer.utilities.argument_parsing_tools import OrderedNamespace
 import time
 import os.path
+import six
 from nmt_chainer.utilities.utils import ensure_path
 # from utils import make_batch_src, make_batch_src_tgt, minibatch_provider, compute_bleu_with_unk_as_wrong, de_batch
 from nmt_chainer.translation.evaluation import (greedy_batch_translate,
@@ -32,7 +35,6 @@ from nmt_chainer.translation.evaluation import (greedy_batch_translate,
 # import visualisation
 from nmt_chainer.utilities import bleu_computer
 import logging
-import codecs
 # import h5py
 import bokeh.embed
 
@@ -40,7 +42,6 @@ import bokeh.embed
 logging.basicConfig()
 log = logging.getLogger("rnns:eval")
 log.setLevel(logging.INFO)
-
 
 class AttentionVisualizer(object):
     def __init__(self):
@@ -50,11 +51,11 @@ class AttentionVisualizer(object):
         from nmt_chainer.utilities import visualisation
         alignment = np.zeros((len(src_w) + 1, len(tgt_w)))
         sum_al = [0] * len(tgt_w)
-        for i in xrange(len(src_w)):
-            for j in xrange(len(tgt_w)):
+        for i in six.moves.range(len(src_w)):
+            for j in six.moves.range(len(tgt_w)):
                 alignment[i, j] = attn[j][i]
                 sum_al[j] += alignment[i, j]
-        for j in xrange(len(tgt_w)):
+        for j in six.moves.range(len(tgt_w)):
             alignment[len(src_w), j] = sum_al[j]
 
         src = src_w
@@ -75,9 +76,9 @@ class AttentionVisualizer(object):
         if isinstance(output_file, tuple):
             script_output_fn, div_output_fn = output_file
             script, div = bokeh.embed.components(p_all)
-            with open(script_output_fn, 'w') as f:
-                f.write(script.encode('utf-8'))
-            with open(div_output_fn, 'w') as f:
+            with open(script_output_fn, 'wt') as f:
+                f.write(script)
+            with open(div_output_fn, 'wt') as f:
                 f.write(div)
         else:
             visualisation.output_file(output_file)
@@ -125,7 +126,8 @@ def beam_search_all(gpu, encdec, eos_idx, src_data, beam_width, beam_pruning_mar
                     dic=None,
                     remove_unk=False,
                     normalize_unicode_unk=False,
-                    attempt_to_relocate_unk_source=False):
+                    attempt_to_relocate_unk_source=False,
+                    nbest=None):
 
     log.info("starting beam search translation of %i sentences" % len(src_data))
     if isinstance(encdec, (list, tuple)) and len(encdec) > 1:
@@ -148,47 +150,54 @@ def beam_search_all(gpu, encdec, eos_idx, src_data, beam_width, beam_pruning_mar
             groundhog=groundhog, force_finish=force_finish,
             prob_space_combination=prob_space_combination,
             reverse_encdec=reverse_encdec,
-            use_unfinished_translation_if_none_found=use_unfinished_translation_if_none_found)
+            use_unfinished_translation_if_none_found=use_unfinished_translation_if_none_found,
+            nbest=nbest)
 
-        for num_t, (t, score, attn) in enumerate(translations_gen):
-            if num_t % 200 == 0:
-                print >>sys.stderr, num_t,
-            elif num_t % 40 == 0:
-                print >>sys.stderr, "*",
+        for num_t, translations in enumerate(translations_gen):
+            res_trans = []
+            for trans in translations:
+                (t, score, attn) = trans
+                if num_t % 200 == 0:
+                    print(num_t, file=sys.stderr)
+                elif num_t % 40 == 0:
+                    print("*", file=sys.stderr)
 #                 t, score = bests[1]
 #                 ct = convert_idx_to_string(t, tgt_voc + ["#T_UNK#"])
 #                 ct = convert_idx_to_string_with_attn(t, tgt_voc, attn, unk_idx = len(tgt_voc))
-            if tgt_unk_id == "align":
-                def unk_replacer(num_pos, unk_id):
-                    unk_pattern = "#T_UNK_%i#"
-                    a = attn[num_pos]
-                    xp = cuda.get_array_module(a)
-                    src_pos = int(xp.argmax(a))
-                    return unk_pattern % src_pos
-            elif tgt_unk_id == "id":
-                def unk_replacer(num_pos, unk_id):
-                    unk_pattern = "#T_UNK_%i#"
-                    return unk_pattern % unk_id
-            else:
-                assert False
+                if tgt_unk_id == "align":
+                    def unk_replacer(num_pos, unk_id):
+                        unk_pattern = "#T_UNK_%i#"
+                        a = attn[num_pos]
+                        xp = cuda.get_array_module(a)
+                        src_pos = int(xp.argmax(a))
+                        return unk_pattern % src_pos
+                elif tgt_unk_id == "id":
+                    def unk_replacer(num_pos, unk_id):
+                        unk_pattern = "#T_UNK_%i#"
+                        return unk_pattern % unk_id
+                else:
+                    assert False
 
-            translated = tgt_indexer.deconvert_swallow(t, unk_tag=unk_replacer)
+                translated = tgt_indexer.deconvert_swallow(t, unk_tag=unk_replacer)
 
-            unk_mapping = []
-            ct = " ".join(translated)
-            if ct != '':
-                unk_pattern = re.compile("#T_UNK_(\d+)#")
-                for idx, word in enumerate(ct.split(' ')):
-                    match = unk_pattern.match(word)
-                    if (match):
-                        unk_mapping.append(match.group(1) + '-' + str(idx))
+                unk_mapping = []
+                ct = " ".join(translated)
+                if ct != '':
+                    unk_pattern = re.compile("#T_UNK_(\d+)#")
+                    for idx, word in enumerate(ct.split(' ')):
+                        match = unk_pattern.match(word)
+                        if (match):
+                            unk_mapping.append(match.group(1) + '-' + str(idx))
 
-                if replace_unk:
-                    from nmt_chainer.utilities import replace_tgt_unk
-                    translated = replace_tgt_unk.replace_unk_from_string(ct, src, dic, remove_unk, normalize_unicode_unk, attempt_to_relocate_unk_source).strip().split(" ")
+                    if replace_unk:
+                        from nmt_chainer.utilities import replace_tgt_unk
+                        translated = replace_tgt_unk.replace_unk_from_string(ct, src, dic, remove_unk, normalize_unicode_unk, attempt_to_relocate_unk_source).strip().split(" ")
 
-            yield src_data[num_t], translated, t, score, attn, unk_mapping
-        print >>sys.stderr
+                res_trans.append((src_data[num_t], translated, t, score, attn, unk_mapping))
+
+            yield res_trans
+
+        print('', file=sys.stderr)
 
 
 def translate_to_file_with_beam_search(dest_fn, gpu, encdec, eos_idx, src_data, beam_width, beam_pruning_margin, beam_score_coverage_penalty, beam_score_coverage_penalty_strength, nb_steps,
@@ -205,10 +214,11 @@ def translate_to_file_with_beam_search(dest_fn, gpu, encdec, eos_idx, src_data, 
                                        remove_unk=False,
                                        normalize_unicode_unk=False,
                                        attempt_to_relocate_unk_source=False,
-                                       unprocessed_output_filename=None):
+                                       unprocessed_output_filename=None,
+                                       nbest=None):
 
     log.info("writing translation to %s " % dest_fn)
-    out = codecs.open(dest_fn, "w", encoding="utf8")
+    out = io.open(dest_fn, "wt", encoding="utf8")
 
     translation_iterator = beam_search_all(gpu, encdec, eos_idx, src_data, beam_width, beam_pruning_margin, beam_score_coverage_penalty, beam_score_coverage_penalty_strength, nb_steps,
                                            nb_steps_ratio, beam_score_length_normalization, beam_score_length_normalization_strength, post_score_length_normalization, post_score_length_normalization_strength,
@@ -222,7 +232,8 @@ def translate_to_file_with_beam_search(dest_fn, gpu, encdec, eos_idx, src_data, 
                                            dic=dic,
                                            remove_unk=remove_unk,
                                            normalize_unicode_unk=normalize_unicode_unk,
-                                           attempt_to_relocate_unk_source=attempt_to_relocate_unk_source)
+                                           attempt_to_relocate_unk_source=attempt_to_relocate_unk_source,
+                                           nbest=nbest)
 
     attn_vis = None
     if generate_attention_html is not None:
@@ -235,22 +246,26 @@ def translate_to_file_with_beam_search(dest_fn, gpu, encdec, eos_idx, src_data, 
 
     unprocessed_output = None
     if unprocessed_output_filename is not None:
-        unprocessed_output = codecs.open(unprocessed_output_filename, "w", encoding="utf8")
+        unprocessed_output = io.open(unprocessed_output_filename, "wt", encoding="utf8")
 
-    for src, translated, t, score, attn, unk_mapping in translation_iterator:
-        if rich_output is not None:
-            rich_output.add_info(src, translated, t, score, attn, unk_mapping=unk_mapping)
-        if attn_vis is not None:
-            attn_vis.add_plot(
-                src_indexer.deconvert_swallow(src),
-                translated,
-                attn,
-                attn_graph_with_sum,
-                attn_graph_attribs)
-        ct = tgt_indexer.deconvert_post(translated)
-        out.write(ct + "\n")
-        if unprocessed_output is not None:
-            unprocessed_output.write(" ".join(translated) + "\n")
+    for idx, translations in enumerate(translation_iterator):
+        for src, translated, t, score, attn, unk_mapping in translations:
+            if rich_output is not None:
+                rich_output.add_info(src, translated, t, score, attn, unk_mapping=unk_mapping)
+            if attn_vis is not None:
+                attn_vis.add_plot(
+                    src_indexer.deconvert_swallow(src),
+                    translated,
+                    attn,
+                    attn_graph_with_sum,
+                    attn_graph_attribs)
+            ct = tgt_indexer.deconvert_post(translated)
+            if nbest is not None:
+                out.write("{0} ||| {1}\n".format(idx, ct))
+            else:
+                out.write(ct + "\n")
+            if unprocessed_output is not None:
+                unprocessed_output.write(" ".join(translated) + "\n")
 
     if rich_output is not None:
         rich_output.finish()
@@ -285,6 +300,8 @@ def get_src_tgt_dev_from_config_eval(config_eval):
         training_config_file = config_eval.training_config
     elif 'load_model_config' in config_eval.process and config_eval.process.load_model_config is not None:
         training_config_file = config_eval.process.load_model_config[0]
+        if "," in training_config_file:
+            training_config_file=training_config_file.split(",")[0]
     log.info("attempting to retrieve dev/test files from %s", training_config_file)
     training_config = train_config.load_config_train(training_config_file)
     data_prefix = training_config.training_management.data_prefix
@@ -309,14 +326,22 @@ def create_encdec(config_eval):
         encdec_list.append(encdec)
 
     if 'load_model_config' in config_eval.process and config_eval.process.load_model_config is not None:
-        for config_filename in config_eval.process.load_model_config:
+        for config_filename_and_others in config_eval.process.load_model_config:
+            other_models_for_averaging = None
+            if "," in config_filename_and_others:
+                config_filename_and_others_splitted = config_filename_and_others.split(",")
+                config_filename = config_filename_and_others_splitted[0]
+                other_models_for_averaging = config_filename_and_others_splitted[1:]
+            else:
+                config_filename = config_filename_and_others
             log.info(
                 "loading model and parameters from config %s" %
                 config_filename)
             config_training = train_config.load_config_train(config_filename)
             (encdec, this_eos_idx, this_src_indexer, this_tgt_indexer), model_infos = train.create_encdec_and_indexers_from_config_dict(config_training,
                                                                                                                                         load_config_model="yes",
-                                                                                                                                        return_model_infos=True)
+                                                                                                                                        return_model_infos=True,
+                                                                                                                                        additional_models_parameters_for_averaging=other_models_for_averaging)
             model_infos_list.append(model_infos)
             if eos_idx is None:
                 assert len(encdec_list) == 0
@@ -333,7 +358,7 @@ def create_encdec(config_eval):
     if 'additional_training_config' in config_eval.process and config_eval.process.additional_training_config is not None:
         assert len(config_eval.process.additional_training_config) == len(config_eval.process.additional_trained_model)
 
-        for (config_training_fn, trained_model_fn) in zip(config_eval.process.additional_training_config,
+        for (config_training_fn, trained_model_fn) in six.moves.zip(config_eval.process.additional_training_config,
                                                           config_eval.process.additional_trained_model):
             this_encdec, this_eos_idx, this_src_indexer, this_tgt_indexer = create_and_load_encdec_from_files(
                 config_training_fn, trained_model_fn)
@@ -380,6 +405,7 @@ def do_eval(config_eval):
     nb_steps_ratio = config_eval.method.nb_steps_ratio
     max_nb_ex = config_eval.process.max_nb_ex
     nbest_to_rescore = config_eval.output.nbest_to_rescore
+    nbest = config_eval.output.nbest
 
     beam_width = config_eval.method.beam_width
     beam_pruning_margin = config_eval.method.beam_pruning_margin
@@ -482,7 +508,7 @@ def do_eval(config_eval):
             assert len(encdec_list) == 1
             translations = greedy_batch_translate(
                 encdec_list[0], eos_idx, src_data, batch_size=mb_size, gpu=gpu, nb_steps=nb_steps)
-        out = codecs.open(dest_fn, "w", encoding="utf8")
+        out = io.open(dest_fn, "wt", encoding="utf8")
         for t in translations:
             if t[-1] == eos_idx:
                 t = t[:-1]
@@ -518,18 +544,19 @@ def do_eval(config_eval):
                                                src_indexer=src_indexer,
                                                rich_output_filename=rich_output_filename,
                                                use_unfinished_translation_if_none_found=True,
-                                               unprocessed_output_filename=dest_fn + ".unprocessed")
+                                               unprocessed_output_filename=dest_fn + ".unprocessed",
+                                               nbest=nbest)
 
             translation_infos["dest"] = dest_fn
             translation_infos["unprocessed"] = dest_fn + ".unprocessed"
             if mode == "eval_bleu":
                 if ref is not None:
                     bc = bleu_computer.get_bc_from_files(ref, dest_fn)
-                    print "bleu before unk replace:", bc
+                    print("bleu before unk replace:", bc)
                     translation_infos["bleu"] = bc.bleu()
                     translation_infos["bleu_infos"] = str(bc)
                 else:
-                    print "bleu before unk replace: No Ref Provided"
+                    print("bleu before unk replace: No Ref Provided")
 
                 from nmt_chainer.utilities import replace_tgt_unk
                 replace_tgt_unk.replace_unk(dest_fn, src_fn, dest_fn + ".unk_replaced", dic, remove_unk,
@@ -539,11 +566,11 @@ def do_eval(config_eval):
 
                 if ref is not None:
                     bc = bleu_computer.get_bc_from_files(ref, dest_fn + ".unk_replaced")
-                    print "bleu after unk replace:", bc
+                    print("bleu after unk replace:", bc)
                     translation_infos["post_unk_bleu"] = bc.bleu()
                     translation_infos["post_unk_bleu_infos"] = str(bc)
                 else:
-                    print "bleu before unk replace: No Ref Provided"
+                    print("bleu before unk replace: No Ref Provided")
 
     elif mode == "translate_attn":
         log.info("writing translation + attention as html to %s" % dest_fn)
@@ -557,7 +584,7 @@ def do_eval(config_eval):
         assert len(translations) == len(src_data)
         assert len(attn_all) == len(src_data)
         attn_vis = AttentionVisualizer()
-        for num_t in xrange(len(src_data)):
+        for num_t in six.moves.range(len(src_data)):
             src_idx_list = src_data[num_t]
             tgt_idx_list = translations[num_t][:-1]
             attn = attn_all[num_t]
@@ -567,10 +594,10 @@ def do_eval(config_eval):
             tgt_w = tgt_indexer.deconvert_swallow(tgt_idx_list, unk_tag="#T_UNK#")
 #             src_w = [src_voc_with_unk[idx] for idx in src_idx_list] + ["SUM_ATTN"]
 #             tgt_w = [tgt_voc_with_unk[idx] for idx in tgt_idx_list]
-#             for j in xrange(len(tgt_idx_list)):
+#             for j in six.moves.range(len(tgt_idx_list)):
 #                 tgt_idx_list.append(tgt_voc_with_unk[t_and_attn[j][0]])
 #
-    #         print [src_voc_with_unk[idx] for idx in src_idx_list], tgt_idx_list
+    #         print([src_voc_with_unk[idx] for idx in src_idx_list], tgt_idx_list)
 
             attn_vis.add_plot(src_w, tgt_w, attn)
 
@@ -584,13 +611,13 @@ def do_eval(config_eval):
         with cuda.get_device(gpu):
             assert len(encdec_list) == 1
             loss, attn_all = batch_align(
-                encdec_list[0], eos_idx, zip(src_data, tgt_data), batch_size=mb_size, gpu=gpu)
+                encdec_list[0], eos_idx, list(six.moves.zip(src_data, tgt_data)), batch_size=mb_size, gpu=gpu)
 #         tgt_voc_with_unk = tgt_voc + ["#T_UNK#"]
 #         src_voc_with_unk = src_voc + ["#S_UNK#"]
 
         assert len(attn_all) == len(src_data)
         plots_list = []
-        for num_t in xrange(len(src_data)):
+        for num_t in six.moves.range(len(src_data)):
             src_idx_list = src_data[num_t]
             tgt_idx_list = tgt_data[num_t]
             attn = attn_all[num_t]
@@ -598,21 +625,21 @@ def do_eval(config_eval):
 
             alignment = np.zeros((len(src_idx_list) + 1, len(tgt_idx_list)))
             sum_al = [0] * len(tgt_idx_list)
-            for i in xrange(len(src_idx_list)):
-                for j in xrange(len(tgt_idx_list)):
+            for i in six.moves.range(len(src_idx_list)):
+                for j in six.moves.range(len(tgt_idx_list)):
                     alignment[i, j] = attn[j][i]
                     sum_al[j] += alignment[i, j]
-            for j in xrange(len(tgt_idx_list)):
+            for j in six.moves.range(len(tgt_idx_list)):
                 alignment[len(src_idx_list), j] = sum_al[j]
 
             src_w = src_indexer.deconvert_swallow(src_idx_list, unk_tag="#S_UNK#") + ["SUM_ATTN"]
             tgt_w = tgt_indexer.deconvert_swallow(tgt_idx_list, unk_tag="#T_UNK#")
 #             src_w = [src_voc_with_unk[idx] for idx in src_idx_list] + ["SUM_ATTN"]
 #             tgt_w = [tgt_voc_with_unk[idx] for idx in tgt_idx_list]
-#             for j in xrange(len(tgt_idx_list)):
+#             for j in six.moves.range(len(tgt_idx_list)):
 #                 tgt_idx_list.append(tgt_voc_with_unk[t_and_attn[j][0]])
 #
-    #         print [src_voc_with_unk[idx] for idx in src_idx_list], tgt_idx_list
+    #         print([src_voc_with_unk[idx] for idx in src_idx_list], tgt_idx_list)
             p1 = visualisation.make_alignment_figure(
                 src_w, tgt_w, alignment)
 #             p2 = visualisation.make_alignment_figure(
@@ -623,14 +650,14 @@ def do_eval(config_eval):
         visualisation.show(p_all)
 #     for t in translations_with_attn:
 #         for x, attn in t:
-#             print x, attn
+#             print(x, attn)
 
 
 #         out.write(convert_idx_to_string([x for x, attn in t], tgt_voc + ["#T_UNK#"]) + "\n")
 
     elif mode == "score_nbest":
         log.info("opening nbest file %s" % nbest_to_rescore)
-        nbest_f = codecs.open(nbest_to_rescore, encoding="utf8")
+        nbest_f = io.open(nbest_to_rescore, 'rt', encoding="utf8")
         nbest_list = [[]]
         for line in nbest_f:
             line = line.strip().split("|||")
@@ -659,11 +686,11 @@ def do_eval(config_eval):
         log.info("starting scoring")
         from nmt_chainer.utilities import utils
         res = []
-        for num in xrange(len(nbest_converted)):
+        for num in six.moves.range(len(nbest_converted)):
             if num % 200 == 0:
-                print >>sys.stderr, num,
+                print(num, file=sys.stderr)
             elif num % 50 == 0:
-                print >>sys.stderr, "*",
+                print("*", file=sys.stderr)
 
             res.append([])
             src, tgt_list = src_data[num], nbest_converted[num]
@@ -672,8 +699,8 @@ def do_eval(config_eval):
             assert len(encdec_list) == 1
             scorer = encdec_list[0].nbest_scorer(src_batch, src_mask)
 
-            nb_batches = (len(tgt_list) + mb_size - 1) / mb_size
-            for num_batch in xrange(nb_batches):
+            nb_batches = (len(tgt_list) + mb_size - 1) // mb_size
+            for num_batch in six.moves.range(nb_batches):
                 tgt_batch, arg_sort = utils.make_batch_tgt(tgt_list[num_batch * nb_batches: (num_batch + 1) * nb_batches],
                                                            eos_idx=eos_idx, gpu=gpu, volatile="on", need_arg_sort=True)
                 scores, attn = scorer(tgt_batch)
@@ -682,14 +709,14 @@ def do_eval(config_eval):
 
                 assert len(arg_sort) == len(scores)
                 de_sorted_scores = [None] * len(scores)
-                for xpos in xrange(len(arg_sort)):
+                for xpos in six.moves.range(len(arg_sort)):
                     original_pos = arg_sort[xpos]
                     de_sorted_scores[original_pos] = scores[xpos]
                 res[-1] += de_sorted_scores
-        print >>sys.stderr
+        print('', file=sys.stderr)
         log.info("writing scores to %s" % dest_fn)
-        out = codecs.open(dest_fn, "w", encoding="utf8")
-        for num in xrange(len(res)):
+        out = io.open(dest_fn, "wt", encoding="utf8")
+        for num in six.moves.range(len(res)):
             for score in res[num]:
                 out.write("%i %f\n" % (num, score))
 
