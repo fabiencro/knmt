@@ -210,7 +210,7 @@ class RequestHandler(SocketServer.BaseRequestHandler):
 
     def handle(self):
         start_request = timeit.default_timer()
-        log.info(timestamped_msg("Handling request..."))
+        log.info("Handling request...")
         data = self.request.recv(4096)
 
         response = {}
@@ -218,7 +218,7 @@ class RequestHandler(SocketServer.BaseRequestHandler):
             try:
                 cur_thread = threading.current_thread()
 
-                log.info("data={0}".format(data))
+                log.info("request={0}".format(data))
 
                 if "cancel_translation" in data:
                     self.server.translator.stop()
@@ -282,10 +282,10 @@ class RequestHandler(SocketServer.BaseRequestHandler):
                     normalize_unicode_unk = (
                         'true' == root.get(
                             'normalize_unicode_unk', 'true'))
-                    log.info('normalize_unicode_unk=' + str(normalize_unicode_unk))
+                    log.debug('normalize_unicode_unk=' + str(normalize_unicode_unk))
                     attempt_to_relocate_unk_source = ('true' == root.get(
                         'attempt_to_relocate_unk_source', 'false'))
-                    log.info("Article id: %s" % article_id)
+                    log.debug("Article id: %s" % article_id)
                     out = ""
                     segmented_input = []
                     segmented_output = []
@@ -294,7 +294,7 @@ class RequestHandler(SocketServer.BaseRequestHandler):
                     for idx, sentence in enumerate(sentences):
                         sentence_number = sentence.get('id')
                         text = sentence.findtext('i_sentence').strip()
-                        log.info("text=@@@%s@@@" % text)
+                        log.debug("text=%s" % text)
 
                         cmd = self.server.segmenter_command % text
                         log.info("cmd=%s" % cmd)
@@ -330,7 +330,7 @@ class RequestHandler(SocketServer.BaseRequestHandler):
                         splitted_sentence = ' '.join(words)
                         # log.info("splitted_sentence=" + splitted_sentence)
 
-                        log.info(timestamped_msg("Translating sentence %d" % idx))
+                        log.info("Translating sentence %d" % idx)
                         decoded_sentence = splitted_sentence.decode('utf-8')
                         translation, unk_mapping = self.server.translator.translate(decoded_sentence,
                                                                                                  beam_width, beam_pruning_margin, beam_score_coverage_penalty, beam_score_coverage_penalty_strength, nb_steps, nb_steps_ratio, remove_unk, normalize_unicode_unk, attempt_to_relocate_unk_source,
@@ -360,7 +360,7 @@ class RequestHandler(SocketServer.BaseRequestHandler):
                     response['article_id'] = article_id
                     response['sentence_number'] = sentence_number
                     response['out'] = out
-                    log.info("Setting out={0}".format(out))
+                    log.info("out={0}".format(out))
                     response['segmented_input'] = segmented_input
                     response['segmented_output'] = segmented_output
                     response['mapping'] = map(lambda x: ' '.join(x), mapping)
@@ -370,11 +370,7 @@ class RequestHandler(SocketServer.BaseRequestHandler):
                 response['error'] = error_lines[-1]
                 response['stacktrace'] = error_lines
 
-        log.info(
-            "Request processed in {0} s. by {1}".format(
-                timeit.default_timer() -
-                start_request,
-                cur_thread.name))
+        log.info("Request processed in {0} s. by {1}".format(timeit.default_timer() - start_request, cur_thread.name))
 
         response = json.dumps(response)
         self.request.sendall(response)
@@ -400,11 +396,6 @@ class Server(SocketServer.ThreadingMixIn, SocketServer.TCPServer):
         self.pp_command = pp_command
 
 
-def timestamped_msg(msg):
-    timestamp = datetime.datetime.fromtimestamp(time.time()).strftime('%Y-%m-%d %H:%M:%S')
-    return "{0}: {1}".format(timestamp, msg)
-
-
 def do_start_server(config_server):
     if config_server.output.log_config:
         logging.config.fileConfig(config_server.output.log_config)
@@ -423,11 +414,7 @@ def do_start_server(config_server):
         translator,
         config_server.process.pp_command)
     ip, port = server.server_address
-    log.info(
-        timestamped_msg(
-            "Start listening for requests on {0}:{1}...".format(
-                socket.gethostname(),
-                port)))
+    log.info("Start listening for requests on {0}:{1}...".format(socket.gethostname(), port))
 
     try:
         server.serve_forever()

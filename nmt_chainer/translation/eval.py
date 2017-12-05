@@ -525,7 +525,7 @@ def do_eval(config_eval):
             do_start_server(config_eval)
         elif config_eval.process.multiserver_config is not None:
             from nmt_chainer.translation.multiserver import do_start_server
-            do_start_server(config_eval.process.multiserver_config)
+            do_start_server(config_eval.process.multiserver_config, config_eval.output.log_config)
         else:
             translate_to_file_with_beam_search(dest_fn, gpu, encdec_list, eos_idx, src_data,
                                                beam_width=beam_width,
