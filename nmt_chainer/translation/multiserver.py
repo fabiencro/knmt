@@ -10,6 +10,7 @@ __status__ = "Development"
 import datetime
 import json
 import logging
+import logging.config
 import sys
  
 import time
@@ -26,9 +27,9 @@ import Queue
 
 from nmt_chainer.translation.client import Client
 
+log = None
+
 logging.basicConfig()
-log = logging.getLogger("rnns:server")
-log.setLevel(logging.INFO)
 
 class RequestQueue(Queue.Queue):
 
@@ -69,16 +70,16 @@ class RequestQueue(Queue.Queue):
         log.debug("redistribute_requests end")
 
     def cancel_requests_from(self, client_id):
-        log.info("cancel_requests_from {0} begin".format(client_id)) 
+        log.debug("cancel_requests_from {0} begin".format(client_id)) 
         self.mutex.acquire()
         temp = deque()
         while self._qsize() > 0:
             item = self._get()
             item_key = "{0}-{1}".format(item['session_id'], item['client_tab_id'])
             if 'sentence_number' in item:
-                log.info("{0} {1}".format(item_key, item['sentence_number']))
+                log.debug("{0} {1}".format(item_key, item['sentence_number']))
             elif 'type' in item:
-                log.info("{0} {1}".format(item_key, item['type']))
+                log.debug("{0} {1}".format(item_key, item['type']))
 
             if item_key != client_id:
                 temp.append(item)
@@ -86,7 +87,7 @@ class RequestQueue(Queue.Queue):
             item = temp.pop()
             self._put(item)
         self.mutex.release()
-        log.info("cancel_requests_from {0} end".format(client_id)) 
+        log.debug("cancel_requests_from {0} end".format(client_id)) 
 
     def content(self):
         # Beware, if the base class changes, this will break.
@@ -142,12 +143,12 @@ class Worker(threading.Thread):
     def run(self):
         while True:
             translation_request = self.manager.translation_request_queues[self.category].get(True)
-            log.info("Request for worker={0}".format(translation_request))
+            log.debug("Request for worker={0}".format(translation_request))
             self.current_client_key = "{0}-{1}".format(translation_request['session_id'], translation_request['client_tab_id']) 
             start_request = timeit.default_timer()
-            log.info(timestamped_msg("Thread {0}: Handling request: {1}:{2}".format(self.name, self.current_client_key, translation_request['article_id'])))
+            log.debug("Thread {0}: Handling request: {1}:{2}".format(self.name, self.current_client_key, translation_request['article_id']))
 
-            log.info("SENTENCE for worker {0}:{1}: {2}".format(self.host, self.port, translation_request['sentence'].encode('utf-8')))
+            log.debug("SENTENCE for worker {0}:{1}: {2}".format(self.host, self.port, translation_request['sentence'].encode('utf-8')))
             self.manager.add_active_translation(self.category, translation_request)
             client = Client(self.host, self.port)
             resp = client.query(translation_request['sentence'].encode('utf-8'), 
@@ -174,12 +175,12 @@ class Worker(threading.Thread):
                 attn_graph_height=translation_request['attn_graph_height'] if 'attn_graph_height' in translation_request else 0)
             self.manager.remove_active_translation(self.category, translation_request)
             json_resp = json.loads(resp)
-            log.info("TRANSLATION: {0}".format(json_resp['out'].encode('utf-8')))
+            log.debug("TRANSLATION: {0}".format(json_resp['out'].encode('utf-8')))
             if not self.current_client_key in self.manager.client_cancellations or not self.manager.client_cancellations[self.current_client_key]:
                 response_queue = self.manager.client_responses[self.current_client_key]
                 response_queue.put(json_resp)
 
-            log.info("Request processed in {0} s. by {1} [{2}:{3}]".format(timeit.default_timer() - start_request, self.name, self.current_client_key, translation_request['article_id']))
+            log.debug("Request processed in {0} s. by {1} [{2}:{3}]".format(timeit.default_timer() - start_request, self.name, self.current_client_key, translation_request['article_id']))
 
 class Manager(object):
 
@@ -241,7 +242,7 @@ class Manager(object):
             resp['workload']['factor'] = req_per_worker
             if resp['workload']['clients'] > resp['workload']['workers']:
                 resp['workload']['factor'] += (resp['workload']['clients'] - resp['workload']['workers']) * req_per_worker
-            log.info("req/work={0} r={1} c={2} w={3} f={4}".format(req_per_worker, resp['workload']['requests'], resp['workload']['clients'], resp['workload']['workers'], resp['workload']['factor']))
+            log.debug("req/work={0} r={1} c={2} w={3} f={4}".format(req_per_worker, resp['workload']['requests'], resp['workload']['clients'], resp['workload']['workers'], resp['workload']['factor']))
 
         responses = []
         if client_id in self.client_responses:
@@ -273,9 +274,9 @@ class Server(SocketServer.ThreadingMixIn, SocketServer.TCPServer):
 
             def handle(self):
                 start_request = timeit.default_timer()
-                log.info(timestamped_msg("Handling request..."))
+                log.debug("Handling request...")
                 str_data = self.request.recv(16384)
-                log.info("Request to server={0}".format(str_data))
+                log.debug("Request to server={0}".format(str_data))
                 response = {}
                 json_data = json.loads(str_data)
                 lang_pair = None
@@ -288,7 +289,7 @@ class Server(SocketServer.ThreadingMixIn, SocketServer.TCPServer):
                 if lang_pair and model:
                     category = "{0}_{1}".format(lang_pair, model)
                 key = "{0}-{1}".format(json_data['session_id'], json_data['client_tab_id']) 
-                log.info("lang_pair={0} model={1} category={2}".format(lang_pair, model, category))
+                log.debug("lang_pair={0} model={1} category={2}".format(lang_pair, model, category))
                 if json_data['type'] == 'translate':
                     log.info("TRANSLATE from {0}: {1}".format(key, datetime.datetime.fromtimestamp(time.time()).strftime('%Y-%m-%d %H:%M:%S')))
                     data = {
@@ -297,7 +298,7 @@ class Server(SocketServer.ThreadingMixIn, SocketServer.TCPServer):
                         'lang_target': json_data['tgt_lang']
                     }
                     r = requests.post(self.manager.text_to_sentences_splitter, data)
-                    log.info('Splitter Status: {0}'.format(r.status_code))
+                    log.debug('Splitter Status: {0}'.format(r.status_code))
                     if r.status_code == 200:
                         self.manager.client_cancellations[key] = False 
 
@@ -311,7 +312,7 @@ class Server(SocketServer.ThreadingMixIn, SocketServer.TCPServer):
                             self.manager.client_responses[key] = response_queue
                         response_queue.put(json_resp)
 
-                        log.info("sentenceCount={0}".format(len(json_resp['sentences'])))
+                        log.debug("sentenceCount={0}".format(len(json_resp['sentences'])))
                         for index, sentence in enumerate(json_resp['sentences']):
                             translate_sentence_request = dict(json_data)
                             del translate_sentence_request['text']
@@ -324,7 +325,7 @@ class Server(SocketServer.ThreadingMixIn, SocketServer.TCPServer):
                         self.manager.translation_request_queues[category].redistribute_requests()
                         response = {'msg': 'All sentences have been queued.'}
                 elif json_data['type'] == 'poll':
-                    log.info("POLL from {0}".format(key))   
+                    log.debug("POLL from {0}".format(key))   
                     response = self.manager.poll(category, key)
                 elif json_data['type'] == 'cancelTranslation':
                     log.info("CANCEL from {0}".format(key))
@@ -333,9 +334,9 @@ class Server(SocketServer.ThreadingMixIn, SocketServer.TCPServer):
                 else:
                     response = {'msg': 'Unknown request type. Request has been ignored.'}
 
-                log.info("Request processed in {0} s. by {1}".format(timeit.default_timer() - start_request, threading.current_thread().name))
+                log.debug("Request processed in {0} s. by {1}".format(timeit.default_timer() - start_request, threading.current_thread().name))
                 response = json.dumps(response)
-                log.info("Response from server={0}".format(response))
+                log.debug("Response from server={0}".format(response))
                 self.request.sendall(response)
 
         return ServerRequestHandler
@@ -345,16 +346,17 @@ class Server(SocketServer.ThreadingMixIn, SocketServer.TCPServer):
         handler_class = self.make_request_handler(self.manager)
         SocketServer.TCPServer.__init__(self, server_address, handler_class)
 
-def timestamped_msg(msg):
-    timestamp = datetime.datetime.fromtimestamp(time.time()).strftime('%Y-%m-%d %H:%M:%S')
-    return "{0}: {1}".format(timestamp, msg)
+def do_start_server(config_file, log_config):
+    if log_config:
+        logging.config.fileConfig(log_config)
+    global log
+    log = logging.getLogger("default")
+    log.setLevel(logging.INFO)
 
- 
-def do_start_server(config_file):
     config = json.load(open(config_file))
     server = Server((config['host'], int(config['port'])), config['servers'], config['text_to_sentences_splitter'])
     ip, port = server.server_address
-    log.info(timestamped_msg("Start listening for requests on {0}:{1}...".format( socket.gethostname(), port)))
+    log.info("Start listening for requests on {0}:{1}...".format( socket.gethostname(), port))
 
     try:
         server.serve_forever()

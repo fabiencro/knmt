@@ -7,7 +7,7 @@ display_usage() {
     echo "knmt-server config [gpu]"
     echo ""
     echo "Example:"
-    echo "knmt-server server-je.conf 0 2>&1 | tee server.log"
+    echo "knmt-server server-je.conf 0"
 }
 
 if [ $# -lt 1 ]
