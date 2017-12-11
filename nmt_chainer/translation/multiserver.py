@@ -259,6 +259,7 @@ class Manager(object):
             if worker.current_client_key == client_id:
                 worker.stop()
 
+EOM = "==== EOM ===="
 
 class Server(SocketServer.ThreadingMixIn, SocketServer.TCPServer):
 
@@ -275,7 +276,25 @@ class Server(SocketServer.ThreadingMixIn, SocketServer.TCPServer):
             def handle(self):
                 start_request = timeit.default_timer()
                 log.debug("Handling request...")
-                str_data = self.request.recv(16384)
+
+                # Read until EOM delimiter is met. 
+                total_data = []
+                data = ''
+                while True:
+                    data = self.request.recv(4096)
+                    if EOM in data:
+                        total_data.append(data[:data.find(EOM)])
+                        break
+                    total_data.append(data)
+                    if len(total_data)>1:
+                        #check if EOM was split
+                        last_pair = total_data[-2] + total_data[-1]
+                        if EOM in last_pair:
+                            total_data[-2] = last_pair[:last_pair.find(EOM)]
+                            total_data.pop()
+                            break
+                str_data = ''.join(total_data)
+
                 log.debug("Request to server={0}".format(str_data))
                 response = {}
                 json_data = json.loads(str_data)
