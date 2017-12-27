@@ -19,6 +19,7 @@ This code was used for participation in several shared translation tasks and cou
 The following is currently required for running Kyoto-NMT:
 * Python 2.7.x
 * A recent version of `chainer` (>=3.0). 
+* If using a GPU (recommended): a recent version of `cupy` (>=2.0)
 * The plotting libraries `plotly` and `bokeh` are used in some visualisation scripts
 
 There is now a PyPI repository, so you can install with:
@@ -158,7 +159,8 @@ This will result in a graph similar to this one, where training loss appears as 
         #! shell
         knmt train /path_to_experiment_dir/prefix /path_to_experiment_dir/prefix_train --gpu 0
         --optimizer adam
-        --weight_decay 0.000001
+        --weight_decay 1e-6
+        --use_goto
         --l2_gradient_clipping 1
         --mb_size 64
         --max_src_tgt_length 90
