@@ -26,7 +26,9 @@ There is now a PyPI repository, so you can install with:
 
         pip install knmt
         
-Dependencies will be automatically installed. However, if `chainer` is not already installed, check the prerequisites for installing `chainer` with `cuda` and `cudnn` support:  http://docs.chainer.org/en/stable/install.html#install-chainer-with-cuda (provided you have a CUDA capable GPU you want to use, of course).
+Dependencies will be automatically installed. However, if you plan to use a GPU (which you should probably do for any real-size experiments), you also need to manually install `cupy`. Check [this page](https://docs.chainer.org/en/stable/install.html#enable-cuda-cudnn-support) for details.
+
+        pip install cupy
 
 You can confirm that cuda (and optionnally cudnn) are enabled and recognized by chainer by running the `version` subcommand of `knmt`:
 
