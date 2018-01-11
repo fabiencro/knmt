@@ -233,7 +233,7 @@ class Manager(object):
         resp = {};
         if category is None:
             resp['servers'] = self.translation_server_config.keys()
-        else:
+        elif category in self.workers:
             resp['workload'] = {
                 'workers': len(self.workers[category])
             };
@@ -297,66 +297,72 @@ class Server(SocketServer.ThreadingMixIn, SocketServer.TCPServer):
 
                 log.debug("Request to server={0}".format(str_data))
                 response = {}
-                json_data = json.loads(str_data)
-                lang_pair = None
-                if json_data['src_lang'] and json_data['tgt_lang']:
-                    lang_pair = "{0}-{1}".format(json_data['src_lang'], json_data['tgt_lang'])
-                model = None
-                if json_data['model']:
-                    model = json_data['model']
-                category = None
-                if lang_pair and model:
-                    category = "{0}_{1}".format(lang_pair, model)
-                key = "{0}-{1}".format(json_data['session_id'], json_data['client_tab_id']) 
-                log.debug("lang_pair={0} model={1} category={2}".format(lang_pair, model, category))
-                if json_data['type'] == 'translate':
-                    log.info("TRANSLATE from {0}: {1}".format(key, datetime.datetime.fromtimestamp(time.time()).strftime('%Y-%m-%d %H:%M:%S')))
-                    data = {
-                        'text': json_data['text'],
-                        'lang_source': json_data['src_lang'],
-                        'lang_target': json_data['tgt_lang']
-                    }
-                    r = requests.post(self.manager.text_to_sentences_splitter, data)
-                    log.debug('Splitter Status: {0}'.format(r.status_code))
-                    if r.status_code == 200:
-                        self.manager.client_cancellations[key] = False 
+                json_data = None
+                try:
+                    json_data = json.loads(str_data)
+                except Exception as e:
+                    log.info("Invalid JSON data. Request ignored.")
 
-                        json_resp = r.json()
+                if json_data:    
+                    lang_pair = None
+                    if json_data['src_lang'] and json_data['tgt_lang']:
+                        lang_pair = "{0}-{1}".format(json_data['src_lang'], json_data['tgt_lang'])
+                    model = None
+                    if json_data['model']:
+                        model = json_data['model']
+                    category = None
+                    if lang_pair and model:
+                        category = "{0}_{1}".format(lang_pair, model)
+                    key = "{0}-{1}".format(json_data['session_id'], json_data['client_tab_id']) 
+                    log.debug("lang_pair={0} model={1} category={2}".format(lang_pair, model, category))
+                    if json_data['type'] == 'translate':
+                        log.info("TRANSLATE from {0}: {1}".format(key, datetime.datetime.fromtimestamp(time.time()).strftime('%Y-%m-%d %H:%M:%S')))
+                        data = {
+                            'text': json_data['text'],
+                            'lang_source': json_data['src_lang'],
+                            'lang_target': json_data['tgt_lang']
+                        }
+                        r = requests.post(self.manager.text_to_sentences_splitter, data)
+                        log.debug('Splitter Status: {0}'.format(r.status_code))
+                        if r.status_code == 200:
+                            self.manager.client_cancellations[key] = False 
 
-                        sentence_count = len(json_resp['sentences'])
-                        if key in self.manager.client_responses:
-                            response_queue = self.manager.client_responses[key]
-                        else:
-                            response_queue = Queue.Queue()
-                            self.manager.client_responses[key] = response_queue
-                        response_queue.put(json_resp)
+                            json_resp = r.json()
 
-                        log.debug("sentenceCount={0}".format(len(json_resp['sentences'])))
-                        for index, sentence in enumerate(json_resp['sentences']):
-                            translate_sentence_request = dict(json_data)
-                            del translate_sentence_request['text']
-                            translate_sentence_request['sentence'] = sentence
-                            translate_sentence_request['sentence_number'] = index
-                            translate_sentence_request['lang_source'] = translate_sentence_request['src_lang']
-                            translate_sentence_request['lang_target'] = translate_sentence_request['tgt_lang']
-                            translate_sentence_request['keepalive'] = time.time()
-                            self.manager.translation_request_queues[category].put(translate_sentence_request)
-                        self.manager.translation_request_queues[category].redistribute_requests()
-                        response = {'msg': 'All sentences have been queued.'}
-                elif json_data['type'] == 'poll':
-                    log.debug("POLL from {0}".format(key))   
-                    response = self.manager.poll(category, key)
-                elif json_data['type'] == 'cancelTranslation':
-                    log.info("CANCEL from {0}".format(key))
-                    self.manager.cancel(category, key)
-                    response = {'msg': 'Translation request has been cancelled.'}
-                else:
-                    response = {'msg': 'Unknown request type. Request has been ignored.'}
+                            sentence_count = len(json_resp['sentences'])
+                            if key in self.manager.client_responses:
+                                response_queue = self.manager.client_responses[key]
+                            else:
+                                response_queue = Queue.Queue()
+                                self.manager.client_responses[key] = response_queue
+                            response_queue.put(json_resp)
 
-                log.debug("Request processed in {0} s. by {1}".format(timeit.default_timer() - start_request, threading.current_thread().name))
-                response = json.dumps(response)
-                log.debug("Response from server={0}".format(response))
-                self.request.sendall(response)
+                            log.debug("sentenceCount={0}".format(len(json_resp['sentences'])))
+                            for index, sentence in enumerate(json_resp['sentences']):
+                                translate_sentence_request = dict(json_data)
+                                del translate_sentence_request['text']
+                                translate_sentence_request['sentence'] = sentence
+                                translate_sentence_request['sentence_number'] = index
+                                translate_sentence_request['lang_source'] = translate_sentence_request['src_lang']
+                                translate_sentence_request['lang_target'] = translate_sentence_request['tgt_lang']
+                                translate_sentence_request['keepalive'] = time.time()
+                                self.manager.translation_request_queues[category].put(translate_sentence_request)
+                            self.manager.translation_request_queues[category].redistribute_requests()
+                            response = {'msg': 'All sentences have been queued.'}
+                    elif json_data['type'] == 'poll':
+                        log.debug("POLL from {0}".format(key))   
+                        response = self.manager.poll(category, key)
+                    elif json_data['type'] == 'cancelTranslation':
+                        log.info("CANCEL from {0}".format(key))
+                        self.manager.cancel(category, key)
+                        response = {'msg': 'Translation request has been cancelled.'}
+                    else:
+                        response = {'msg': 'Unknown request type. Request has been ignored.'}
+
+                    log.debug("Request processed in {0} s. by {1}".format(timeit.default_timer() - start_request, threading.current_thread().name))
+                    response = json.dumps(response)
+                    log.debug("Response from server={0}".format(response))
+                    self.request.sendall(response)
 
         return ServerRequestHandler
 
