@@ -297,7 +297,7 @@ class RequestHandler(SocketServer.BaseRequestHandler):
                         text = sentence.findtext('i_sentence').strip()
                         log.info("text=%s" % text)
 
-                        cmd = self.server.segmenter_command % text
+                        cmd = self.server.segmenter_command % text.replace("'", "'\\''")
                         log.info("cmd=%s" % cmd)
                         start_cmd = timeit.default_timer()
 
