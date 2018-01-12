@@ -286,6 +286,7 @@ class RequestHandler(SocketServer.BaseRequestHandler):
                     attempt_to_relocate_unk_source = ('true' == root.get(
                         'attempt_to_relocate_unk_source', 'false'))
                     log.debug("Article id: %s" % article_id)
+                    in_ = ""
                     out = ""
                     segmented_input = []
                     segmented_output = []
@@ -294,7 +295,7 @@ class RequestHandler(SocketServer.BaseRequestHandler):
                     for idx, sentence in enumerate(sentences):
                         sentence_number = sentence.get('id')
                         text = sentence.findtext('i_sentence').strip()
-                        log.debug("text=%s" % text)
+                        log.info("text=%s" % text)
 
                         cmd = self.server.segmenter_command % text
                         log.info("cmd=%s" % cmd)
@@ -331,11 +332,15 @@ class RequestHandler(SocketServer.BaseRequestHandler):
                         # log.info("splitted_sentence=" + splitted_sentence)
 
                         log.info("Translating sentence %d" % idx)
+                        log.info("splitted_sentence={0}".format(splitted_sentence))
                         decoded_sentence = splitted_sentence.decode('utf-8')
+                        # log.info("decoded_sentence={0}".format(decoded_sentence))
                         translation, unk_mapping = self.server.translator.translate(decoded_sentence,
                                                                                                  beam_width, beam_pruning_margin, beam_score_coverage_penalty, beam_score_coverage_penalty_strength, nb_steps, nb_steps_ratio, remove_unk, normalize_unicode_unk, attempt_to_relocate_unk_source,
                                                                                                  beam_score_length_normalization, beam_score_length_normalization_strength, post_score_length_normalization, post_score_length_normalization_strength, post_score_coverage_penalty, post_score_coverage_penalty_strength,
                                                                                                  groundhog, force_finish, prob_space_combination, attn_graph_width, attn_graph_height)
+                        # in_ += decoded_sentence
+                        in_ += text
                         out += translation
 
                         if self.server.pp_command is not None:
@@ -359,7 +364,9 @@ class RequestHandler(SocketServer.BaseRequestHandler):
 
                     response['article_id'] = article_id
                     response['sentence_number'] = sentence_number
+                    response['in_'] = in_
                     response['out'] = out
+                    # log.info("in_={0}".format(in_))
                     log.info("out={0}".format(out))
                     response['segmented_input'] = segmented_input
                     response['segmented_output'] = segmented_output
