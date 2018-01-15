@@ -175,10 +175,16 @@ class Worker(threading.Thread):
                 attn_graph_height=translation_request['attn_graph_height'] if 'attn_graph_height' in translation_request else 0)
             self.manager.remove_active_translation(self.category, translation_request)
             json_resp = json.loads(resp)
-            log.debug("TRANSLATION: {0}".format(json_resp['out'].encode('utf-8')))
-            if not self.current_client_key in self.manager.client_cancellations or not self.manager.client_cancellations[self.current_client_key]:
-                response_queue = self.manager.client_responses[self.current_client_key]
-                response_queue.put(json_resp)
+            if 'error' in json_resp:
+                log.info("An error has occurred: {0}\n".format(json_resp['error']))
+                if 'stacktrace' in json_resp:
+                    for item in json_resp['stacktrace']:
+                        log.info(item)
+            else:
+                log.debug("TRANSLATION: {0}".format(json_resp['out'].encode('utf-8')))
+                if not self.current_client_key in self.manager.client_cancellations or not self.manager.client_cancellations[self.current_client_key]:
+                    response_queue = self.manager.client_responses[self.current_client_key]
+                    response_queue.put(json_resp)
 
             log.debug("Request processed in {0} s. by {1} [{2}:{3}]".format(timeit.default_timer() - start_request, self.name, self.current_client_key, translation_request['article_id']))
 
