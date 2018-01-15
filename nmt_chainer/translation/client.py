@@ -19,11 +19,12 @@ class Client:
         self.port = server_port
 
     def submit_request(self, request):
-        s = socket.socket()
-        s.connect((self.ip, self.port))
-        s.send(request)
-
+        s = None
         try:
+            s = socket.socket()
+            s.connect((self.ip, self.port))
+            s.send(request)
+
             resp = ''
             while True:
                 data = s.recv(1024)
@@ -32,7 +33,8 @@ class Client:
                     break
             return resp
         finally:
-            s.close()
+            if s:
+                s.close()
 
     def cancel(self):
         query = """<?xml version="1.0" encoding="utf-8"?><cancel_translation/>"""
