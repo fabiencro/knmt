@@ -138,7 +138,10 @@ class Worker(threading.Thread):
 
     def stop(self):
         client = Client(self.host, self.port)
-        resp = client.cancel()
+        try:
+            resp = client.cancel()
+        except BaseException as err:
+            log.info("An error has occurred when the client named '{0}' performed a CANCEL query for the '{1}' category: '{2}'".format(self.name, self.category, err))
 
     def run(self):
         while True:
@@ -151,34 +154,44 @@ class Worker(threading.Thread):
             log.debug("SENTENCE for worker {0}:{1}: {2}".format(self.host, self.port, translation_request['sentence'].encode('utf-8')))
             self.manager.add_active_translation(self.category, translation_request)
             client = Client(self.host, self.port)
-            resp = client.query(translation_request['sentence'].encode('utf-8'), 
-                article_id=translation_request['article_id'],
-                beam_width=translation_request['beam_width'] if 'beam_width' in translation_request else 30,
-                nb_steps=translation_request['nb_steps'] if 'nb_steps' in translation_request else 50,
-                nb_steps_ratio=translation_request['nb_steps_ratio'] if 'nb_steps_ratio' in translation_request else 1.2,
-                beam_pruning_margin=translation_request['beam_pruning_margin'] if 'beam_pruning_margin' in translation_request else 'none',
-                beam_score_length_normalization=translation_request['beam_score_length_normalization'] if 'beam_score_length_normalization' in translation_request else 'none',
-                beam_score_length_normalization_strength=translation_request['beam_score_length_normalization_strength'] if 'beam_score_length_normalization_strength' in translation_request else 0.2,
-                post_score_length_normalization=translation_request['post_score_length_normalization'] if 'post_score_length_normalization' in translation_request else 'simple',
-                post_score_length_normalization_strength=translation_request['post_score_length_normalization_strength'] if 'post_score_length_normalization_strength' in translation_request else 0.2,
-                beam_score_coverage_penalty=translation_request['beam_score_coverage_penalty'] if 'beam_score_coverage_penalty' in translation_request else 'none',
-                beam_score_coverage_penalty_strength=translation_request['beam_score_coverage_penalty_strength'] if 'beam_score_coverage_penalty_strength' in translation_request else 0.2,
-                post_score_coverage_penalty=translation_request['post_score_coverage_penalty'] if 'post_score_coverage_penalty' in translation_request else 'none',
-                post_score_coverage_penalty_strength=translation_request['post_score_coverage_penalty_strength'] if 'post_score_coverage_penalty_strength' in translation_request else 0.2,
-                prob_space_combination=translation_request['prob_space_combination'] if 'prob_space_combination' in translation_request else 'false',
-                normalize_unicode_unk=translation_request['normalize_unicode_unk'] if 'normalize_unicode_unk' in translation_request else 'true',
-                remove_unk=translation_request['remove_unk'] if 'remove_unk' in translation_request else 'false',
-                attempt_to_relocate_unk_source=translation_request['attempt_to_relocate_unk_source'] if 'attempt_to_relocate_unk_source' in translation_request else 'false',
-                force_finish=translation_request['force_finish'] if 'force_finish' in translation_request else 'false',
-                sentence_id=translation_request['sentence_number'],
-                attn_graph_width=translation_request['attn_graph_width'] if 'attn_graph_width' in translation_request else 0,
-                attn_graph_height=translation_request['attn_graph_height'] if 'attn_graph_height' in translation_request else 0)
-            self.manager.remove_active_translation(self.category, translation_request)
-            json_resp = json.loads(resp)
-            log.debug("TRANSLATION: {0}".format(json_resp['out'].encode('utf-8')))
-            if not self.current_client_key in self.manager.client_cancellations or not self.manager.client_cancellations[self.current_client_key]:
-                response_queue = self.manager.client_responses[self.current_client_key]
-                response_queue.put(json_resp)
+            try:
+                resp = client.query(translation_request['sentence'].encode('utf-8'), 
+                    article_id=translation_request['article_id'],
+                    beam_width=translation_request['beam_width'] if 'beam_width' in translation_request else 30,
+                    nb_steps=translation_request['nb_steps'] if 'nb_steps' in translation_request else 50,
+                    nb_steps_ratio=translation_request['nb_steps_ratio'] if 'nb_steps_ratio' in translation_request else 1.2,
+                    beam_pruning_margin=translation_request['beam_pruning_margin'] if 'beam_pruning_margin' in translation_request else 'none',
+                    beam_score_length_normalization=translation_request['beam_score_length_normalization'] if 'beam_score_length_normalization' in translation_request else 'none',
+                    beam_score_length_normalization_strength=translation_request['beam_score_length_normalization_strength'] if 'beam_score_length_normalization_strength' in translation_request else 0.2,
+                    post_score_length_normalization=translation_request['post_score_length_normalization'] if 'post_score_length_normalization' in translation_request else 'simple',
+                    post_score_length_normalization_strength=translation_request['post_score_length_normalization_strength'] if 'post_score_length_normalization_strength' in translation_request else 0.2,
+                    beam_score_coverage_penalty=translation_request['beam_score_coverage_penalty'] if 'beam_score_coverage_penalty' in translation_request else 'none',
+                    beam_score_coverage_penalty_strength=translation_request['beam_score_coverage_penalty_strength'] if 'beam_score_coverage_penalty_strength' in translation_request else 0.2,
+                    post_score_coverage_penalty=translation_request['post_score_coverage_penalty'] if 'post_score_coverage_penalty' in translation_request else 'none',
+                    post_score_coverage_penalty_strength=translation_request['post_score_coverage_penalty_strength'] if 'post_score_coverage_penalty_strength' in translation_request else 0.2,
+                    prob_space_combination=translation_request['prob_space_combination'] if 'prob_space_combination' in translation_request else 'false',
+                    normalize_unicode_unk=translation_request['normalize_unicode_unk'] if 'normalize_unicode_unk' in translation_request else 'true',
+                    remove_unk=translation_request['remove_unk'] if 'remove_unk' in translation_request else 'false',
+                    attempt_to_relocate_unk_source=translation_request['attempt_to_relocate_unk_source'] if 'attempt_to_relocate_unk_source' in translation_request else 'false',
+                    force_finish=translation_request['force_finish'] if 'force_finish' in translation_request else 'false',
+                    sentence_id=translation_request['sentence_number'],
+                    attn_graph_width=translation_request['attn_graph_width'] if 'attn_graph_width' in translation_request else 0,
+                    attn_graph_height=translation_request['attn_graph_height'] if 'attn_graph_height' in translation_request else 0)
+                json_resp = json.loads(resp)
+                if 'error' in json_resp:
+                    log.info("An error has occurred: {0}\n".format(json_resp['error']))
+                    if 'stacktrace' in json_resp:
+                        for item in json_resp['stacktrace']:
+                            log.info(item)
+                else:
+                    log.debug("TRANSLATION: {0}".format(json_resp['out'].encode('utf-8')))
+                    if not self.current_client_key in self.manager.client_cancellations or not self.manager.client_cancellations[self.current_client_key]:
+                        response_queue = self.manager.client_responses[self.current_client_key]
+                        response_queue.put(json_resp)
+            except BaseException as err:
+                log.info("An error has occurred when the client named '{0}' performed a TRANSLATE query for the '{1}' category: '{2}'".format(self.name, self.category, err))
+            finally:
+                self.manager.remove_active_translation(self.category, translation_request)
 
             log.debug("Request processed in {0} s. by {1} [{2}:{3}]".format(timeit.default_timer() - start_request, self.name, self.current_client_key, translation_request['article_id']))
 
