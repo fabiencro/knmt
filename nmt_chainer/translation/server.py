@@ -193,7 +193,8 @@ class Translator:
 
             rich_output_file.seek(0)
             rich_output_data = json.loads(rich_output_file.read())
-            unk_mapping = rich_output_data[0]['unk_mapping']
+            if len(rich_output_data) > 0 and 'unk_mapping' in rich_output_data[0]:
+                unk_mapping = rich_output_data[0]['unk_mapping']
 
         finally:
             src_file.close()
