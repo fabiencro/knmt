@@ -7,7 +7,6 @@ __version__ = "1.0"
 __email__ = "bergeron@pa.jst.jp"
 __status__ = "Development"
 
-import datetime
 import json
 import logging
 import logging.config
@@ -329,7 +328,7 @@ class Server(SocketServer.ThreadingMixIn, SocketServer.TCPServer):
                     key = "{0}-{1}".format(json_data['session_id'], json_data['client_tab_id']) 
                     log.debug("lang_pair={0} model={1} category={2}".format(lang_pair, model, category))
                     if json_data['type'] == 'translate':
-                        log.info("TRANSLATE from {0}: {1}".format(key, datetime.datetime.fromtimestamp(time.time()).strftime('%Y-%m-%d %H:%M:%S')))
+                        log.info("TRANSLATE from {0}".format(key))
                         data = {
                             'text': json_data['text'],
                             'lang_source': json_data['src_lang'],
