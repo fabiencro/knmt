@@ -65,6 +65,10 @@ knmt eval tests/tests_data/models/result_invariability.train.train.config tests/
 knmt eval tests/tests_data/models/result_invariability_untrained.train.train.config tests/tests_data/models/result_invariability_untrained.train.model.best.npz tests/tests_data/src2.txt tests/tests_data/models/result_invariability_untrained.translations_using_ensemble_search.txt --mode beam_search --beam_width 30 --additional_training_config tests/tests_data/models/result_invariability_untrained.train.train.config --additional_trained_model tests/tests_data/models/result_invariability_untrained.train.model.best_loss.npz
 
 
+knmt eval tests/tests_data/models/result_invariability_with_lex_prob_dict.train.train.config tests/tests_data/models/result_invariability_with_lex_prob_dict.train.model.best.npz tests/tests_data/src2.txt tests/tests_data/models/result_invariability_with_lex_prob_dict.translations_using_beam_search.txt --mode beam_search --beam_width 30 --additional_training_config tests/tests_data/models/result_invariability_with_lex_prob_dict.train.train.config --additional_trained_model tests/tests_data/models/result_invariability_with_lex_prob_dict.train.model.best_loss.npz
+
+knmt eval tests/tests_data/models/result_invariability_untrained_with_lex_prob_dict.train.train.config tests/tests_data/models/result_invariability_untrained_with_lex_prob_dict.train.model.best.npz tests/tests_data/src2.txt tests/tests_data/models/result_invariability_untrained_with_lex_prob_dict.translations_using_beam_search.txt --mode beam_search --beam_width 30 --additional_training_config tests/tests_data/models/result_invariability_untrained_with_lex_prob_dict.train.train.config --additional_trained_model tests/tests_data/models/result_invariability_untrained_with_lex_prob_dict.train.model.best_loss.npz
+
 # Create translations with the models using greedy search.
 knmt eval tests/tests_data/models/result_invariability.train.train.config tests/tests_data/models/result_invariability.train.model.best.npz tests/tests_data/src2.txt tests/tests_data/models/result_invariability.translations_using_greedy_search.txt --mode translate
 
