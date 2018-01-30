@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 """result_invariabitility_tests.py: Check if the code gives the same results."""
+from __future__ import absolute_import, division, print_function, unicode_literals
 __author__ = "Frederic Bergeron"
 __license__ = "undecided"
 __version__ = "1.0"
@@ -11,6 +12,7 @@ import numpy as np
 import os.path
 import pytest
 import random
+import sys
 
 
 class TestResultInvariability:
@@ -97,20 +99,24 @@ class TestResultInvariability:
             expected_translations = f.readlines()
         with open(search_file) as f:
             actual_translations = f.readlines()
-        print "expected_translations"
+        print("expected_translations")
         for p in expected_translations:
-            print p
-        print "actual_translations"
+            print(p)
+        print("actual_translations")
         for p in actual_translations:
-            print p
+            print(p)
 
         assert(actual_translations == expected_translations)
 
     @pytest.mark.parametrize("model_name, options", [
         ("result_invariability", "--max_nb_iters 2000 --mb_size 2 --Ei 5 --Eo 12 --Hi 6 --Ha 70 --Ho 15 --Hl 12"),
+        ("result_invariability_py3", "--max_nb_iters 2000 --mb_size 2 --Ei 5 --Eo 12 --Hi 6 --Ha 70 --Ho 15 --Hl 12"),
         ("result_invariability_untrained", "--max_nb_iters 800 --mb_size 2 --Ei 5 --Eo 12 --Hi 6 --Ha 70 --Ho 15 --Hl 12"),
+        ("result_invariability_untrained_py3", "--max_nb_iters 800 --mb_size 2 --Ei 5 --Eo 12 --Hi 6 --Ha 70 --Ho 15 --Hl 12"),
         ("result_invariability_with_lex_prob_dict", "--max_nb_iters 2000 --mb_size 2 --Ei 5 --Eo 12 --Hi 6 --Ha 70 --Ho 15 --Hl 12 --lexical_probability_dictionary tests/tests_data/lexical_prob_dict.json.gz"),
-        ("result_invariability_untrained_with_lex_prob_dict", "--max_nb_iters 800 --mb_size 2 --Ei 5 --Eo 12 --Hi 6 --Ha 70 --Ho 15 --Hl 12 --lexical_probability_dictionary tests/tests_data/lexical_prob_dict.json.gz")
+        ("result_invariability_with_lex_prob_dict_py3", "--max_nb_iters 2000 --mb_size 2 --Ei 5 --Eo 12 --Hi 6 --Ha 70 --Ho 15 --Hl 12 --lexical_probability_dictionary tests/tests_data/lexical_prob_dict.json.gz"),
+        ("result_invariability_untrained_with_lex_prob_dict", "--max_nb_iters 800 --mb_size 2 --Ei 5 --Eo 12 --Hi 6 --Ha 70 --Ho 15 --Hl 12 --lexical_probability_dictionary tests/tests_data/lexical_prob_dict.json.gz"),
+        ("result_invariability_untrained_with_lex_prob_dict_py3", "--max_nb_iters 800 --mb_size 2 --Ei 5 --Eo 12 --Hi 6 --Ha 70 --Ho 15 --Hl 12 --lexical_probability_dictionary tests/tests_data/lexical_prob_dict.json.gz")
     ])
     def test_train_result_invariability(self, tmpdir, gpu, model_name, options):
         """
@@ -118,6 +124,15 @@ class TestResultInvariability:
         The result should be identical.
         If not, it means that a recent commit have changed the behavior of the system.
         """
+
+        if sys.version_info < (3,0):
+            if model_name.endswith('_py3'):
+                assert True == True
+                return
+        else:
+            if not(model_name.endswith('_py3')):
+                assert True == True
+                return
 
         seed = 1234
         random.seed(seed)
@@ -142,4 +157,6 @@ class TestResultInvariability:
             with np.load(ref_prefix + '.train.model.best.npz') as ref_model_data:
                 assert(len(test_model_data.keys()) == len(ref_model_data.keys()))
                 for test_key, test_value in test_model_data.iteritems():
+                    print("test_value={0}".format(test_value))
+                    print("ref_value={0}".format(ref_model_data[test_key]))
                     np.testing.assert_array_almost_equal(test_value, ref_model_data[test_key], 5)
