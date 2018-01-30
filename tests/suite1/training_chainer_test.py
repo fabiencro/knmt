@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 """training_chainer_tests.py: Some unit tests for the training classes"""
+from __future__ import absolute_import, division, print_function, unicode_literals
 __author__ = "Fabien Cromieres"
 __license__ = "undecided"
 __version__ = "1.0"
@@ -165,7 +166,7 @@ class TestLengthBasedSerialIterator():
             try:
                 peek_value = iter.peek()
                 next_value = iter.next()
-                # print "{0} vs {1}".format(peek_value, next_value)
+                # print("{0} vs {1}".format(peek_value, next_value))
                 assert peek_value == next_value
             except StopIteration:
                 break
@@ -201,13 +202,13 @@ class TestLengthBasedSerialIterator():
                     count += 1
                     total += seq_length
         avg_seq_length = total / count
-        # print "avg={0}".format(avg_seq_length)
+        # print("avg={0}".format(avg_seq_length))
 
         prev_seq_length = None
         for batch in iter:
-            # print "batch size={0}".format(len(batch))
+            # print("batch size={0}".format(len(batch)))
             for pairs in batch:
-                # print "seq1.length={0} seq.length={1}".format(len(pairs[0]),len(pairs[1]))
+                # print("seq1.length={0} seq.length={1}".format(len(pairs[0]),len(pairs[1])))
                 # Consider the second sequence because the default sort_key uses this sequence.
                 seq_length = len(pairs[1])
                 if seq_length > 0:
