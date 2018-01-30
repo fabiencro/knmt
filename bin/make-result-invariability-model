@@ -5,7 +5,7 @@
 # checks after each new commit if the translation results are still the same as expected.
 #
 # To make the tests work on Travis on Github, I had to run this script from a virtual machine using
-# Ubuntu 12.04.  To prepare the environment, I also had to run basically the same instructions 
+# Ubuntu 14.04.  To prepare the environment, I also had to run basically the same instructions 
 # that Travis does when running the tests.
 #
 # For example, to generate the models for Python 3, I had to do something similar to this:
