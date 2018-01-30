@@ -1,16 +1,44 @@
-#!/bin/sh
+#!/bin/bash
 
 # This is the script that has been used to generate the result_invariability model
 # found in tests/tests_data/models directory.  This model is used by a test that 
 # checks after each new commit if the translation results are still the same as expected.
+#
+# To make the tests work on Travis on Github, I had to run this script from a virtual machine using
+# Ubuntu 14.04.  To prepare the environment, I also had to run basically the same instructions 
+# that Travis does when running the tests.
+#
+# For example, to generate the models for Python 3, I had to do something similar to this:
+#
+# wget https://s3.amazonaws.com/travis-python-archives/binaries/ubuntu/12.04/x86_64/python-3.6.tar.bz2
+# sudo tar xjf python-3.6.tar.bz2 --directory /
+# source /home/travis/virtualenv/python3.6/bin/activate
+# ...
+# bin/make-result-invariability-model
+#
+# The script must be run for both versions of Python.
+#
+
 
 GPU="$1"
 
-bin/make-and-train-result-invariability-model 1234 tests/tests_data/src2.txt tests/tests_data/tgt2.txt tests/tests_data/models/result_invariability "--max_nb_iters 2000 --mb_size 2 --Ei 5 --Eo 12 --Hi 6 --Ha 70 --Ho 15 --Hl 12" $GPU
-bin/make-and-train-result-invariability-model 1234 tests/tests_data/src2.txt tests/tests_data/tgt2.txt tests/tests_data/models/result_invariability_untrained "--max_nb_iters 800 --mb_size 2 --Ei 5 --Eo 12 --Hi 6 --Ha 70 --Ho 15 --Hl 12" $GPU
+PYTHON_VERSION=`python --version`
+echo "PYTHON_VERSION=$PYTHON_VERSION"
 
-bin/make-and-train-result-invariability-model 1234 tests/tests_data/src2.txt tests/tests_data/tgt2.txt tests/tests_data/models/result_invariability_with_lex_prob_dict "--max_nb_iters 2000 --mb_size 2 --Ei 5 --Eo 12 --Hi 6 --Ha 70 --Ho 15 --Hl 12 --lexical_probability_dictionary tests/tests_data/lexical_prob_dict.json.gz" $GPU
-bin/make-and-train-result-invariability-model 1234 tests/tests_data/src2.txt tests/tests_data/tgt2.txt tests/tests_data/models/result_invariability_untrained_with_lex_prob_dict "--max_nb_iters 800 --mb_size 2 --Ei 5 --Eo 12 --Hi 6 --Ha 70 --Ho 15 --Hl 12 --lexical_probability_dictionary tests/tests_data/lexical_prob_dict.json.gz" $GPU
+if [[ $PYTHON_VERSION == "Python 2"* ]]; then
+    SUFFIX=""
+elif [[ $PYTHON_VERSION == "Python 3"* ]]; then
+    SUFFIX="_py3"
+else
+    echo "Unsupported version of Python: $PYTHON_VERSION."
+    exit -1
+fi
+
+bin/make-and-train-result-invariability-model 1234 tests/tests_data/src2.txt tests/tests_data/tgt2.txt tests/tests_data/models/result_invariability$SUFFIX "--max_nb_iters 2000 --mb_size 2 --Ei 5 --Eo 12 --Hi 6 --Ha 70 --Ho 15 --Hl 12" $GPU
+bin/make-and-train-result-invariability-model 1234 tests/tests_data/src2.txt tests/tests_data/tgt2.txt tests/tests_data/models/result_invariability_untrained$SUFFIX "--max_nb_iters 800 --mb_size 2 --Ei 5 --Eo 12 --Hi 6 --Ha 70 --Ho 15 --Hl 12" $GPU
+
+bin/make-and-train-result-invariability-model 1234 tests/tests_data/src2.txt tests/tests_data/tgt2.txt tests/tests_data/models/result_invariability_with_lex_prob_dict$SUFFIX "--max_nb_iters 2000 --mb_size 2 --Ei 5 --Eo 12 --Hi 6 --Ha 70 --Ho 15 --Hl 12 --lexical_probability_dictionary tests/tests_data/lexical_prob_dict.json.gz" $GPU
+bin/make-and-train-result-invariability-model 1234 tests/tests_data/src2.txt tests/tests_data/tgt2.txt tests/tests_data/models/result_invariability_untrained_with_lex_prob_dict$SUFFIX "--max_nb_iters 800 --mb_size 2 --Ei 5 --Eo 12 --Hi 6 --Ha 70 --Ho 15 --Hl 12 --lexical_probability_dictionary tests/tests_data/lexical_prob_dict.json.gz" $GPU
 
 
 # Reduce config file sizes.
@@ -75,47 +103,85 @@ knmt eval tests/tests_data/models/result_invariability.train.train.config tests/
 knmt eval tests/tests_data/models/result_invariability_untrained.train.train.config tests/tests_data/models/result_invariability_untrained.train.model.best.npz tests/tests_data/src2.txt tests/tests_data/models/result_invariability_untrained.translations_using_greedy_search.txt --mode translate
 
 # Remove unneeded large files.
-rm -rf tests/tests_data/models/result_invariability.train
-rm -rf tests/tests_data/models/result_invariability.train.model.best.npz.config
-rm -rf tests/tests_data/models/result_invariability.train.model.best_loss.npz.config
-rm -rf tests/tests_data/models/result_invariability.train.result.sqlite
-rm -rf tests/tests_data/models/result_invariability.train.model.final.npz
-rm -rf tests/tests_data/models/result_invariability.train.model.final.npz.config
+rm -rf tests/tests_data/models/result_invariability$SUFFIX.train
+rm -rf tests/tests_data/models/result_invariability$SUFFIX.train.model.best.npz.config
+rm -rf tests/tests_data/models/result_invariability$SUFFIX.train.model.best_loss.npz.config
+rm -rf tests/tests_data/models/result_invariability$SUFFIX.train.result.sqlite
+rm -rf tests/tests_data/models/result_invariability$SUFFIX.train.model.final.npz
+rm -rf tests/tests_data/models/result_invariability$SUFFIX.train.model.final.npz.config
 
-rm -rf tests/tests_data/models/result_invariability_untrained.train
-rm -rf tests/tests_data/models/result_invariability_untrained.train.model.best.npz.config
-rm -rf tests/tests_data/models/result_invariability_untrained.train.model.best_loss.npz.config
-rm -rf tests/tests_data/models/result_invariability_untrained.train.result.sqlite
-rm -rf tests/tests_data/models/result_invariability_untrained.train.model.final.npz
-rm -rf tests/tests_data/models/result_invariability_untrained.train.model.final.npz.config
+rm -rf tests/tests_data/models/result_invariability_untrained$SUFFIX.train
+rm -rf tests/tests_data/models/result_invariability_untrained$SUFFIX.train.model.best.npz.config
+rm -rf tests/tests_data/models/result_invariability_untrained$SUFFIX.train.model.best_loss.npz.config
+rm -rf tests/tests_data/models/result_invariability_untrained$SUFFIX.train.result.sqlite
+rm -rf tests/tests_data/models/result_invariability_untrained$SUFFIX.train.model.final.npz
+rm -rf tests/tests_data/models/result_invariability_untrained$SUFFIX.train.model.final.npz.config
 
-rm -rf tests/tests_data/models/result_invariability_untrained_with_lex_prob_dict.train.model.best.npz.config
-rm -rf tests/tests_data/models/result_invariability_untrained_with_lex_prob_dict.train.model.best_loss.npz.config
-rm -rf tests/tests_data/models/result_invariability_untrained_with_lex_prob_dict.train.model.best_loss.npz
-rm -rf tests/tests_data/models/result_invariability_untrained_with_lex_prob_dict.train.result.sqlite
-rm -rf tests/tests_data/models/result_invariability_with_lex_prob_dict.train.model.best.npz.config
-rm -rf tests/tests_data/models/result_invariability_with_lex_prob_dict.train.model.best_loss.npz.config
-rm -rf tests/tests_data/models/result_invariability_with_lex_prob_dict.train.model.best_loss.npz
-rm -rf tests/tests_data/models/result_invariability_with_lex_prob_dict.train.result.sqlite
+rm -rf tests/tests_data/models/result_invariability_untrained_with_lex_prob_dict$SUFFIX.train.model.best.npz.config
+rm -rf tests/tests_data/models/result_invariability_untrained_with_lex_prob_dict$SUFFIX.train.model.best_loss.npz.config
+rm -rf tests/tests_data/models/result_invariability_untrained_with_lex_prob_dict$SUFFIX.train.model.best_loss.npz
+rm -rf tests/tests_data/models/result_invariability_untrained_with_lex_prob_dict$SUFFIX.train.result.sqlite
 
-rm -rf tests/tests_data/models/result_invariability.translations.txt.eval.config.json
+rm -rf tests/tests_data/models/result_invariability_with_lex_prob_dict$SUFFIX.train.model.best.npz.config
+rm -rf tests/tests_data/models/result_invariability_with_lex_prob_dict$SUFFIX.train.model.best_loss.npz.config
+rm -rf tests/tests_data/models/result_invariability_with_lex_prob_dict$SUFFIX.train.model.best_loss.npz
+rm -rf tests/tests_data/models/result_invariability_with_lex_prob_dict$SUFFIX.train.result.sqlite
+
+rm -rf tests/tests_data/models/result_invariability$SUFFIX.translations.txt.eval.config.json
+rm -rf tests/tests_data/models/result_invariability$SUFFIX.translations_using_beam_search.txt.eval.config.json
+rm -rf tests/tests_data/models/result_invariability$SUFFIX.translations_using_beam_search_and_google_options_1.txt.eval.config.json
+rm -rf tests/tests_data/models/result_invariability$SUFFIX.translations_using_beam_search_and_google_options_2.txt.eval.config.json
+rm -rf tests/tests_data/models/result_invariability$SUFFIX.translations_using_beam_search_and_prob_space_combination.txt.eval.config.json
+rm -rf tests/tests_data/models/result_invariability$SUFFIX.translations_using_ensemble_search.txt.eval.config.json
+rm -rf tests/tests_data/models/result_invariability$SUFFIX.translations_using_greedy_search.txt.eval.config.json
+
+rm -rf tests/tests_data/models/result_invariability_untrained$SUFFIX.translations_using_beam_search.txt.eval.config.json
+rm -rf tests/tests_data/models/result_invariability_untrained$SUFFIX.translations_using_beam_search_and_google_options_1.txt.eval.config.json
+rm -rf tests/tests_data/models/result_invariability_untrained$SUFFIX.translations_using_beam_search_and_google_options_2.txt.eval.config.json
+rm -rf tests/tests_data/models/result_invariability_untrained$SUFFIX.translations_using_beam_search_and_prob_space_combination.txt.eval.config.json
+rm -rf tests/tests_data/models/result_invariability_untrained$SUFFIX.translations_using_ensemble_search.txt.eval.config.json
+rm -rf tests/tests_data/models/result_invariability_untrained$SUFFIX.translations_using_greedy_search.txt.eval.config.json
+
+rm -rf tests/tests_data/models/result_invariability_untrained_with_lex_prob_dict$SUFFIX.translations_using_beam_search.txt.eval.config.json
+rm -rf tests/tests_data/models/result_invariability_untrained_with_lex_prob_dict$SUFFIX.translations_using_beam_search.txt.eval.init.config.json
+rm -rf tests/tests_data/models/result_invariability_untrained_with_lex_prob_dict$SUFFIX.translations_using_beam_search.txt.unprocessed
+
+rm -rf tests/tests_data/models/result_invariability_with_lex_prob_dict$SUFFIX.translations_using_beam_search.txt.eval.config.json
+rm -rf tests/tests_data/models/result_invariability_with_lex_prob_dict$SUFFIX.translations_using_beam_search.txt.eval.init.config.json
+rm -rf tests/tests_data/models/result_invariability_with_lex_prob_dict$SUFFIX.translations_using_beam_search.txt.unprocessed
+
 rm -rf tests/tests_data/models/result_invariability.translations_using_beam_search.txt.eval.config.json
-
+rm -rf tests/tests_data/models/result_invariability.translations_using_beam_search.txt.eval.init.config.json
+rm -rf tests/tests_data/models/result_invariability.translations_using_beam_search.txt.unprocessed
 rm -rf tests/tests_data/models/result_invariability.translations_using_beam_search_and_google_options_1.txt.eval.config.json
+rm -rf tests/tests_data/models/result_invariability.translations_using_beam_search_and_google_options_1.txt.eval.init.config.json
+rm -rf tests/tests_data/models/result_invariability.translations_using_beam_search_and_google_options_1.txt.unprocessed
 rm -rf tests/tests_data/models/result_invariability.translations_using_beam_search_and_google_options_2.txt.eval.config.json
+rm -rf tests/tests_data/models/result_invariability.translations_using_beam_search_and_google_options_2.txt.eval.init.config.json
+rm -rf tests/tests_data/models/result_invariability.translations_using_beam_search_and_google_options_2.txt.unprocessed
 rm -rf tests/tests_data/models/result_invariability.translations_using_beam_search_and_prob_space_combination.txt.eval.config.json
+rm -rf tests/tests_data/models/result_invariability.translations_using_beam_search_and_prob_space_combination.txt.eval.init.config.json
+rm -rf tests/tests_data/models/result_invariability.translations_using_beam_search_and_prob_space_combination.txt.unprocessed
 rm -rf tests/tests_data/models/result_invariability.translations_using_ensemble_search.txt.eval.config.json
+rm -rf tests/tests_data/models/result_invariability.translations_using_ensemble_search.txt.eval.init.config.json
+rm -rf tests/tests_data/models/result_invariability.translations_using_ensemble_search.txt.unprocessed
 rm -rf tests/tests_data/models/result_invariability.translations_using_greedy_search.txt.eval.config.json
-rm -rf tests/tests_data/models/result_invariability_untrained.translations_using_beam_search.txt.eval.config.json
-rm -rf tests/tests_data/models/result_invariability_untrained.translations_using_beam_search_and_google_options_1.txt.eval.config.json
-rm -rf tests/tests_data/models/result_invariability_untrained.translations_using_beam_search_and_google_options_2.txt.eval.config.json
-rm -rf tests/tests_data/models/result_invariability_untrained.translations_using_beam_search_and_prob_space_combination.txt.eval.config.json
-rm -rf tests/tests_data/models/result_invariability_untrained.translations_using_ensemble_search.txt.eval.config.json
-rm -rf tests/tests_data/models/result_invariability_untrained.translations_using_greedy_search.txt.eval.config.json
+rm -rf tests/tests_data/models/result_invariability.translations_using_greedy_search.txt.eval.init.config.json
 
-rm -rf tests/tests_data/models/result_invariability_untrained_with_lex_prob_dict.translations_using_beam_search.txt.eval.config.json
-rm -rf tests/tests_data/models/result_invariability_untrained_with_lex_prob_dict.translations_using_beam_search.txt.eval.init.config.json
-rm -rf tests/tests_data/models/result_invariability_untrained_with_lex_prob_dict.translations_using_beam_search.txt.unprocessed
-rm -rf tests/tests_data/models/result_invariability_with_lex_prob_dict.translations_using_beam_search.txt.eval.config.json
-rm -rf tests/tests_data/models/result_invariability_with_lex_prob_dict.translations_using_beam_search.txt.eval.init.config.json
-rm -rf tests/tests_data/models/result_invariability_with_lex_prob_dict.translations_using_beam_search.txt.unprocessed
+rm -rf tests/tests_data/models/result_invariability_untrained.translations_using_beam_search.txt.eval.config.json
+rm -rf tests/tests_data/models/result_invariability_untrained.translations_using_beam_search.txt.eval.init.config.json
+rm -rf tests/tests_data/models/result_invariability_untrained.translations_using_beam_search.txt.unprocessed
+rm -rf tests/tests_data/models/result_invariability_untrained.translations_using_beam_search_and_google_options_1.txt.eval.config.json
+rm -rf tests/tests_data/models/result_invariability_untrained.translations_using_beam_search_and_google_options_1.txt.eval.init.config.json
+rm -rf tests/tests_data/models/result_invariability_untrained.translations_using_beam_search_and_google_options_1.txt.unprocessed
+rm -rf tests/tests_data/models/result_invariability_untrained.translations_using_beam_search_and_google_options_2.txt.eval.config.json
+rm -rf tests/tests_data/models/result_invariability_untrained.translations_using_beam_search_and_google_options_2.txt.eval.init.config.json
+rm -rf tests/tests_data/models/result_invariability_untrained.translations_using_beam_search_and_google_options_2.txt.unprocessed
+rm -rf tests/tests_data/models/result_invariability_untrained.translations_using_beam_search_and_prob_space_combination.txt.eval.config.json
+rm -rf tests/tests_data/models/result_invariability_untrained.translations_using_beam_search_and_prob_space_combination.txt.eval.init.config.json
+rm -rf tests/tests_data/models/result_invariability_untrained.translations_using_beam_search_and_prob_space_combination.txt.unprocessed
+rm -rf tests/tests_data/models/result_invariability_untrained.translations_using_ensemble_search.txt.eval.config.json
+rm -rf tests/tests_data/models/result_invariability_untrained.translations_using_ensemble_search.txt.eval.init.config.json
+rm -rf tests/tests_data/models/result_invariability_untrained.translations_using_ensemble_search.txt.unprocessed
+rm -rf tests/tests_data/models/result_invariability_untrained.translations_using_greedy_search.txt.eval.config.json
+rm -rf tests/tests_data/models/result_invariability_untrained.translations_using_greedy_search.txt.eval.init.config.json

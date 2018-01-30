@@ -1,4 +1,6 @@
+#!/usr/bin/env python
 #Backporting faster layer normalization from chainer v2
+from __future__ import absolute_import, division, print_function, unicode_literals
 
 from chainer import cuda
 from chainer import function

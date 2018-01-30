@@ -1,3 +1,6 @@
+#!/usr/bin/env python
+from __future__ import absolute_import, division, print_function, unicode_literals
+
 import chainer
 import numpy as np
 import chainer.functions as F
@@ -7,7 +10,8 @@ from chainer import Variable, Chain, ChainList
 from nmt_chainer.models.feedforward.encoder import Encoder
 from nmt_chainer.models.feedforward.decoder import Decoder
 from nmt_chainer.utilities.utils import batch_sort_and_split
-from __builtin__ import True
+import six
+# from __builtin__ import True
     
 import logging
 logging.basicConfig()
@@ -43,7 +47,7 @@ class EncoderDecoder(Chain):
                 larger_batch = test_data[cursor:cursor+required_data]
                 cursor += required_data
                 for minibatch in batch_sort_and_split(larger_batch, size_parts = mb_size):
-                    yield zip(*minibatch)
+                    yield six.moves.zip(*minibatch)
         
         with chainer.using_config("train", False), chainer.no_backprop_mode():
             total_loss = 0
@@ -56,7 +60,7 @@ class EncoderDecoder(Chain):
             return total_loss / total_nb_predictions
         
     def greedy_batch_translate(self, test_data,  mb_size=64, nb_mb_for_sorting= 20, nb_steps=50):
-        test_data_with_index = zip(test_data, range(len(test_data)))
+        test_data_with_index = list(six.moves.zip(test_data, six.moves.range(len(test_data))))
         def mb_provider(): #TODO: optimize by sorting by size
             required_data = nb_mb_for_sorting * mb_size
             cursor = 0
@@ -70,13 +74,13 @@ class EncoderDecoder(Chain):
                 
         result = []
         for src_batch_with_index in mb_provider():
-            src_batch, indexes = zip(*src_batch_with_index)
+            src_batch, indexes = list(six.moves.zip(*src_batch_with_index))
             translated = self.greedy_translate(src_batch, nb_steps=nb_steps)
-            result += zip(indexes, translated) 
+            result += list(six.moves.zip(indexes, translated))
             
         result.sort(key=lambda x:x[0])
-        reordered_indexes, reordered_result = zip(*result)
-        assert reordered_indexes == range(len(test_data))
+        reordered_indexes, reordered_result = list(six.moves.zip(*result))
+        assert reordered_indexes == six.moves.range(len(test_data))
         return reordered_result
         
     def compute_loss(self, src_seq, tgt_seq, reduce="mean"):
@@ -92,8 +96,8 @@ class EncoderDecoder(Chain):
             logits, decoder_state = decoding_cell.get_initial_logits()
             
             mb_size = len(src_seq)
-            result = [[] for _ in xrange(mb_size)]
-            finished = [False for _ in xrange(mb_size)]
+            result = [[] for _ in six.moves.range(mb_size)]
+            finished = [False for _ in six.moves.range(mb_size)]
             
             num_step = 0
             while 1:
@@ -104,7 +108,7 @@ class EncoderDecoder(Chain):
                 prev_word = self.xp.argmax(logits.data, axis = 1).reshape(-1, 1).astype(self.xp.int32)
     #             print "prev w shape", prev_word.shape
                 assert prev_word.shape == (mb_size, 1)
-                for i in xrange(mb_size):
+                for i in six.moves.range(mb_size):
                     if not finished[i]:
                         if cut_eos and prev_word[i, 0] == self.decoder.eos_idx:
                             finished[i] = True
@@ -139,7 +143,7 @@ class EncoderDecoder(Chain):
             padded_tgt = self.xp.array(padded_tgt)
 
         max_tgt_length = padded_tgt.shape[1]
-        seq_padded_tgt = [padded_tgt[:, i:i+1] for i in range(max_tgt_length)]
+        seq_padded_tgt = [padded_tgt[:, i:i+1] for i in six.moves.range(max_tgt_length)]
         
 
 #         loss = F.softmax_cross_entropy(F.reshape(logits, (-1, self.decoder.V+1)), padded_target_with_eos.reshape(-1,))
@@ -148,7 +152,7 @@ class EncoderDecoder(Chain):
         result = [logits]
         
         
-        for num_step in range(max_tgt_length):
+        for num_step in six.moves.range(max_tgt_length):
 #             print "num_step", num_step
 #             print "logits shape", logits.shape
             prev_word = seq_padded_tgt[num_step]
@@ -171,14 +175,14 @@ class EncoderDecoder(Chain):
         padded_tgt = pad_data(tgt_seq, pad_value=0)#, add_eos=self.decoder.eos_idx)
         
         max_tgt_length = padded_tgt.shape[1]
-        seq_padded_tgt = [padded_tgt[:, i] for i in range(max_tgt_length)]
+        seq_padded_tgt = [padded_tgt[:, i] for i in six.moves.range(max_tgt_length)]
         
         padded_target_with_eos = pad_data(tgt_seq, pad_value=-1, add_eos=self.decoder.eos_idx)
         
 #         loss = F.softmax_cross_entropy(F.reshape(logits, (-1, self.decoder.V+1)), padded_target_with_eos.reshape(-1,))
         
         mb_size = len(src_seq)
-        result = [[] for _ in xrange(mb_size)]
+        result = [[] for _ in six.moves.range(mb_size)]
         
         num_step = 0
         while 1:
@@ -186,7 +190,7 @@ class EncoderDecoder(Chain):
             prev_word = padded_tgt[num_step]
 #             print "prev w shape", prev_word.shape
             assert prev_word.shape == (mb_size, 1)
-            for i in xrange(mb_size):
+            for i in six.moves.range(mb_size):
                 result[i].append(prev_word[i, 0])
             
             prev_word = self.xp.where(prev_word == self.decoder.eos_idx, 0, prev_word)
@@ -195,5 +199,4 @@ class EncoderDecoder(Chain):
                 break
             logits, decoder_state = decoding_cell(decoder_state, prev_word, train=train)
         return result    
-        
         
