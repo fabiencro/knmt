@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 """macro_tests.py: Some macro tests"""
+from __future__ import absolute_import, division, print_function, unicode_literals
 __author__ = "Fabien Cromieres"
 __license__ = "undecided"
 __version__ = "1.0"

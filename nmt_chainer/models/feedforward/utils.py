@@ -1,3 +1,6 @@
+#!/usr/bin/env python
+from __future__ import absolute_import, division, print_function, unicode_literals
+
 import chainer
 import numpy as np
 import chainer.functions as F
@@ -177,4 +180,3 @@ def cut_minibatch(minibatch, new_mb_size):
     new_minibatch, _ = F.split_axis(minibatch, (new_mb_size,), axis=0, force_tuple=True)
     return new_minibatch
 
-    

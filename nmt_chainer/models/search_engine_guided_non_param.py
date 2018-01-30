@@ -1,4 +1,5 @@
-
+#!/usr/bin/env python
+from __future__ import absolute_import, division, print_function, unicode_literals
 
 def create_context_memory(encdec, biprocessor, search_engine, src_sentence):
     examples_list = search_engine.search(src_sentence)
@@ -30,5 +31,4 @@ def test_context_memory(config_filename, search_engine, src_sentence):
     ctxt_mem = create_context_memory(encdec, (src_indexer, tgt_indexer), search_engine, src_sentence)
     
     # (later) do some tests with ctxt_mem
-    
     

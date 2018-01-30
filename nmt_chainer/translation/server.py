@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 """server.py: Process requests to RNNSearch"""
+from __future__ import absolute_import, division, print_function, unicode_literals
 __author__ = "Frederic Bergeron"
 __license__ = "undecided"
 __version__ = "1.0"
@@ -13,6 +14,7 @@ from chainer import cuda
 import logging
 import sys
 import tempfile
+import six
 
 from nmt_chainer.dataprocessing.processors import build_dataset_one_side_pp
 import nmt_chainer.translation.eval
@@ -23,7 +25,6 @@ import time
 import timeit
 import socket
 import threading
-import SocketServer
 import xml.etree.ElementTree as ET
 import re
 import subprocess
@@ -33,8 +34,7 @@ logging.basicConfig()
 log = logging.getLogger("rnns:server")
 log.setLevel(logging.INFO)
 
-
-class Translator:
+class Translator(object):
 
     def __init__(self, config_server):
         self.config_server = config_server
@@ -97,7 +97,7 @@ class Translator:
             out = dest_file.read()
 
             rich_output_file.seek(0)
-            rich_output_data = json.loads(rich_output_file.read())
+            rich_output_data = json.loads(rich_output_file.read().decode('utf-8'))
             unk_mapping = rich_output_data[0]['unk_mapping']
 
             attn_graph_script_file.seek(0)
@@ -116,7 +116,8 @@ class Translator:
         return out, script, div, unk_mapping
 
 
-class RequestHandler(SocketServer.BaseRequestHandler):
+
+class RequestHandler(six.moves.socketserver.BaseRequestHandler):
 
     def handle(self):
         start_request = timeit.default_timer()
@@ -207,7 +208,7 @@ class RequestHandler(SocketServer.BaseRequestHandler):
                     log.info("cmd=%s" % cmd)
                     start_cmd = timeit.default_timer()
 
-                    parser_output = subprocess.check_output(cmd, shell=True)
+                    parser_output = subprocess.check_output(cmd, shell=True, universal_newlines=True)
 
                     log.info(
                         "Segmenter request processed in {} s.".format(
@@ -238,11 +239,11 @@ class RequestHandler(SocketServer.BaseRequestHandler):
                     # log.info("splitted_sentence=" + splitted_sentence)
 
                     log.info(timestamped_msg("Translating sentence %d" % idx))
-                    decoded_sentence = splitted_sentence.decode('utf-8')
-                    translation, script, div, unk_mapping = self.server.translator.translate(decoded_sentence,
+                    translation, script, div, unk_mapping = self.server.translator.translate(splitted_sentence,
                                                                                              beam_width, beam_pruning_margin, beam_score_coverage_penalty, beam_score_coverage_penalty_strength, nb_steps, nb_steps_ratio, remove_unk, normalize_unicode_unk, attempt_to_relocate_unk_source,
                                                                                              beam_score_length_normalization, beam_score_length_normalization_strength, post_score_length_normalization, post_score_length_normalization_strength, post_score_coverage_penalty, post_score_coverage_penalty_strength,
                                                                                              groundhog, force_finish, prob_space_combination, attn_graph_width, attn_graph_height)
+                    translation = translation.decode('utf-8')
                     out += translation
 
                     if self.server.pp_command is not None:
@@ -251,7 +252,7 @@ class RequestHandler(SocketServer.BaseRequestHandler):
 
                         start_pp_cmd = timeit.default_timer()
 
-                        pp_output = subprocess.check_output(pp_cmd, shell=True)
+                        pp_output = subprocess.check_output(pp_cmd, shell=True, universal_newlines=True)
 
                         log.info("Postprocessor request processede in {} s.".format(timeit.default_timer() - start_pp_cmd))
                         log.info("pp_output=%s" % pp_output)
@@ -260,8 +261,7 @@ class RequestHandler(SocketServer.BaseRequestHandler):
                     segmented_input.append(splitted_sentence)
                     segmented_output.append(translation)
                     mapping.append(unk_mapping)
-                    graph_data.append(
-                        (script.encode('utf-8'), div.encode('utf-8')))
+                    graph_data.append((script, div))
 
                     # There should always be only one sentence for now. - FB
                     break
@@ -271,11 +271,11 @@ class RequestHandler(SocketServer.BaseRequestHandler):
                 response['out'] = out
                 response['segmented_input'] = segmented_input
                 response['segmented_output'] = segmented_output
-                response['mapping'] = map(lambda x: ' '.join(x), mapping)
+                response['mapping'] = list(map(lambda x: ' '.join(x), mapping))
                 graphes = []
                 for gd in graph_data:
                     script, div = gd
-                    graphes.append({'script': script, 'div': div})
+                    graphes.append({'script': script.decode('utf-8'), 'div': div.decode('utf-8')})
                 response['attn_graphes'] = graphes
             except BaseException:
                 traceback.print_exc()
@@ -290,10 +290,10 @@ class RequestHandler(SocketServer.BaseRequestHandler):
                 cur_thread.name))
 
         response = json.dumps(response)
-        self.request.sendall(response)
+        self.request.sendall(response.encode('utf-8'))
 
 
-class Server(SocketServer.ThreadingMixIn, SocketServer.TCPServer):
+class Server(six.moves.socketserver.ThreadingMixIn, six.moves.socketserver.TCPServer):
 
     daemon_threads = True
     allow_reuse_address = True
@@ -306,7 +306,7 @@ class Server(SocketServer.ThreadingMixIn, SocketServer.TCPServer):
             segmenter_format,
             translator,
             pp_command):
-        SocketServer.TCPServer.__init__(self, server_address, handler_class)
+        six.moves.socketserver.TCPServer.__init__(self, server_address, handler_class)
         self.segmenter_command = segmenter_command
         self.segmenter_format = segmenter_format
         self.translator = translator
