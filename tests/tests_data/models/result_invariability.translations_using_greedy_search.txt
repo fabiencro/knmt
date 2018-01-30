@@ -1,9 +1,9 @@
 a b c d e f
-ab de ef gh
-ich möchte 200 Meter
+big and small
+1 1 d e 2 0 None 4 UNK
 a b c d e f
-mein Sohn ist groß
-i need more sentences
+this is a long text
+ich möchte nach Deutschland fahren Fehlen
 does it work
 it is enough
 should i use capital letters
@@ -13,22 +13,22 @@ es ist heiß
 ich will ein Bier trinken
 das Tastatur ist schwarz
 mein Sohn ist krank
-das Tastatur ist schwarz
+warum ist der Text auf Deutsch geschrieben
 mann muss jede Tag die Zähne putzen
-eins zwei drei vier fünf
+er liehst die Zeitung
 ich bin nicht sicher
 es ist Weihnachten früh
 ich mache viele Fehlen
 ab de ef gh
 u8 i78 o0 u7 i98
 me gustaría comer un pastél
-te quiero
+es ist Weihnachten
 ich möchte 200 Meter rennen
 es regnet
 die Brille sind rot
 der Tisch ist groß
-es regnet
-ich möchte
+er liehst die Zeitung
+wir essen Äpfel
 er hat deine Tasche gestohlen
 eins zwei drei vier fünf sechs
 1 2 3 4 5 6
@@ -36,5 +36,5 @@ null
 ich habe am Eingang meinen Name auf ein Papier geschrieben
 dieses Bett ist nicht sehr bequem
 kannst du den Fernseher ausmachen
-was essen wir für Mittagessen
+es regnet
 ich möchte nach Deutschland fahren
