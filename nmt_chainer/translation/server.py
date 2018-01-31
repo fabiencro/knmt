@@ -14,6 +14,9 @@ import logging
 import logging.config
 import sys
 import tempfile
+import os
+from os import listdir
+from os.path import isfile, join, dirname, basename
 
 from nmt_chainer.dataprocessing.processors import build_dataset_one_side_pp
 import nmt_chainer.translation.eval
@@ -221,7 +224,18 @@ class RequestHandler(SocketServer.BaseRequestHandler):
 
                 log.info("request={0}".format(data))
 
-                if "cancel_translation" in data:
+                if "get_log_files" in data:
+                    all_log_files = []
+                    for handler in log.root.handlers:
+                        if hasattr(handler, 'baseFilename'):
+                            log_dir = os.path.dirname(handler.baseFilename)
+                            log_base_fn = os.path.basename(handler.baseFilename)
+                            log_files = [f for f in listdir(log_dir) if isfile(join(log_dir, f)) and f.startswith(log_base_fn)]
+                            all_log_files += log_files
+                    response['log_files'] = all_log_files
+                elif "get_log_file" in data:
+                    pass # TODO
+                elif "cancel_translation" in data:
                     self.server.translator.stop()
                 else:
                     root = ET.fromstring(data)

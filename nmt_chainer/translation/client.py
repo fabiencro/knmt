@@ -114,3 +114,7 @@ class Client:
                              escape(sentence))
 
         return self.submit_request(query)
+
+    def get_log_files(self):
+        query = """<?xml version="1.0" encoding="utf-8"?><get_log_files/>"""
+        return self.submit_request(query)
