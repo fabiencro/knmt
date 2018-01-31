@@ -23,6 +23,9 @@ from collections import deque
 from urllib import urlencode
 import requests
 import Queue
+import os
+from os import listdir
+from os.path import isfile, join, dirname, basename
 
 from nmt_chainer.translation.client import Client
 
@@ -327,7 +330,14 @@ class Server(SocketServer.ThreadingMixIn, SocketServer.TCPServer):
                                 except BaseException as err:
                                     log.info("An error has occurred when the multiserver performed a GET_LOG_FILES query for the '{0}' category: '{1}'".format(self.category, err))
                                 
-                        # TODO: I must also retrieve the log files of the multiserver similarly.
+                        all_log_files = []
+                        for handler in log.root.handlers:
+                            if hasattr(handler, 'baseFilename'):
+                                log_dir = os.path.dirname(handler.baseFilename)
+                                log_base_fn = os.path.basename(handler.baseFilename)
+                                log_files = [f for f in listdir(log_dir) if isfile(join(log_dir, f)) and f.startswith(log_base_fn)]
+                                all_log_files += log_files
+                        response['multiserver'] = all_log_files
                     elif json_data['type'] == 'get_log_file':
                         response = {'msg': 'get_log_file request received.'} # TODO Implement get_log_file.
                     else:
