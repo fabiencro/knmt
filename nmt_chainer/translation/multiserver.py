@@ -274,6 +274,56 @@ class Manager(object):
             if worker.current_client_key == client_id:
                 worker.stop()
 
+    def get_log_files(self):
+        log_file_table = {}
+
+        all_log_files = []
+        for handler in log.root.handlers:
+            if hasattr(handler, 'baseFilename'):
+                log_dir = os.path.dirname(handler.baseFilename)
+                log_base_fn = os.path.basename(handler.baseFilename)
+                log_files = [f for f in listdir(log_dir) if isfile(join(log_dir, f)) and f.startswith(log_base_fn)]
+                all_log_files += log_files
+        log_file_table['multiserver'] = all_log_files
+
+        for server_category in self.translation_server_config:
+            for idx, server in enumerate(self.translation_server_config[server_category]):
+                client = Client(server['host'], server['port'])
+                try:
+                    resp = client.get_log_files()
+                    resp_json = json.loads(resp)
+                    log_file_table[server_category] = resp_json['log_files']  
+                except BaseException as err:
+                    log.info("An error has occurred when the multiserver performed a GET_LOG_FILES query for the '{0}' category: '{1}'".format(self.category, err))
+                
+        return log_file_table
+
+    def get_log_file_content(self, requested_file):
+        log_file_content = ''
+
+        for handler in log.root.handlers:
+            if hasattr(handler, 'baseFilename'):
+                log_dir = os.path.dirname(handler.baseFilename)
+                log_base_fn = os.path.basename(handler.baseFilename)
+                actual_log_file = "{0}/{1}".format(log_dir, requested_file)
+                if log_base_fn in requested_file and os.path.isfile(actual_log_file):
+                    with open(actual_log_file, 'r') as f:
+                        log_file_content = f.read()
+                    return log_file_content
+        
+        for server_category in self.translation_server_config:
+            for idx, server in enumerate(self.translation_server_config[server_category]):
+                client = Client(server['host'], server['port'])
+                try:
+                    resp = client.get_log_file(requested_file)
+                    resp_json = json.loads(resp)
+                    if resp_json['status'] == 'OK' and 'log_file_content' in resp_json:
+                        return resp_json['log_file_content']
+                except BaseException as err:
+                    log.info("An error has occurred when the multiserver performed a GET_LOG_FILE query for the '{0}' category: '{1}'".format(server_category, err))
+
+        return log_file_content
+
 EOM = "==== EOM ===="
 
 class Server(SocketServer.ThreadingMixIn, SocketServer.TCPServer):
@@ -320,26 +370,10 @@ class Server(SocketServer.ThreadingMixIn, SocketServer.TCPServer):
 
                 if json_data:    
                     if json_data['type'] == 'get_log_files':
-                        for server_category in self.manager.translation_server_config:
-                            for idx, server in enumerate(self.manager.translation_server_config[server_category]):
-                                client = Client(server['host'], server['port'])
-                                try:
-                                    resp = client.get_log_files()
-                                    resp_json = json.loads(resp)
-                                    response[server_category] = resp_json['log_files']  
-                                except BaseException as err:
-                                    log.info("An error has occurred when the multiserver performed a GET_LOG_FILES query for the '{0}' category: '{1}'".format(self.category, err))
-                                
-                        all_log_files = []
-                        for handler in log.root.handlers:
-                            if hasattr(handler, 'baseFilename'):
-                                log_dir = os.path.dirname(handler.baseFilename)
-                                log_base_fn = os.path.basename(handler.baseFilename)
-                                log_files = [f for f in listdir(log_dir) if isfile(join(log_dir, f)) and f.startswith(log_base_fn)]
-                                all_log_files += log_files
-                        response['multiserver'] = all_log_files
+                        response = self.manager.get_log_files()
                     elif json_data['type'] == 'get_log_file':
-                        response = {'msg': 'get_log_file request received.'} # TODO Implement get_log_file.
+                        log_file_content = self.manager.get_log_file_content(json_data['file'][1:])
+                        response = {'log_file_content': log_file_content}
                     else:
                         lang_pair = None
                         if json_data['src_lang'] and json_data['tgt_lang']:

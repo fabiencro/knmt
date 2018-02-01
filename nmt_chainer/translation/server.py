@@ -234,7 +234,21 @@ class RequestHandler(SocketServer.BaseRequestHandler):
                             all_log_files += log_files
                     response['log_files'] = all_log_files
                 elif "get_log_file" in data:
-                    pass # TODO
+                    root = ET.fromstring(data)
+                    filename = root.get('filename') 
+                    for handler in log.root.handlers:
+                        if hasattr(handler, 'baseFilename'):
+                            log_dir = os.path.dirname(handler.baseFilename)
+                            log_base_fn = os.path.basename(handler.baseFilename)
+                            log_file = "{0}/{1}".format(log_dir, filename)
+                            if log_base_fn in filename and os.path.isfile(log_file):
+                                with open(log_file, 'r') as f:
+                                    log_file_content = f.read()
+                                response['log_file_content'] = log_file_content
+                                response['status'] = 'OK'
+                                break
+                    else:
+                        response['status'] = 'NOT FOUND'
                 elif "cancel_translation" in data:
                     self.server.translator.stop()
                 else:
