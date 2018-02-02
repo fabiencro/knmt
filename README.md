@@ -7,23 +7,28 @@ This code mainly implements the Neural Machine Translation system described in (
 
 This implementation uses the [Chainer](http://chainer.org/) Deep Learning Library.
 
-NB: The Code here has been used for practical purposes for some months and work well. Documentation is a bit incomplete, but is slowly improving.
 
-This code was used for participation in the translation shared task of the 3rd [Workshop on Asian Translation](http://lotus.kuee.kyoto-u.ac.jp/WAT/). See this [paper](http://www.aclweb.org/anthology/W/W16/W16-4616.pdf) for details.
+This code was used for participation in several shared translation tasks and could obtain state-of-the-art results. In particular, we obtained:
+* Best results for the ASPEC dataset (Japanese->English, English->Japanese, Chinese->Japanese and Japanese->Chinese) in the 3rd [Workshop on Asian Translation](http://lotus.kuee.kyoto-u.ac.jp/WAT/) (2016): [system description paper](http://www.aclweb.org/anthology/W/W16/W16-4616.pdf), [organizers report](http://www.aclweb.org/old_anthology/W/W16/W16-46.pdf#page=15)
+* Best results for the French-English EDP dataset of the [WMT2017](http://www.statmt.org/wmt17/) Biomedical Translation Task (2017):[organizers report](http://www.aclweb.org/anthology/W17-4719)
+* Best results in term of crowdsourced human evaluation for 3/4 of the language directions in the ASPEC dataset (English->Japanese, Chinese->Japanese and Japanese->Chinese) in the 4th [Workshop on Asian Translation](http://lotus.kuee.kyoto-u.ac.jp/WAT/) (2017): [system description paper](http://aclweb.org/anthology/W17-5714), [organizers report](hhttp://www.aclweb.org/anthology/W17-5701)
 
 
 #Requirements and Installation:
 
 The following is currently required for running Kyoto-NMT:
 * Python 2.7.x
-* A recent version of `chainer` (>=2.0). 
+* A recent version of `chainer` (>=3.0). 
+* If using a GPU (recommended): a recent version of `cupy` (>=2.0)
 * The plotting libraries `plotly` and `bokeh` are used in some visualisation scripts
 
 There is now a PyPI repository, so you can install with:
 
         pip install knmt
         
-Dependencies will be automatically installed. However, if `chainer` is not already installed, check the prerequisites for installing `chainer` with `cuda` and `cudnn` support:  http://docs.chainer.org/en/stable/install.html#install-chainer-with-cuda (provided you have a CUDA capable GPU you want to use, of course).
+Dependencies will be automatically installed. However, if you plan to use a GPU (which you should probably do for any real-size experiments), you also need to manually install `cupy`. Check [this page](https://docs.chainer.org/en/stable/install.html#enable-cuda-cudnn-support) for details.
+
+        pip install cupy
 
 You can confirm that cuda (and optionnally cudnn) are enabled and recognized by chainer by running the `version` subcommand of `knmt`:
 
@@ -156,7 +161,8 @@ This will result in a graph similar to this one, where training loss appears as 
         #! shell
         knmt train /path_to_experiment_dir/prefix /path_to_experiment_dir/prefix_train --gpu 0
         --optimizer adam
-        --weight_decay 0.000001
+        --weight_decay 1e-6
+        --use_goto
         --l2_gradient_clipping 1
         --mb_size 64
         --max_src_tgt_length 90
@@ -169,3 +175,6 @@ Workshop on Asian Translation.[URL](http://www.aclweb.org/anthology/W/W16/W16-46
 
 Kyoto-NMT: a Neural Machine Translation implementation in Chainer. Fabien Cromieres. 2016. Proceedings of COLING 2016: System Demonstrations.
 [URL](https://www.aclweb.org/anthology/C/C16/C16-2064.pdf)
+
+Kyoto University Participation to WAT 2017. Fabien Cromieres, Raj Dabre, Toshiaki Nakazawa and Sadao Kurohashi. 2017. Proceedings of the 4th
+Workshop on Asian Translation.[URL](http://aclweb.org/anthology/W17-5714)

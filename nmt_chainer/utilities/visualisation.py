@@ -54,7 +54,7 @@ def make_alignment_figure(src, tgt, alignment, title="Attention Model", toolbar_
 
     # create a new figure
     p = figure(title=title,
-               x_axis_location="above", tools="resize,hover", toolbar_location=toolbar_location,
+               x_axis_location="above", tools="hover", toolbar_location=toolbar_location,
                x_range=src, y_range=tgt,
                plot_width=plot_width, plot_height=plot_height)
 

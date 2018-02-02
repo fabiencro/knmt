@@ -128,7 +128,8 @@ class ConstantSizeMultiBatchMultiHeadAttention(Chain):
             addressing_weights = F.relu(scaled_scalar_product)
         else:
             addressing_weights = F.reshape(F.softmax(F.reshape(scaled_scalar_product, (mb_size * n_Q * self.n_heads, seq_length_K)),
-                                                     use_cudnn=disable_cudnn_softmax),
+                                                     #use_cudnn=disable_cudnn_softmax
+                                                     ),
                                            (mb_size, self.n_heads, n_Q, seq_length_K) )
         
         if self.dropout is not None:
