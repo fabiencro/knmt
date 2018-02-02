@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 """train.py: Train a RNNSearch Model"""
+from __future__ import absolute_import, division, print_function, unicode_literals
 __author__ = "Fabien Cromieres"
 __license__ = "undecided"
 __version__ = "1.0"
@@ -9,10 +10,12 @@ __status__ = "Development"
 import chainer
 from chainer import cuda, optimizers, serializers
 
-from training import train_on_data
+from .training import train_on_data
 from nmt_chainer.dataprocessing.indexer import Indexer
 from nmt_chainer.utilities.file_infos import create_filename_infos
 from nmt_chainer.utilities.argument_parsing_tools import OrderedNamespace
+import nmt_chainer.models.feedforward.encoder_decoder
+import numpy as np
 import logging
 import json
 import os.path
@@ -73,54 +76,150 @@ def generate_lexical_probability_dictionary_indexed(lexical_probability_dictiona
 
 
 def create_encdec_from_config_dict(config_dict, src_indexer, tgt_indexer):
-    Ei = config_dict["Ei"]
-    Hi = config_dict["Hi"]
-    Eo = config_dict["Eo"]
-    Ho = config_dict["Ho"]
-    Ha = config_dict["Ha"]
-    Hl = config_dict["Hl"]
-
     Vi = len(src_indexer)  # + UNK
     Vo = len(tgt_indexer)  # + UNK
-
-    encoder_cell_type = config_dict.get("encoder_cell_type", "gru")
-    decoder_cell_type = config_dict.get("decoder_cell_type", "gru")
-
-    use_bn_length = config_dict.get("use_bn_length", None)
-
-    # Selecting Attention type
-    attn_cls = nmt_chainer.models.attention.AttentionModule
-    if config_dict.get("use_accumulated_attn", False):
-        raise NotImplemented
-    if config_dict.get("use_deep_attn", False):
-        attn_cls = nmt_chainer.models.attention.DeepAttentionModule
-
-    init_orth = config_dict.get("init_orth", False)
-
-    if "lexical_probability_dictionary" in config_dict and config_dict["lexical_probability_dictionary"] is not None:
-        log.info("opening lexical_probability_dictionary %s" % config_dict["lexical_probability_dictionary"])
-        lexical_probability_dictionary_all = json.load(gzip.open(config_dict["lexical_probability_dictionary"], "rb"))
-
-        lexical_probability_dictionary = generate_lexical_probability_dictionary_indexed(
-            lexical_probability_dictionary_all, src_indexer, tgt_indexer)
+    
+    if config_dict.get("use_ff_model", False):
+        d_model = config_dict["ff_d_model"]
+        n_heads = config_dict["ff_n_heads"]
+        nb_layers_src = config_dict["ff_nb_layers_src"]
+        nb_layers_tgt = config_dict["ff_nb_layers_tgt"]
+        use_exp_relu = config_dict["ff_use_exp_relu"]
+        dropout = config_dict["ff_dropout"]
+        d_ff = config_dict.get("ff_d_ff", 2048)
+        
+        if config_dict.get("use_own_layer_normalization", False):
+            from nmt_chainer.additional_links.layer_normalization import turn_on_own_layer_normalization
+            turn_on_own_layer_normalization()
+        
+        no_add = config_dict.get("ff_no_add", False) #backward compatibility
+        if no_add:
+            residual_mode = None
+        else:
+            residual_mode = config_dict.get("ff_residual_mode", "normal")
+        
+        no_normalize = config_dict.get("ff_no_normalize", False)
+        encdec = nmt_chainer.models.feedforward.encoder_decoder.EncoderDecoder(Vi, Vo, d_model=d_model, n_heads=n_heads, d_ff=d_ff,
+                                                     experimental_relu=use_exp_relu, dropout=dropout, 
+                                                     nb_layers_src=nb_layers_src, nb_layers_tgt=nb_layers_tgt,
+                                                     residual_mode = residual_mode, no_normalize = no_normalize)
     else:
-        lexical_probability_dictionary = None
-    lex_epsilon = config_dict.get("lexicon_prob_epsilon", 0.001)
-
-    # Creating encoder/decoder
-    encdec = nmt_chainer.models.encoder_decoder.EncoderDecoder(Vi, Ei, Hi, Vo + 1, Eo, Ho, Ha, Hl, use_bn_length=use_bn_length,
-                                                               attn_cls=attn_cls,
-                                                               init_orth=init_orth,
-                                                               encoder_cell_type=rnn_cells.create_cell_model_from_config(encoder_cell_type),
-                                                               decoder_cell_type=rnn_cells.create_cell_model_from_config(decoder_cell_type),
-                                                               lexical_probability_dictionary=lexical_probability_dictionary,
-                                                               lex_epsilon=lex_epsilon)
+        Ei = config_dict["Ei"]
+        Hi = config_dict["Hi"]
+        Eo = config_dict["Eo"]
+        Ho = config_dict["Ho"]
+        Ha = config_dict["Ha"]
+        Hl = config_dict["Hl"]
+    
+        encoder_cell_type = config_dict.get("encoder_cell_type", "gru")
+        decoder_cell_type = config_dict.get("decoder_cell_type", "gru")
+    
+        use_bn_length = config_dict.get("use_bn_length", None)
+    
+        # Selecting Attention type
+        attn_cls = nmt_chainer.models.attention.AttentionModule
+        if config_dict.get("use_accumulated_attn", False):
+            raise NotImplemented
+        if config_dict.get("use_deep_attn", False):
+            attn_cls = nmt_chainer.models.attention.DeepAttentionModule
+    
+        init_orth = config_dict.get("init_orth", False)
+    
+        if "lexical_probability_dictionary" in config_dict and config_dict["lexical_probability_dictionary"] is not None:
+            log.info("opening lexical_probability_dictionary %s" % config_dict["lexical_probability_dictionary"])
+            lexical_probability_dictionary_all = json.load(gzip.open(config_dict["lexical_probability_dictionary"], "rb"))
+    
+            lexical_probability_dictionary = generate_lexical_probability_dictionary_indexed(
+                lexical_probability_dictionary_all, src_indexer, tgt_indexer)
+        else:
+            lexical_probability_dictionary = None
+        lex_epsilon = config_dict.get("lexicon_prob_epsilon", 0.001)
+    
+        use_goto_attention = config_dict.get("use_goto_attention", False)
+    
+        # Creating encoder/decoder
+        encdec = nmt_chainer.models.encoder_decoder.EncoderDecoder(Vi, Ei, Hi, Vo + 1, Eo, Ho, Ha, Hl, use_bn_length=use_bn_length,
+                                                                   attn_cls=attn_cls,
+                                                                   init_orth=init_orth,
+                                                                   encoder_cell_type=rnn_cells.create_cell_model_from_config(encoder_cell_type),
+                                                                   decoder_cell_type=rnn_cells.create_cell_model_from_config(decoder_cell_type),
+                                                                   lexical_probability_dictionary=lexical_probability_dictionary,
+                                                                   lex_epsilon=lex_epsilon,
+                                                                   use_goto_attention=use_goto_attention)
 
     return encdec
 
 
+class NpzDeserializerAverage(chainer.serializer.Deserializer):
+
+    def __init__(self, npz_list, path='', strict=True):
+        self.npz_list = npz_list
+        self.path = path
+        self.strict = strict
+
+    def __getitem__(self, key):
+        key = key.strip('/')
+        return NpzDeserializerAverage(
+            self.npz_list, self.path + key + '/', strict=self.strict)
+
+    def __call__(self, key, value):
+        key = self.path + key.lstrip('/')
+        if not self.strict and key not in self.npz:
+            return value
+        
+        dataset = None
+        for npz in self.npz_list:
+            try:
+                this_d = npz[key]
+            except KeyError:
+                this_d = npz["updater/model:main/"+key]
+            if dataset is None:
+                dataset = this_d
+            else:
+                dataset = dataset + this_d
+        dataset /= len(self.npz_list)
+            
+        if value is None:
+            return dataset
+        elif isinstance(value, np.ndarray):
+            np.copyto(value, dataset)
+        elif isinstance(value, cuda.ndarray):
+            value.set(np.asarray(dataset))
+        else:
+            value = type(value)(np.asarray(dataset))
+        return value
+
+
+def load_npz_average(filename_list, obj):
+    d = NpzDeserializerAverage([np.load(filename) for filename in filename_list])
+    d.load(obj)
+    
+    
+def load_model_flexible(filename_list, encdec):
+    mode = "normal"
+    if isinstance(filename_list, tuple) or isinstance(filename_list, list):
+        if len(filename_list) == 1:
+            filename_list = filename_list[0]
+        else:
+            mode = "average"
+            
+    if mode == "normal":
+        log.info("loading model parameters from %s", filename_list)
+        try:
+            serializers.load_npz(filename_list, encdec)
+        except KeyError:
+            log.info("not model format, trying snapshot format")
+            with np.load(filename_list) as fseri:
+                dicseri = serializers.NpzDeserializer(fseri, path="updater/model:main/")
+                dicseri.load(encdec)        
+    else:
+        assert mode == "average"
+        log.info("loading averaged model parameters from %r", filename_list)
+        dseri = NpzDeserializerAverage([np.load(filename) for filename in filename_list])
+        dseri.load(encdec)
+
 def create_encdec_and_indexers_from_config_dict(config_dict, src_indexer=None, tgt_indexer=None, load_config_model="no",
-                                                return_model_infos=False):
+                                                return_model_infos=False, additional_models_parameters_for_averaging=None):
     assert load_config_model in "yes no if_exists".split()
 
     if src_indexer is None or tgt_indexer is None:
@@ -147,24 +246,33 @@ def create_encdec_and_indexers_from_config_dict(config_dict, src_indexer=None, t
 
     if load_config_model != "no":
         if "model_parameters" not in config_dict:
+            assert additional_models_parameters_for_averaging is None
             if load_config_model == "yes":
                 log.error("cannot find model parameters in config file")
                 raise ValueError(
                     "Config file do not contain model_parameters section")
         else:
-            if config_dict.model_parameters.type == "model":
-                model_filename = config_dict.model_parameters.filename
-                log.info(
-                    "loading model parameters from file specified by config file:%s" %
-                    model_filename)
-                serializers.load_npz(model_filename, encdec)
-                if return_model_infos:
-                    model_infos = create_filename_infos(model_filename)
+            model_filename = config_dict.model_parameters.filename
+            if additional_models_parameters_for_averaging is not None:
+                load_model_flexible([model_filename]+additional_models_parameters_for_averaging, encdec)
             else:
-                if load_config_model == "yes":
-                    log.error(
-                        "model parameters in config file is of type snapshot, not model")
-                    raise ValueError("Config file model is not of type model")
+                load_model_flexible(model_filename, encdec)
+#             if config_dict.model_parameters.type == "model":
+#                 log.info(
+#                     "loading model parameters from file specified by config file:%s" %
+#                     model_filename)
+#                 serializers.load_npz(model_filename, encdec)
+#                 if return_model_infos:
+#                     model_infos = create_filename_infos(model_filename)
+#             else:
+#                 log.info("loading model parameters from snapshot file specified by config file:%s" %model_filename)
+#                 with np.load(model_filename) as fs:
+#                     dics = serializers.NpzDeserializer(fs, path="updater/model:main/")
+#                     dics.load(encdec)
+            if return_model_infos:
+                model_infos = create_filename_infos(model_filename)
+    else:
+        assert additional_models_parameters_for_averaging is None
 
     result = encdec, eos_idx, src_indexer, tgt_indexer
     if return_model_infos:
@@ -207,6 +315,9 @@ def load_voc_and_update_training_config(config_training):
 
 
 def do_train(config_training):
+    if config_training["training_management"]["disable_cudnn_softmax"]:
+        import nmt_chainer.models.feedforward.multi_attention
+        nmt_chainer.models.feedforward.multi_attention.disable_cudnn_softmax = True
 
     src_indexer, tgt_indexer = load_voc_and_update_training_config(config_training)
 
@@ -239,11 +350,11 @@ def do_train(config_training):
     ensure_path(save_prefix_dir)
 
     already_existing_files = []
-    for key_info, filename in output_files_dict.iteritems():  # , valid_data_fn]:
+    for key_info, filename in output_files_dict.items():  # , valid_data_fn]:
         if os.path.exists(filename):
             already_existing_files.append(filename)
     if len(already_existing_files) > 0:
-        print "Warning: existing files are going to be replaced / updated: ", already_existing_files
+        print("Warning: existing files are going to be replaced / updated: ", already_existing_files)
         if not config_training.training_management.force_overwrite:
             raw_input("Press Enter to Continue")
 
@@ -260,7 +371,8 @@ def do_train(config_training):
     data_fn = config_training.data.data_fn
 
     log.info("loading training data from %s" % data_fn)
-    training_data_all = json.load(gzip.open(data_fn, "rb"))
+    with gzip.open(data_fn, "r") as input_file:
+        training_data_all = json.loads(input_file.read().decode('utf-8'))
 
     training_data = training_data_all["train"]
 
@@ -310,6 +422,26 @@ def do_train(config_training):
     encdec, _, _, _ = create_encdec_and_indexers_from_config_dict(config_training,
                                                                   src_indexer=src_indexer, tgt_indexer=tgt_indexer,
                                                                   load_config_model="if_exists" if config_training.training_management.resume else "no")
+    
+    if (config_training.training.get("load_initial_source_embeddings", None) is not None or
+        config_training.training.get("load_initial_target_embeddings", None) is not None):
+        src_emb = None
+        tgt_emb = None
+        
+        src_emb_fn = config_training.training.get("load_initial_source_embeddings", None)
+        tgt_emb_fn = config_training.training.get("load_initial_target_embeddings", None)
+        
+        if src_emb_fn is not None:
+            log.info("loading source embeddings from %s", src_emb_fn)
+            src_emb = np.load(src_emb_fn)
+        
+        if tgt_emb_fn is not None:
+            log.info("loading target embeddings from %s", tgt_emb_fn)
+            tgt_emb = np.load(tgt_emb_fn)
+        
+        encdec.initialize_embeddings(src_emb, tgt_emb, no_unk_src=True, no_unk_tgt=True)
+        
+    
 #     create_encdec_from_config_dict(config_training.model, src_indexer, tgt_indexer,
 #                             load_config_model = "if_exists" if config_training.training_management.resume else "no")
 
@@ -323,8 +455,15 @@ def do_train(config_training):
 
     if config_training.training_management.load_model is not None:
         log.info("loading model parameters from %s", config_training.training_management.load_model)
-        serializers.load_npz(config_training.training_management.load_model, encdec)
-
+        load_model_flexible(config_training.training_management.load_model, encdec)
+#         try:
+#             serializers.load_npz(config_training.training_management.load_model, encdec)
+#         except KeyError:
+#             log.info("not model format, trying snapshot format")
+#             with np.load(config_training.training_management.load_model) as fseri:
+#                 dicseri = serializers.NpzDeserializer(fseri, path="updater/model:main/")
+#                 dicseri.load(encdec)
+                
     gpu = config_training.training_management.gpu
     if gpu is not None:
         encdec = encdec.to_gpu(gpu)
@@ -333,6 +472,9 @@ def do_train(config_training):
         optimizer = optimizers.AdaDelta()
     elif config_training.training.optimizer == "adam":
         optimizer = optimizers.Adam()
+    elif config_training.training.optimizer == "scheduled_adam":
+        from nmt_chainer.additional_links.scheduled_adam import ScheduledAdam
+        optimizer = ScheduledAdam(d_model=config_training.model.ff_d_model)
     elif config_training.training.optimizer == "adagrad":
         optimizer = optimizers.AdaGrad(lr=config_training.training.learning_rate)
     elif config_training.training.optimizer == "sgd":
@@ -381,7 +523,7 @@ def do_train(config_training):
         def timer_hook():
             yield
 
-    import training_chainer
+    from . import training_chainer
     with cuda.get_device(gpu):
         with timer_hook() as timer_infos:
 
@@ -429,9 +571,9 @@ def do_train(config_training):
 # #                     lexicon_prob_epsilon = args.lexicon_prob_epsilon
 #                       )
 # #             finally:
-# #                 print timer
+# #                 print(timer)
 # #                 timer.print_sorted()
-# #                 print "total time:"
+# #                 print("total time:")
 # #                 print(timer.total_time())
 #
 #

@@ -1,3 +1,5 @@
+from __future__ import absolute_import, division, print_function, unicode_literals
+
 import nmt_chainer.external_libs.bpe.learn_bpe as learn_bpe
 import nmt_chainer.external_libs.bpe.apply_bpe as apply_bpe
 import collections
@@ -8,10 +10,12 @@ from nmt_chainer.dataprocessing.indexer import Indexer
 
 import logging
 import json
-import codecs
+import io 
 import itertools
 import re
 import copy
+import sys
+import six
 
 logging.basicConfig()
 log = logging.getLogger("rnns:processors")
@@ -25,7 +29,7 @@ def build_index_from_iterable(iterable, voc_limit=None):
             counts[w] += 1
 
     sorted_counts = sorted(
-        counts.items(), key=operator.itemgetter(1), reverse=True)
+        six.iteritems(counts), key=operator.itemgetter(1), reverse=True)
 
     res = Indexer()
 
@@ -46,10 +50,11 @@ class ApplyToMultiIterator(object):
     def __iter__(self):
         return ApplyToMultiIterator(self.iterable, self.function, can_iter=True)
 
-    def next(self):
+    def __next__(self):
         elem = self.iterator.next()
         return self.function(elem)
 
+    next = __next__
 
 class ApplyToMultiIteratorPair(object):
     def __init__(self, iterable1, iterable2, function, can_iter=False):
@@ -64,10 +69,12 @@ class ApplyToMultiIteratorPair(object):
     def __iter__(self):
         return ApplyToMultiIteratorPair(self.iterable1, self.iterable2, self.function, can_iter=True)
 
-    def next(self):
+    def __next__(self):
         elem1 = self.iterator1.next()
         elem2 = self.iterator2.next()
         return self.function(elem1, elem2)
+
+    next = __next__
 
 
 class FileMultiIterator(object):
@@ -76,19 +83,21 @@ class FileMultiIterator(object):
         self.max_nb_ex = max_nb_ex
 
         if can_iter:
-            self.f = codecs.open(self.filename, encoding="utf8")
+            self.f = io.open(self.filename, 'rt', encoding="utf8")
             self.nb_line_read = 0
 
-    def next(self):
+    def __next__(self):
         if self.max_nb_ex is not None and self.nb_line_read >= self.max_nb_ex:
             raise StopIteration()
         line = self.f.readline()
         if len(line) == 0:
             raise StopIteration()
         else:
-            #             print self.nb_line_read, line.strip()
+            #             print(self.nb_line_read, line.strip())
             self.nb_line_read += 1
             return line.strip()
+
+    next = __next__
 
     def __iter__(self):
         return FileMultiIterator(self.filename, max_nb_ex=self.max_nb_ex, can_iter=True)
@@ -236,7 +245,7 @@ class ProcessorChain(MonoProcessor):
                 this_stats = stats.get_sub_stats(num_processor)
             else:
                 this_stats = None
-#             print num_processor, sentence, processor, this_stats, this_stats.make_report()
+#             print(num_processor, sentence, processor, this_stats, this_stats.make_report())
             sentence = processor.convert(sentence, stats=this_stats)
         return sentence
 
@@ -423,13 +432,13 @@ class BPEProcessing(MonoProcessor):
 
     def load_bpe(self):
         log.info("loading BPE data from %s", self.bpe_data_file)
-        with codecs.open(self.bpe_data_file, "r", encoding="utf8") as codes:
+        with io.open(self.bpe_data_file, "rt", encoding="utf8") as codes:
             self.bpe = apply_bpe.BPE(codes, self.separator)
         self.is_initialized_ = True
 
     def initialize(self, iterable):
         log.info("Creating BPE data and saving it to %s", self.bpe_data_file)
-        with codecs.open(self.bpe_data_file, "w", encoding="utf8") as output:
+        with io.open(self.bpe_data_file, "wt", encoding="utf8") as output:
             learn_bpe.learn_bpe_from_sentence_iterable(iterable, output=output,
                                                        symbols=self.symbols,
                                                        min_frequency=self.min_frequency,
@@ -444,10 +453,10 @@ class BPEProcessing(MonoProcessor):
 
     def convert(self, sentence, stats=None):
         assert self.is_initialized()
-#         print sentence
-#         print "->"
+#         print(sentence)
+#         print("->")
         converted = self.bpe.segment_splitted(sentence)
-#         print converted
+#         print(converted)
         return converted
 
     def deconvert(self, seq):
@@ -538,6 +547,69 @@ class SimpleSegmenter(MonoProcessor):
         assert self.is_initialized()
         obj = self.make_base_serializable_object()
         obj["segmentation_type"] = self.type
+        return obj
+
+
+@registered_processor
+class SourceCharacterConverter(MonoProcessor):
+
+    def __init__(self, char_dic):
+        self.char_dic = char_dic
+        self.is_initialized_ = False
+        
+        self.reversed_dict = dict((v,k) for (k,v) in six.iteritems(char_dic))
+
+    def convert(self, sentence, stats=None):
+        res = []
+        at_least_one_conversion_occured = False
+        for char in sentence:
+            assert len(char) == 1 #should operate on unsegmented sentences
+            if char is self.char_dic:
+                res.append(self.char_dic[char])
+                at_least_one_conversion_occured = True
+            else:
+                res.append(char)
+                
+        if at_least_one_conversion_occured:
+            return "".join(res)
+        else:
+            return sentence
+
+    def deconvert(self, sentence):
+        # This is not meant to be a revertible processor (only for input)
+        
+        res = []
+        at_least_one_conversion_occured = False
+        for char in sentence:
+            assert len(char) == 1 #should operate on unsegmented sentences
+            if char is self.reversed_dict:
+                res.append("[%s->%s]"%(char, self.reversed_dict[char]))
+                at_least_one_conversion_occured = True
+            else:
+                res.append(char)
+                
+        if at_least_one_conversion_occured:
+            return "".join(res)
+        else:
+            return sentence
+
+    @staticmethod
+    def processor_name():
+        return "source_character_converter"
+
+    def __str__(self):
+        return "source_character_converter"
+
+    @classmethod
+    def make_from_serializable(cls, obj):
+        res = SourceCharacterConverter(obj["char_dic"])
+        res.is_initialized_ = True
+        return res
+
+    def to_serializable(self):
+        assert self.is_initialized()
+        obj = self.make_base_serializable_object()
+        obj["char_dic"] = self.char_dic
         return obj
 
 
@@ -697,9 +769,9 @@ class LatinScriptProcess(MonoProcessor):
 #
 #
 #     def __iter__(self):
-#         with codecs.open(self.filename, encoding="utf8") as f:
+#         with io.open(self.filename, 'rt', encoding="utf8") as f:
 #             for num_line, line in enumerate(f):
-# #                 print self.filename, num_line, self.max_nb_ex
+# #                 print(self.filename, num_line, self.max_nb_ex)
 #                 if self.max_nb_ex is not None and num_line >= self.max_nb_ex:
 #                     return
 #                 yield line.strip()
@@ -856,7 +928,7 @@ class IndexingPrePostProcessor(IndexingPrePostProcessorBase):
             self.nb_ex = 0
 
         def update(self, unk_cnt, token, nb_ex):
-            #             print unk_cnt, token, nb_ex, self.unk_cnt, self.token, self.nb_ex
+            #             print(unk_cnt, token, nb_ex, self.unk_cnt, self.token, self.nb_ex)
             self.unk_cnt += unk_cnt
             self.token += token
             self.nb_ex += nb_ex
@@ -993,7 +1065,7 @@ class IndexingPrePostProcessor(IndexingPrePostProcessorBase):
 
 
 def izip_must_equal(it1, it2):
-    for s1, s2 in itertools.izip_longest(it1, it2, fillvalue=None):
+    for s1, s2 in six.moves.zip_longest(it1, it2, fillvalue=None):
         if s1 is None or s2 is None:
             raise ValueError("iterators have different sizes")
         yield s1, s2
@@ -1017,11 +1089,11 @@ def build_dataset_pp(src_fn, tgt_fn, bi_idx, max_nb_ex=None):
 #         log.info("building tgt_dic")
 #         tgt_pp.initialize(tgt)
 #
-#     print src_pp
+#     print(src_pp)
 #
-#     print tgt_pp
+#     print(tgt_pp)
 
-    print bi_idx
+    print(bi_idx)
 
     stats_src, stats_tgt = bi_idx.make_new_stat()
 
@@ -1030,7 +1102,7 @@ def build_dataset_pp(src_fn, tgt_fn, bi_idx, max_nb_ex=None):
     res = []
 
     for sentence_src, sentence_tgt in izip_must_equal(src, tgt):
-        #         print len(sentence_tgt), len(sentence_src)
+        #         print(len(sentence_tgt), len(sentence_src))
         seq_src, seq_tgt = bi_idx.convert(sentence_src, sentence_tgt, stats_src, stats_tgt)
         res.append((seq_src, seq_tgt))
 
@@ -1040,7 +1112,7 @@ def build_dataset_pp(src_fn, tgt_fn, bi_idx, max_nb_ex=None):
 def build_dataset_one_side_pp(src_fn, src_pp, max_nb_ex=None):
 
     src = FileMultiIterator(src_fn, max_nb_ex=max_nb_ex)
-    print src_pp
+    print(src_pp)
     if not src_pp.is_initialized():
         log.info("building src_dic")
         src_pp.initialize(src)
@@ -1051,7 +1123,7 @@ def build_dataset_one_side_pp(src_fn, src_pp, max_nb_ex=None):
     res = []
 
     for sentence_src in src:
-        #         print len(sentence_tgt), len(sentence_src)
+        #         print(len(sentence_tgt), len(sentence_src))
         seq_src = src_pp.convert(sentence_src, stats=stats_src)
         res.append(seq_src)
 
@@ -1076,8 +1148,8 @@ def load_pp_pair_from_file(filename):
         json.load(open(filename)))
     log.info("loading bilingual preprocessor from file %s", filename)
     log.info(str(bi_idx))
-#     print bi_idx.src_processor()
-#     print bi_idx.tgt_processor()
+#     print(bi_idx.src_processor())
+#     print(bi_idx.tgt_processor())
     return bi_idx
 
 
