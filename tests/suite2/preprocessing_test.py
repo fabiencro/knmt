@@ -33,12 +33,12 @@ class TestLatinScriptProcess:
 
         try:
             pp.convert_caps(u"{0}hello".format(processors.LatinScriptProcess.CAP_CHAR))
-        except Exception, ex:
+        except Exception as ex:
             assert type(ex) == ValueError and str(ex) == "Special char in word"
 
         try:
             pp.convert_caps(u"{0}hello".format(processors.LatinScriptProcess.ALL_CAPS_CHAR))
-        except Exception, ex:
+        except Exception as ex:
             assert type(ex) == ValueError and str(ex) == "Special char in word"
 
     def test_convert_deconvert_caps_alt(self):
@@ -62,17 +62,17 @@ class TestLatinScriptProcess:
 
         try:
             pp.convert_caps_alt(t1)
-        except Exception, ex:
+        except Exception as ex:
             assert type(ex) == ValueError and str(ex) == "Special char in word"
 
         try:
             pp.convert_caps_alt(t2)
-        except Exception, ex:
+        except Exception as ex:
             assert type(ex) == ValueError and str(ex) == "Special char in word"
 
         try:
             pp.convert_caps_alt("This is a test")
-        except Exception, ex:
+        except Exception as ex:
             assert type(ex) == ValueError and str(ex) == "Special char in word"
 
     def test_convert_deconvert_punct_word(self):
@@ -101,7 +101,7 @@ class TestLatinScriptProcess:
 
         try:
             pp.convert_punct_word(u"{0}This".format(processors.LatinScriptProcess.SUFFIX_CHAR))
-        except Exception, ex:
+        except Exception as ex:
             assert type(ex) == ValueError and str(ex) == "Special char in word"
 
     def test_convert_deconvert_punct_inside(self):
@@ -132,7 +132,7 @@ class TestLatinScriptProcess:
 
         try:
             pp.convert_punct_inside(u"in{0}side".format(processors.LatinScriptProcess.SUFFIX_CHAR))
-        except Exception, ex:
+        except Exception as ex:
             assert type(ex) == ValueError and str(ex) == "Special char in word"
 
     def test_convert_deconvert_all_adjoint(self):
@@ -152,17 +152,17 @@ class TestLatinScriptProcess:
 
         try:
             pp.convert(u"{0}hello".format(processors.LatinScriptProcess.CAP_CHAR))
-        except Exception, ex:
+        except Exception as ex:
             assert type(ex) == ValueError and str(ex) == "Special char in word"
 
         try:
             pp.convert(u"{0}hello".format(processors.LatinScriptProcess.ALL_CAPS_CHAR))
-        except Exception, ex:
+        except Exception as ex:
             assert type(ex) == ValueError and str(ex) == "Special char in word"
 
         try:
             pp.convert(u"in{0}side".format(processors.LatinScriptProcess.SUFFIX_CHAR))
-        except Exception, ex:
+        except Exception as ex:
             assert type(ex) == ValueError and str(ex) == "Special char in word"
 
     def test_convert_deconvert_caps_isolate(self):
@@ -182,17 +182,17 @@ class TestLatinScriptProcess:
 
         try:
             pp.convert(u"{0}hello".format(processors.LatinScriptProcess.CAP_CHAR))
-        except Exception, ex:
+        except Exception as ex:
             assert type(ex) == ValueError and str(ex) == "Special char in word"
 
         try:
             pp.convert(u"{0}hello".format(processors.LatinScriptProcess.ALL_CAPS_CHAR))
-        except Exception, ex:
+        except Exception as ex:
             assert type(ex) == ValueError and str(ex) == "Special char in word"
 
         try:
             pp.convert(u"in{0}side".format(processors.LatinScriptProcess.SUFFIX_CHAR))
-        except Exception, ex:
+        except Exception as ex:
             assert type(ex) == ValueError and str(ex) == "Special char in word"
 
 
@@ -282,17 +282,17 @@ class TestProcessorChain:
 
         try:
             pp.convert(u"{0}hello".format(processors.LatinScriptProcess.CAP_CHAR))
-        except Exception, ex:
+        except Exception as ex:
             assert type(ex) == ValueError and str(ex) == "Special char in word"
 
         try:
             pp.convert(u"{0}hello".format(processors.LatinScriptProcess.ALL_CAPS_CHAR))
-        except Exception, ex:
+        except Exception as ex:
             assert type(ex) == ValueError and str(ex) == "Special char in word"
 
         try:
             pp.convert(u"in{0}side".format(processors.LatinScriptProcess.SUFFIX_CHAR))
-        except Exception, ex:
+        except Exception as ex:
             assert type(ex) == ValueError and str(ex) == "Special char in word"
 
 
@@ -346,12 +346,12 @@ class TestBiProcessChain:
 
         try:
             sentence_src_res, sentence_tgt_res = pp.convert(invalid_sentence, valid_sentence)
-        except Exception, ex:
+        except Exception as ex:
             assert type(ex) == ValueError and str(ex) == "Special char in word"
 
         try:
             sentence_src_res, sentence_tgt_res = pp.convert(valid_sentence, invalid_sentence)
-        except Exception, ex:
+        except Exception as ex:
             assert type(ex) == ValueError and str(ex) == "Special char in word"
 
 
