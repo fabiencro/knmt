@@ -5,7 +5,11 @@
 LANG_PAIR=je
 LANG_SRC=ja
 LANG_DST=en
-HOST=localhost
+
+# The HOST contains the IP address or the hostname of the machine on which the KNMT server runs.
+# It's preferable to leave the HOST empty.
+# See https://stackoverflow.com/questions/16130786/why-am-i-getting-the-error-connection-refused-in-python-sockets
+HOST=
 PORT=44666
 
 LOGGING_CONF_FILE=conf/server-je_logging.conf
