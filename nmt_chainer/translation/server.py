@@ -33,6 +33,8 @@ import re
 import subprocess
 import bokeh.embed
 
+PAGE_SIZE = 5000
+
 log = None
 
 class TranslatorThread(threading.Thread):
@@ -236,15 +238,32 @@ class RequestHandler(SocketServer.BaseRequestHandler):
                 elif "get_log_file" in data:
                     root = ET.fromstring(data)
                     filename = root.get('filename') 
+                    try:
+                        page = int(root.get('page'))
+                    except BaseException:
+                        page = 1
                     for handler in log.root.handlers:
                         if hasattr(handler, 'baseFilename'):
                             log_dir = os.path.dirname(handler.baseFilename)
                             log_base_fn = os.path.basename(handler.baseFilename)
                             log_file = "{0}/{1}".format(log_dir, filename)
                             if log_base_fn in filename and os.path.isfile(log_file):
+                                page_count = 1
+                                log_file_content = ''
+                                line_in_page = 0
+                                start = (page - 1) * PAGE_SIZE
+                                stop = start + PAGE_SIZE
                                 with open(log_file, 'r') as f:
-                                    log_file_content = f.read()
-                                response['log_file_content'] = log_file_content
+                                    for line, str_line in enumerate(f):
+                                        if line >= start and line < stop:
+                                            log_file_content += str_line
+                                        line_in_page += 1
+                                        if line_in_page == PAGE_SIZE:
+                                            page_count += 1
+                                            line_in_page = 0
+                                response['content'] = log_file_content
+                                response['page'] = page
+                                response['pageCount'] = page_count
                                 response['status'] = 'OK'
                                 break
                     else:

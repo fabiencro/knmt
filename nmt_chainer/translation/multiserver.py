@@ -29,6 +29,8 @@ from os.path import isfile, join, dirname, basename
 
 from nmt_chainer.translation.client import Client
 
+PAGE_SIZE = 5000
+
 log = None
 
 logging.basicConfig()
@@ -298,7 +300,8 @@ class Manager(object):
                 
         return log_file_table
 
-    def get_log_file_content(self, requested_file):
+    def get_log_file_content(self, requested_file, page=1):
+        page_count = 1
         log_file_content = ''
 
         for handler in log.root.handlers:
@@ -307,22 +310,43 @@ class Manager(object):
                 log_base_fn = os.path.basename(handler.baseFilename)
                 actual_log_file = "{0}/{1}".format(log_dir, requested_file)
                 if log_base_fn in requested_file and os.path.isfile(actual_log_file):
+                    line_in_page = 0
+                    start = (page - 1) * PAGE_SIZE
+                    stop = start + PAGE_SIZE
                     with open(actual_log_file, 'r') as f:
-                        log_file_content = f.read()
-                    return log_file_content
+                        for line, str_line in enumerate(f):
+                            if line >= start and line < stop:
+                                log_file_content += str_line
+                            line_in_page += 1
+                            if line_in_page == PAGE_SIZE:
+                                page_count += 1
+                                line_in_page = 0
+                    return {
+                        'content': log_file_content, 
+                        'page': page,
+                        'pageCount': page_count
+                    }
         
         for server_category in self.translation_server_config:
             for idx, server in enumerate(self.translation_server_config[server_category]):
                 client = Client(server['host'], server['port'])
                 try:
-                    resp = client.get_log_file(requested_file)
+                    resp = client.get_log_file(requested_file, page)
                     resp_json = json.loads(resp)
-                    if resp_json['status'] == 'OK' and 'log_file_content' in resp_json:
-                        return resp_json['log_file_content']
+                    if resp_json['status'] == 'OK' and 'content' in resp_json:
+                        return {
+                            'content': resp_json['content'], 
+                            'page': resp_json['page'],
+                            'pageCount': resp_json['pageCount']
+                        }
                 except BaseException as err:
                     log.info("An error has occurred when the multiserver performed a GET_LOG_FILE query for the '{0}' category: '{1}'".format(server_category, err))
 
-        return log_file_content
+        return {
+            'content': log_file_content, 
+            'page': page,
+            'pageCount': page_count
+        }
 
 EOM = "==== EOM ===="
 
@@ -372,8 +396,7 @@ class Server(SocketServer.ThreadingMixIn, SocketServer.TCPServer):
                     if json_data['type'] == 'get_log_files':
                         response = self.manager.get_log_files()
                     elif json_data['type'] == 'get_log_file':
-                        log_file_content = self.manager.get_log_file_content(json_data['file'][1:])
-                        response = {'log_file_content': log_file_content}
+                        response = self.manager.get_log_file_content(json_data['file'][1:], int(json_data['page']))
                     else:
                         lang_pair = None
                         if json_data['src_lang'] and json_data['tgt_lang']:
