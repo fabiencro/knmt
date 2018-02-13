@@ -115,9 +115,9 @@ class Client:
 
         return self.submit_request(query)
 
-    def get_log_file(self, filename):
-        query = """<?xml version="1.0" encoding="utf-8"?><get_log_file filename="{0}"/>"""
-        return self.submit_request(query.format(filename))
+    def get_log_file(self, filename, page=1):
+        query = """<?xml version="1.0" encoding="utf-8"?><get_log_file filename="{0}" page="{1}"/>"""
+        return self.submit_request(query.format(filename, page))
 
     def get_log_files(self):
         query = """<?xml version="1.0" encoding="utf-8"?><get_log_files/>"""
