@@ -379,8 +379,6 @@ class RequestHandler(SocketServer.BaseRequestHandler):
                         splitted_sentence = ' '.join(words)
                         # log.info("splitted_sentence=" + splitted_sentence)
 
-                        log.info("Translating sentence %d" % idx)
-                        log.info("splitted_sentence={0}".format(splitted_sentence))
                         decoded_sentence = splitted_sentence.decode('utf-8')
                         # log.info("decoded_sentence={0}".format(decoded_sentence))
                         translation, unk_mapping = self.server.translator.translate(decoded_sentence,
@@ -399,8 +397,8 @@ class RequestHandler(SocketServer.BaseRequestHandler):
 
                             pp_output = subprocess.check_output(pp_cmd, shell=True)
 
-                            log.info("Postprocessor request processede in {} s.".format(timeit.default_timer() - start_pp_cmd))
-                            log.info("pp_output=%s" % pp_output)
+                            log.info("Postprocessor request processed in {0} s.".format(timeit.default_timer() - start_pp_cmd))
+                            log.info("pp_output={0}".format(pp_output))
                             out = pp_output
 
                         segmented_input.append(splitted_sentence)
