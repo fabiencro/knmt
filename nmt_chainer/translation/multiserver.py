@@ -294,10 +294,12 @@ class Manager(object):
                 try:
                     resp = client.get_log_files()
                     resp_json = json.loads(resp)
-                    log_file_table[server_category] = resp_json['log_files']  
+                    if server_category in log_file_table:
+                        log_file_table[server_category] += resp_json['log_files']
+                    else:
+                        log_file_table[server_category] = resp_json['log_files']
                 except BaseException as err:
                     log.info("An error has occurred when the multiserver performed a GET_LOG_FILES query for the '{0}' category: '{1}'".format(self.category, err))
-                
         return log_file_table
 
     def get_log_file_content(self, requested_file, page=1):
