@@ -17,6 +17,6 @@
             {"host": "localhost", "port": 44303}
         ]
     },
-    "text_to_sentences_splitter": "http://localhost/webmt/cgi-bin/split_sentences.cgi"
+    "text_to_sentences_splitter": "echo '%s' | bin/split_sentences $lang_source $lang_target"
 }
 

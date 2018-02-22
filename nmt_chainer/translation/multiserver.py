@@ -18,6 +18,7 @@ import timeit
 import socket
 import threading
 import SocketServer
+import subprocess
 from collections import deque
 
 from urllib import urlencode
@@ -413,38 +414,50 @@ class Server(SocketServer.ThreadingMixIn, SocketServer.TCPServer):
                         log.debug("lang_pair={0} model={1} category={2}".format(lang_pair, model, category))
                         if json_data['type'] == 'translate':
                             log.info("TRANSLATE from {0}".format(key))
-                            data = {
-                                'text': json_data['text'],
-                                'lang_source': json_data['src_lang'],
-                                'lang_target': json_data['tgt_lang']
-                            }
-                            r = requests.post(self.manager.text_to_sentences_splitter, data)
-                            log.debug('Splitter Status: {0}'.format(r.status_code))
-                            if r.status_code == 200:
-                                self.manager.client_cancellations[key] = False 
+                            splitter_cmd = self.manager.text_to_sentences_splitter % json_data['text'].replace("'", "'\\''")
+                            splitter_cmd = splitter_cmd.replace("$lang_source", json_data['src_lang'])
+                            splitter_cmd = splitter_cmd.replace("$lang_target", json_data['tgt_lang'])
+                            log.info("splitter_cmd=%s" % splitter_cmd)
+                            start_cmd = timeit.default_timer()
+                            splitter_output = subprocess.check_output(splitter_cmd, shell=True)
+                            log.info(
+                                "Splitter cmd processed in {} s.".format(
+                                    timeit.default_timer() - start_cmd))
+                            log.info("splitter_output=%s" % splitter_output)
+                            sentences = splitter_output.splitlines()
 
-                                json_resp = r.json()
+                            self.manager.client_cancellations[key] = False 
+                            
+                            sentence_count = len(sentences)
+                            if key in self.manager.client_responses:
+                                response_queue = self.manager.client_responses[key]
+                            else:
+                                response_queue = Queue.Queue()
+                                self.manager.client_responses[key] = response_queue
 
-                                sentence_count = len(json_resp['sentences'])
-                                if key in self.manager.client_responses:
-                                    response_queue = self.manager.client_responses[key]
-                                else:
-                                    response_queue = Queue.Queue()
-                                    self.manager.client_responses[key] = response_queue
-                                response_queue.put(json_resp)
+                            json_resp_str = '{"articleId": '
+                            json_resp_str += str(int(time.time())) 
+                            json_resp_str += ', "sentences":['
+                            delim = ""
+                            for sentence in sentences:
+                                json_resp_str += '{0}"{1}"'.format(delim, sentence)
+                                delim = ","
+                            json_resp_str += "]}"
+                            json_resp = json.loads(json_resp_str)
+                            response_queue.put(json_resp)
 
-                                log.debug("sentenceCount={0}".format(len(json_resp['sentences'])))
-                                for index, sentence in enumerate(json_resp['sentences']):
-                                    translate_sentence_request = dict(json_data)
-                                    del translate_sentence_request['text']
-                                    translate_sentence_request['sentence'] = sentence
-                                    translate_sentence_request['sentence_number'] = index
-                                    translate_sentence_request['lang_source'] = translate_sentence_request['src_lang']
-                                    translate_sentence_request['lang_target'] = translate_sentence_request['tgt_lang']
-                                    translate_sentence_request['keepalive'] = time.time()
-                                    self.manager.translation_request_queues[category].put(translate_sentence_request)
-                                self.manager.translation_request_queues[category].redistribute_requests()
-                                response = {'msg': 'All sentences have been queued.'}
+                            log.debug("sentenceCount={0}".format(len(sentences)))
+                            for index, sentence in enumerate(json_resp['sentences']):
+                                translate_sentence_request = dict(json_data)
+                                del translate_sentence_request['text']
+                                translate_sentence_request['sentence'] = sentence
+                                translate_sentence_request['sentence_number'] = index
+                                translate_sentence_request['lang_source'] = translate_sentence_request['src_lang']
+                                translate_sentence_request['lang_target'] = translate_sentence_request['tgt_lang']
+                                translate_sentence_request['keepalive'] = time.time()
+                                self.manager.translation_request_queues[category].put(translate_sentence_request)
+                            self.manager.translation_request_queues[category].redistribute_requests()
+                            response = {'msg': 'All sentences have been queued.'}
                         elif json_data['type'] == 'poll':
                             log.debug("POLL from {0}".format(key))   
                             response = self.manager.poll(category, key)
