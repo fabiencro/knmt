@@ -300,7 +300,7 @@ class Manager(object):
                     else:
                         log_file_table[server_category] = resp_json['log_files']
                 except BaseException as err:
-                    log.info("An error has occurred when the multiserver performed a GET_LOG_FILES query for the '{0}' category: '{1}'".format(self.category, err))
+                    log.info("An error has occurred when the multiserver performed a GET_LOG_FILES query for the '{0}' category: '{1}'".format(server_category, err))
         return log_file_table
 
     def get_log_file_content(self, requested_file, page=1):
