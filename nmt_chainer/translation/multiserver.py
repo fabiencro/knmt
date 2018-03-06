@@ -417,6 +417,7 @@ class Server(SocketServer.ThreadingMixIn, SocketServer.TCPServer):
                             splitter_cmd = self.manager.text_to_sentences_splitter % json_data['text'].replace("'", "'\\''")
                             splitter_cmd = splitter_cmd.replace("$lang_source", json_data['src_lang'])
                             splitter_cmd = splitter_cmd.replace("$lang_target", json_data['tgt_lang'])
+                            splitter_cmd = splitter_cmd.encode('utf-8')
                             log.info("splitter_cmd=%s" % splitter_cmd)
                             start_cmd = timeit.default_timer()
                             splitter_output = subprocess.check_output(splitter_cmd, shell=True)
