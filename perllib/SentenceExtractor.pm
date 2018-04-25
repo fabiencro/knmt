@@ -18,7 +18,7 @@ $Data::Dumper::Useperl = 1;
 
 
 #$comma = qr/，/;
-$comma = qr/，|、/;
+$comma = qr/，|、|\,/;
 #$open_kakko  = qr/（|〔|［|｛|＜|≪|「|『|【|\(|\[|\{/;
 #$close_kakko = qr/）|〕|］|｝|＞|≫|」|』|】|\)|\]|\}/;
 #$open_kakko  = qr/（|〔|［|｛|≪|「|『|【|\(|\[|{|［/;
@@ -30,7 +30,7 @@ $close_kakko = qr/）|〕|］|｝|≫|」|』|】|\)|\]|}|”/;
 
 #$period = qr/。|？|！|♪|…/;
 # $period = qr/。|；|;|？|！|♪|…/;#11/21
-$period = qr/。|？|！|♪|…/;#11/21
+$period = qr/。|？|！|♪|…|；|：|，/;#11/21
 $dot = qr/．|\./;
 #$alphabet_or_number = qr/(?:[Ａ-Ｚ]|[ａ-ｚ]|[０-９])/;
 $alphabet_or_number = qr/(?:[a-z]|[A-Z]|[Ａ-Ｚ]|[ａ-ｚ]|[０-９]|[0-9])/;

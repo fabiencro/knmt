@@ -48,6 +48,46 @@ foreach my $s (@sentences) {
     # $s =~ s/>/&gt;/sg;
     # $s =~ s/"/&quot;/sg;
 }
+
+my $buf = "";
+my @new_sentences = ();
+my $threshold = 60;
+foreach my $s (@sentences) {
+    if (length($s) > $threshold) {
+	push(@new_sentences, $buf) if ($buf ne "");
+	$buf = "";
+
+	# 細かく切る
+	my @sent_small = ();
+	while ($s =~ s/^(.+?(?:\,|\!|\;|\:|。|．|？|！|♪|…|；|：|，))//) {
+	    push(@sent_small, $1);
+	}
+	push(@sent_small, $s) if ($s ne "");
+	my $buf_small = "";
+	foreach my $tmp (@sent_small) {
+	    if ((length($buf_small) > 0 && $buf_small =~ /[^，、\,]$/) ||
+		length($buf_small) + length($tmp) > $threshold) {
+		push(@new_sentences, $buf_small);
+		$buf_small = "";
+	    }
+	    $buf_small .= $tmp;
+	}
+	push(@new_sentences, $buf_small) if ($buf_small ne "");
+    } elsif (length($buf) + length($s) > $threshold) {
+	push(@new_sentences, $buf);
+	$buf = $s;
+    } else {
+	$buf .= $s;
+    }
+}
+push(@new_sentences, $buf) if ($buf ne "");
+for (my $i = $#new_sentences; $i >= 0; $i--) {
+    $new_sentences[$i] =~ s/^\s+//;
+    $new_sentences[$i] =~ s/\s+$//;
+    splice(@new_sentences, $i, 1) if ($new_sentences[$i] =~ /^\s*$/);
+}
+@sentences = @new_sentences;
+
 # 文分割が失敗した場合
 if (scalar(@sentences) == 0) {
     @sentences = @lines;
