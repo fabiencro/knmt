@@ -441,7 +441,7 @@ class Server(SocketServer.ThreadingMixIn, SocketServer.TCPServer):
                             json_resp_str += ', "sentences":['
                             delim = ""
                             for sentence in sentences:
-                                json_resp_str += '{0}"{1}"'.format(delim, sentence)
+                                json_resp_str += '{0}"{1}"'.format(delim, sentence.replace('"', '\\\"')
                                 delim = ","
                             json_resp_str += "]}"
                             json_resp = json.loads(json_resp_str)
