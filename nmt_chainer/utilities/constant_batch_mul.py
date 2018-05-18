@@ -1,3 +1,4 @@
+from __future__ import absolute_import, division, print_function, unicode_literals
 import numpy
 import six
 
@@ -6,32 +7,47 @@ from chainer import function
 from chainer.utils import array
 from chainer.utils import type_check
 
-from chainer.functions.math.matmul import _get_batch_mat_shape, _check_ndim, _get_check_index, _matmul
+from chainer.functions.math.matmul import _check_ndim, _get_check_index, _matmul
 
-try:
-    from chainer.functions.math.matmul import _batch_matmul_gpu
-except ImportError:
-    def _batch_matmul_gpu(*args, **kwds):
-        # TO DO: fix this for recent chainer
-        print "Sorry, use of lexical probabilities is broken with this version of chainer"
-        raise NotImplemented
-    
-    
-try:
-    from chainer.functions.math.matmul import _convert_type
-except ImportError:
-    def _convert_type(*args, **kwds):
-        # TO DO: fix this for recent chainer
-        print "Sorry, use of lexical probabilities is broken with this version of chainer"
-        raise NotImplemented    
+def _get_size(typ, index, vector_ndim):
+    if type_check.eval(typ.ndim) == vector_ndim and \
+       type_check.eval(index) == vector_ndim:
+        return 1
+    else:
+        return typ.shape[index]
 
+
+def _get_batch_mat_shape(shape):
+    s = 1
+    for x in shape[2:]:
+        s *= x
+    return shape[:2] + (s,)
+
+def _batch_matmul(a, b, transa=False, transb=False, transout=False):
+    a = a.reshape(a.shape[:2] + (-1,))
+    b = b.reshape(b.shape[:2] + (-1,))
+    trans_axis = (0, 2, 1)
+    if transout:
+        transa, transb = not transb, not transa
+        a, b = b, a
+    if transa:
+        a = a.transpose(trans_axis)
+    if transb:
+        b = b.transpose(trans_axis)
+    xp = cuda.get_array_module(a)
+    if xp is numpy:
+        ret = numpy.empty(a.shape[:2] + b.shape[2:], dtype=a.dtype)
+        for i in six.moves.range(len(a)):
+            ret[i] = numpy.dot(a[i], b[i])
+        return ret
+    return xp.matmul(a, b)
 
 class MatMulConstant(function.Function):
 
     def __init__(self, b, transa=False, transb=False):
+        self.b = b
         self.transa = transa
         self.transb = transb
-        self.b = b
 
     def check_type_forward(self, in_types):
         type_check.expect(in_types.size() == 1)
@@ -43,19 +59,19 @@ class MatMulConstant(function.Function):
 
         _check_ndim(a_type)
 
-        a_type = _convert_type(a_type)
         a_idx = _get_check_index(self.transa, False)
+        a_size = _get_size(a_type, a_idx, 1)
 
     def forward(self, x):
         a, = x
         return _matmul(a, self.b, transa=self.transa, transb=self.transb),
 
     def backward(self, x, gy):
-        gx0 = _matmul(
+        a, = x
+        ga = _matmul(
             gy[0], self.b, transb=not self.transb, transout=self.transa
-        ).reshape(x[0].shape)
-        return gx0,
-
+        ).reshape(a.shape)
+        return ga,
 
 def matmul_constant(a, b, transa=False, transb=False):
     """Computes the matrix multiplication of two arrays.
@@ -77,15 +93,16 @@ def matmul_constant(a, b, transa=False, transb=False):
 
 
 class BatchMatMulConstant(function.Function):
+
     def __init__(self, b, transa=False, transb=False):
+        self.b = b
         self.transa = transa
         self.transb = transb
-        self.b = b
 
     def _output_shape(self, a, b):
         batch_size = len(a)
         m = _get_batch_mat_shape(a.shape)[2 if self.transa else 1]
-        n = _get_batch_mat_shape(b.shape)[1 if self.transb else 2]
+        n = _get_batch_mat_shape(self.b.shape)[1 if self.transb else 2]
         return batch_size, m, n
 
     def check_type_forward(self, in_types):
@@ -93,63 +110,22 @@ class BatchMatMulConstant(function.Function):
         a_type, = in_types
 
         type_check.expect(
-            a_type.dtype == numpy.float32
-            #             ,
-            #             self.b.dtype == numpy.float32
+            a_type.dtype == numpy.float32,
         )
 
         _check_ndim(a_type, lower=2, upper=3)
-#         _check_ndim(b_type, lower=2, upper=3)
 
-        a_type = _convert_type(a_type, vector_ndim=2)
-#         b_type = _convert_type(b_type, vector_ndim=2)
         a_idx = _get_check_index(self.transa, False, row_idx=1, col_idx=2)
-#         b_idx = _get_check_index(self.transb, True, row_idx=1, col_idx=2)
-#         type_check.expect(
-#             a_type.shape[a_idx] == b_type.shape[b_idx]
-#         )
 
-    def forward_cpu(self, x):
+    def forward(self, x):
         a, = x
-        b = self.b
-        batch_size = a.shape[0]
-        shape = self._output_shape(a, b)
-        ret_dtype = numpy.find_common_type([a.dtype, b.dtype], [])
-        ret = numpy.empty(shape, dtype=ret_dtype)
-        for i in six.moves.range(batch_size):
-            ret[i] = _matmul(
-                a[i], b[i], transa=self.transa, transb=self.transb)
-        return ret,
+        return _batch_matmul(a, self.b, self.transa, self.transb),
 
-    def backward_cpu(self, x, gy):
+    def backward(self, x, gy):
         a, = x
-        b = self.b
-        ga = numpy.empty_like(a)
-        a0shape = a[0].shape
-        for i in six.moves.range(len(a)):
-            ga[i] = _matmul(
-                gy[0][i], b[i], transb=not self.transb,
-                transout=self.transa).reshape(a0shape)
+        ga = _batch_matmul(gy[0], self.b, transb=not self.transb,
+                           transout=self.transa).reshape(a.shape)
         return ga,
-
-    def forward_gpu(self, x):
-        a, = x
-        b = self.b
-        shape = self._output_shape(a, b)
-        ret = cuda.cupy.zeros(shape, dtype=a.dtype)
-        _batch_matmul_gpu(
-            a, b, transa=self.transa, transb=self.transb, out=ret)
-        return ret,
-
-    def backward_gpu(self, x, gy):
-        a, = x
-        b = self.b
-        ga = cuda.cupy.empty(_get_batch_mat_shape(a.shape), a.dtype)
-        _batch_matmul_gpu(
-            gy[0], b, transb=not self.transb, transout=self.transa, out=ga)
-        ga = ga.reshape(a.shape)
-        return ga,
-
 
 def batch_matmul_constant(a, b, transa=False, transb=False):
     """Computes the batch matrix multiplications of two sets of arrays.
@@ -170,3 +146,4 @@ def batch_matmul_constant(a, b, transa=False, transb=False):
             3-D array.
     """
     return BatchMatMulConstant(b, transa=transa, transb=transb)(a)
+

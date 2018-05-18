@@ -1,15 +1,17 @@
 """replace_tgt_unk.py: Simple utility to replace target unknown words in nmt output"""
+from __future__ import absolute_import, division, print_function, unicode_literals
 __author__ = "Fabien Cromieres"
 __license__ = "undecided"
 __version__ = "1.0"
 __email__ = "fabien.cromieres@gmail.com"
 __status__ = "Development"
 
-import codecs
-import itertools
+import io 
+import sys
 import json
 import unicodedata
 import logging
+import six
 logging.basicConfig()
 log = logging.getLogger("rnns:replace_tgt")
 log.setLevel(logging.INFO)
@@ -58,16 +60,16 @@ def replace_unk_from_string(translation_str, src_str, dic_fn, remove_unk, normal
 def replace_unk(translations, src_file, dest, dic_fn, remove_unk, normalize_unicode_unk,
                 attempt_to_relocate_unk_source):
 
-    ft = codecs.open(translations, encoding="utf8")
-    fs = codecs.open(src_file, encoding="utf8")
+    ft = io.open(translations, 'rt', encoding="utf8")
+    fs = io.open(src_file, 'rt', encoding="utf8")
 
-    fd = codecs.open(dest, "w", encoding="utf8")
+    fd = io.open(dest, "wt", encoding="utf8")
 
     dic = None
     if dic_fn is not None:
         dic = json.load(open(dic_fn))
 
-    for num_line, (line_t, line_s) in enumerate(itertools.izip(ft, fs)):
+    for num_line, (line_t, line_s) in enumerate(six.moves.zip(ft, fs)):
         splitted_t = line_t.strip().split(" ")
         splitted_s = line_s.strip().split(" ")
         new_t = []

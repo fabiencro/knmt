@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 """training.py: training procedures."""
+from __future__ import absolute_import, division, print_function, unicode_literals
 from nmt_chainer.utilities import argument_parsing_tools
 __author__ = "Fabien Cromieres"
 __license__ = "undecided"
@@ -331,14 +332,14 @@ class DynamicLengthBasedSerialIterator(chainer.dataset.iterator.Iterator):
 import six
 
 
-def make_collection_of_variables(in_arrays, volatile="off"):
+def make_collection_of_variables(in_arrays):
     if isinstance(in_arrays, tuple):
-        in_vars = tuple(chainer.variable.Variable(x, volatile=volatile) for x in in_arrays)
+        in_vars = tuple(chainer.variable.Variable(x) for x in in_arrays)
     elif isinstance(in_arrays, dict):
-        in_vars = {key: chainer.variable.Variable(x, volatile=volatile)
+        in_vars = {key: chainer.variable.Variable(x)
                    for key, x in six.iteritems(in_arrays)}
     else:
-        in_vars = chainer.variable.Variable(in_arrays, volatile=volatile)
+        in_vars = chainer.variable.Variable(in_arrays)
     return in_vars
 
 
@@ -563,7 +564,7 @@ class TrainingLossSummaryExtension(chainer.training.Extension):
             chainer.reporter.report({"avg_update_time": avg_update_time})
             self.reset()
 
-
+import socket
 class SqliteLogExtension(chainer.training.Extension):
     priority = chainer.training.PRIORITY_READER
 
@@ -585,7 +586,7 @@ class SqliteLogExtension(chainer.training.Extension):
 loss real, bleu real,
 dev_loss real, dev_bleu real,
 valid_loss real, valid_bleu real,
-avg_time real, avg_training_loss real)''')
+avg_time real, avg_training_loss real, machine)''')
 
             dev_loss = trainer.observation.get("dev_loss", None)
             if dev_loss is not None:
@@ -599,6 +600,8 @@ avg_time real, avg_training_loss real)''')
             if avg_training_loss is not None:
                 avg_training_loss = float(avg_training_loss)
 
+            machine = socket.gethostname()
+
             infos = (datetime.datetime.now().strftime("%I:%M%p %B %d, %Y"),
                      trainer.observation.get("test_bleu_details", None), trainer.updater.iteration,
                      test_loss,
@@ -606,8 +609,12 @@ avg_time real, avg_training_loss real)''')
                      dev_loss,
                      trainer.observation.get("dev_bleu", None),
                      None, None,
-                     trainer.observation.get("avg_update_time", None), avg_training_loss)
-            db_cursor.execute("INSERT INTO exp_data VALUES (?,?,?,?,?,?,?,?,?,?,?)", infos)
+                     trainer.observation.get("avg_update_time", None), avg_training_loss, machine)
+            try:
+                db_cursor.execute("INSERT INTO exp_data VALUES (?,?,?,?,?,?,?,?,?,?,?,?)", infos)
+            except sqlite3.OperationalError:
+                db_cursor.execute("INSERT INTO exp_data VALUES (?,?,?,?,?,?,?,?,?,?,?)", infos[:-1])
+                
             db_connection.commit()
             db_connection.close()
 
@@ -689,12 +696,12 @@ def train_on_data_chainer(encdec, optimizer, training_data, output_files_dict,
 
         try:
             if encdec.encdec_type() == "ff":
-                src_seqs, tgt_seqs = zip(*mb_raw)
+                src_seqs, tgt_seqs = list(six.moves.zip(*mb_raw))
                 sample_once_ff(encdec, src_seqs, tgt_seqs, src_indexer, tgt_indexer, max_nb=20,
                     s_unk_tag=s_unk_tag, t_unk_tag=t_unk_tag)
             else:
     
-                src_batch, tgt_batch, src_mask = make_batch_src_tgt(mb_raw, eos_idx=eos_idx, padding_idx=0, gpu=gpu, volatile="on", need_arg_sort=False)
+                src_batch, tgt_batch, src_mask = make_batch_src_tgt(mb_raw, eos_idx=eos_idx, padding_idx=0, gpu=gpu, need_arg_sort=False)
         
                 sample_once(encdec, src_batch, tgt_batch, src_mask, src_indexer, tgt_indexer, eos_idx,
                             max_nb=20,
@@ -724,7 +731,7 @@ def train_on_data_chainer(encdec, optimizer, training_data, output_files_dict,
     
             t0 = time.clock()
             
-            loss = encdec.compute_loss(src_seq, tgt_seq, train=True, reduce="no")
+            loss = encdec.compute_loss(src_seq, tgt_seq, reduce="no")
             total_loss = F.sum(loss)
             total_nb_predictions = sum(len(seq) + 1 for seq in tgt_seq)
             
@@ -749,7 +756,7 @@ def train_on_data_chainer(encdec, optimizer, training_data, output_files_dict,
             
             return avg_loss  
         def convert_mb(mb_raw, device):
-            return tuple(zip(*mb_raw)) 
+            return tuple(list(six.moves.zip(*mb_raw))) 
     else:
         def loss_func(src_batch, tgt_batch, src_mask):
     
@@ -757,7 +764,6 @@ def train_on_data_chainer(encdec, optimizer, training_data, output_files_dict,
             (total_loss, total_nb_predictions), attn = encdec(src_batch, tgt_batch, src_mask, raw_loss_info=True,
                                                               noise_on_prev_word=noise_on_prev_word,
                                                               use_previous_prediction=use_previous_prediction,
-                                                              mode="train",
                                                               use_soft_prediction_feedback=use_soft_prediction_feedback, 
                                                               use_gumbel_for_soft_predictions=use_gumbel_for_soft_predictions,
                                                               temperature_for_soft_predictions=temperature_for_soft_predictions)
@@ -783,7 +789,7 @@ def train_on_data_chainer(encdec, optimizer, training_data, output_files_dict,
             return avg_loss
 
         def convert_mb(mb_raw, device):
-            return make_batch_src_tgt(mb_raw, eos_idx=eos_idx, padding_idx=0, gpu=device, volatile="off", need_arg_sort=False)
+            return make_batch_src_tgt(mb_raw, eos_idx=eos_idx, padding_idx=0, gpu=device, need_arg_sort=False)
 
     updater = Updater(iterator_training_data, optimizer,
                       converter=convert_mb,
