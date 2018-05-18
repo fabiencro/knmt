@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 """macro_tests.py: Some macro tests"""
+from __future__ import absolute_import, division, print_function, unicode_literals
 __author__ = "Fabien Cromieres"
 __license__ = "undecided"
 __version__ = "1.0"
@@ -53,12 +54,12 @@ class TestMacro:
             expected_translations = f.readlines()
         with open(translation_file) as f:
             actual_translations = f.readlines()
-        print "expected_translations"
+        print("expected_translations")
         for p in expected_translations:
-            print p
-        print "actual_translations"
+            print(p)
+        print("actual_translations")
         for p in actual_translations:
-            print p
+            print(p)
 
         assert(actual_translations == expected_translations)
 
@@ -106,12 +107,12 @@ class TestMacro:
                 beam_search_translations = f.readlines()
             with open(greedy_search_file) as f:
                 greedy_search_translations = f.readlines()
-            print "beam_search_translations"
+            print("beam_search_translations")
             for p in beam_search_translations:
-                print p
-            print "greedy_search_translations"
+                print(p)
+            print("greedy_search_translations")
             for p in greedy_search_translations:
-                print p
+                print(p)
 
             assert(beam_search_translations == greedy_search_translations)
 
@@ -157,12 +158,12 @@ class TestMacro:
             beam_search_translations = f.readlines()
         with open(ensemble_search_file) as f:
             ensemble_search_translations = f.readlines()
-        print "beam_search_translations"
+        print("beam_search_translations")
         for p in beam_search_translations:
-            print p
-        print "ensemble_search_translations"
+            print(p)
+        print("ensemble_search_translations")
         for p in ensemble_search_translations:
-            print p
+            print(p)
 
         assert(beam_search_translations == ensemble_search_translations)
 
@@ -173,7 +174,7 @@ class TestMacro:
         differ most of the time although in theory, it's possible to be equal.
         """
         for i in range(0, 4):
-            print i
+            print(i)
             test_data_dir = os.path.join(
                 os.path.dirname(
                     os.path.abspath(__file__)),
@@ -221,11 +222,11 @@ class TestMacro:
             beam_search_translations = f.readlines()
         with open(ensemble_search_file) as f:
             ensemble_search_translations = f.readlines()
-        print "beam_search_translations"
+        print("beam_search_translations")
         for p in beam_search_translations:
-            print p
-        print "ensemble_search_translations"
+            print(p)
+        print("ensemble_search_translations")
         for p in ensemble_search_translations:
-            print p
+            print(p)
 
         assert(beam_search_translations != ensemble_search_translations)
