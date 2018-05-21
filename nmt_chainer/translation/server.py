@@ -37,6 +37,7 @@ logging.basicConfig()
 log = logging.getLogger("rnns:server")
 log.setLevel(logging.INFO)
 
+
 def read_keyword_file(kw_filename):
     keywords = {}
     with codecs.open(kw_filename, 'r', encoding='utf-8') as f:
@@ -129,14 +130,13 @@ class Translator(object):
         return out, script, div, unk_mapping
 
 
-
 class RequestHandler(six.moves.socketserver.BaseRequestHandler):
 
     def handle(self):
         start_request = timeit.default_timer()
         log.info(timestamped_msg("Handling request..."))
         data = self.request.recv(4096)
-        text_uid = hashlib.sha1("{0}_{1}".format(start_request, data)).hexdigest()
+        text_uid = hashlib.sha1(str("{0}_{1}".format(start_request, data)).encode('utf-8')).hexdigest()
         kw_filename = '/tmp/{0}.kw'.format(text_uid)
 
         response = {}
@@ -257,8 +257,8 @@ class RequestHandler(six.moves.socketserver.BaseRequestHandler):
                     splitted_sentence_without_kw = splitted_sentence
                     if os.path.isfile(kw_filename):
                         keywords = read_keyword_file(kw_filename)
-                        for kw, val in keywords.iteritems():
-                            splitted_sentence_without_kw = re.sub("<{0}>".format(kw), val.encode('utf-8'), splitted_sentence_without_kw)
+                        for kw, val in six.iteritems(keywords):
+                            splitted_sentence_without_kw = re.sub("<{0}>".format(kw), val, splitted_sentence_without_kw)
                         # log.info("splitted_sentence_without_kw={0}".format(splitted_sentence_without_kw))
 
                     log.info(timestamped_msg("Translating sentence %d" % idx))
