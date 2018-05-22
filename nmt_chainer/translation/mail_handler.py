@@ -85,9 +85,9 @@ def get_decoded_email_body(message_body):
                 html = part.get_payload(None, True)
 
         if text is not None:
-            return text.strip().decode('utf-8')
+            return text.strip().decode(charset)
         else:
-            return html.strip().decode('utf-8')
+            return html.strip().decode(charset)
     else:
         text = msg.get_payload(None, True)
         return text.strip().decode(msg.get_content_charset())
