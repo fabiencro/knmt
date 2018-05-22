@@ -37,6 +37,7 @@ import urllib.parse
 from nmt_chainer._version import __version__ as knmt_version
 from nmt_chainer.translation.client import Client
 
+
 list_resp_pattern = re.compile('(.*?) "(.*)" (.*)')
 subject_pattern = re.compile('([a-zA-Z][a-zA-Z])_([a-zA-Z][a-zA-Z])')
 
@@ -89,7 +90,7 @@ def get_decoded_email_body(message_body):
             return html.strip().decode('utf-8')
     else:
         text = msg.get_payload(None, True)
-        return text.strip().decode('utf-8')
+        return text.strip().decode(msg.get_content_charset())
 
 
 class MailHandler:
