@@ -13,11 +13,11 @@ import base64
 import codecs
 import daemon
 import email
-from email.MIMEMultipart import MIMEMultipart
-from email.MIMEText import MIMEText
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
 import gettext
 import gzip
-import httplib
+import http.client
 import imaplib
 import io
 import json
@@ -32,7 +32,7 @@ import socket
 import subprocess
 import tempfile
 import time
-import urllib
+import urllib.parse
 
 from nmt_chainer._version import __version__ as knmt_version
 from nmt_chainer.translation.client import Client
@@ -53,6 +53,7 @@ def split_text_into_paragraphes(text, src_lang, tgt_lang):
 
 
 # Taken from https://gist.githubusercontent.com/miohtama/5389146/raw/03362b9aa72f9d3a4e68fb99af40a0ef160e0ec5/gistfile1.py
+# and adjusted a little bit for Python 3.
 def get_decoded_email_body(message_body):
     """ Decode email body.
     Detect character set if the header is not set.
@@ -61,15 +62,12 @@ def get_decoded_email_body(message_body):
     :return: Message body as unicode string
     """
 
-    msg = email.message_from_string(message_body)
+    msg = email.message_from_bytes(message_body)
 
     text = ""
     if msg.is_multipart():
         html = None
         for part in msg.get_payload():
-
-            print "%s, %s" % (part.get_content_type(), part.get_content_charset())
-
             if part.get_content_type() not in ['text/plain', 'text/html']:
                 continue
 
@@ -80,18 +78,18 @@ def get_decoded_email_body(message_body):
 
             charset = part.get_content_charset()
             if part.get_content_type() == 'text/plain':
-                text = unicode(part.get_payload(decode=True), str(charset), "ignore").encode('utf8', 'replace')
+                text = part.get_payload(None, True)
 
             if part.get_content_type() == 'text/html':
-                html = unicode(part.get_payload(decode=True), str(charset), "ignore").encode('utf8', 'replace')
+                html = part.get_payload(None, True)
 
         if text is not None:
-            return text.strip()
+            return text.strip().decode('utf-8')
         else:
-            return html.strip()
+            return html.strip().decode('utf-8')
     else:
-        text = unicode(msg.get_payload(decode=True), msg.get_content_charset(), 'ignore').encode('utf8', 'replace')
-        return text.strip()
+        text = msg.get_payload(None, True)
+        return text.strip().decode('utf-8')
 
 
 class MailHandler:
@@ -167,17 +165,15 @@ class MailHandler:
                 return [text]
 
         sentences = []
-        params = urllib.urlencode({'lang_source': src_lang.encode('utf-8'),
-                                   'lang_target': tgt_lang.encode('utf-8'),
-                                   'text': text.encode('utf-8')})
+        params = urllib.parse.urlencode({'lang_source': src_lang.encode('utf-8'), 'lang_target': tgt_lang.encode('utf-8'), 'text': text.encode('utf-8')})
         headers = {'Content-type': 'application/x-www-form-urlencoded', 'Accept': 'application/json'}
 
-        conn = httplib.HTTPConnection(splitter_host)
+        conn = http.client.HTTPConnection(splitter_host)
         try:
             conn.request('POST', splitter_path, params, headers)
             resp = conn.getresponse()
             data = resp.read()
-            json_data = json.loads(data)
+            json_data = json.loads(data.decode('utf-8'))
             sentences = json_data['sentences']
         except Exception as ex:
             self.logger.exception(ex)
@@ -226,7 +222,7 @@ class MailHandler:
         return translation
 
     def _parse_list_response(self, line):
-        flags, delimiter, mailbox_name = list_resp_pattern.match(line).groups()
+        flags, delimiter, mailbox_name = list_resp_pattern.match(line.decode('utf-8')).groups()
         mailbox_name = mailbox_name.strip('"')
         return (flags, delimiter, mailbox_name)
 
@@ -235,7 +231,7 @@ class MailHandler:
         config = json.load(open(self.config_file))
         ui_locale = config.get('ui_locale', '')
         self.logger.info("Interface locale: {0}".format(ui_locale))
-        locale.setlocale(locale.LC_ALL, ui_locale.encode('ascii'))
+        locale.setlocale(locale.LC_ALL, ui_locale)
         filename = "res/messages_%s.mo" % locale.getlocale()[0][0:2]
 
         try:
@@ -255,7 +251,7 @@ class MailHandler:
             mail = imaplib.IMAP4_SSL(config['imap']['host'], config['imap']['port'])
             mail.login(config['imap']['user'], config['imap']['password'])
 
-            type, data = mail.list()
+            typ, data = mail.list()
             processed_mailbox = config['imap']['processed_request_mailbox']
             ignored_mailbox = config['imap']['ignored_request_mailbox']
             is_processed_request_mailbox_found = False
@@ -271,7 +267,7 @@ class MailHandler:
             if not is_ignored_request_mailbox_found:
                 mail.create(ignored_mailbox)
 
-        except Exception, ex:
+        except Exception as ex:
             raise
 
         finally:
@@ -283,8 +279,8 @@ class MailHandler:
         requests_filename = "{0}_requests.json.gz".format(config['id'])
         if os.path.isfile(requests_filename):
             with gzip.open(requests_filename, 'r') as input_file:
-                str = input_file.read().decode('utf-8')
-                self._requests = json.loads(str)
+                str_input = input_file.read().decode('utf-8')
+                self._requests = json.loads(str_input)
 
     def _save_requests(self):
         config = json.load(open(self.config_file))
@@ -315,7 +311,7 @@ class MailHandler:
 
         self._requests = []
 
-        type, data = mail.uid('SEARCH', None, 'ALL')
+        typ, data = mail.uid('SEARCH', None, 'ALL')
         mail_uids = data[0]
         uid_list = mail_uids.split()
         if (len(uid_list) > 0):
@@ -325,21 +321,22 @@ class MailHandler:
             for mail_uid in range(first_email_uid, last_email_uid + 1):
                 email_from = None
                 try:
-                    type, data = mail.uid('FETCH', mail_uid, '(RFC822)')
+                    typ, data = mail.uid('FETCH', str(mail_uid), '(RFC822)')
 
                     for response_part in data:
                         if isinstance(response_part, tuple):
-                            msg = email.message_from_string(response_part[1])
-                            email_date = msg['date'].decode('utf-8')
-                            email_from = msg['from'].decode('utf-8')
-                            email_subject = msg['subject'].decode('utf-8')
-                            email_body = get_decoded_email_body(response_part[1]).decode('utf-8')
+                            msg = email.message_from_bytes(response_part[1])
+                            email_date = msg['date']
+                            email_from = msg['from']
+                            email_subject = msg['subject']
+                            email_body = get_decoded_email_body(response_part[1])
 
                             # Ignore warning messages from the MAILER-DAEMON as they are
                             # not translation requests.
                             if "daemon" in email_from.lower():
                                 raise ValueError("MAILER-DAEMON messages should be ignored")
 
+                            self.logger.info("subject_match={0}".format(email_subject))
                             subject_match = subject_pattern.match(email_subject)
                             if subject_match:
                                 src_lang = subject_match.group(1).lower()
@@ -356,30 +353,29 @@ class MailHandler:
                                 self.logger.info("From: {0}".format(email_from))
                                 self.logger.info("Subject: {0}".format(email_subject))
 
-                                reply = _("Translation request received.\n\n{0}Please wait...\n\n---------- Original text ----------\n\nLanguage pair: {1}-{2}\n\n{3}\n\n-- The content of this message has been generated by KNMT {4}. --").decode('utf-8')
+                                reply = _("Translation request received.\n\n{0}Please wait...\n\n---------- Original text ----------\n\nLanguage pair: {1}-{2}\n\n{3}\n\n-- The content of this message has been generated by KNMT {4}. --")
                                 queue_msg = ''
                                 if (len(self._requests) > 0):
                                     queue_msg = _("Requests before you: {0}\n\n").format(len(self._requests))
 
                                 subject = _('Translation request received: {0}').format(email_subject)
-                                self._send_mail(email_from, subject.decode('utf-8'),
-                                                reply.format(queue_msg.decode('utf-8'), src_lang, tgt_lang, email_body, knmt_version.decode('utf-8')))
+                                self._send_mail(email_from, subject, reply.format(queue_msg, src_lang, tgt_lang, email_body, knmt_version))
 
                                 req = {'uid': mail_uid, 'date': email_date, 'ffrom': email_from, 'subject': email_subject, 'body': email_body.replace('\r', '')}
                                 self._enqueue_request(req)
 
                             else:
                                 raise Exception('Incorrect protocol or unknown language pair: {0}'.format(email_subject))
-                except Exception, ex_msg:
+                except Exception as ex_msg:
                     self.logger.exception("Error: {0}\n\nMoving message to Ignored mailbox\n\n".format(ex_msg))
-                    mail.uid('COPY', mail_uid, config['imap']['ignored_request_mailbox'])
-                    mail.uid('STORE', mail_uid, '+FLAGS', '\\Deleted')
+                    mail.uid('COPY', str(mail_uid), config['imap']['ignored_request_mailbox'])
+                    mail.uid('STORE', str(mail_uid), '+FLAGS', '\\Deleted')
                     mail.expunge()
 
-                    if "MAILER-DAEMON" not in ex_msg:
+                    if "MAILER-DAEMON" not in str(ex_msg):
                         reply = _("Error: {0}\n\nMoving message to Ignored mailbox\n\n").format(ex_msg)
                         subject = _('Translation error: {0}').format(email_subject)
-                        self._send_mail(email_from, subject.decode('utf-8'), reply)
+                        self._send_mail(email_from, subject, reply)
 
     def _process_mail(self):
         self._first_time = True
@@ -424,7 +420,7 @@ class MailHandler:
                                 translation += '\u3000'  # Ideographic space.
 
                             for sentence in sentences:
-                                translated_sentence = self._translate_sentence(src_lang, tgt_lang, sentence.encode('utf-8'))
+                                translated_sentence = self._translate_sentence(src_lang, tgt_lang, sentence)
                                 translation += translated_sentence.rstrip()
                                 if tgt_lang not in ['ja', 'zh']:
                                     translation += ' '
@@ -442,25 +438,24 @@ class MailHandler:
 
                         self.logger.info("Translation: {0}".format(translation))
 
-                        reply = _("{0}\n\n---------- Original text ----------\n\n{1}\n\n-- The content of this message has been generated by KNMT {2}. --").decode('utf-8')
+                        reply = _("{0}\n\n---------- Original text ----------\n\n{1}\n\n-- The content of this message has been generated by KNMT {2}. --")
 
                         subject = _('Translation result: {0}').format(req['subject'])
-                        self._send_mail(req['ffrom'], subject.decode('utf-8'),
-                                        reply.format(translation, req['body'], knmt_version.decode('utf-8')))
+                        self._send_mail(req['ffrom'], subject, reply.format(translation, req['body'], knmt_version))
 
                         self.logger.info("Moving message to Processed mailbox.\n\n")
-                        mail.uid('COPY', req['uid'], config['imap']['processed_request_mailbox'])
-                        mail.uid('STORE', req['uid'], '+FLAGS', '\\Deleted')
+                        mail.uid('COPY', str(req['uid']), config['imap']['processed_request_mailbox'])
+                        mail.uid('STORE', str(req['uid']), '+FLAGS', '\\Deleted')
                         mail.expunge()
 
-                    except Exception, ex_msg:
+                    except Exception as ex_msg:
                         self.logger.exception('Error: {0}'.format(ex_msg))
                         self.logger.info("Moving message to Ignored mailbox.\n\n")
-                        mail.uid('COPY', req['uid'], config['imap']['ignored_request_mailbox'])
-                        mail.uid('STORE', req['uid'], '+FLAGS', '\\Deleted')
+                        mail.uid('COPY', str(req['uid']), config['imap']['ignored_request_mailbox'])
+                        mail.uid('STORE', str(req['uid']), '+FLAGS', '\\Deleted')
                         mail.expunge()
 
-                        if "MAILER-DAEMON" not in ex_msg:
+                        if "MAILER-DAEMON" not in str(ex_msg):
                             reply = "Error: {0}\n\nYour message has been discarded.\n\n-- The content of this message has been generated by KNMT {1}. --"
                             self._send_mail(req['ffrom'],
                                             'Translation result for {0}_{1} request'.format(src_lang, tgt_lang),
@@ -471,11 +466,11 @@ class MailHandler:
             except gaierror:
                 self.logger.error("Cannot reach IMAP server.  Will try again later.")
 
-            except Exception, ex:
+            except Exception as ex:
                 self.logger.exception(ex)
                 try:
                     self._send_mail(None, "Mail-Handler - ERROR", ex)
-                except Exception, ex2:
+                except Exception as ex2:
                     self.logger.exception("Could not send mail notification because of: {0}".format(ex2))
 
             finally:
@@ -483,7 +478,7 @@ class MailHandler:
                     try:
                         mail.close()
                         mail.logout()
-                    except Exception, ex3:
+                    except Exception as ex3:
                         self.logger.exception("Could not close connection.  Most likely that it was not properly opened in the first place so let's ignore this.")
 
             self._first_time = False
@@ -504,7 +499,7 @@ class MailHandler:
                 self._init_localization()
                 self._prepare_mailboxes()
                 self._process_mail()
-            except Exception, ex:
+            except Exception as ex:
                 self.logger.exception(ex)
                 self._send_mail(None, "Mail-Handler - ERROR", ex)
             finally:
