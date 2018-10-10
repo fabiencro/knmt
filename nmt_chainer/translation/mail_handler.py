@@ -209,7 +209,7 @@ class MailHandler:
         if 'out' not in json_resp:
             trans_err_msg = 'This sentence @@@{0}@@@ could not be translated from {1} to {2}.'.format(sentence, src_lang, tgt_lang)
             self.logger.error(trans_err_msg)
-            self._send_mail(None, "Mail-Handler - STARTED", trans_err_msg)
+            self._send_mail(None, "Mail-Handler - ERROR", trans_err_msg)
             return ''
 
         translation = json_resp['out']
