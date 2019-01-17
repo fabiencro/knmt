@@ -393,6 +393,7 @@ class MailHandler:
 
                 while self._requests:
                     req = self._requests[0]
+                    processed = False
                     try:
                         self.logger.info("Processing mail...")
                         self.logger.info("Uid: {0}".format(req['uid']))
@@ -443,11 +444,7 @@ class MailHandler:
 
                         subject = _('Translation result: {0}').format(req['subject'])
                         self._send_mail(req['ffrom'], subject, reply.format(translation, req['body'], knmt_version))
-
-                        self.logger.info("Moving message to Processed mailbox.\n\n")
-                        mail.uid('COPY', str(req['uid']), config['imap']['processed_request_mailbox'])
-                        mail.uid('STORE', str(req['uid']), '+FLAGS', '\\Deleted')
-                        mail.expunge()
+                        processed = True
 
                     except Exception as ex_msg:
                         self.logger.exception('Error: {0}'.format(ex_msg))
@@ -461,6 +458,15 @@ class MailHandler:
                             self._send_mail(req['ffrom'],
                                             'Translation result for {0}_{1} request'.format(src_lang, tgt_lang),
                                             reply.format(ex_msg, knmt_version))
+
+                    if processed:
+                        try:
+                            self.logger.info("Moving message to Processed mailbox.\n\n")
+                            mail.uid('COPY', str(req['uid']), config['imap']['processed_request_mailbox'])
+                            mail.uid('STORE', str(req['uid']), '+FLAGS', '\\Deleted')
+                            mail.expunge()
+                        except Exception as ex_msg:
+                            self.logger.error("An error occurred when moving message: {0} type={1}".format(ex_msg, type(ex_msg)))
 
                     self._dequeue_request()
 
