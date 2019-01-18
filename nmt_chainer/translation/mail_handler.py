@@ -468,8 +468,9 @@ class MailHandler:
                         except imaplib.IMAP4.abort as abort_msg:
                             # This error might occur when processing a very long request.
                             # In such a case, we need to login again.
-                            if "UID => socket error: EOF" in abort_msg:
+                            if "UID => socket error: EOF" in str(abort_msg):
                                 try:
+                                    self.logger.info("Reauthentication required.")
                                     mail = imaplib.IMAP4_SSL(config['imap']['host'], config['imap']['port'])
                                     mail.login(config['imap']['user'], config['imap']['password'])
                                     mail.select(config['imap']['incoming_request_mailbox'])
@@ -477,9 +478,9 @@ class MailHandler:
                                     mail.uid('STORE', str(req['uid']), '+FLAGS', '\\Deleted')
                                     mail.expunge()
                                 except Exception as ex_msg2:
-                                    self.logger.error("An error occurred when moving message: {0} type={1}".format(ex_msg2, type(ex_msg2)))
+                                    self.logger.error("An error occurred when moving message: {0}".format(ex_msg2))
                         except Exception as ex_msg:
-                            self.logger.error("An error occurred when moving message: {0} type={1}".format(ex_msg, type(ex_msg)))
+                            self.logger.error("An error occurred when moving message: {0}".format(ex_msg))
 
                     self._dequeue_request()
 
