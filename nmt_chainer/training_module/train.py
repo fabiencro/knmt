@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 """train.py: Train a RNNSearch Model"""
+from __future__ import absolute_import, division, print_function, unicode_literals
 __author__ = "Fabien Cromieres"
 __license__ = "undecided"
 __version__ = "1.0"
@@ -9,7 +10,7 @@ __status__ = "Development"
 import chainer
 from chainer import cuda, optimizers, serializers
 
-from training import train_on_data
+from .training import train_on_data
 from nmt_chainer.dataprocessing.indexer import Indexer
 from nmt_chainer.utilities.file_infos import create_filename_infos
 from nmt_chainer.utilities.argument_parsing_tools import OrderedNamespace
@@ -349,11 +350,11 @@ def do_train(config_training):
     ensure_path(save_prefix_dir)
 
     already_existing_files = []
-    for key_info, filename in output_files_dict.iteritems():  # , valid_data_fn]:
+    for key_info, filename in output_files_dict.items():  # , valid_data_fn]:
         if os.path.exists(filename):
             already_existing_files.append(filename)
     if len(already_existing_files) > 0:
-        print "Warning: existing files are going to be replaced / updated: ", already_existing_files
+        print("Warning: existing files are going to be replaced / updated: ", already_existing_files)
         if not config_training.training_management.force_overwrite:
             raw_input("Press Enter to Continue")
 
@@ -370,7 +371,8 @@ def do_train(config_training):
     data_fn = config_training.data.data_fn
 
     log.info("loading training data from %s" % data_fn)
-    training_data_all = json.load(gzip.open(data_fn, "rb"))
+    with gzip.open(data_fn, "r") as input_file:
+        training_data_all = json.loads(input_file.read().decode('utf-8'))
 
     training_data = training_data_all["train"]
 
@@ -521,7 +523,7 @@ def do_train(config_training):
         def timer_hook():
             yield
 
-    import training_chainer
+    from . import training_chainer
     with cuda.get_device(gpu):
         with timer_hook() as timer_infos:
 
@@ -569,9 +571,9 @@ def do_train(config_training):
 # #                     lexicon_prob_epsilon = args.lexicon_prob_epsilon
 #                       )
 # #             finally:
-# #                 print timer
+# #                 print(timer)
 # #                 timer.print_sorted()
-# #                 print "total time:"
+# #                 print("total time:")
 # #                 print(timer.total_time())
 #
 #

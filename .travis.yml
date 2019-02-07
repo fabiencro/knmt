@@ -1,6 +1,8 @@
+dist: trusty
 language: python
 python:
   - "2.7"
+  - "3.6"
 # command to install dependencies
 env:
   - TEST_SUITE: tests/suite1

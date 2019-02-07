@@ -1,12 +1,13 @@
 """ Some utilities to leverage the argparse module and produce nicer config files."""
+from __future__ import absolute_import, division, print_function, unicode_literals
 
 from collections import OrderedDict
 import argparse
 import json
 import datetime
 import sys
+import six
 import nmt_chainer.utilities.versioning_tools as versioning_tools
-
 
 class OrderedNamespace(OrderedDict):
     """A class that act as a configuration dictionnary.
@@ -20,7 +21,7 @@ class OrderedNamespace(OrderedDict):
 
     def set_readonly(self):
         self.readonly = True
-        for v in self.itervalues():
+        for v in six.itervalues(self):
             if isinstance(v, OrderedNamespace):
                 v.set_readonly()
 
@@ -45,25 +46,25 @@ class OrderedNamespace(OrderedDict):
     @classmethod
     def load_from(cls, filename):
         d = json.load(open(filename), object_pairs_hook=OrderedDict)
-        cls.convert_to_ordered_namespace(d)
-        return d
+        return cls.convert_to_ordered_namespace(d)
 
     @classmethod
     def convert_to_ordered_namespace(cls, ordered_dict):
-        for v in ordered_dict.itervalues():
+        ns = OrderedNamespace()
+        for k, v in six.iteritems(ordered_dict):
             if isinstance(v, OrderedDict):
-                cls.convert_to_ordered_namespace(v)
-        if not isinstance(ordered_dict, OrderedDict):
-            raise ValueError()
-        ordered_dict.__class__ = cls
-        ordered_dict.readonly = False
+                converted_v = cls.convert_to_ordered_namespace(v)
+                ns[k] = converted_v
+            else:
+                ns[k] = v
+        return ns
 
     def update_recursive(self, other, valid_keys, add_absent_keys=False):
         if not isinstance(other, OrderedNamespace):
             raise ValueError()
         if self.readonly:
             raise ValueError()
-        for key, val in other.iteritems():
+        for key, val in six.iteritems(other):
             if isinstance(val, OrderedNamespace):
                 if key in self:
                     if not (isinstance(self[key], OrderedNamespace)):
@@ -72,23 +73,24 @@ class OrderedNamespace(OrderedDict):
                     self[key] = OrderedNamespace()
                 self[key].update_recursive(val, valid_keys, add_absent_keys=add_absent_keys)
             else:
-                if key in self:
-                    if (isinstance(self[key], OrderedNamespace)):
-                        raise ValueError()
+                # Is this test still needed? - FB 
+                # if key in self:
+                #     if (isinstance(self[key], OrderedNamespace)):
+                #         raise ValueError()
                 if key in valid_keys or (add_absent_keys and key not in self):
                     self[key] = val
 
     def pretty_print(self, indent=4, discard_section=("metadata",)):
-        for k, v in self.iteritems():
+        for k, v in six.iteritems(self):
             if isinstance(v, OrderedNamespace) and k not in discard_section:
-                print " " * indent, k, ":"
+                print(" " * indent, k, ":")
                 v.pretty_print(indent=indent + 4, discard_section=())
             else:
-                print " " * indent, k, v
+                print(" " * indent, k, v)
 
     def copy(self, readonly=None):
         res = OrderedNamespace()
-        for k, v in self.iteritems():
+        for k, v in six.iteritems(self):
             if isinstance(v, OrderedNamespace):
                 res[k] = v.copy(readonly)
             else:
@@ -200,16 +202,16 @@ class ParserWithNoneDefaultAndNoGroup(object):
         self.parser = argparse.ArgumentParser()
 
     def add_argument(self, *args, **kwargs):
-        #         print " add_arg ", args, kwargs
+        #         print(" add_arg ", args, kwargs)
         if len(args) >= 5:
-            #             print "changing default args", args, kwargs
+            #             print("changing default args", args, kwargs)
             assert "default" not in kwargs
             args[4] = None
-#             print " -> ", args, kwargs
+#             print(" -> ", args, kwargs)
         elif "default" in kwargs:
-            #             print "changing default", args, kwargs
+            #             print("changing default", args, kwargs)
             kwargs["default"] = None
-#             print " -> ", args, kwargs
+#             print(" -> ", args, kwargs)
         self.parser.add_argument(*args, **kwargs)
 
     def add_argument_group(self, *args, **kwargs):
