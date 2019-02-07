@@ -134,7 +134,7 @@ def beam_search_all(gpu, encdec, eos_idx, src_data, beam_width, beam_pruning_mar
     if isinstance(encdec, (list, tuple)) and len(encdec) > 1:
         log.info("using ensemble of %i models" % len(encdec))
 
-    with cuda.get_device(gpu):
+    with cuda.get_device_from_id(gpu):
         translations_gen = beam_search_translate(
             encdec, eos_idx, src_data, beam_width=beam_width, nb_steps=nb_steps,
             gpu=gpu, beam_pruning_margin=beam_pruning_margin,
@@ -508,7 +508,7 @@ def do_eval(config_eval):
 
     if mode == "translate":
         log.info("writing translation of to %s" % dest_fn)
-        with cuda.get_device(gpu):
+        with cuda.get_device_from_id(gpu):
             assert len(encdec_list) == 1
             translations = greedy_batch_translate(
                 encdec_list[0], eos_idx, src_data, batch_size=mb_size, gpu=gpu, nb_steps=nb_steps)
@@ -581,7 +581,7 @@ def do_eval(config_eval):
 
     elif mode == "translate_attn":
         log.info("writing translation + attention as html to %s" % dest_fn)
-        with cuda.get_device(gpu):
+        with cuda.get_device_from_id(gpu):
             assert len(encdec_list) == 1
             translations, attn_all = greedy_batch_translate(
                 encdec_list[0], eos_idx, src_data, batch_size=mb_size, gpu=gpu,
@@ -615,7 +615,7 @@ def do_eval(config_eval):
         assert tgt_data is not None
         assert len(tgt_data) == len(src_data)
         log.info("writing alignment as html to %s" % dest_fn)
-        with cuda.get_device(gpu):
+        with cuda.get_device_from_id(gpu):
             assert len(encdec_list) == 1
             loss, attn_all = batch_align(
                 encdec_list[0], eos_idx, list(six.moves.zip(src_data, tgt_data)), batch_size=mb_size, gpu=gpu)
