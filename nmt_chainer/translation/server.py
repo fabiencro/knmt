@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 """server.py: Process requests to RNNSearch"""
+from __future__ import absolute_import, division, print_function, unicode_literals
 __author__ = "Frederic Bergeron"
 __license__ = "undecided"
 __version__ = "1.0"
@@ -17,6 +18,7 @@ import tempfile
 import os
 from os import listdir
 from os.path import isfile, join, dirname, basename
+import six
 
 from nmt_chainer.dataprocessing.processors import build_dataset_one_side_pp
 import nmt_chainer.translation.eval
@@ -27,7 +29,6 @@ import time
 import timeit
 import socket
 import threading
-import SocketServer
 import xml.etree.ElementTree as ET
 import re
 import subprocess
@@ -135,8 +136,7 @@ class TranslatorThread(threading.Thread):
                                            remove_unk=self.remove_unk, normalize_unicode_unk=self.normalize_unicode_unk, attempt_to_relocate_unk_source=self.attempt_to_relocate_unk_source, 
                                            thread=self)
 
-
-class Translator:
+class Translator(object):
 
     def __init__(self, config_server):
         self.config_server = config_server
@@ -197,7 +197,7 @@ class Translator:
             out = dest_file.read()
 
             rich_output_file.seek(0)
-            rich_output_data = json.loads(rich_output_file.read())
+            rich_output_data = json.loads(rich_output_file.read().decode('utf-8'))
             if len(rich_output_data) > 0 and 'unk_mapping' in rich_output_data[0]:
                 unk_mapping = rich_output_data[0]['unk_mapping']
 
@@ -212,7 +212,8 @@ class Translator:
         if self.translator_thread:
             self.translator_thread.stop()
 
-class RequestHandler(SocketServer.BaseRequestHandler):
+
+class RequestHandler(six.moves.socketserver.BaseRequestHandler):
 
     def handle(self):
         start_request = timeit.default_timer()
@@ -224,6 +225,7 @@ class RequestHandler(SocketServer.BaseRequestHandler):
             try:
                 cur_thread = threading.current_thread()
 
+<<<<<<< HEAD
                 log.info("request={0}".format(data))
 
                 if "get_log_files" in data:
@@ -309,6 +311,7 @@ class RequestHandler(SocketServer.BaseRequestHandler):
                         beam_score_length_normalization_strength = float(root.get('beam_score_length_normalization_strength', 0.2))
                     except BaseException:
                         pass
+<<<<<<< HEAD
                     post_score_length_normalization = root.get(
                         'post_score_length_normalization', 'simple')
                     post_score_length_normalization_strength = None
@@ -345,11 +348,13 @@ class RequestHandler(SocketServer.BaseRequestHandler):
                         text = sentence.findtext('i_sentence').strip()
                         log.info("text=%s" % text)
 
-                        cmd = self.server.segmenter_command % text.replace("'", "'\\''").encode('utf-8')
+                        # cmd = self.server.segmenter_command % text.replace("'", "'\\''").encode('utf-8')
+                        cmd = self.server.segmenter_command % text.replace("'", "'\\''") # p3
                         log.info("cmd=%s" % cmd)
                         start_cmd = timeit.default_timer()
 
-                        parser_output = subprocess.check_output(cmd, shell=True)
+                        #parser_output = subprocess.check_output(cmd, shell=True)
+                        parser_output = subprocess.check_output(cmd, shell=True, universal_newlines=True) # p3
 
                         log.info(
                             "Segmenter request processed in {} s.".format(
@@ -379,9 +384,10 @@ class RequestHandler(SocketServer.BaseRequestHandler):
                         splitted_sentence = ' '.join(words)
                         # log.info("splitted_sentence=" + splitted_sentence)
 
-                        decoded_sentence = splitted_sentence.decode('utf-8')
+                        #decoded_sentence = splitted_sentence.decode('utf-8')
                         # log.info("decoded_sentence={0}".format(decoded_sentence))
-                        translation, unk_mapping = self.server.translator.translate(decoded_sentence,
+                        # translation, unk_mapping = self.server.translator.translate(decoded_sentence,
+                        translation, unk_mapping = self.server.translator.translate(splitted_sentence,
                                                                                                  beam_width, beam_pruning_margin, beam_score_coverage_penalty, beam_score_coverage_penalty_strength, nb_steps, nb_steps_ratio, remove_unk, normalize_unicode_unk, attempt_to_relocate_unk_source,
                                                                                                  beam_score_length_normalization, beam_score_length_normalization_strength, post_score_length_normalization, post_score_length_normalization_strength, post_score_coverage_penalty, post_score_coverage_penalty_strength,
                                                                                                  groundhog, force_finish, prob_space_combination, attn_graph_width, attn_graph_height)
@@ -390,16 +396,18 @@ class RequestHandler(SocketServer.BaseRequestHandler):
                         out += translation
 
                         if self.server.pp_command is not None:
-                            pp_cmd = self.server.pp_command % out.replace("'", "''")
-                            log.info("pp_cmd=%s" % pp_cmd)
+                            def apply_pp(str):
+                                pp_cmd = self.server.pp_command % out.replace("'", "''")
+                                log.info("pp_cmd=%s" % pp_cmd)
 
-                            start_pp_cmd = timeit.default_timer()
+                                start_pp_cmd = timeit.default_timer()
 
-                            pp_output = subprocess.check_output(pp_cmd, shell=True)
+                                pp_output = subprocess.check_output(pp_cmd, shell=True, universal_newlines=True)
 
-                            log.info("Postprocessor request processed in {0} s.".format(timeit.default_timer() - start_pp_cmd))
-                            log.info("pp_output={0}".format(pp_output))
-                            out = pp_output
+                                log.info("Postprocessor request processed in {0} s.".format(timeit.default_timer() - start_pp_cmd))
+                                log.info("pp_output={0}".format(pp_output))
+                                return pp_output
+                            out = apply_pp(out)
 
                         segmented_input.append(splitted_sentence)
                         segmented_output.append(translation)
@@ -426,10 +434,11 @@ class RequestHandler(SocketServer.BaseRequestHandler):
         log.info("Request processed in {0} s. by {1}".format(timeit.default_timer() - start_request, cur_thread.name))
 
         response = json.dumps(response)
-        self.request.sendall(response)
+        # self.request.sendall(response)
+        self.request.sendall(response.encode('utf-8')) # p3
 
 
-class Server(SocketServer.ThreadingMixIn, SocketServer.TCPServer):
+class Server(six.moves.socketserver.ThreadingMixIn, six.moves.socketserver.TCPServer):
 
     daemon_threads = True
     allow_reuse_address = True
@@ -442,7 +451,7 @@ class Server(SocketServer.ThreadingMixIn, SocketServer.TCPServer):
             segmenter_format,
             translator,
             pp_command):
-        SocketServer.TCPServer.__init__(self, server_address, handler_class)
+        six.moves.socketserver.TCPServer.__init__(self, server_address, handler_class)
         self.segmenter_command = segmenter_command
         self.segmenter_format = segmenter_format
         self.translator = translator

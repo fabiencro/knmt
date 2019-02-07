@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 """beam_search.py: Implementation of beam_search"""
+from __future__ import absolute_import, division, print_function, unicode_literals
 __author__ = "Fabien Cromieres"
 __license__ = "undecided"
 __version__ = "1.0"
@@ -12,7 +13,7 @@ from chainer import cuda, Variable
 from chainer import Link, Chain, ChainList
 import chainer.functions as F
 import chainer.links as L
-
+import six
 
 import logging
 logging.basicConfig()
@@ -43,19 +44,19 @@ def iterate_best_score(new_scores, beam_width):
     all_num_cases = best_idx / v_size
     all_idx_in_cases = best_idx % v_size
 
-    for num in xrange(len(best_idx)):
+    for num in six.moves.range(len(best_idx)):
         idx = best_idx[num]
         num_case = all_num_cases[num]
         idx_in_case = all_idx_in_cases[num]
-        yield num_case, idx_in_case, new_costs_flattened[idx]
+        yield int(num_case), idx_in_case, new_costs_flattened[idx]
 
 
 def iterate_eos_scores(new_scores, eos_idx):
     nb_cases, v_size = new_scores.shape
 
-    for num_case in xrange(nb_cases):
+    for num_case in six.moves.range(nb_cases):
         idx_in_case = eos_idx
-        yield num_case, idx_in_case, cuda.to_cpu(new_scores[num_case, eos_idx])
+        yield int(num_case), idx_in_case, cuda.to_cpu(new_scores[num_case, eos_idx])
 
 
 def update_next_lists(num_case, idx_in_case, new_cost, eos_idx, new_state_ensemble, finished_translations, current_translations,
@@ -267,13 +268,13 @@ def compute_next_states_and_scores(dec_cell_ensemble, current_states_ensemble, c
     xp = dec_cell_ensemble[0].xp
 
     if current_words is not None:
-        states_logits_attn_ensemble = [dec_cell(states, current_words) for (dec_cell, states) in zip(
+        states_logits_attn_ensemble = [dec_cell(states, current_words) for (dec_cell, states) in six.moves.zip(
             dec_cell_ensemble, current_states_ensemble)]
     else:
         assert all(x is None for x in current_states_ensemble)
         states_logits_attn_ensemble = [dec_cell.get_initial_logits(1) for dec_cell in dec_cell_ensemble]
 
-    new_state_ensemble, logits_ensemble, attn_ensemble = zip(*states_logits_attn_ensemble)
+    new_state_ensemble, logits_ensemble, attn_ensemble = list(six.moves.zip(*states_logits_attn_ensemble))
 
     # Combine the scores of the ensembled models
     combined_scores = xp.zeros((logits_ensemble[0].data.shape), dtype=xp.float32)
@@ -363,9 +364,9 @@ def advance_one_step(dec_cell_ensemble, eos_idx, current_translations_states, be
         next_words_array = cuda.to_gpu(next_words_array)
 
     concatenated_next_states_list = []
-    for next_states_list_one_model in zip(*next_states_list):
+    for next_states_list_one_model in six.moves.zip(*next_states_list):
         concatenated_next_states_list.append(
-            tuple([F.concat(substates, axis=0) for substates in zip(*next_states_list_one_model)])
+            tuple([F.concat(substates, axis=0) for substates in six.moves.zip(*next_states_list_one_model)])
         )
 
     next_translations_states = (next_translations_list,
@@ -438,7 +439,7 @@ def ensemble_beam_search(model_ensemble, src_batch, src_mask, nb_steps, eos_idx,
         )
     
         # Proceed with the search
-        for num_step in xrange(nb_steps):
+        for num_step in six.moves.xrange(nb_steps):
             # Interrupt the search when the thread is forcefully stopped.
             if thread is not None and thread.stopped():
                 break
@@ -461,7 +462,7 @@ def ensemble_beam_search(model_ensemble, src_batch, src_mask, nb_steps, eos_idx,
             if current_translations_states is None:
                 break
     
-    #     print finished_translations, need_attention
+    #     print(finished_translations, need_attention)
     
         # Return finished translations
         if len(finished_translations) == 0:

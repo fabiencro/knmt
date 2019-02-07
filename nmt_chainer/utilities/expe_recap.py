@@ -1,3 +1,4 @@
+from __future__ import absolute_import, division, print_function, unicode_literals
 import os
 import os.path
 import json
@@ -12,9 +13,10 @@ from nmt_chainer.translation.eval_config import load_config_eval
 from nmt_chainer.dataprocessing.make_data_conf import load_config as load_config_data
 import nmt_chainer
 from collections import defaultdict
-import codecs
+import io
 import itertools
 import cgi
+import six
 
 import logging
 logging.basicConfig()
@@ -118,24 +120,24 @@ table, th, td {
     
     lst_outputs = []
     if src_fn is not None:
-        lst_outputs.append(("src", codecs.open(src_fn, encoding = "utf8")))
+        lst_outputs.append(("src", io.open(src_fn, 'rt', encoding = "utf8")))
     
     if ref_fn is not None:
-        lst_outputs.append(("ref", codecs.open(ref_fn, encoding = "utf8")))
+        lst_outputs.append(("ref", io.open(ref_fn, 'rt', encoding = "utf8")))
             
     if os.path.isfile(eval_prefix + ".unprocessed"):
-        lst_outputs.append(("unprocessed", codecs.open(eval_prefix + ".unprocessed", encoding = "utf8")))
+        lst_outputs.append(("unprocessed", io.open(eval_prefix + ".unprocessed", 'rt', encoding = "utf8")))
             
-    lst_outputs.append(("out", codecs.open(eval_prefix, encoding = "utf8")))
+    lst_outputs.append(("out", io.open(eval_prefix, 'rt', encoding = "utf8")))
     
     if os.path.isfile(eval_prefix + ".unk_replaced"):
-        lst_outputs.append(("unk_repl", codecs.open(eval_prefix + ".unk_replaced", encoding = "utf8")))
+        lst_outputs.append(("unk_repl", io.open(eval_prefix + ".unk_replaced", 'rt', encoding = "utf8")))
     
-    tags_list, files_list = zip(*lst_outputs)
-    for num_line, line_list in enumerate(itertools.izip(*files_list)):
+    tags_list, files_list = list(six.moves.zip(*lst_outputs))
+    for num_line, line_list in enumerate(six.moves.zip(*files_list)):
         f.write("""<table style="width:100%">""")
         f.write("<tr><td>%s</td><td>%i</td></tr>\n"%("NUM", num_line))
-        for tag, line in zip(tags_list, line_list):
+        for tag, line in list(six.moves.zip(tags_list, line_list)):
             f.write("<tr><td>%s</td><td>%s</td></tr>\n"%(tag, cgi.escape(line.encode("utf8"))))
         f.write("</table>")     
             
@@ -213,7 +215,7 @@ def process_train_config(config_fn, dest_dir):
         c = db.cursor()
 
         c.execute("SELECT date, bleu_info, iteration, loss, bleu, dev_loss, dev_bleu, avg_time, avg_training_loss FROM exp_data")
-        date, bleu_info, iteration, test_loss, test_bleu, dev_loss, dev_bleu, avg_time, avg_training_loss = zip(*list(c.fetchall()))
+        date, bleu_info, iteration, test_loss, test_bleu, dev_loss, dev_bleu, avg_time, avg_training_loss = list(six.moves.zip(*list(c.fetchall())))
 
         infos = dict(
             last_nb_iterations=iteration[-1],
@@ -244,7 +246,7 @@ def process_train_config(config_fn, dest_dir):
         has_graph = True
     except sqlite3.OperationalError as e:
         log.warn("could not create graph for %s" % train_prefix)
-        print e
+        print(e)
         has_graph = False
 
     f.write("<html><body>")
@@ -329,14 +331,14 @@ def do_recap(args):
         data_to_srctgt[data_prefix] = src_tgt_fn
 
     index.write("<h1>DATA</h1><p>")
-    for src_tgt_fn, urlname_list in data_urlname_list.iteritems():
+    for src_tgt_fn, urlname_list in six.iteritems(data_urlname_list):
         index.write("<h3>** src: %s | tgt: %s **</h3>" % src_tgt_fn)
         urlname_list.sort(reverse=True)
         for time_config_created, urlname, data_prefix, src_voc_size, tgt_voc_size in urlname_list:
             index.write('%s s:%i t:%i \t<a href = "data/%s">%s</a><p/>' % (time.ctime(time_config_created),
                                                                            src_voc_size, tgt_voc_size, urlname, data_prefix))
     train_urlname_list_src_tgt = defaultdict(list)
-    for data_path, urlname_list in train_urlname_list.iteritems():
+    for data_path, urlname_list in six.iteritems(train_urlname_list):
         if data_path in data_to_srctgt:
             train_urlname_list_src_tgt[data_to_srctgt[data_path]
                                        ] += urlname_list
@@ -345,7 +347,7 @@ def do_recap(args):
 
     current_time = time.time()
     index.write("<h1>TRAIN</h1><p>")
-    for src_tgt_fn in sorted(train_urlname_list_src_tgt.keys(), key=lambda x: max(train_urlname_list_src_tgt[x][i][0] for i in xrange(len(train_urlname_list_src_tgt[x]))), reverse=True):
+    for src_tgt_fn in sorted(train_urlname_list_src_tgt.keys(), key=lambda x: max(train_urlname_list_src_tgt[x][i][0] for i in six.moves.range(len(train_urlname_list_src_tgt[x]))), reverse=True):
         urlname_list = train_urlname_list_src_tgt[src_tgt_fn]
         index.write("<h3>** src: %s | tgt: %s **</h3>" % src_tgt_fn)
         urlname_list.sort(reverse=True)
