@@ -68,7 +68,7 @@ class AttentionModule(Chain):
 #         concatenated_mask = F.concat([F.reshape(mask_elem, (mb_size, 1)) for mask_elem in mask], 1)
 
         if mask_length > 0:
-            with cuda.get_device(mask[0]):
+            with cuda.get_device_from_array(mask[0]):
                 if mask_offset > 0:
                     concatenated_penalties = self.xp.concatenate(
                         [
@@ -107,7 +107,7 @@ class AttentionModule(Chain):
                                                          (current_mb_size * nb_elems, self.Ha))), (current_mb_size, nb_elems))
 
             if mask_length > 0:
-                with cuda.get_device(used_concatenated_penalties):
+                with cuda.get_device_from_array(used_concatenated_penalties):
                     a_coeffs = a_coeffs + used_concatenated_penalties  # - 10000 * (1-used_concatenated_mask.data)
 
             attn = F.softmax(a_coeffs)
