@@ -37,16 +37,16 @@ class TestCommandLine:
             data_src_file, data_tgt_file, data_prefix).split(' ')
         main(arguments=args)
 
-        args_train = ["train"] + [data_prefix, train_prefix] +\
-            "--lexicon_prob_epsilon 0.5 --max_nb_iters 3 --mb_size 2 --Ei 10 --Eo 12 --Hi 30 --Ha 70 --Ho 15 --Hl 23".split(" ") +\
-            "--encoder_cell_type lstm --decoder_cell_type lstm --nb_batch_to_sort 2 --noise_on_prev_word --l2_gradient_clipping 1".split(" ") +\
-            "--weight_decay 0.001 --optimizer momentum --learning_rate 0.23 --momentum 0.56 --randomized_data".split(" ") +\
-            "--no_shuffle_of_training_data --max_src_tgt_length 56 --report_every 34 --sample_every 45".split(" ") +\
-            "--sample_every 45 --save_ckpt_every 56".split(" ")
+        # args_train = ["train"] + [data_prefix, train_prefix] +\
+        #     "--lexicon_prob_epsilon 0.5 --max_nb_iters 3 --mb_size 2 --Ei 10 --Eo 12 --Hi 30 --Ha 70 --Ho 15 --Hl 23".split(" ") +\
+        #     "--encoder_cell_type lstm --decoder_cell_type lstm --nb_batch_to_sort 2 --noise_on_prev_word --l2_gradient_clipping 1".split(" ") +\
+        #     "--weight_decay 0.001 --optimizer momentum --learning_rate 0.23 --momentum 0.56 --randomized_data".split(" ") +\
+        #     "--no_shuffle_of_training_data --max_src_tgt_length 56 --report_every 34 --sample_every 45".split(" ") +\
+        #     "--sample_every 45 --save_ckpt_every 56".split(" ")
 
-        if gpu is not None:
-            args_train += ['--gpu', gpu]
-        main(arguments=args_train)
+        # if gpu is not None:
+        #     args_train += ['--gpu', gpu]
+        # main(arguments=args_train)
 
     # def test_eval(self, tmpdir, gpu):
     #     test_data_dir = os.path.join(
