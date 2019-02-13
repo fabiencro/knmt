@@ -20,12 +20,8 @@ logging.basicConfig()
 log = logging.getLogger("rnns:attn")
 log.setLevel(logging.INFO)
 
-try:
-    batch_matmul = F.batch_matmul
-except AttributeError: # for chainer>=3
-    def batch_matmul(a, b, transa=False, transb=False):
-        return F.matmul(a[:, :, None], b, transa=transa, transb=transb)
-
+def batch_matmul(a, b, transa=False, transb=False):
+    return F.matmul(a[:, :, None], b, transa=transa, transb=transb)
 
 class AttentionModule(Chain):
     """ Attention Module for computing the current context during decoding.
