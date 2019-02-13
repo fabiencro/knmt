@@ -119,33 +119,38 @@ class TestSerialIterator:
             dataset_count = random_generator.randint(5, 20)
         else:
             dataset_count = 1
-        # for i in range(0, len(dataset) * dataset_count):
-        #     if i % dataset_size == 0:
-        #         assert len(work_dataset) == 0
-        #         work_dataset = list(dataset)
-        #     if i % batch_size == 0:
-        #         assert len(batch) == 0
-        #         if check_peek:
-        #             peek_item = iter.peek()
-        #         batch = iter.next()
-        #         if check_peek:
-        #             assert batch == peek_item
-        #         item_count = 0
-        #     first_item = batch.pop(0)
-        #     # work_dataset.remove(first_item)
-        #     first_item_index = -1
-        #     for item_idx, item in enumerate(work_dataset):
-        #         if np.array_equal(item, first_item):
-        #             first_item_index = item_idx
-        #             break
-        #     del work_dataset[first_item_index]
+        for i in range(0, len(dataset) * dataset_count):
+            if i % dataset_size == 0:
+                assert len(work_dataset) == 0
+                work_dataset = list(dataset)
+            if i % batch_size == 0:
+                assert len(batch) == 0
+                if check_peek:
+                    peek_item = iter.peek()
+                batch = iter.next()
+                if check_peek:
+                    assert batch == peek_item
+                item_count = 0
+            first_item = batch.pop(0)
+            # work_dataset.remove(first_item)
+            first_item_index = -1
+            for item_idx, item in enumerate(work_dataset):
+                # This is the original condition:
+                # if np.array_equal(item, first_item):
+                # I changed it to prevent a bunch of DeprecationWarnings:
+                # elementwise comparison failed; this will raise an error in the future. 
+                # I'm not sure if it's the right thing to do though. - FB
+                if (isinstance(item, np.ndarray) or isinstance(first_item, np.ndarray)) and np.array_equal(item, first_item):
+                    first_item_index = item_idx
+                    break
+            del work_dataset[first_item_index]
 
-        #     item_count += 1
-        # assert len(work_dataset) == 0
-        # if repeat:
-        #     assert len(batch) == 0 or len(batch) == batch_size - ((len(dataset) * dataset_count) % batch_size)
-        # else:
-        #     assert len(batch) == 0
+            item_count += 1
+        assert len(work_dataset) == 0
+        if repeat:
+            assert len(batch) == 0 or len(batch) == batch_size - ((len(dataset) * dataset_count) % batch_size)
+        else:
+            assert len(batch) == 0
 
 
 class TestLengthBasedSerialIterator():
