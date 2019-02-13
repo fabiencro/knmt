@@ -48,33 +48,33 @@ class TestCommandLine:
             args_train += ['--gpu', gpu]
         main(arguments=args_train)
 
-    # def test_eval(self, tmpdir, gpu):
-    #     test_data_dir = os.path.join(
-    #         os.path.dirname(
-    #             os.path.abspath(__file__)),
-    #         "../tests_data")
-    #     print("test_data_dir={0}", format(test_data_dir))
-    #     train_dir = tmpdir.mkdir("train")
-    #     data_prefix = str(train_dir.join("test1.data"))
-    #     train_prefix = str(train_dir.join("test1.train"))
-    #     data_src_file = os.path.join(test_data_dir, "src2.txt")
-    #     data_tgt_file = os.path.join(test_data_dir, "tgt2.txt")
-    #     args = 'make_data {0} {1} {2} --dev_src {0} --dev_tgt {1}'.format(
-    #         data_src_file, data_tgt_file, data_prefix).split(' ')
-    #     main(arguments=args)
+    def test_eval(self, tmpdir, gpu):
+        test_data_dir = os.path.join(
+            os.path.dirname(
+                os.path.abspath(__file__)),
+            "../tests_data")
+        print("test_data_dir={0}", format(test_data_dir))
+        train_dir = tmpdir.mkdir("train")
+        data_prefix = str(train_dir.join("test1.data"))
+        train_prefix = str(train_dir.join("test1.train"))
+        data_src_file = os.path.join(test_data_dir, "src2.txt")
+        data_tgt_file = os.path.join(test_data_dir, "tgt2.txt")
+        args = 'make_data {0} {1} {2} --dev_src {0} --dev_tgt {1}'.format(
+            data_src_file, data_tgt_file, data_prefix).split(' ')
+        main(arguments=args)
 
-    #     args_train = ["train"] + [data_prefix, train_prefix] + "--max_nb_iters 6 --report_every 2 --mb_size 2 --Ei 10 --Eo 12 --Hi 30 --Ha 70 --Ho 15 --Hl 23".split(" ")
-    #     if gpu is not None:
-    #         args_train += ['--gpu', gpu]
-    #     main(arguments=args_train)
+        args_train = ["train"] + [data_prefix, train_prefix] + "--max_nb_iters 6 --report_every 2 --mb_size 2 --Ei 10 --Eo 12 --Hi 30 --Ha 70 --Ho 15 --Hl 23".split(" ")
+        if gpu is not None:
+            args_train += ['--gpu', gpu]
+        main(arguments=args_train)
 
-    #     eval_dir = tmpdir.mkdir("eval")
-    #     translation_file = os.path.join(str(eval_dir), 'translations.txt')
-    #     args_eval = ["eval", train_prefix + '.train.config', train_prefix + '.model.best.npz', data_src_file, translation_file] +\
-    #         '--mode beam_search --beam_width 30'.split(' ') +\
-    #         ["--additional_training_config", train_prefix + '.train.config', "--additional_trained_model", train_prefix + '.model.best_loss.npz'] +\
-    #         ["--tgt_fn", data_tgt_file, "--ref", data_tgt_file] + "--max_nb_ex 3 --mb_size 1 --beam_pruning_margin 10".split(" ") +\
-    #         "--nb_steps 23 --nb_steps_ratio 2.8 --nb_batch_to_sort 2 --prob_space_combination".split(" ")
-    #     if gpu is not None:
-    #         args_eval += ['--gpu', gpu]
-    #     main(arguments=args_eval)
+        eval_dir = tmpdir.mkdir("eval")
+        translation_file = os.path.join(str(eval_dir), 'translations.txt')
+        args_eval = ["eval", train_prefix + '.train.config', train_prefix + '.model.best.npz', data_src_file, translation_file] +\
+            '--mode beam_search --beam_width 30'.split(' ') +\
+            ["--additional_training_config", train_prefix + '.train.config', "--additional_trained_model", train_prefix + '.model.best_loss.npz'] +\
+            ["--tgt_fn", data_tgt_file, "--ref", data_tgt_file] + "--max_nb_ex 3 --mb_size 1 --beam_pruning_margin 10".split(" ") +\
+            "--nb_steps 23 --nb_steps_ratio 2.8 --nb_batch_to_sort 2 --prob_space_combination".split(" ")
+        if gpu is not None:
+            args_eval += ['--gpu', gpu]
+        main(arguments=args_eval)
