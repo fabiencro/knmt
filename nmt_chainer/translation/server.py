@@ -225,7 +225,6 @@ class RequestHandler(six.moves.socketserver.BaseRequestHandler):
             try:
                 cur_thread = threading.current_thread()
 
-<<<<<<< HEAD
                 log.info("request={0}".format(data))
 
                 if "get_log_files" in data:
@@ -311,7 +310,6 @@ class RequestHandler(six.moves.socketserver.BaseRequestHandler):
                         beam_score_length_normalization_strength = float(root.get('beam_score_length_normalization_strength', 0.2))
                     except BaseException:
                         pass
-<<<<<<< HEAD
                     post_score_length_normalization = root.get(
                         'post_score_length_normalization', 'simple')
                     post_score_length_normalization_strength = None
