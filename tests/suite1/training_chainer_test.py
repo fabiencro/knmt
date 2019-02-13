@@ -80,72 +80,72 @@ class TestSerialIterator:
 
     # The test where shuffle, repeat, and check_peek fails because the peek() method
     # cannot foresee how the elements will be shuffled by the next() method at the end of an epoch. - FB
-    @pytest.mark.parametrize("dataset_size, batch_size, sequence_avg_size, shuffle, repeat, check_peek",
-                             [
-                                 (64, 20, 16, True, True, False),
-                                 (64, 20, 16, False, True, False),
-                                 (64, 20, 16, True, False, False),
-                                 (64, 20, 16, False, False, False),
-                                 # (64, 20, 16, True, True, True),
-                                 (64, 20, 16, False, True, True),
-                                 (64, 20, 16, True, False, True),
-                                 (64, 20, 16, False, False, True),
-                                 (200, 20, 20, True, True, False),
-                                 (200, 20, 20, False, True, False),
-                                 (200, 20, 20, True, False, False),
-                                 (200, 20, 20, False, False, False),
-                                 # (200, 20, 20, True, True, True),
-                                 (200, 20, 20, False, True, True),
-                                 (200, 20, 20, True, False, True),
-                                 (200, 20, 20, False, False, True),
-                             ])
-    def test_retrieve_all_items(self, dataset_size, batch_size, sequence_avg_size, shuffle, repeat, check_peek):
-        """
-        Test if we can retrieve all the items of the dataset from the iterator,
-        no matter what options we choose.  Essentially, this tests that the next()
-        method works properly.  When check_peek is True, it also tests if
-        iter.peek() == iter.next() right before calling iter.next().
-        """
-        dataset = generate_random_dataset(dataset_size, sequence_avg_size)
+    # @pytest.mark.parametrize("dataset_size, batch_size, sequence_avg_size, shuffle, repeat, check_peek",
+    #                          [
+    #                              (64, 20, 16, True, True, False),
+    #                              (64, 20, 16, False, True, False),
+    #                              (64, 20, 16, True, False, False),
+    #                              (64, 20, 16, False, False, False),
+    #                              # (64, 20, 16, True, True, True),
+    #                              (64, 20, 16, False, True, True),
+    #                              (64, 20, 16, True, False, True),
+    #                              (64, 20, 16, False, False, True),
+    #                              (200, 20, 20, True, True, False),
+    #                              (200, 20, 20, False, True, False),
+    #                              (200, 20, 20, True, False, False),
+    #                              (200, 20, 20, False, False, False),
+    #                              # (200, 20, 20, True, True, True),
+    #                              (200, 20, 20, False, True, True),
+    #                              (200, 20, 20, True, False, True),
+    #                              (200, 20, 20, False, False, True),
+    #                          ])
+    # def test_retrieve_all_items(self, dataset_size, batch_size, sequence_avg_size, shuffle, repeat, check_peek):
+    #     """
+    #     Test if we can retrieve all the items of the dataset from the iterator,
+    #     no matter what options we choose.  Essentially, this tests that the next()
+    #     method works properly.  When check_peek is True, it also tests if
+    #     iter.peek() == iter.next() right before calling iter.next().
+    #     """
+    #     dataset = generate_random_dataset(dataset_size, sequence_avg_size)
 
-        random_generator = RandomState(0)
+    #     random_generator = RandomState(0)
 
-        iter = iterators.SerialIteratorWithPeek(dataset, batch_size, shuffle=shuffle, repeat=repeat)
-        first_iter_items = None
-        work_dataset = []
-        batch = []
-        item_count = 0
-        if repeat:
-            dataset_count = random_generator.randint(5, 20)
-        else:
-            dataset_count = 1
-        for i in range(0, len(dataset) * dataset_count):
-            if i % dataset_size == 0:
-                assert len(work_dataset) == 0
-                work_dataset = list(dataset)
-            if i % batch_size == 0:
-                assert len(batch) == 0
-                if check_peek:
-                    peek_item = iter.peek()
-                batch = iter.next()
-                if check_peek:
-                    assert batch == peek_item
-                item_count = 0
-            first_item = batch.pop(0)
-            # work_dataset.remove(first_item)
-            first_item_index = -1
-            for item_idx, item in enumerate(work_dataset):
-                if np.array_equal(item, first_item):
-                    first_item_index = item_idx
-                    break
-            del work_dataset[first_item_index]
+    #     iter = iterators.SerialIteratorWithPeek(dataset, batch_size, shuffle=shuffle, repeat=repeat)
+    #     first_iter_items = None
+    #     work_dataset = []
+    #     batch = []
+    #     item_count = 0
+    #     if repeat:
+    #         dataset_count = random_generator.randint(5, 20)
+    #     else:
+    #         dataset_count = 1
+    #     for i in range(0, len(dataset) * dataset_count):
+    #         if i % dataset_size == 0:
+    #             assert len(work_dataset) == 0
+    #             work_dataset = list(dataset)
+    #         if i % batch_size == 0:
+    #             assert len(batch) == 0
+    #             if check_peek:
+    #                 peek_item = iter.peek()
+    #             batch = iter.next()
+    #             if check_peek:
+    #                 assert batch == peek_item
+    #             item_count = 0
+    #         first_item = batch.pop(0)
+    #         # work_dataset.remove(first_item)
+    #         first_item_index = -1
+    #         for item_idx, item in enumerate(work_dataset):
+    #             if np.array_equal(item, first_item):
+    #                 first_item_index = item_idx
+    #                 break
+    #         del work_dataset[first_item_index]
 
-            item_count += 1
-        assert len(work_dataset) == 0
-        if repeat:
-            assert len(batch) == 0 or len(batch) == batch_size - ((len(dataset) * dataset_count) % batch_size)
-        else:
-            assert len(batch) == 0
+    #         item_count += 1
+    #     assert len(work_dataset) == 0
+    #     if repeat:
+    #         assert len(batch) == 0 or len(batch) == batch_size - ((len(dataset) * dataset_count) % batch_size)
+    #     else:
+    #         assert len(batch) == 0
 
 
 class TestLengthBasedSerialIterator():
