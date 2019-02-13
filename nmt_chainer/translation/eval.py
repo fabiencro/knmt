@@ -183,7 +183,7 @@ def beam_search_all(gpu, encdec, eos_idx, src_data, beam_width, beam_pruning_mar
                 unk_mapping = []
                 ct = " ".join(translated)
                 if ct != '':
-                    unk_pattern = re.compile("#T_UNK_(\d+)#")
+                    unk_pattern = re.compile(r"#T_UNK_(\d+)#")
                     for idx, word in enumerate(ct.split(' ')):
                         match = unk_pattern.match(word)
                         if (match):
