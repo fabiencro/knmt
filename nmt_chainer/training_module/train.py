@@ -127,7 +127,8 @@ def create_encdec_from_config_dict(config_dict, src_indexer, tgt_indexer):
     
         if "lexical_probability_dictionary" in config_dict and config_dict["lexical_probability_dictionary"] is not None:
             log.info("opening lexical_probability_dictionary %s" % config_dict["lexical_probability_dictionary"])
-            lexical_probability_dictionary_all = json.load(gzip.open(config_dict["lexical_probability_dictionary"], "rb"))
+            with gzip.open(config_dict["lexical_probability_dictionary"], "rb") as dict_file:
+                lexical_probability_dictionary_all = json.loads(dict_file.read().decode('utf-8'))
     
             lexical_probability_dictionary = generate_lexical_probability_dictionary_indexed(
                 lexical_probability_dictionary_all, src_indexer, tgt_indexer)
@@ -497,7 +498,7 @@ def do_train(config_training):
         optimizer.setup(encdec)
 
     if config_training.training.l2_gradient_clipping is not None and config_training.training.l2_gradient_clipping > 0:
-        optimizer.add_hook(chainer.optimizer.GradientClipping(
+        optimizer.add_hook(chainer.optimizer_hooks.GradientClipping(
             config_training.training.l2_gradient_clipping))
 
     if config_training.training.hard_gradient_clipping is not None and config_training.training.hard_gradient_clipping > 0:
@@ -506,7 +507,7 @@ def do_train(config_training):
 
     if config_training.training.weight_decay is not None:
         optimizer.add_hook(
-            chainer.optimizer.WeightDecay(
+            chainer.optimizer_hooks.WeightDecay(
                 config_training.training.weight_decay))
 
     if config_training.training_management.load_optimizer_state is not None:
