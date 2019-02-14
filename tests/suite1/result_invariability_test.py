@@ -32,7 +32,7 @@ class TestResultInvariability:
         ("result_invariability_untrained", "beam_search_and_prob_space_combination",
             "--mode beam_search --beam_width 30 "
             "--prob_space_combination"),
-        ("result_invariability", "beam_search_and_google_options_1", # FAILED
+        ("result_invariability", "beam_search_and_google_options_1",
             "--mode beam_search --beam_width 30 "
             "--beam_pruning_margin 1.5 "
             "--beam_score_coverage_penalty google --beam_score_coverage_penalty_strength 0.3 "
@@ -110,13 +110,13 @@ class TestResultInvariability:
 
     @pytest.mark.parametrize("model_name, options", [
         ("result_invariability", "--max_nb_iters 2000 --mb_size 2 --Ei 5 --Eo 12 --Hi 6 --Ha 70 --Ho 15 --Hl 12"),
-        ("result_invariability_py3", "--max_nb_iters 2000 --mb_size 2 --Ei 5 --Eo 12 --Hi 6 --Ha 70 --Ho 15 --Hl 12"), # FAILED
+        ("result_invariability_py3", "--max_nb_iters 2000 --mb_size 2 --Ei 5 --Eo 12 --Hi 6 --Ha 70 --Ho 15 --Hl 12"),
         ("result_invariability_untrained", "--max_nb_iters 800 --mb_size 2 --Ei 5 --Eo 12 --Hi 6 --Ha 70 --Ho 15 --Hl 12"),
-        ("result_invariability_untrained_py3", "--max_nb_iters 800 --mb_size 2 --Ei 5 --Eo 12 --Hi 6 --Ha 70 --Ho 15 --Hl 12"), # FAILED
+        ("result_invariability_untrained_py3", "--max_nb_iters 800 --mb_size 2 --Ei 5 --Eo 12 --Hi 6 --Ha 70 --Ho 15 --Hl 12"),
         ("result_invariability_with_lex_prob_dict", "--max_nb_iters 2000 --mb_size 2 --Ei 5 --Eo 12 --Hi 6 --Ha 70 --Ho 15 --Hl 12 --lexical_probability_dictionary tests/tests_data/lexical_prob_dict.json.gz"),
-        ("result_invariability_with_lex_prob_dict_py3", "--max_nb_iters 2000 --mb_size 2 --Ei 5 --Eo 12 --Hi 6 --Ha 70 --Ho 15 --Hl 12 --lexical_probability_dictionary tests/tests_data/lexical_prob_dict.json.gz"), # FAILED
+        ("result_invariability_with_lex_prob_dict_py3", "--max_nb_iters 2000 --mb_size 2 --Ei 5 --Eo 12 --Hi 6 --Ha 70 --Ho 15 --Hl 12 --lexical_probability_dictionary tests/tests_data/lexical_prob_dict.json.gz"),
         ("result_invariability_untrained_with_lex_prob_dict", "--max_nb_iters 800 --mb_size 2 --Ei 5 --Eo 12 --Hi 6 --Ha 70 --Ho 15 --Hl 12 --lexical_probability_dictionary tests/tests_data/lexical_prob_dict.json.gz"),
-        ("result_invariability_untrained_with_lex_prob_dict_py3", "--max_nb_iters 800 --mb_size 2 --Ei 5 --Eo 12 --Hi 6 --Ha 70 --Ho 15 --Hl 12 --lexical_probability_dictionary tests/tests_data/lexical_prob_dict.json.gz") # FAILED
+        ("result_invariability_untrained_with_lex_prob_dict_py3", "--max_nb_iters 800 --mb_size 2 --Ei 5 --Eo 12 --Hi 6 --Ha 70 --Ho 15 --Hl 12 --lexical_probability_dictionary tests/tests_data/lexical_prob_dict.json.gz")
     ])
     def test_train_result_invariability(self, tmpdir, gpu, model_name, options):
         """
@@ -156,7 +156,6 @@ class TestResultInvariability:
         with np.load(test_prefix + '_test.train.model.best.npz') as test_model_data:
             with np.load(ref_prefix + '.train.model.best.npz') as ref_model_data:
                 assert(len(test_model_data.keys()) == len(ref_model_data.keys()))
-                # for test_key, test_value in test_model_data.iteritems():
                 for test_key, test_value in test_model_data.items():
                     print("test_value={0}".format(test_value))
                     print("ref_value={0}".format(ref_model_data[test_key]))
