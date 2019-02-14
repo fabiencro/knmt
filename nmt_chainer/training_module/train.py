@@ -127,7 +127,8 @@ def create_encdec_from_config_dict(config_dict, src_indexer, tgt_indexer):
     
         if "lexical_probability_dictionary" in config_dict and config_dict["lexical_probability_dictionary"] is not None:
             log.info("opening lexical_probability_dictionary %s" % config_dict["lexical_probability_dictionary"])
-            lexical_probability_dictionary_all = json.load(gzip.open(config_dict["lexical_probability_dictionary"], "rb"))
+            with gzip.open(config_dict["lexical_probability_dictionary"], "rb") as dict_file:
+                lexical_probability_dictionary_all = json.loads(dict_file.read().decode('utf-8'))
     
             lexical_probability_dictionary = generate_lexical_probability_dictionary_indexed(
                 lexical_probability_dictionary_all, src_indexer, tgt_indexer)

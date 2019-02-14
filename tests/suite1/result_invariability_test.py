@@ -68,10 +68,10 @@ class TestResultInvariability:
             "--mode beam_search --beam_width 30 "
             "--additional_training_config tests/tests_data/models/result_invariability_untrained.train.train.config "
             "--additional_trained_model tests/tests_data/models/result_invariability_untrained.train.model.best_loss.npz"),
-        # ("result_invariability_with_lex_prob_dict", "beam_search", # FAILED FAST NO OUTPUT
-        #     "--mode beam_search --beam_width 30"),
-        # ("result_invariability_untrained_with_lex_prob_dict", "beam_search", # FAILED FAST NO OUTPUT
-        #     "--mode beam_search --beam_width 30"),
+        ("result_invariability_with_lex_prob_dict", "beam_search",
+            "--mode beam_search --beam_width 30"),
+        ("result_invariability_untrained_with_lex_prob_dict", "beam_search",
+            "--mode beam_search --beam_width 30"),
     ])
     def test_eval_result_invariability(self, tmpdir, gpu, model_name, variant_name, variant_options):
         """
