@@ -20,12 +20,8 @@ logging.basicConfig()
 log = logging.getLogger("rnns:attn")
 log.setLevel(logging.INFO)
 
-try:
-    batch_matmul = F.batch_matmul
-except AttributeError: # for chainer>=3
-    def batch_matmul(a, b, transa=False, transb=False):
-        return F.matmul(a[:, :, None], b, transa=transa, transb=transb)
-
+def batch_matmul(a, b, transa=False, transb=False):
+    return F.matmul(a[:, :, None], b, transa=transa, transb=transb)
 
 class AttentionModule(Chain):
     """ Attention Module for computing the current context during decoding.
@@ -147,7 +143,7 @@ class AttentionModule(Chain):
                                                          (current_mb_size * nb_elems, self.Ha))), (current_mb_size, nb_elems))
 
 
-#             with cuda.get_device(used_concatenated_mask.data):
+#             with cuda.get_device_from_array(used_concatenated_mask.data):
 #                 a_coeffs = a_coeffs - 10000 * (1-used_concatenated_mask.data)
 
             attn = F.softmax(a_coeffs)

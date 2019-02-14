@@ -217,8 +217,10 @@ class RequestHandler(six.moves.socketserver.BaseRequestHandler):
 
     def handle(self):
         start_request = timeit.default_timer()
-        log.info("Handling request...")
-        data = self.request.recv(4096)
+        log.info(timestamped_msg("Handling request..."))
+        data = self.request.recv(4096).decode('utf-8')
+        text_uid = hashlib.sha1("{0}_{1}".format(start_request, data).encode('utf-8')).hexdigest()
+        kw_filename = '/tmp/{0}.kw'.format(text_uid)
 
         response = {}
         if (data):

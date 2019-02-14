@@ -721,7 +721,7 @@ class LatinScriptProcess(MonoProcessor):
         return " ".join(res)
 
     def convert(self, sentence, stats=None):
-        sentence = re.sub("\s+", " ", sentence)
+        sentence = re.sub(r"\s+", " ", sentence)
         sentence = " ".join(self.convert_punct_inside(w)
                             for w in sentence.split(" "))
         if self.mode == "all_adjoint":
