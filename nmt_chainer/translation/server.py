@@ -33,6 +33,7 @@ import xml.etree.ElementTree as ET
 import re
 import subprocess
 import bokeh.embed
+import hashlib
 
 PAGE_SIZE = 5000
 
@@ -194,7 +195,7 @@ class Translator(object):
             self.translator_thread.join()
 
             dest_file.seek(0)
-            out = dest_file.read()
+            out = dest_file.read().decode('utf-8')
 
             rich_output_file.seek(0)
             rich_output_data = json.loads(rich_output_file.read().decode('utf-8'))
@@ -217,7 +218,7 @@ class RequestHandler(six.moves.socketserver.BaseRequestHandler):
 
     def handle(self):
         start_request = timeit.default_timer()
-        log.info(timestamped_msg("Handling request..."))
+        log.info("Handling request...")
         data = self.request.recv(4096).decode('utf-8')
         text_uid = hashlib.sha1("{0}_{1}".format(start_request, data).encode('utf-8')).hexdigest()
         kw_filename = '/tmp/{0}.kw'.format(text_uid)
@@ -424,7 +425,7 @@ class RequestHandler(six.moves.socketserver.BaseRequestHandler):
                     log.info("out={0}".format(out))
                     response['segmented_input'] = segmented_input
                     response['segmented_output'] = segmented_output
-                    response['mapping'] = map(lambda x: ' '.join(x), mapping)
+                    response['mapping'] = list(map(lambda x: ' '.join(x), mapping))
             except BaseException:
                 traceback.print_exc()
                 error_lines = traceback.format_exc().splitlines()
