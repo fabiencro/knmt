@@ -30,9 +30,9 @@ while (<STDIN>) {
         my $kw_index = $1;
         if (defined $kw{$kw_index}) {
             if (defined $dic{$kw{$kw_index}}) {
-                s/<K\-\d>/$dic{$kw{$kw_index}}/;
+                s/<K\-\d>/<$kw{$kw_index} = $dic{$kw{$kw_index}}>/;
             } else {
-                s/<K\-\d>/<$kw{$kw_index}>/;
+                s/<K\-\d>/<$kw{$kw_index} = ?>/;
             }
         } else {
             s/<K\-\d>//;
