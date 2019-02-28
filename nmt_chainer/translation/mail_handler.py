@@ -30,6 +30,7 @@ import smtplib
 from socket import gaierror
 import socket
 import subprocess
+import sys
 import tempfile
 import time
 import urllib.parse
@@ -94,6 +95,8 @@ def get_decoded_email_body(message_body):
 
 
 class MailHandler:
+
+    max_attempts = 5
 
     def __init__(self, config, log_config):
         self.config_file = config
@@ -169,18 +172,24 @@ class MailHandler:
         params = urllib.parse.urlencode({'lang_source': src_lang.encode('utf-8'), 'lang_target': tgt_lang.encode('utf-8'), 'text': text.encode('utf-8')})
         headers = {'Content-type': 'application/x-www-form-urlencoded', 'Accept': 'application/json'}
 
-        conn = http.client.HTTPConnection(splitter_host)
-        try:
-            conn.request('POST', splitter_path, params, headers)
-            resp = conn.getresponse()
-            data = resp.read()
-            json_data = json.loads(data.decode('utf-8'))
-            sentences = json_data['sentences']
-        except Exception as ex:
-            self.logger.exception(ex)
-            self._send_mail(None, "Mail-Handler - ERROR", ex)
-        finally:
-            conn.close()
+        for i in range(0, MailHandler.max_attempts):
+            conn = http.client.HTTPConnection(splitter_host, timeout=10)
+            try:
+                conn.request('POST', splitter_path, params, headers)
+                resp = conn.getresponse()
+                data = resp.read()
+                if len(data) > 0:
+                    json_data = json.loads(data.decode('utf-8'))
+                    sentences = json_data['sentences']
+                    break
+            except Exception as ex:
+                self.logger.exception(ex)
+                self._send_mail(None, "Mail-Handler - ERROR", ex)
+            except socket.timeout as ex_timeout:
+                self.logger.error("An error has occurred: {0}".format(ex_timeout))
+                self._send_mail(None, "Mail-Handler - ERROR", ex_timeout)
+            finally:
+                conn.close()
         return sentences
 
     def _translate_sentence(self, src_lang, tgt_lang, sentence):
