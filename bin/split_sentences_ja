@@ -1,0 +1,111 @@
+#!/usr/bin/env perl
+
+use strict;
+use utf8;
+use Encode;
+use FindBin qw/$Bin/;
+use lib "$Bin/../perllib/";
+use FileHandle;
+use CGI qw/:standard/;
+use CGI::Carp qw(fatalsToBrowser);
+use File::Temp 'tempdir';
+use JSON;
+use IO::File;
+
+binmode STDIN, ":encoding(utf8)";
+binmode STDOUT, ":encoding(utf8)";
+binmode STDERR, ":encoding(utf8)";
+
+STDOUT->autoflush(1);
+
+#
+# This splitter should be used only when lang_source="ja".
+#
+# There are 2 steps.
+# The first step, we use the default splitter that work with either Japanese, Chinese, or English.
+# The second step, we send each sentence from step 1 to a specialized Japanese splitter
+# that will split long sentences having the GA particle in the middle.
+#
+
+my $response = '';
+my $cgi = new CGI;
+
+my $src = $cgi->param('text');
+my $lang_source = $cgi->param('lang_source');
+my $lang_target = $cgi->param('lang_target');
+my $lang_pair = $cgi->param('lang_pair');
+
+if ($lang_source eq "" || $lang_target eq "") {
+    if ($lang_pair eq "je") {
+        $lang_source = "ja";
+        $lang_target = "en";
+    }
+    elsif ($lang_pair eq "jc") {
+        $lang_source = "ja";
+        $lang_target = "zh";
+    }
+}
+
+# HTTPヘッダ出力
+$response = header(-Content_Type => 'application/json',
+    -charset       => 'utf-8',
+    -Pragma        => 'no-cache',
+    -Cache_Control => 'no-cache');
+
+$src = decode('utf8', $src);
+$src =~ s/^\s*(.*?)\s*$/$1/; # 両端のスペース消去
+
+die "no input!" if ($src eq "");
+
+my $tmpdir = tempdir;
+
+# 文に分割
+my $temp_file = "$tmpdir/in";
+open(my $fh_out, ">:encoding(utf8)", $temp_file) or die "$temp_file: $!";
+my @lines = split(/\n/, $src);
+foreach my $line (@lines){
+    if ($line ne ""){
+        print $fh_out "$lang_source: $line\n" or die "writing $temp_file: $!";
+    }
+}
+close($fh_out);
+
+my @sentences = `$Bin/sentence_split.sh < $temp_file`;
+foreach my $s (@sentences){
+    $s = decode('utf8', $s);
+    chomp $s;
+    $s =~ s/^$lang_source: //;
+    $s =~ s/&/&amp;/sg;
+    $s =~ s/</&lt;/sg;
+    $s =~ s/>/&gt;/sg;
+    $s =~ s/"/&quot;/sg;
+}
+
+my $temp_file2 = "$tmpdir/in2";
+open(my $fh_out2, ">:encoding(utf8)", $temp_file2) or die "$temp_file2: $!";
+foreach my $sentence (@sentences) {
+    print $fh_out2 "$sentence\n" or die "writing $temp_file2: $!";
+}
+close($fh_out2);
+
+my @sentences2 = `$Bin/../long-sentence-splitter.perl < $temp_file2`;
+foreach my $s (@sentences2){
+    $s = decode('utf8', $s);
+    chomp $s;
+}
+
+# 文分割が失敗した場合
+if (scalar(@sentences2) == 0) {
+    @sentences2 = @lines;
+}
+
+my $article_id = time;
+my $resp = {};
+$resp->{'articleId'} = $article_id;
+$resp->{'sentences'} = \@sentences2;
+my $json_resp = to_json($resp);
+
+$response .= "\n" . $json_resp;
+print $response;
+
+
