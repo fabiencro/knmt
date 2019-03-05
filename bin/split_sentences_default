@@ -41,7 +41,7 @@ foreach my $line (@lines){
 }
 close($fh_out);
 
-my @sentences = `$Bin/sentence_split.sh < $temp_file`;
+my @sentences = `perl -I perllib $Bin/sentence-splitter_ecj-utf8.perl < $temp_file`;
 foreach my $s (@sentences){
     $s = decode('utf8', $s);
     chomp $s;

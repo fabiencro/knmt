@@ -220,7 +220,7 @@ class RequestHandler(six.moves.socketserver.BaseRequestHandler):
                     log.info("text=@@@%s@@@" % text)
 
                     cmd = re.sub(r'%SENTENCE_ID', '/tmp/' + text_uid, self.server.segmenter_command)
-                    cmd = cmd % text
+                    cmd = cmd % text.replace("'", "'\"'\"'")
                     log.info("cmd=%s" % cmd)
                     start_cmd = timeit.default_timer()
 
@@ -310,11 +310,7 @@ class RequestHandler(six.moves.socketserver.BaseRequestHandler):
                 response['error'] = error_lines[-1]
                 response['stacktrace'] = error_lines
 
-        log.info(
-            "Request processed in {0} s. by {1}".format(
-                timeit.default_timer() -
-                start_request,
-                cur_thread.name))
+        log.info("Request processed in {0} s. by {1}".format(timeit.default_timer() - start_request, cur_thread.name))
 
         response = json.dumps(response)
         self.request.sendall(response.encode('utf-8'))
