@@ -33,6 +33,7 @@ import subprocess
 import sys
 import tempfile
 import time
+import timeit
 import urllib.parse
 
 from nmt_chainer._version import __version__ as knmt_version
@@ -152,44 +153,32 @@ class MailHandler:
         if 'text_splitter' not in config:
             return [text]
 
-        splitter_host = None
-        splitter_path = None
+        splitter_cmd = None
         for langs in config['text_splitter'].keys():
             if langs == 'default':
                 continue
             if src_lang in langs.split(','):
-                splitter_host = config['text_splitter'][langs]['host']
-                splitter_path = config['text_splitter'][langs]['path']
+                splitter_cmd = config['text_splitter'][langs]
                 break
-        if splitter_host is None:
+        if splitter_cmd is None:
             if 'default' in config['text_splitter']:
-                splitter_host = config['text_splitter']['default']['host']
-                splitter_path = config['text_splitter']['default']['path']
+                splitter_cmd = config['text_splitter']['default']
             else:
                 return [text]
 
         sentences = []
-        params = urllib.parse.urlencode({'lang_source': src_lang.encode('utf-8'), 'lang_target': tgt_lang.encode('utf-8'), 'text': text.encode('utf-8')})
-        headers = {'Content-type': 'application/x-www-form-urlencoded', 'Accept': 'application/json'}
+        splitter_cmd = splitter_cmd % text.replace("'", "'\\''")
+        splitter_cmd = splitter_cmd.replace("$lang_source", src_lang)
+        splitter_cmd = splitter_cmd.replace("$lang_target", tgt_lang)
+        self.logger.info("splitter_cmd=%s" % splitter_cmd)
 
-        for i in range(0, MailHandler.max_attempts):
-            conn = http.client.HTTPConnection(splitter_host, timeout=10)
-            try:
-                conn.request('POST', splitter_path, params, headers)
-                resp = conn.getresponse()
-                data = resp.read()
-                if len(data) > 0:
-                    json_data = json.loads(data.decode('utf-8'))
-                    sentences = json_data['sentences']
-                    break
-            except Exception as ex:
-                self.logger.exception(ex)
-                self._send_mail(None, "Mail-Handler - ERROR", ex)
-            except socket.timeout as ex_timeout:
-                self.logger.error("An error has occurred: {0}".format(ex_timeout))
-                self._send_mail(None, "Mail-Handler - ERROR", ex_timeout)
-            finally:
-                conn.close()
+        start_cmd = timeit.default_timer()
+        splitter_output = subprocess.check_output(splitter_cmd, shell=True)
+        splitter_output = splitter_output.decode('utf-8')
+        self.logger.info("Splitter cmd processed in {} s.".format(timeit.default_timer() - start_cmd))
+        self.logger.info("splitter_output=%s" % splitter_output)
+        sentences = splitter_output.splitlines()
+
         return sentences
 
     def _translate_sentence(self, src_lang, tgt_lang, sentence):

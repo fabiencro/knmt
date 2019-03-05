@@ -6,10 +6,7 @@ use Encode;
 use FindBin qw/$Bin/;
 use lib "$Bin/../perllib/";
 use FileHandle;
-use CGI qw/:standard/;
-use CGI::Carp qw(fatalsToBrowser);
 use File::Temp 'tempdir';
-use JSON;
 use IO::File;
 
 binmode STDIN, ":encoding(utf8)";
@@ -28,32 +25,15 @@ STDOUT->autoflush(1);
 #
 
 my $response = '';
-my $cgi = new CGI;
 
-my $src = $cgi->param('text');
-my $lang_source = $cgi->param('lang_source');
-my $lang_target = $cgi->param('lang_target');
-my $lang_pair = $cgi->param('lang_pair');
+my $lang_source = $ARGV[0];
+my $lang_target = $ARGV[1];
 
-if ($lang_source eq "" || $lang_target eq "") {
-    if ($lang_pair eq "je") {
-        $lang_source = "ja";
-        $lang_target = "en";
-    }
-    elsif ($lang_pair eq "jc") {
-        $lang_source = "ja";
-        $lang_target = "zh";
-    }
+my $src = '';
+while (<STDIN>) {
+    $_ =~ s/^\s*(.*?)\s*$/$1/; # 両端のスペース消去
+    $src .= "$_\n";
 }
-
-# HTTPヘッダ出力
-$response = header(-Content_Type => 'application/json',
-    -charset       => 'utf-8',
-    -Pragma        => 'no-cache',
-    -Cache_Control => 'no-cache');
-
-$src = decode('utf8', $src);
-$src =~ s/^\s*(.*?)\s*$/$1/; # 両端のスペース消去
 
 die "no input!" if ($src eq "");
 
@@ -70,15 +50,11 @@ foreach my $line (@lines){
 }
 close($fh_out);
 
-my @sentences = `$Bin/sentence_split.sh < $temp_file`;
+my @sentences = `perl -I perllib $Bin/sentence-splitter_ecj-utf8.perl < $temp_file`;
 foreach my $s (@sentences){
     $s = decode('utf8', $s);
     chomp $s;
     $s =~ s/^$lang_source: //;
-    $s =~ s/&/&amp;/sg;
-    $s =~ s/</&lt;/sg;
-    $s =~ s/>/&gt;/sg;
-    $s =~ s/"/&quot;/sg;
 }
 
 my $temp_file2 = "$tmpdir/in2";
@@ -88,7 +64,7 @@ foreach my $sentence (@sentences) {
 }
 close($fh_out2);
 
-my @sentences2 = `$Bin/../long-sentence-splitter.perl < $temp_file2`;
+my @sentences2 = `$Bin/long-sentence-splitter $temp_file2`;
 foreach my $s (@sentences2){
     $s = decode('utf8', $s);
     chomp $s;
@@ -99,13 +75,6 @@ if (scalar(@sentences2) == 0) {
     @sentences2 = @lines;
 }
 
-my $article_id = time;
-my $resp = {};
-$resp->{'articleId'} = $article_id;
-$resp->{'sentences'} = \@sentences2;
-my $json_resp = to_json($resp);
-
-$response .= "\n" . $json_resp;
-print $response;
-
-
+foreach my $sentence (@sentences2) {
+    print "$sentence\n";
+}

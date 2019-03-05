@@ -6,10 +6,7 @@ use Encode;
 use FindBin qw/$Bin/;
 use lib "$Bin/../perllib/";
 use FileHandle;
-use CGI qw/:standard/;
-use CGI::Carp qw(fatalsToBrowser);
 use File::Temp 'tempdir';
-use JSON;
 use IO::File;
 
 binmode STDIN, ":encoding(utf8)";
@@ -19,20 +16,15 @@ binmode STDERR, ":encoding(utf8)";
 STDOUT->autoflush(1);
 
 my $response = '';
-my $cgi = new CGI;
 
-my $src = $cgi->param('text');
-my $lang_source = $cgi->param('lang_source');
-my $lang_target = $cgi->param('lang_target');
+my $lang_source = $ARGV[0];
+my $lang_target = $ARGV[1];
 
-# HTTPヘッダ出力
-$response = header(-Content_Type => 'application/json',
-    -charset       => 'utf-8',
-    -Pragma        => 'no-cache',
-    -Cache_Control => 'no-cache');
-
-$src = decode('utf8', $src);
-$src =~ s/^\s*(.*?)\s*$/$1/; # 両端のスペース消去
+my $src = '';
+while (<STDIN>) {
+    $_ =~ s/^\s*(.*?)\s*$/$1/; # 両端のスペース消去
+    $src .= "$_\n";
+}
 
 die "no input!" if ($src eq "");
 
@@ -54,22 +46,13 @@ foreach my $s (@sentences){
     $s = decode('utf8', $s);
     chomp $s;
     $s =~ s/^$lang_source: //;
-    $s =~ s/&/&amp;/sg;
-    $s =~ s/</&lt;/sg;
-    $s =~ s/>/&gt;/sg;
-    $s =~ s/"/&quot;/sg;
 }
 # 文分割が失敗した場合
 if (scalar(@sentences) == 0) {
     @sentences = @lines;
 }
 
-my $article_id = time;
-my $resp = {};
-$resp->{'articleId'} = $article_id;
-$resp->{'sentences'} = \@sentences;
-my $json_resp = to_json($resp);
-
-$response .= "\n" . $json_resp;
-print $response;
+foreach my $sentence (@sentences) {
+    print "$sentence\n";
+}
 

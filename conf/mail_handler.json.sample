@@ -40,18 +40,8 @@
         "cc": "supervisor@toto.com"
     },
     "text_splitter": {
-        "ja": {
-            "host": "http://www.example.com",
-            "path": "/splitter/cgi-bin/split_ja_sentences.cgi"
-        },
-        "en,fr": {
-            "host": "http://www.example.com",
-            "path": "/splitter/cgi-bin/split_romaji_sentences.cgi"
-        },
-        "default": {
-            "host": "http://www.example.com",
-            "path": "/splitter/cgi-bin/split_sentences.cgi"
-        }
+        "ja": "echo '%s' | bin/split_sentences_ja $lang_source $lang_target",
+        "default": "echo '%s' | bin/split_sentences_default $lang_source $lang_target"
     },
     "post_processing_cmd": {
         "ja-en": "cat $FILE | /share/tool/MT/tool/SMT/mosesdecoder/scripts/recaser/detruecase.perl | /share/tool/MT/tool/SMT/mosesdecoder/scripts/tokenizer/detokenizer.perl"

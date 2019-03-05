@@ -1,0 +1,4 @@
+#!/bin/sh
+
+export PATH=/orange/brew/data/bin:$PATH
+perl bin/long-sentence-splitter.perl < $1 
