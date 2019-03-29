@@ -286,7 +286,7 @@ class MailHandler:
         requests_filename = "{0}_requests.json.gz".format(config['id'])
         if self._requests:
             with gzip.open(requests_filename, 'w') as output_file:
-                output_file.write(json.dumps(self._requests, output_file, ensure_ascii=False).encode('utf-8'))
+                output_file.write(json.dumps(self._requests, ensure_ascii=False).encode('utf-8'))
         else:
             if (os.path.isfile(requests_filename)):
                 os.remove(requests_filename)
