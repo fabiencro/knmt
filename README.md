@@ -176,5 +176,36 @@ Workshop on Asian Translation.[URL](http://www.aclweb.org/anthology/W/W16/W16-46
 Kyoto-NMT: a Neural Machine Translation implementation in Chainer. Fabien Cromieres. 2016. Proceedings of COLING 2016: System Demonstrations.
 [URL](https://www.aclweb.org/anthology/C/C16/C16-2064.pdf)
 
+## Additional Tools
+
+### Mail Translation Service
+
+The file nmt_chainer/translation/mail_handler.py implements a daemon that monitors an IMAP mail account for translation requests.
+Whenever a request is encountered, it is dispatched to the appropriate translation server and its response will be sent back by email
+to its emitter.
+
+#### Requirements and Installation: 
+
+- python-daemon
+
+Copy the sample configuration and edit it according to your environment:
+
+    cp conf/mail_handler.json.sample conf/mail_handler.json
+
+#### Useful commands
+
+To start the daemon:
+
+    python nmt_chainer/translation/mail_handler.py
+
+Consult the log file to make sure that the daemon is running properly:
+
+    less mail_handler.log
+
+To stop the daemon:
+
+    kill `pgrep -f mail_handler.py`
+
+
 Kyoto University Participation to WAT 2017. Fabien Cromieres, Raj Dabre, Toshiaki Nakazawa and Sadao Kurohashi. 2017. Proceedings of the 4th
 Workshop on Asian Translation.[URL](http://aclweb.org/anthology/W17-5714)

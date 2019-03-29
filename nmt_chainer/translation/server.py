@@ -7,6 +7,9 @@ __version__ = "1.0"
 __email__ = "bergeron@pa.jst.jp"
 __status__ = "Development"
 
+import codecs
+import hashlib
+import os.path
 import datetime
 import json
 import numpy as np
@@ -33,6 +36,16 @@ import bokeh.embed
 logging.basicConfig()
 log = logging.getLogger("rnns:server")
 log.setLevel(logging.INFO)
+
+
+def read_keyword_file(kw_filename):
+    keywords = {}
+    with codecs.open(kw_filename, 'r', encoding='utf-8') as f:
+        for line in f:
+            key, value = line.split(': ')
+            keywords[key] = value
+    return keywords
+
 
 class Translator(object):
 
@@ -98,7 +111,8 @@ class Translator(object):
 
             rich_output_file.seek(0)
             rich_output_data = json.loads(rich_output_file.read().decode('utf-8'))
-            unk_mapping = rich_output_data[0]['unk_mapping']
+            if len(rich_output_data) > 0 and 'unk_mapping' in rich_output_data[0]:
+                unk_mapping = rich_output_data[0]['unk_mapping']
 
             attn_graph_script_file.seek(0)
             script = attn_graph_script_file.read()
@@ -116,13 +130,14 @@ class Translator(object):
         return out, script, div, unk_mapping
 
 
-
 class RequestHandler(six.moves.socketserver.BaseRequestHandler):
 
     def handle(self):
         start_request = timeit.default_timer()
         log.info(timestamped_msg("Handling request..."))
         data = self.request.recv(4096)
+        text_uid = hashlib.sha1(str("{0}_{1}".format(start_request, data)).encode('utf-8')).hexdigest()
+        kw_filename = '/tmp/{0}.kw'.format(text_uid)
 
         response = {}
         if (data):
@@ -204,7 +219,8 @@ class RequestHandler(six.moves.socketserver.BaseRequestHandler):
                     text = sentence.findtext('i_sentence').strip()
                     log.info("text=@@@%s@@@" % text)
 
-                    cmd = self.server.segmenter_command % text
+                    cmd = re.sub(r'%SENTENCE_ID', '/tmp/' + text_uid, self.server.segmenter_command)
+                    cmd = cmd % text.replace("'", "'\"'\"'")
                     log.info("cmd=%s" % cmd)
                     start_cmd = timeit.default_timer()
 
@@ -238,6 +254,13 @@ class RequestHandler(six.moves.socketserver.BaseRequestHandler):
                     splitted_sentence = ' '.join(words)
                     # log.info("splitted_sentence=" + splitted_sentence)
 
+                    splitted_sentence_without_kw = splitted_sentence
+                    if os.path.isfile(kw_filename):
+                        keywords = read_keyword_file(kw_filename)
+                        for kw, val in six.iteritems(keywords):
+                            splitted_sentence_without_kw = re.sub("<{0}>".format(kw), val, splitted_sentence_without_kw)
+                        # log.info("splitted_sentence_without_kw={0}".format(splitted_sentence_without_kw))
+
                     log.info(timestamped_msg("Translating sentence %d" % idx))
                     translation, script, div, unk_mapping = self.server.translator.translate(splitted_sentence,
                                                                                              beam_width, beam_pruning_margin, beam_score_coverage_penalty, beam_score_coverage_penalty_strength, nb_steps, nb_steps_ratio, remove_unk, normalize_unicode_unk, attempt_to_relocate_unk_source,
@@ -247,18 +270,22 @@ class RequestHandler(six.moves.socketserver.BaseRequestHandler):
                     out += translation
 
                     if self.server.pp_command is not None:
-                        pp_cmd = self.server.pp_command % out.replace("'", "''")
-                        log.info("pp_cmd=%s" % pp_cmd)
+                        def apply_pp(str):
+                            pp_cmd = re.sub(r'%SENTENCE_ID', '/tmp/' + text_uid, self.server.pp_command)
+                            pp_cmd = pp_cmd % str.replace("'", "''")
+                            log.info("pp_cmd=%s" % pp_cmd)
 
-                        start_pp_cmd = timeit.default_timer()
+                            start_pp_cmd = timeit.default_timer()
 
-                        pp_output = subprocess.check_output(pp_cmd, shell=True, universal_newlines=True)
+                            pp_output = subprocess.check_output(pp_cmd, shell=True, universal_newlines=True)
 
-                        log.info("Postprocessor request processede in {} s.".format(timeit.default_timer() - start_pp_cmd))
-                        log.info("pp_output=%s" % pp_output)
-                        out = pp_output
+                            log.info("Postprocessor request processede in {} s.".format(timeit.default_timer() - start_pp_cmd))
+                            log.info("pp_output=%s" % pp_output)
+                            return pp_output
+                        out = apply_pp(out)
+                        translation = apply_pp(translation)
 
-                    segmented_input.append(splitted_sentence)
+                    segmented_input.append(splitted_sentence_without_kw)
                     segmented_output.append(translation)
                     mapping.append(unk_mapping)
                     graph_data.append((script, div))
@@ -283,14 +310,12 @@ class RequestHandler(six.moves.socketserver.BaseRequestHandler):
                 response['error'] = error_lines[-1]
                 response['stacktrace'] = error_lines
 
-        log.info(
-            "Request processed in {0} s. by {1}".format(
-                timeit.default_timer() -
-                start_request,
-                cur_thread.name))
+        log.info("Request processed in {0} s. by {1}".format(timeit.default_timer() - start_request, cur_thread.name))
 
         response = json.dumps(response)
         self.request.sendall(response.encode('utf-8'))
+        if os.path.isfile(kw_filename):
+            os.remove(kw_filename)
 
 
 class Server(six.moves.socketserver.ThreadingMixIn, six.moves.socketserver.TCPServer):

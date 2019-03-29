@@ -1,0 +1,58 @@
+#!/usr/bin/env perl
+
+use strict;
+use utf8;
+use Encode;
+use FindBin qw/$Bin/;
+use lib "$Bin/../perllib/";
+use FileHandle;
+use File::Temp 'tempdir';
+use IO::File;
+
+binmode STDIN, ":encoding(utf8)";
+binmode STDOUT, ":encoding(utf8)";
+binmode STDERR, ":encoding(utf8)";
+
+STDOUT->autoflush(1);
+
+my $response = '';
+
+my $lang_source = $ARGV[0];
+my $lang_target = $ARGV[1];
+
+my $src = '';
+while (<STDIN>) {
+    $_ =~ s/^\s*(.*?)\s*$/$1/; # 両端のスペース消去
+    $src .= "$_\n";
+}
+
+die "no input!" if ($src eq "");
+
+my $tmpdir = tempdir;
+
+# 文に分割
+my $temp_file = "$tmpdir/in";
+open(my $fh_out, ">:encoding(utf8)", $temp_file) or die "$temp_file: $!";
+my @lines = split(/\n/, $src);
+foreach my $line (@lines){
+    if ($line ne ""){
+        print $fh_out "$lang_source: $line\n" or die "writing $temp_file: $!";
+    }
+}
+close($fh_out);
+
+my @sentences = `perl -I perllib $Bin/sentence-splitter_ecj-utf8.perl < $temp_file`;
+foreach my $s (@sentences){
+    $s = decode('utf8', $s);
+    chomp $s;
+    $s =~ s/^$lang_source: //;
+}
+# 文分割が失敗した場合
+if (scalar(@sentences) == 0) {
+    @sentences = @lines;
+}
+
+foreach my $sentence (@sentences) {
+    print "$sentence\n";
+}
+
