@@ -32,7 +32,7 @@
 
 
 use SentenceExtractor;
-use encoding 'utf8';
+use utf8;
 use strict;
 use FindBin qw/$Bin/;
 use lib "$Bin/../perllib/";
