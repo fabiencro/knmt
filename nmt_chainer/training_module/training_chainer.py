@@ -1,7 +1,11 @@
 #!/usr/bin/env python
 """training.py: training procedures."""
 from nmt_chainer.utilities import argument_parsing_tools
-from chainer.iterators import _statemachine
+
+try:
+    from chainer.iterators import _statemachine  #for chainer >=6
+except ImportError:
+    pass
 
 __author__ = "Fabien Cromieres"
 __license__ = "undecided"
