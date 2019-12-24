@@ -1,6 +1,8 @@
 #!/usr/bin/env python
 """training.py: training procedures."""
 from nmt_chainer.utilities import argument_parsing_tools
+from chainer.iterators import _statemachine
+
 __author__ = "Fabien Cromieres"
 __license__ = "undecided"
 __version__ = "1.0"
@@ -86,26 +88,39 @@ class SerialIteratorWithPeek(chainer.iterators.SerialIterator):
         if not self._repeat and self.epoch > 0:
             raise StopIteration
 
-        i = self.current_position
-        i_end = i + self.batch_size
-        N = len(self.dataset)
-        if self._order is None:
-            batch = self.dataset[i:i_end]
-        else:
-            batch = [self.dataset[index] for index in self._order[i:i_end]]
+        if hasattr(self, "order_sampler"):
+            state, indices = _statemachine.iterator_statemachine(
+                self._state, self.batch_size, self.repeat, self.order_sampler,
+                len(self.dataset))
+            if indices is None:
+                return []
 
-        if i_end >= N:
-            if self._repeat:
-                rest = i_end - N
-                if self._order is not None:
-                    numpy.random.shuffle(self._order)
-                if rest > 0:
-                    if self._order is None:
-                        batch += list(self.dataset[:rest])
-                    else:
-                        batch += [self.dataset[index]
-                                  for index in self._order[:rest]]
-        return batch
+            batch = [self.dataset[index] for index in indices]
+            return batch
+
+        else:
+
+            i = self.current_position
+            i_end = i + self.batch_size
+            N = len(self.dataset)
+            if (not hasattr(self, "_order")) or self._order is None:
+                batch = self.dataset[i:i_end]
+            else:
+                batch = [self.dataset[index] for index in self._order[i:i_end]]
+
+            if i_end >= N:
+                if self._repeat:
+                    rest = i_end - N
+
+                    if hasattr(self, "_order") and self._order is not None:
+                            numpy.random.shuffle(self._order)
+                    if rest > 0:
+                        if (not hasattr(self, "_order")) or self._order is None:
+                            batch += list(self.dataset[:rest])
+                        else:
+                            batch += [self.dataset[index]
+                                    for index in self._order[:rest]]
+            return batch
 
 
 class LengthBasedSerialIterator(chainer.dataset.iterator.Iterator):

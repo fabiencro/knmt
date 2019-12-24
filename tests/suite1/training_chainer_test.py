@@ -1,4 +1,6 @@
 #!/usr/bin/env python
+#from __future__ import print_function
+
 """training_chainer_tests.py: Some unit tests for the training classes"""
 __author__ = "Fabien Cromieres"
 __license__ = "undecided"
@@ -80,9 +82,9 @@ class TestSerialIterator:
     # The test where shuffle, repeat, and check_peek fails because the peek() method
     # cannot foresee how the elements will be shuffled by the next() method at the end of an epoch. - FB
     @pytest.mark.parametrize("dataset_size, batch_size, sequence_avg_size, shuffle, repeat, check_peek",
-                             [
-                                 (64, 20, 16, True, True, False),
-                                 (64, 20, 16, False, True, False),
+                             [    #(16, 4, 6, True, True, False),
+                                (64, 20, 16, True, True, False),
+                                (64, 20, 16, False, True, False),
                                  (64, 20, 16, True, False, False),
                                  (64, 20, 16, False, False, False),
                                  # (64, 20, 16, True, True, True),
@@ -105,6 +107,8 @@ class TestSerialIterator:
         method works properly.  When check_peek is True, it also tests if
         iter.peek() == iter.next() right before calling iter.next().
         """
+        #import sys
+        #print("start test", file=sys.stderr)
         dataset = generate_random_dataset(dataset_size, sequence_avg_size)
 
         random_generator = RandomState(0)
@@ -134,9 +138,15 @@ class TestSerialIterator:
             # work_dataset.remove(first_item)
             first_item_index = -1
             for item_idx, item in enumerate(work_dataset):
-                if np.array_equal(item, first_item):
-                    first_item_index = item_idx
-                    break
+                if len(first_item) == len(item):
+                    all_equal = True
+                    for a1, a2 in zip(first_item, item):
+                        if not(a1.shape==a2.shape and np.array_equal(a1, a2)):
+                            all_equal=False
+                            break
+                    if all_equal:
+                        first_item_index = item_idx
+                        break
             del work_dataset[first_item_index]
 
             item_count += 1
@@ -146,6 +156,7 @@ class TestSerialIterator:
         else:
             assert len(batch) == 0
 
+        #print("finish test", file=sys.stderr)
 
 class TestLengthBasedSerialIterator():
 
