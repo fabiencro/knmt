@@ -29,6 +29,7 @@ import xml.etree.ElementTree as ET
 import re
 import subprocess
 import bokeh.embed
+import pipes
 
 logging.basicConfig()
 log = logging.getLogger("rnns:server")
@@ -204,7 +205,7 @@ class RequestHandler(six.moves.socketserver.BaseRequestHandler):
                     text = sentence.findtext('i_sentence').strip()
                     log.info("text=@@@%s@@@" % text)
 
-                    cmd = self.server.segmenter_command % text
+                    cmd = self.server.segmenter_command % pipes.quote(text)
                     log.info("cmd=%s" % cmd)
                     start_cmd = timeit.default_timer()
 
