@@ -13,12 +13,6 @@ from chainer import function
 from chainer.utils import type_check
 import six
 
-if cuda.cudnn_enabled:
-    cudnn = cuda.cudnn
-    libcudnn = cudnn.cudnn
-    _mode = libcudnn.CUDNN_ACTIVATION_SIGMOID
-
-
 class SigmoidAPLusBByH(function.Function):
 
     """SigmoidAPLusBByH function."""

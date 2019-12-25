@@ -493,15 +493,15 @@ def do_train(config_training):
     else:
         raise NotImplemented
 
-    with cuda.get_device(gpu):
+    with cuda.get_device_from_id(gpu):
         optimizer.setup(encdec)
 
     if config_training.training.l2_gradient_clipping is not None and config_training.training.l2_gradient_clipping > 0:
-        optimizer.add_hook(chainer.optimizer.GradientClipping(
+        optimizer.add_hook(chainer.optimizer_hooks.GradientClipping(
             config_training.training.l2_gradient_clipping))
 
     if config_training.training.hard_gradient_clipping is not None and config_training.training.hard_gradient_clipping > 0:
-        optimizer.add_hook(chainer.optimizer.GradientHardClipping(
+        optimizer.add_hook(chainer.optimizer_hooks.GradientHardClipping(
             *config_training.training.hard_gradient_clipping))
 
     if config_training.training.weight_decay is not None:
@@ -510,7 +510,7 @@ def do_train(config_training):
                 config_training.training.weight_decay))
 
     if config_training.training_management.load_optimizer_state is not None:
-        with cuda.get_device(gpu):
+        with cuda.get_device_from_id(gpu):
             log.info("loading optimizer parameters from %s", config_training.training_management.load_optimizer_state)
             serializers.load_npz(config_training.training_management.load_optimizer_state, optimizer)
 
@@ -524,7 +524,7 @@ def do_train(config_training):
             yield
 
     from . import training_chainer
-    with cuda.get_device(gpu):
+    with cuda.get_device_from_id(gpu):
         with timer_hook() as timer_infos:
 
             if config_training.training_management.max_nb_iters is not None:
