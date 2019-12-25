@@ -183,7 +183,7 @@ def beam_search_all(gpu, encdec, eos_idx, src_data, beam_width, beam_pruning_mar
                 unk_mapping = []
                 ct = " ".join(translated)
                 if ct != '':
-                    unk_pattern = re.compile("#T_UNK_(\d+)#")
+                    unk_pattern = re.compile(r"#T_UNK_(\d+)#")
                     for idx, word in enumerate(ct.split(' ')):
                         match = unk_pattern.match(word)
                         if (match):
@@ -431,7 +431,7 @@ def do_eval(config_eval):
     post_score_coverage_penalty = config_eval.method.post_score_coverage_penalty
     post_score_coverage_penalty_strength = config_eval.method.post_score_coverage_penalty_strength
 
-    time_start = time.clock()
+    time_start = time.perf_counter()
 
     encdec_list, eos_idx, src_indexer, tgt_indexer, reverse_encdec, model_infos_list = create_encdec(config_eval)
 
@@ -500,7 +500,7 @@ def do_eval(config_eval):
     for num_model, model_infos in enumerate(model_infos_list):
         translation_infos["model%i" % num_model] = model_infos
 
-    time_all_loaded = time.clock()
+    time_all_loaded = time.perf_counter()
 
     if mode == "translate":
         log.info("writing translation of to %s" % dest_fn)
@@ -720,7 +720,7 @@ def do_eval(config_eval):
             for score in res[num]:
                 out.write("%i %f\n" % (num, score))
 
-    time_end = time.clock()
+    time_end = time.perf_counter()
     translation_infos["loading_time"] = time_all_loaded - time_start
     translation_infos["translation_time"] = time_end - time_all_loaded
     translation_infos["total_time"] = time_end - time_start
