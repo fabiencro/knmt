@@ -370,7 +370,7 @@ class Updater(chainer.training.StandardUpdater):
         self.need_to_convert_to_variables = need_to_convert_to_variables
 
     def update_core(self):
-        t0 = time.clock()
+        t0 = time.perf_counter()
 
         batch = self._iterators['main'].next()
         in_arrays = self.converter(batch, self.device)
@@ -381,7 +381,7 @@ class Updater(chainer.training.StandardUpdater):
         if self.need_to_convert_to_variables:
             in_arrays = make_collection_of_variables(in_arrays)
 
-        t1 = time.clock()
+        t1 = time.perf_counter()
 
         try:
             if isinstance(in_arrays, tuple):
@@ -393,7 +393,7 @@ class Updater(chainer.training.StandardUpdater):
         except CudaException:
             log.warn("CUDARuntimeError during update iteration. Will try to skip this batch and continue")
 
-        t2 = time.clock()
+        t2 = time.perf_counter()
         update_duration = t2 - t0
         mb_preparation_duration = t1 - t0
         optimizer_update_cycle_duration = t2 - t1
@@ -748,7 +748,7 @@ def train_on_data_chainer(encdec, optimizer, training_data, output_files_dict,
     if encdec.encdec_type() == "ff":
         def loss_func(src_seq, tgt_seq):
     
-            t0 = time.clock()
+            t0 = time.perf_counter()
             
             loss = encdec.compute_loss(src_seq, tgt_seq, reduce="no")
             total_loss = F.sum(loss)
@@ -756,7 +756,7 @@ def train_on_data_chainer(encdec, optimizer, training_data, output_files_dict,
             
             avg_loss = total_loss / total_nb_predictions
     
-            t1 = time.clock()
+            t1 = time.perf_counter()
             chainer.reporter.report({"forward_time": t1 - t0})
     
             chainer.reporter.report({"mb_loss": total_loss.data})
@@ -779,7 +779,7 @@ def train_on_data_chainer(encdec, optimizer, training_data, output_files_dict,
     else:
         def loss_func(src_batch, tgt_batch, src_mask):
     
-            t0 = time.clock()
+            t0 = time.perf_counter()
             (total_loss, total_nb_predictions), attn = encdec(src_batch, tgt_batch, src_mask, raw_loss_info=True,
                                                               noise_on_prev_word=noise_on_prev_word,
                                                               use_previous_prediction=use_previous_prediction,
@@ -788,7 +788,7 @@ def train_on_data_chainer(encdec, optimizer, training_data, output_files_dict,
                                                               temperature_for_soft_predictions=temperature_for_soft_predictions)
             avg_loss = total_loss / total_nb_predictions
     
-            t1 = time.clock()
+            t1 = time.perf_counter()
             chainer.reporter.report({"forward_time": t1 - t0})
     
             chainer.reporter.report({"mb_loss": total_loss.data})
