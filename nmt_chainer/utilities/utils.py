@@ -21,6 +21,8 @@ log.setLevel(logging.INFO)
 
 
 def ensure_path(path):
+    if len(path) == 0:
+        return
     try:
         os.makedirs(path)
         log.info("Created directory %s" % path)
