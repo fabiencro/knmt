@@ -58,11 +58,17 @@ def iterate_eos_scores(new_scores, eos_idx):
         idx_in_case = eos_idx
         yield int(num_case), idx_in_case, cuda.to_cpu(new_scores[num_case, eos_idx])
 
+import enum
+class BSReturn(enum.Enum):
+    OK = enum.auto()
+    CONSTRAINT_VIOLATED = enum.auto()
 
 def update_next_lists(num_case, idx_in_case, new_cost, eos_idx, new_state_ensemble, finished_translations, current_translations,
                       current_attentions,
                       next_states_list, next_words_list, next_score_list, next_normalized_score_list, next_translations_list,
-                      attn_ensemble, next_attentions_list, beam_score_coverage_penalty, beam_score_coverage_penalty_strength, need_attention=False):
+                      attn_ensemble, next_attentions_list, beam_score_coverage_penalty, beam_score_coverage_penalty_strength, 
+                      need_attention=False,
+                      constraints_fn=None) -> BSReturn:
     """
     Updates the lists containing the infos on translations in current beam
 
@@ -97,6 +103,10 @@ def update_next_lists(num_case, idx_in_case, new_cost, eos_idx, new_state_ensemb
             will be updated.
     """
     if idx_in_case == eos_idx:
+
+        if constraints_fn is not None and constraints_fn(current_translations[num_case]) != 1:
+            return BSReturn.CONSTRAINT_VIOLATED
+
         if need_attention:
             finished_translations.append((current_translations[num_case],
                                           -new_cost,
@@ -105,7 +115,14 @@ def update_next_lists(num_case, idx_in_case, new_cost, eos_idx, new_state_ensemb
         else:
             finished_translations.append((current_translations[num_case],
                                           -new_cost))
+
+        return BSReturn.OK
+
     else:
+        new_translation = current_translations[num_case]+ [idx_in_case]
+        if constraints_fn is not None and constraints_fn(new_translation) <0:
+            return BSReturn.CONSTRAINT_VIOLATED
+
         next_states_list.append(
             [tuple([Variable(substates.data[num_case].reshape(1, -1)) for substates in new_state])
              for new_state in new_state_ensemble]
@@ -126,8 +143,8 @@ def update_next_lists(num_case, idx_in_case, new_cost, eos_idx, new_state_ensemb
             normalized_score = -new_cost + coverage_penalty
             next_normalized_score_list.append(normalized_score)
 
-        next_translations_list.append(
-            current_translations[num_case] + [idx_in_case])
+        next_translations_list.append(new_translation)
+
         if need_attention:
             xp = cuda.get_array_module(attn_ensemble[0].data)
             attn_summed = xp.zeros((attn_ensemble[0].data[0].shape), dtype=xp.float32)
@@ -135,6 +152,7 @@ def update_next_lists(num_case, idx_in_case, new_cost, eos_idx, new_state_ensemb
                 attn_summed += attn.data[num_case]
             attn_summed /= len(attn_ensemble)
             next_attentions_list.append(current_attentions[num_case] + [attn_summed])
+        return BSReturn.OK
 
 
 def compute_next_lists(new_state_ensemble, new_scores, beam_width, beam_pruning_margin,
@@ -146,7 +164,8 @@ def compute_next_lists(new_state_ensemble, new_scores, beam_width, beam_pruning_
                        current_attentions,
                        attn_ensemble,
                        force_finish=False,
-                       need_attention=False):
+                       need_attention=False,
+                       constraints_fn=None):
     """
         Compute the informations for the next beam.
 
@@ -192,13 +211,17 @@ def compute_next_lists(new_state_ensemble, new_scores, beam_width, beam_pruning_
                 new_cost /= len(current_translations[num_case])
             elif beam_score_length_normalization == 'google':
                 new_cost /= (pow((len(current_translations[num_case]) + 5), beam_score_length_normalization_strength) / pow(6, beam_score_length_normalization_strength))
+        
+        
         update_next_lists(num_case, idx_in_case, new_cost, eos_idx, new_state_ensemble,
                           finished_translations, current_translations, current_attentions,
                           next_states_list, next_words_list, next_score_list, next_normalized_score_list, next_translations_list,
-                          attn_ensemble, next_attentions_list, beam_score_coverage_penalty, beam_score_coverage_penalty_strength, need_attention=need_attention)
+                          attn_ensemble, next_attentions_list, beam_score_coverage_penalty, beam_score_coverage_penalty_strength, 
+                          need_attention=need_attention, constraints_fn=constraints_fn)
         assert len(next_states_list) <= beam_width
 #             if len(next_states_list) >= beam_width:
 #                 break
+
 
     # Prune items that have a score worse than beam_pruning_margin below the
     # best score.
@@ -299,7 +322,8 @@ def advance_one_step(dec_cell_ensemble, eos_idx, current_translations_states, be
                      beam_score_coverage_penalty_strength,
                      finished_translations,
                      force_finish=False, need_attention=False,
-                     prob_space_combination=False):
+                     prob_space_combination=False,
+                     constraints_fn=None):
     """
         Generate the partial translations / decoder states in the next beam
 
@@ -352,7 +376,8 @@ def advance_one_step(dec_cell_ensemble, eos_idx, current_translations_states, be
         beam_score_coverage_penalty, beam_score_coverage_penalty_strength,
         eos_idx,
         current_translations, finished_translations,
-        current_attentions, attn_ensemble, force_finish=force_finish, need_attention=need_attention)
+        current_attentions, attn_ensemble, force_finish=force_finish, need_attention=need_attention,
+        constraints_fn=constraints_fn)
 
     if len(next_states_list) == 0:
         return None  # We only found finished translations
@@ -387,7 +412,8 @@ def ensemble_beam_search(model_ensemble, src_batch, src_mask, nb_steps, eos_idx,
                          beam_score_coverage_penalty_strength=0.2,
                          need_attention=False,
                          force_finish=False,
-                         prob_space_combination=False, use_unfinished_translation_if_none_found=False):
+                         prob_space_combination=False, use_unfinished_translation_if_none_found=False,
+                         constraints_fn=None):
     """
     Compute translations using a beam-search algorithm.
 
@@ -406,7 +432,9 @@ def ensemble_beam_search(model_ensemble, src_batch, src_mask, nb_steps, eos_idx,
         force_finish: force the generation of EOS if we did not find a translation after nb_steps steps
         prob_space_combination: if true, ensemble scores are combined by geometric average instead of arithmetic average
         use_unfinished_translation_if_none_found: will ureturn unfinished translation if we did not find a translation after nb_steps steps
-
+        constraints_fn: function for enforcing constraints on translations. takes a translation as input. Return 1 if all constraints
+                        are satisfied. -1 if constraints cannot be satisfied. 0<=v<1 if all constraints are not satisfied yet but can 
+                        be satisfied (v being an hint on the number of constraints solved)
     Return:
         list of translations
             each item in the list is a tuple (translation, score) or (translation, score, attention) if need_attention = True
@@ -452,7 +480,8 @@ def ensemble_beam_search(model_ensemble, src_batch, src_mask, nb_steps, eos_idx,
                 finished_translations,
                 force_finish=force_finish and num_step == (nb_steps - 1),
                 need_attention=need_attention,
-                prob_space_combination=prob_space_combination)
+                prob_space_combination=prob_space_combination,
+                constraints_fn=constraints_fn)
     
             if current_translations_states is None:
                 break

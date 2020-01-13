@@ -166,10 +166,15 @@ def beam_search_translate(encdec, eos_idx, src_data, beam_width=20, beam_pruning
                           groundhog=False, force_finish=False,
                           prob_space_combination=False,
                           reverse_encdec=None, use_unfinished_translation_if_none_found=False,
-                          nbest=None):
+                          nbest=None,
+                          constraints_fn_list=None):
     nb_ex = len(src_data)
+
+    assert constraints_fn_list is None or len(constraints_fn_list) == nb_ex
+
     for num_ex in six.moves.range(nb_ex):
         src_batch, src_mask = make_batch_src([src_data[num_ex]], gpu=gpu)
+
         assert len(src_mask) == 0
         if nb_steps_ratio is not None:
             nb_steps = int(len(src_data[num_ex]) * nb_steps_ratio) + 1
@@ -185,6 +190,11 @@ def beam_search_translate(encdec, eos_idx, src_data, beam_width=20, beam_pruning
 
         if not isinstance(encdec, (tuple, list)):
             encdec = [encdec]
+
+        if constraints_fn_list is not None:
+            constraints_fn = constraints_fn_list[num_ex]
+        else:
+            constraints_fn = None
         translations = beam_search.ensemble_beam_search(encdec, src_batch, src_mask, nb_steps=nb_steps, eos_idx=eos_idx,
                                                         beam_width=beam_width,
                                                         beam_pruning_margin=beam_pruning_margin,
@@ -194,7 +204,8 @@ def beam_search_translate(encdec, eos_idx, src_data, beam_width=20, beam_pruning
                                                         beam_score_coverage_penalty_strength=beam_score_coverage_penalty_strength,
                                                         need_attention=need_attention, force_finish=force_finish,
                                                         prob_space_combination=prob_space_combination,
-                                                        use_unfinished_translation_if_none_found=use_unfinished_translation_if_none_found)
+                                                        use_unfinished_translation_if_none_found=use_unfinished_translation_if_none_found,
+                                                        constraints_fn=constraints_fn)
 
         # TODO: This is a quick patch, but actually ensemble_beam_search probably should not return empty translations except when no translation found
         if len(translations) > 1:

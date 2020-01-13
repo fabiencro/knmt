@@ -127,7 +127,8 @@ def beam_search_all(gpu, encdec, eos_idx, src_data, beam_width, beam_pruning_mar
                     remove_unk=False,
                     normalize_unicode_unk=False,
                     attempt_to_relocate_unk_source=False,
-                    nbest=None):
+                    nbest=None,
+                    constraints_fn_list=None):
 
     log.info("starting beam search translation of %i sentences" % len(src_data))
     if isinstance(encdec, (list, tuple)) and len(encdec) > 1:
@@ -151,7 +152,8 @@ def beam_search_all(gpu, encdec, eos_idx, src_data, beam_width, beam_pruning_mar
             prob_space_combination=prob_space_combination,
             reverse_encdec=reverse_encdec,
             use_unfinished_translation_if_none_found=use_unfinished_translation_if_none_found,
-            nbest=nbest)
+            nbest=nbest,
+            constraints_fn_list=constraints_fn_list)
 
         for num_t, translations in enumerate(translations_gen):
             res_trans = []
@@ -215,7 +217,8 @@ def translate_to_file_with_beam_search(dest_fn, gpu, encdec, eos_idx, src_data, 
                                        normalize_unicode_unk=False,
                                        attempt_to_relocate_unk_source=False,
                                        unprocessed_output_filename=None,
-                                       nbest=None):
+                                       nbest=None,
+                                       constraints_fn_list=None):
 
     log.info("writing translation to %s " % dest_fn)
     out = io.open(dest_fn, "wt", encoding="utf8")
@@ -233,7 +236,8 @@ def translate_to_file_with_beam_search(dest_fn, gpu, encdec, eos_idx, src_data, 
                                            remove_unk=remove_unk,
                                            normalize_unicode_unk=normalize_unicode_unk,
                                            attempt_to_relocate_unk_source=attempt_to_relocate_unk_source,
-                                           nbest=nbest)
+                                           nbest=nbest,
+                                           constraints_fn_list=constraints_fn_list)
 
     attn_vis = None
     if generate_attention_html is not None:
@@ -462,9 +466,35 @@ def do_eval(config_eval):
                 log.info("using files from config as ref:%s", test_tgt_from_config)
                 ref = test_tgt_from_config
 
+        if False:
+            import re
+            placeholder_matcher = re.compile(r"<K-\d+>")
+            def make_constraints(src, src_seq):
+                src_placeholders_list = placeholder_matcher.findall(src)
+                src_placeholders_set = set(src_placeholders_list)
+                if len(src_placeholders_set) != len(src_placeholders_list):
+                    raise Exception("Current assumption is that there is no duplicate placeholders")
+                def constraint_fn(tgt_seq):
+                    tgt = tgt_indexer.deconvert(tgt_seq)
+                    tgt_placeholders_list = placeholder_matcher.findall(tgt)
+                    tgt_placeholders_set = set(tgt_placeholders_list)
+                    if len(tgt_placeholders_set) != len(tgt_placeholders_list):
+                        return -1 #disallow duplicate placeholders on target side
+                    if len(tgt_placeholders_set - src_placeholders_set) != 0:
+                        return -1 #disallow generating a placeholder not in source
+                    if tgt_placeholders_set == src_placeholders_set:
+                        return 1 #all constraints satisfied
+                    #else return proportion of required placeholders in target
+                    assert len(tgt_placeholders_set) < len(src_placeholders_set)
+                    return len(tgt_placeholders_set) / len(src_placeholders_set)
+                return constraint_fn
+        else:
+            make_constraints = None
+
         log.info("opening source file %s" % src_fn)
         src_data, stats_src_pp = build_dataset_one_side_pp(src_fn, src_pp=src_indexer,
-                                                           max_nb_ex=max_nb_ex)
+                                                           max_nb_ex=max_nb_ex,
+                                                           make_constraints=make_constraints)
         log.info("src data stats:\n%s", stats_src_pp.make_report())
 
     if dest_fn is not None:
@@ -545,7 +575,8 @@ def do_eval(config_eval):
                                                rich_output_filename=rich_output_filename,
                                                use_unfinished_translation_if_none_found=True,
                                                unprocessed_output_filename=dest_fn + ".unprocessed",
-                                               nbest=nbest)
+                                               nbest=nbest,
+                                               constraints_fn_list=None)
 
             translation_infos["dest"] = dest_fn
             translation_infos["unprocessed"] = dest_fn + ".unprocessed"

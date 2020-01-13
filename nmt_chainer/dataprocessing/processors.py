@@ -1109,7 +1109,7 @@ def build_dataset_pp(src_fn, tgt_fn, bi_idx, max_nb_ex=None):
     return res, stats_src, stats_tgt
 
 
-def build_dataset_one_side_pp(src_fn, src_pp, max_nb_ex=None):
+def build_dataset_one_side_pp(src_fn, src_pp, max_nb_ex=None, make_constraints=None):
 
     src = FileMultiIterator(src_fn, max_nb_ex=max_nb_ex)
     print(src_pp)
@@ -1122,12 +1122,18 @@ def build_dataset_one_side_pp(src_fn, src_pp, max_nb_ex=None):
 
     res = []
 
+    constraints_list = []
     for sentence_src in src:
         #         print(len(sentence_tgt), len(sentence_src))
         seq_src = src_pp.convert(sentence_src, stats=stats_src)
+        if make_constraints is not None:
+            constraints_fn = make_constraints(src, seq_src)
+            constraints_list.append(constraints_fn)
         res.append(seq_src)
-
-    return res, stats_src
+    if make_constraints is not None:
+        return res, stats_src, constraints_list
+    else:
+        return res, stats_src
 
 
 # def load_pp_from_data(data):
