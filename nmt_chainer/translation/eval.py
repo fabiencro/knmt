@@ -492,9 +492,16 @@ def do_eval(config_eval):
             make_constraints = None
 
         log.info("opening source file %s" % src_fn)
-        src_data, stats_src_pp = build_dataset_one_side_pp(src_fn, src_pp=src_indexer,
+
+        preprocessed_input = build_dataset_one_side_pp(src_fn, src_pp=src_indexer,
                                                            max_nb_ex=max_nb_ex,
                                                            make_constraints=make_constraints)
+
+        if make_constraints is not None:
+            src_data, stats_src_pp, constraints_list = preprocessed_input
+        else:
+             src_data, stats_src_pp = preprocessed_input
+             constraints_list = None                                             
         log.info("src data stats:\n%s", stats_src_pp.make_report())
 
     if dest_fn is not None:
@@ -576,7 +583,7 @@ def do_eval(config_eval):
                                                use_unfinished_translation_if_none_found=True,
                                                unprocessed_output_filename=dest_fn + ".unprocessed",
                                                nbest=nbest,
-                                               constraints_fn_list=None)
+                                               constraints_fn_list=constraints_list)
 
             translation_infos["dest"] = dest_fn
             translation_infos["unprocessed"] = dest_fn + ".unprocessed"
