@@ -1,42 +1,65 @@
-#language: python
+dist: 
+  - trusty
+  - xenial
+  - bionic
+
+language: python
+
+python:
+  - "3.6"
+  - "3.7"
+  - "3.8"
+
 #dist: trusty
 jobs:
-  include:
-    - dist: trusty
-      language: python
-      python: 3.6
-      env:
-        - TEST_SUITE: tests/suite1
-        - TEST_SUITE: tests/suite2
-        
-    - dist: xenial
-      language: python
-      python: 3.7
-      env:
-        - TEST_SUITE: tests/suite1
-        - TEST_SUITE: tests/suite2
-#    - dist: xenial
-#      python: 3.8
+  exclude:
+    - python: "3.8"
+      dist: trusty
 
-#    - dist: bionic
-#      python: 3.8
+    - python: "3.7"
+      dist: trusty
 
-    - dist: bionic
-      language: python
-      python: 3.8
-      env:
-        - TEST_SUITE: tests/suite1
-        - TEST_SUITE: tests/suite2
+    - python: "3.6"
+      dist: xenial
+
+    - python: "3.6"
+      dist: bionic
+  
+#   include:
+#     - dist: trusty
+#       language: python
+#       python: 3.6
+#       env:
+#         - TEST_SUITE: tests/suite1
+#         - TEST_SUITE: tests/suite2
+
+#     - dist: xenial
+#       language: python
+#       python: 3.7
+#       env:
+#         - TEST_SUITE: tests/suite1
+#         - TEST_SUITE: tests/suite2
+# #    - dist: xenial
+# #      python: 3.8
+
+# #    - dist: bionic
+# #      python: 3.8
+
+#     - dist: bionic
+#       language: python
+#       python: 3.8
+#       env:
+#         - TEST_SUITE: tests/suite1
+#         - TEST_SUITE: tests/suite2
 #python:
 #  - "2.7"
 #  - "3.6"
 #  - "3.7"
 #  - "3.8"
 # command to install dependencies
-# env:
-#   jobs:
-#     - TEST_SUITE: tests/suite1
-#     - TEST_SUITE: tests/suite2
+env:
+    - TEST_SUITE: tests/suite1
+    - TEST_SUITE: tests/suite2
 install:
   - pip install .
   - pip install psutil
