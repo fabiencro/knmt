@@ -1,10 +1,5 @@
 version: ~> 1.0
 
-dist: 
-  - "trusty"
-  - "xenial"
-  - "bionic"
-
 language: python
 
 python:
@@ -13,7 +8,7 @@ python:
   - "3.8"
 
 #dist: trusty
-jobs:
+matrix:
   exclude:
     - python: "3.8"
       dist: trusty
@@ -59,9 +54,16 @@ jobs:
 #  - "3.7"
 #  - "3.8"
 # command to install dependencies
+
+dist: 
+  - "trusty"
+  - "xenial"
+  - "bionic"
+
+
 env:
-    - TEST_SUITE: tests/suite1
-    - TEST_SUITE: tests/suite2
+    - "TEST_SUITE": "tests/suite1"
+    - "TEST_SUITE": "tests/suite2"
 install:
   - pip install .
   - pip install psutil

@@ -1127,7 +1127,7 @@ def build_dataset_one_side_pp(src_fn, src_pp, max_nb_ex=None, make_constraints=N
         #         print(len(sentence_tgt), len(sentence_src))
         seq_src = src_pp.convert(sentence_src, stats=stats_src)
         if make_constraints is not None:
-            constraints_fn = make_constraints(src, seq_src)
+            constraints_fn = make_constraints(sentence_src, seq_src)
             constraints_list.append(constraints_fn)
         res.append(seq_src)
     if make_constraints is not None:
