@@ -6,11 +6,14 @@ jobs:
       python: 3.6
     - dist: xenial
       python: 3.7
-    - dist: xenial
-      python: 3.8
+#    - dist: xenial
+#      python: 3.8
 
 #    - dist: bionic
 #      python: 3.8
+
+    - dist: bionic
+      python: 3.7
 
 #python:
 #  - "2.7"
