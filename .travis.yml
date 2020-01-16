@@ -1,7 +1,9 @@
+version: ~> 1.0
+
 dist: 
-  - trusty
-  - xenial
-  - bionic
+  - "trusty"
+  - "xenial"
+  - "bionic"
 
 language: python
 
