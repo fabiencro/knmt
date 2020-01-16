@@ -25,8 +25,9 @@ jobs:
 #  - "3.8"
 # command to install dependencies
 env:
-  - TEST_SUITE: tests/suite1
-  - TEST_SUITE: tests/suite2
+  jobs:
+    - TEST_SUITE: tests/suite1
+    - TEST_SUITE: tests/suite2
 install:
   - pip install .
   - pip install psutil
