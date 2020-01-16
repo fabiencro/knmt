@@ -439,7 +439,7 @@ def do_eval(config_eval):
 
     encdec_list, eos_idx, src_indexer, tgt_indexer, reverse_encdec, model_infos_list = create_encdec(config_eval)
 
-    if config_eval.process.force_placeholders:
+    if config_eval.process.server is None:
         eval_dir_placeholder = "@eval@/"
         if dest_fn.startswith(eval_dir_placeholder):
             if config_eval.trained_model is not None:
@@ -466,7 +466,7 @@ def do_eval(config_eval):
                 log.info("using files from config as ref:%s", test_tgt_from_config)
                 ref = test_tgt_from_config
 
-        if False:
+        if config_eval.process.force_placeholders:
             import re
             placeholder_matcher = re.compile(r"<K-\d+>")
             def make_constraints(src, src_seq):
