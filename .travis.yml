@@ -1,10 +1,19 @@
-dist: trusty
 language: python
-python:
+#dist: trusty
+jobs:
+  include:
+    - dist: trusty
+      python: 3.6
+    - dist: xenial
+      python: 3.7
+    - dist: bionic
+      python: 3.8
+
+#python:
 #  - "2.7"
-  - "3.6"
-  - "3.7"
-  - "3.8"
+#  - "3.6"
+#  - "3.7"
+#  - "3.8"
 # command to install dependencies
 env:
   - TEST_SUITE: tests/suite1
