@@ -439,7 +439,7 @@ def do_eval(config_eval):
 
     encdec_list, eos_idx, src_indexer, tgt_indexer, reverse_encdec, model_infos_list = create_encdec(config_eval)
 
-    if config_eval.process.server is None:
+    if config_eval.process.force_placeholders:
         eval_dir_placeholder = "@eval@/"
         if dest_fn.startswith(eval_dir_placeholder):
             if config_eval.trained_model is not None:
