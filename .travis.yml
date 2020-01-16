@@ -1,6 +1,7 @@
 version: ~> 1.0
 
 language: python
+dist: xenial
 
 python:
   - "3.6"
@@ -8,19 +9,19 @@ python:
   - "3.8"
 
 #dist: trusty
-matrix:
-  exclude:
-    - python: "3.8"
-      dist: trusty
+# matrix:
+#   exclude:
+#     - python: "3.8"
+#       dist: trusty
 
-    - python: "3.7"
-      dist: trusty
+#     - python: "3.7"
+#       dist: trusty
 
-    - python: "3.6"
-      dist: xenial
+#     - python: "3.6"
+#       dist: xenial
 
-    - python: "3.6"
-      dist: bionic
+#     - python: "3.6"
+#       dist: bionic
   
 #   include:
 #     - dist: trusty
@@ -54,12 +55,6 @@ matrix:
 #  - "3.7"
 #  - "3.8"
 # command to install dependencies
-
-dist: 
-  - "trusty"
-  - "xenial"
-  - "bionic"
-
 
 env:
     - "TEST_SUITE": "tests/suite1"
