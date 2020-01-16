@@ -29,7 +29,7 @@ class DecoderLayer(Chain):
             cross_attention_layer = AddAndNormalizedCrossAttentionLayer(d_model=d_model, n_heads=n_heads,
                                                              experimental_relu=experimental_relu,
                                                           dropout=dropout, 
-                                        residual_mode=residual_mode if residual_mode is not "none" else "normal", no_normalize=no_normalize) # Does not seem good to not let the cross attention be bypassed
+                                        residual_mode=residual_mode if residual_mode != "none" else "normal", no_normalize=no_normalize) # Does not seem good to not let the cross attention be bypassed
         )
         
         self.n_heads = n_heads
