@@ -1,6 +1,24 @@
 #!/usr/bin/env python
 """eval.py: Use a RNNSearch Model"""
-from __future__ import absolute_import, division, print_function, unicode_literals
+from __future__ import (absolute_import, division, print_function,
+                        unicode_literals)
+
+import io
+import logging
+import math
+import operator
+
+import chainer
+import numpy as np
+import six
+import tqdm
+
+from nmt_chainer.utilities.utils import (compute_bleu_with_unk_as_wrong,
+                                         de_batch, make_batch_src,
+                                         make_batch_src_tgt,
+                                         minibatch_provider)
+
+from . import beam_search
 
 __author__ = "Fabien Cromieres"
 __license__ = "undecided"
@@ -8,15 +26,6 @@ __version__ = "1.0"
 __email__ = "fabien.cromieres@gmail.com"
 __status__ = "Development"
 
-from nmt_chainer.utilities.utils import make_batch_src, make_batch_src_tgt, minibatch_provider, compute_bleu_with_unk_as_wrong, de_batch
-import logging
-import numpy as np
-import math
-import io
-import six
-import operator
-from . import beam_search
-import chainer
 # import h5py
 
 logging.basicConfig()
@@ -174,7 +183,7 @@ def beam_search_translate(encdec, eos_idx, src_data, beam_width=20, beam_pruning
 
     assert constraints_fn_list is None or len(constraints_fn_list) == nb_ex
 
-    for num_ex in six.moves.range(nb_ex):
+    for num_ex in tqdm.trange(nb_ex):
         src_batch, src_mask = make_batch_src([src_data[num_ex]], gpu=gpu)
 
         assert len(src_mask) == 0
