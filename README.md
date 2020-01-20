@@ -17,9 +17,9 @@ This code was used for participation in several shared translation tasks and cou
 #Requirements and Installation:
 
 The following is currently required for running Kyoto-NMT:
-* Python 2.7.x
-* A recent version of `chainer` (>=3.0). 
-* If using a GPU (recommended): a recent version of `cupy` (>=2.0)
+* Python >=3.6
+* A recent version of `chainer` (>=5.0). 
+* If using a GPU (recommended): a recent version of `cupy` (>=5.0)
 * The plotting libraries `plotly` and `bokeh` are used in some visualisation scripts
 
 There is now a PyPI repository, so you can install with:

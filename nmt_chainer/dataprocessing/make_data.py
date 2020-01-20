@@ -59,7 +59,7 @@ def do_make_data(config):
             already_existing_files.append(filename)
     if len(already_existing_files) > 0 and not config.processing.force_overwrite:
         print("Warning: existing files are going to be replaced: ", already_existing_files)
-        raw_input("Press Enter to Continue")
+        input("Press Enter to Continue")
 
     if config.processing.use_voc is not None:
         log.info("loading voc from %s" % config.processing.use_voc)
