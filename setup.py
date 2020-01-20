@@ -111,5 +111,5 @@ setup(name='knmt',
       #           ]
       #                      },
 
-      install_requires=['numpy>=1.10.0', 'chainer==6.*', 'bokeh', 'plotly']
+      install_requires=['numpy>=1.10.0', 'chainer==6.*', 'bokeh', 'plotly', 'dataclasses;python_version<"3.7"']
       )
