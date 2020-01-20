@@ -557,12 +557,21 @@ def ensemble_beam_search(model_ensemble, src_batch, src_mask, nb_steps, eos_idx,
 @dataclass
 class Item:
     score: float = 0
-    state: Optional[Tuple[np.ndarray, ...]] = None
+    state: Tuple[np.ndarray, ...] = ()
     last_word: Optional[int] = None
     current_translation: List[int] = field(default_factory=list)
     attention: Optional[List[np.array]] = field(default_factory=list)
 
-import queue
+    def __repr__(self):
+        state_repr = []
+        for x in self.state:
+            state_repr.append("<")
+            for y in x:
+                state_repr.append(str(y.shape))
+            state_repr.append(">")
+        return f"Item[SC:{self.score:2f}, T:{self.current_translation}, LW:{self.last_word}, ST:{''.join(state_repr)}]"
+
+import queue, operator, bisect
 @dataclass(order=True)
 class PItem:
     priority: float
@@ -570,15 +579,75 @@ class PItem:
 
 class TranslationPriorityQueue:
     def __init__(self):
-        self.queue = queue.PriorityQueue()
+        #self.queue = queue.PriorityQueue()
+        self.queue :List[PItem] = []
+        self.dirty = False
+
+    def __repr__(self):
+        content = []
+        for pitem in self.queue:
+            content.append(f"P:{pitem.priority:2f}  {repr(pitem.item)}")
+        return f"L:{len(self.queue)} Dirty:{self.dirty}\n"+"\n".join(content)
+
+    def prune_queue(self, ratio = None, margin = None, top_n = None):
+        if len(self.queue) == 0:
+            return
+
+        initial_length = len(self.queue)
+        if self.dirty:
+            self.sort()
+
+        if top_n is not None:
+            self.queue = self.queue[:top_n]
+
+        max_priority = float("-inf")
+        min_priority = float("-inf")
+        threshold1 = float("-inf")
+        threshold2 = float("-inf")
+        threshold = float("-inf")
+        threshold_index = float("-inf")
+        if ratio is not None or margin is not None:
+            max_priority = self.queue[0].priority
+            min_priority = self.queue[-1].priority
+            if ratio is not None:
+                threshold1 = max_priority + max_priority*ratio
+            if margin is not None:
+                threshold2 = max_priority - margin
+            if threshold1 is not None and threshold2 is not None:
+                threshold = max(threshold1, threshold2)
+            elif threshold1 is not None:
+                threshold = threshold1
+            elif threshold2 is not None:
+                threshold = threshold2
+            
+            if threshold > min_priority:
+                threshold_index = bisect.bisect([-item.priority for item in self.queue], -threshold)
+                self.queue = self.queue[:threshold_index]
+        final_length = len(self.queue)
+        print(f"pruned {initial_length} -> {final_length} maxp:{max_priority:2f} minp:{min_priority:2f} th1:{threshold1:2f} th2:{threshold2:2f} th:{threshold:2f} thi:{threshold_index}")
+
     def put(self, item:Item, priority:float)->None:
-        self.queue.put(item)
+        #self.queue.put(item)
+        assert priority <= 0
+        self.queue.append(PItem(priority, item))
+        self.dirty = True
+
+    def sort(self):
+        self.queue.sort(reverse=True, key=operator.attrgetter("priority"))
+        self.dirty = False
+
     def get_n(self, n:int) ->List[Item]:
-        res = []
-        while not self.queue.empty() and len(res) < n:
-            p_item = self.queue.get() 
-            res.append(p_item.item)
+        if self.dirty:
+            self.sort()
+
+        res = [x.item for x in self.queue[:n]]
+        self.queue = self.queue[n:]
         return res
+        # res = []
+        # while not self.queue.empty() and len(res) < n:
+        #     p_item = self.queue.get() 
+        #     res.append(p_item.item)
+        # return res
 
 
 def make_item_list(next_states_list, next_words_list, 
@@ -596,17 +665,26 @@ def make_item_list(next_states_list, next_words_list,
         res.append(new_item)
     return res
 
-def merge_items_into_TState(items_list: List[Item]) -> ATranslationState:
-    assert all(item.last_word is not None for item in items_list)
-    assert all(item.state is not None for item in items_list)
+def merge_items_into_TState(items_list: List[Item], xp) -> ATranslationState:
+    if len(items_list) > 1:
+        assert all(item.last_word is not None for item in items_list)
+        assert all(item.state is not None for item in items_list)
 
     for item in items_list:
         assert item.last_word is not None
 
     translations = [item.current_translation for item in items_list]
-    scores = [item.score for item in items_list]
+    scores = xp.array([item.score for item in items_list])
 
-    last_words = cast(List[int], [item.last_word for item in items_list])
+    if len(items_list) == 1 and items_list[0].last_word is None:
+        next_words_array = None
+    else:
+        last_words = cast(List[int], [item.last_word for item in items_list])
+
+        next_words_array = np.array(last_words, dtype=np.int32)
+        if xp is not np:
+            next_words_array = cuda.to_gpu(next_words_array)
+
     attentions = [item.attention for item in items_list]
 
     next_states_list = cast(List[Tuple[np.ndarray, ...]], [item.state for item in items_list])
@@ -618,7 +696,7 @@ def merge_items_into_TState(items_list: List[Item]) -> ATranslationState:
 
     return ATranslationState(translations=translations, scores=scores, 
             previous_states_ensemble= concatenated_next_states_list, 
-            previous_words = last_words, attentions = attentions)
+            previous_words = next_words_array, attentions = attentions)
 
 def astar_update(dec_cell_ensemble, eos_idx, 
                      translations_priority_queue: TranslationPriorityQueue,
@@ -630,7 +708,7 @@ def astar_update(dec_cell_ensemble, eos_idx,
                      finished_translations,
                      force_finish=False, need_attention=False,
                      prob_space_combination=False,
-                     constraints_fn=None) -> None:
+                     constraints_fn=None) -> bool:
     """
         Generate the partial translations / decoder states in the next beam
 
@@ -663,14 +741,20 @@ def astar_update(dec_cell_ensemble, eos_idx,
 
 
 
+    translations_priority_queue.prune_queue(ratio = 10, margin = 10, top_n = 1000)
+    items = translations_priority_queue.get_n(beam_width//2)
 
-    items = translations_priority_queue.get_n(beam_width)
+    if len(items) == 0:
+        log.info("astar queue got empty early")
+        return False
 
-    current_translations_states = merge_items_into_TState(items)
+    xp = dec_cell_ensemble[0].xp
+
+    current_translations_states = merge_items_into_TState(items, xp)
 
 
 #     xp = cuda.get_array_module(dec_ensemble[0].initial_state.data)
-    xp = dec_cell_ensemble[0].xp
+    
     current_translations, current_scores, current_states_ensemble, current_words, current_attentions = dataclasses.astuple(
                                                                                     current_translations_states)
 
@@ -698,7 +782,7 @@ def astar_update(dec_cell_ensemble, eos_idx,
         constraints_fn=constraints_fn)
 
     if len(next_states_list) == 0:
-        return None  # We only found finished translations
+        return False  # We only found finished translations
 
     # Create the new translation states
 
@@ -723,8 +807,11 @@ def astar_update(dec_cell_ensemble, eos_idx,
     #                             )
     item_list = make_item_list(next_states_list, next_words_list, 
                 next_score_list, next_translations_list, next_attentions_list)
+    print("adding", len(item_list), "items")
     for item in item_list:
-        translations_priority_queue.put(item, - item.score)
+        translations_priority_queue.put(item, item.score/(1 + len(item.current_translation)))
+
+    return True
 
 
 def ensemble_astar_search(model_ensemble, src_batch, src_mask, nb_steps, eos_idx,
@@ -797,10 +884,12 @@ def ensemble_astar_search(model_ensemble, src_batch, src_mask, nb_steps, eos_idx
         #     None,  # previous words
         #     [[]]  # attention
         # )
-    
+        
         # Proceed with the search
         for num_step in six.moves.range(nb_steps):
-            astar_update(
+            #breakpoint()
+            print("num_step len", num_step, len(astar_queue.queue))
+            still_options_to_explore = astar_update(
                 dec_cell_ensemble,
                 eos_idx,
                 astar_queue,
@@ -815,6 +904,8 @@ def ensemble_astar_search(model_ensemble, src_batch, src_mask, nb_steps, eos_idx
                 need_attention=need_attention,
                 prob_space_combination=prob_space_combination,
                 constraints_fn=constraints_fn)
+            if not still_options_to_explore:
+                break
     
             #if current_translations_states is None:
             #    break
@@ -825,7 +916,7 @@ def ensemble_astar_search(model_ensemble, src_batch, src_mask, nb_steps, eos_idx
         if len(finished_translations) == 0:
             log.info("no finished translation found")
             if use_unfinished_translation_if_none_found:
-                current_translations_states = merge_items_into_TState(astar_queue.get_n(1))
+                current_translations_states = merge_items_into_TState(astar_queue.get_n(1), xp)
                 
                 #assert current_translations_states is not None
                 if need_attention:
