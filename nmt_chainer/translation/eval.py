@@ -165,10 +165,10 @@ def beam_search_all(gpu, encdec, eos_idx, src_data, beam_width, beam_pruning_mar
             res_trans = []
             for trans in translations:
                 (t, score, attn) = trans
-                if num_t % 200 == 0:
-                    print(num_t, file=sys.stderr)
-                elif num_t % 40 == 0:
-                    print("*", file=sys.stderr)
+                # if num_t % 200 == 0:
+                #     print(num_t, file=sys.stderr)
+                # elif num_t % 40 == 0:
+                #     print("*", file=sys.stderr)
 #                 t, score = bests[1]
 #                 ct = convert_idx_to_string(t, tgt_voc + ["#T_UNK#"])
 #                 ct = convert_idx_to_string_with_attn(t, tgt_voc, attn, unk_idx = len(tgt_voc))
@@ -205,7 +205,7 @@ def beam_search_all(gpu, encdec, eos_idx, src_data, beam_width, beam_pruning_mar
 
             yield res_trans
 
-        print('', file=sys.stderr)
+        # print('', file=sys.stderr)
 
 
 def translate_to_file_with_beam_search(dest_fn, gpu, encdec, eos_idx, src_data, beam_width, beam_pruning_margin, beam_score_coverage_penalty, beam_score_coverage_penalty_strength, nb_steps,
