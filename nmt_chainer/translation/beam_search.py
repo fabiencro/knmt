@@ -1,28 +1,37 @@
 #!/usr/bin/env python
 """beam_search.py: Implementation of beam_search"""
-from __future__ import absolute_import, division, print_function, unicode_literals
+from __future__ import (absolute_import, division, print_function,
+                        unicode_literals)
+
+import bisect
+import dataclasses
+import enum
+import logging
+import operator
+import queue
+from dataclasses import dataclass, field
+from typing import Iterator, List, Optional, Tuple, cast
+
+import chainer
+import chainer.functions as F
+import chainer.links as L
+import numpy as np
+import six
+from chainer import Chain, ChainList, Link, Variable, cuda
+
 from nmt_chainer.models.attention import AttentionModule
+
 __author__ = "Fabien Cromieres"
 __license__ = "undecided"
 __version__ = "1.0"
 __email__ = "fabien.cromieres@gmail.com"
 __status__ = "Development"
 
-import numpy as np
-import chainer
-from chainer import cuda, Variable
-from chainer import Link, Chain, ChainList
-import chainer.functions as F
-import chainer.links as L
-import six
 
-import enum
 
-from typing import List, Optional, Iterator, Tuple, cast
-import dataclasses
-from dataclasses import dataclass, field
 
-import logging
+#from nmt_chainer.translation.astar_search_utils import AStarParams, Item, TranslationPriorityQueue
+
 logging.basicConfig()
 log = logging.getLogger("rnns:beam_search")
 log.setLevel(logging.INFO)
@@ -44,6 +53,13 @@ class ATranslationState:
 class BSReturn(enum.Enum):
     OK = enum.auto()
     CONSTRAINT_VIOLATED = enum.auto()
+
+@dataclass(order=False, frozen=True)
+class AStarParams:
+    astar_batch_size:int = 32
+    astar_max_queue_size:int =1000
+    astar_prune_margin:float = 10
+    astar_prune_ratio:float = 10
 
 def iterate_best_score(new_scores: np.ndarray, beam_width: int)->Iterator[Tuple[int, int, float]]:
     """
@@ -436,7 +452,8 @@ def ensemble_beam_search(model_ensemble, src_batch, src_mask, nb_steps, eos_idx,
                          force_finish=False,
                          prob_space_combination=False, use_unfinished_translation_if_none_found=False,
                          constraints_fn=None,
-                         use_astar: bool = False):
+                         use_astar: bool = False,
+                         astar_params:AStarParams = AStarParams()):
     """
     Compute translations using a beam-search algorithm.
 
@@ -479,7 +496,8 @@ def ensemble_beam_search(model_ensemble, src_batch, src_mask, nb_steps, eos_idx,
                          force_finish=force_finish,
                          prob_space_combination=prob_space_combination, 
                          use_unfinished_translation_if_none_found=use_unfinished_translation_if_none_found,
-                         constraints_fn=constraints_fn)
+                         constraints_fn=constraints_fn,
+                         astar_params=astar_params)
 
     with chainer.using_config("train", False), chainer.no_backprop_mode():
         mb_size = src_batch[0].data.shape[0]
@@ -554,6 +572,9 @@ def ensemble_beam_search(model_ensemble, src_batch, src_mask, nb_steps, eos_idx,
                     finished_translations.append(([], 0))
         return finished_translations
 
+###################
+# Astar
+
 @dataclass
 class Item:
     score: float = 0
@@ -571,7 +592,8 @@ class Item:
             state_repr.append(">")
         return f"Item[SC:{self.score:2f}, T:{self.current_translation}, LW:{self.last_word}, ST:{''.join(state_repr)}]"
 
-import queue, operator, bisect
+
+
 @dataclass(order=True)
 class PItem:
     priority: float
@@ -698,6 +720,8 @@ def merge_items_into_TState(items_list: List[Item], xp) -> ATranslationState:
             previous_states_ensemble= concatenated_next_states_list, 
             previous_words = next_words_array, attentions = attentions)
 
+
+
 def astar_update(dec_cell_ensemble, eos_idx, 
                      translations_priority_queue: TranslationPriorityQueue,
                      beam_width, beam_pruning_margin,
@@ -708,7 +732,8 @@ def astar_update(dec_cell_ensemble, eos_idx,
                      finished_translations,
                      force_finish=False, need_attention=False,
                      prob_space_combination=False,
-                     constraints_fn=None) -> bool:
+                     constraints_fn=None,
+                     astar_params:AStarParams = AStarParams()) -> bool:
     """
         Generate the partial translations / decoder states in the next beam
 
@@ -741,8 +766,11 @@ def astar_update(dec_cell_ensemble, eos_idx,
 
 
 
-    translations_priority_queue.prune_queue(ratio = 10, margin = 10, top_n = 1000)
-    items = translations_priority_queue.get_n(beam_width//2)
+    translations_priority_queue.prune_queue(
+                                ratio = astar_params.astar_prune_ratio, 
+                                margin = astar_params.astar_prune_margin, 
+                                top_n = astar_params.astar_max_queue_size)
+    items = translations_priority_queue.get_n(astar_params.astar_batch_size)
 
     if len(items) == 0:
         log.info("astar queue got empty early")
@@ -823,7 +851,8 @@ def ensemble_astar_search(model_ensemble, src_batch, src_mask, nb_steps, eos_idx
                          need_attention=False,
                          force_finish=False,
                          prob_space_combination=False, use_unfinished_translation_if_none_found=False,
-                         constraints_fn=None):
+                         constraints_fn=None,
+                         astar_params:AStarParams = AStarParams()):
     """
     Compute translations using a astar-search algorithm.
 
@@ -903,7 +932,8 @@ def ensemble_astar_search(model_ensemble, src_batch, src_mask, nb_steps, eos_idx
                 force_finish=force_finish and num_step == (nb_steps - 1),
                 need_attention=need_attention,
                 prob_space_combination=prob_space_combination,
-                constraints_fn=constraints_fn)
+                constraints_fn=constraints_fn,
+                astar_params=astar_params)
             if not still_options_to_explore:
                 break
     
