@@ -24,6 +24,8 @@ import time
 import os.path
 import six
 from nmt_chainer.utilities.utils import ensure_path
+import nmt_chainer.translation.beam_search as beam_search
+
 # from utils import make_batch_src, make_batch_src_tgt, minibatch_provider, compute_bleu_with_unk_as_wrong, de_batch
 from nmt_chainer.translation.evaluation import (greedy_batch_translate,
                                                 #                         convert_idx_to_string,
@@ -129,7 +131,8 @@ def beam_search_all(gpu, encdec, eos_idx, src_data, beam_width, beam_pruning_mar
                     attempt_to_relocate_unk_source=False,
                     nbest=None,
                     constraints_fn_list=None,
-                    use_astar=False):
+                    use_astar=False,
+                    astar_params:beam_search.AStarParams=beam_search.AStarParams()):
 
     log.info("starting beam search translation of %i sentences" % len(src_data))
     if isinstance(encdec, (list, tuple)) and len(encdec) > 1:
@@ -155,7 +158,8 @@ def beam_search_all(gpu, encdec, eos_idx, src_data, beam_width, beam_pruning_mar
             use_unfinished_translation_if_none_found=use_unfinished_translation_if_none_found,
             nbest=nbest,
             constraints_fn_list=constraints_fn_list,
-            use_astar=use_astar)
+            use_astar=use_astar,
+            astar_params=astar_params)
 
         for num_t, translations in enumerate(translations_gen):
             res_trans = []
@@ -221,7 +225,8 @@ def translate_to_file_with_beam_search(dest_fn, gpu, encdec, eos_idx, src_data, 
                                        unprocessed_output_filename=None,
                                        nbest=None,
                                        constraints_fn_list=None,
-                                       use_astar=False):
+                                       use_astar=False,
+                                       astar_params:beam_search.AStarParams=beam_search.AStarParams()):
 
     log.info("writing translation to %s " % dest_fn)
     out = io.open(dest_fn, "wt", encoding="utf8")
@@ -241,7 +246,8 @@ def translate_to_file_with_beam_search(dest_fn, gpu, encdec, eos_idx, src_data, 
                                            attempt_to_relocate_unk_source=attempt_to_relocate_unk_source,
                                            nbest=nbest,
                                            constraints_fn_list=constraints_fn_list,
-                                           use_astar=use_astar)
+                                           use_astar=use_astar,
+                                           astar_params=astar_params)
 
     attn_vis = None
     if generate_attention_html is not None:
@@ -443,6 +449,12 @@ def do_eval(config_eval):
 
     encdec_list, eos_idx, src_indexer, tgt_indexer, reverse_encdec, model_infos_list = create_encdec(config_eval)
 
+    astar_params = beam_search.AStarParams(
+        astar_batch_size=config_eval.method.astar_batch_size,
+        astar_max_queue_size=config_eval.method.astar_max_queue_size,
+        astar_prune_margin=config_eval.method.astar_prune_margin,
+        astar_prune_ratio=config_eval.method.astar_prune_ratio)
+
     if config_eval.process.server is None:
         eval_dir_placeholder = "@eval@/"
         if dest_fn.startswith(eval_dir_placeholder):
@@ -588,7 +600,8 @@ def do_eval(config_eval):
                                                unprocessed_output_filename=dest_fn + ".unprocessed",
                                                nbest=nbest,
                                                constraints_fn_list=constraints_list,
-                                               use_astar=mode == "astar_search")
+                                               use_astar=mode == "astar_search",
+                                               astar_params=astar_params)
 
             translation_infos["dest"] = dest_fn
             translation_infos["unprocessed"] = dest_fn + ".unprocessed"
