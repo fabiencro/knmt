@@ -569,7 +569,7 @@ def do_eval(config_eval):
 #             ct = convert_idx_to_string(t, tgt_voc + ["#T_UNK#"])
             out.write(ct + "\n")
 
-    elif mode == "beam_search" or mode == "eval_bleu" or mode == "astar_search":
+    elif mode == "beam_search" or mode == "eval_bleu" or mode == "astar_search" or mode == "astar_eval_bleu":
         if config_eval.process.server is not None:
             from nmt_chainer.translation.server import do_start_server
             do_start_server(config_eval)
@@ -600,12 +600,12 @@ def do_eval(config_eval):
                                                unprocessed_output_filename=dest_fn + ".unprocessed",
                                                nbest=nbest,
                                                constraints_fn_list=constraints_list,
-                                               use_astar=mode == "astar_search",
+                                               use_astar= (mode == "astar_search" or mode == "astar_eval_bleu"),
                                                astar_params=astar_params)
 
             translation_infos["dest"] = dest_fn
             translation_infos["unprocessed"] = dest_fn + ".unprocessed"
-            if mode == "eval_bleu":
+            if mode == "eval_bleu" or mode == "astar_eval_bleu":
                 if ref is not None:
                     bc = bleu_computer.get_bc_from_files(ref, dest_fn)
                     print("bleu before unk replace:", bc)
