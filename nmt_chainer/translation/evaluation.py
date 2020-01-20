@@ -167,7 +167,8 @@ def beam_search_translate(encdec, eos_idx, src_data, beam_width=20, beam_pruning
                           prob_space_combination=False,
                           reverse_encdec=None, use_unfinished_translation_if_none_found=False,
                           nbest=None,
-                          constraints_fn_list=None):
+                          constraints_fn_list=None,
+                          use_astar=False):
     nb_ex = len(src_data)
 
     assert constraints_fn_list is None or len(constraints_fn_list) == nb_ex
@@ -205,7 +206,8 @@ def beam_search_translate(encdec, eos_idx, src_data, beam_width=20, beam_pruning
                                                         need_attention=need_attention, force_finish=force_finish,
                                                         prob_space_combination=prob_space_combination,
                                                         use_unfinished_translation_if_none_found=use_unfinished_translation_if_none_found,
-                                                        constraints_fn=constraints_fn)
+                                                        constraints_fn=constraints_fn,
+                                                        use_astar=use_astar)
 
         # TODO: This is a quick patch, but actually ensemble_beam_search probably should not return empty translations except when no translation found
         if len(translations) > 1:

@@ -128,7 +128,8 @@ def beam_search_all(gpu, encdec, eos_idx, src_data, beam_width, beam_pruning_mar
                     normalize_unicode_unk=False,
                     attempt_to_relocate_unk_source=False,
                     nbest=None,
-                    constraints_fn_list=None):
+                    constraints_fn_list=None,
+                    use_astar=False):
 
     log.info("starting beam search translation of %i sentences" % len(src_data))
     if isinstance(encdec, (list, tuple)) and len(encdec) > 1:
@@ -153,7 +154,8 @@ def beam_search_all(gpu, encdec, eos_idx, src_data, beam_width, beam_pruning_mar
             reverse_encdec=reverse_encdec,
             use_unfinished_translation_if_none_found=use_unfinished_translation_if_none_found,
             nbest=nbest,
-            constraints_fn_list=constraints_fn_list)
+            constraints_fn_list=constraints_fn_list,
+            use_astar=use_astar)
 
         for num_t, translations in enumerate(translations_gen):
             res_trans = []
@@ -218,7 +220,8 @@ def translate_to_file_with_beam_search(dest_fn, gpu, encdec, eos_idx, src_data, 
                                        attempt_to_relocate_unk_source=False,
                                        unprocessed_output_filename=None,
                                        nbest=None,
-                                       constraints_fn_list=None):
+                                       constraints_fn_list=None,
+                                       use_astar=False):
 
     log.info("writing translation to %s " % dest_fn)
     out = io.open(dest_fn, "wt", encoding="utf8")
@@ -237,7 +240,8 @@ def translate_to_file_with_beam_search(dest_fn, gpu, encdec, eos_idx, src_data, 
                                            normalize_unicode_unk=normalize_unicode_unk,
                                            attempt_to_relocate_unk_source=attempt_to_relocate_unk_source,
                                            nbest=nbest,
-                                           constraints_fn_list=constraints_fn_list)
+                                           constraints_fn_list=constraints_fn_list,
+                                           use_astar=use_astar)
 
     attn_vis = None
     if generate_attention_html is not None:
@@ -553,7 +557,7 @@ def do_eval(config_eval):
 #             ct = convert_idx_to_string(t, tgt_voc + ["#T_UNK#"])
             out.write(ct + "\n")
 
-    elif mode == "beam_search" or mode == "eval_bleu":
+    elif mode == "beam_search" or mode == "eval_bleu" or mode == "astar_search":
         if config_eval.process.server is not None:
             from nmt_chainer.translation.server import do_start_server
             do_start_server(config_eval)
@@ -583,7 +587,8 @@ def do_eval(config_eval):
                                                use_unfinished_translation_if_none_found=True,
                                                unprocessed_output_filename=dest_fn + ".unprocessed",
                                                nbest=nbest,
-                                               constraints_fn_list=constraints_list)
+                                               constraints_fn_list=constraints_list,
+                                               use_astar=mode == "astar_search")
 
             translation_infos["dest"] = dest_fn
             translation_infos["unprocessed"] = dest_fn + ".unprocessed"

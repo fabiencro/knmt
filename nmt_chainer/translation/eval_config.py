@@ -21,7 +21,7 @@ def define_parser(parser):
     translation_method_group = parser.add_argument_group(_CONFIG_SECTION_TO_DESCRIPTION["method"])
     translation_method_group.add_argument("--mode", default="translate",
                                           choices=["translate", "align", "translate_attn", "beam_search", "eval_bleu",
-                                                   "score_nbest"], help="target text")
+                                                   "score_nbest", "astar_search"], help="target text")
     translation_method_group.add_argument("--beam_width", type=int, default=20, help="beam width")
     translation_method_group.add_argument("--beam_pruning_margin", type=float, default=None, help="beam pruning margin")
     parser.add_argument("--beam_score_coverage_penalty", choices=['none', 'google'], default='none')

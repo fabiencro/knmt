@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 """beam_search.py: Implementation of beam_search"""
 from __future__ import absolute_import, division, print_function, unicode_literals
+from nmt_chainer.models.attention import AttentionModule
 __author__ = "Fabien Cromieres"
 __license__ = "undecided"
 __version__ = "1.0"
@@ -15,13 +16,36 @@ import chainer.functions as F
 import chainer.links as L
 import six
 
+import enum
+
+from typing import List, Optional, Iterator, Tuple, cast
+import dataclasses
+from dataclasses import dataclass, field
+
 import logging
 logging.basicConfig()
 log = logging.getLogger("rnns:beam_search")
 log.setLevel(logging.INFO)
 
 
-def iterate_best_score(new_scores, beam_width):
+@dataclass(eq = False)
+class ATranslationState:
+    translations: List[List[int]] = field(default_factory=lambda:[[]])
+    scores: np.array = field(default_factory=lambda:np.zeros(1))
+    previous_states_ensemble: List[np.array] = field(default_factory=list)
+    previous_words: Optional[List[int]] = None
+    attentions: List[List[np.array]] = field(default_factory=lambda:[[]])
+
+    @classmethod
+    def make_empty(cls, xp, ensemble_size):
+        obj = cls(scores=xp.zeros(1), previous_states_ensemble = [None] * ensemble_size)
+        return obj
+
+class BSReturn(enum.Enum):
+    OK = enum.auto()
+    CONSTRAINT_VIOLATED = enum.auto()
+
+def iterate_best_score(new_scores: np.ndarray, beam_width: int)->Iterator[Tuple[int, int, float]]:
     """
     Create generator over the beam_width best scores.
 
@@ -51,17 +75,12 @@ def iterate_best_score(new_scores, beam_width):
         yield int(num_case), idx_in_case, new_costs_flattened[idx]
 
 
-def iterate_eos_scores(new_scores, eos_idx):
+def iterate_eos_scores(new_scores, eos_idx)->Iterator[Tuple[int, int, float]]:
     nb_cases, v_size = new_scores.shape
 
     for num_case in six.moves.range(nb_cases):
         idx_in_case = eos_idx
         yield int(num_case), idx_in_case, cuda.to_cpu(new_scores[num_case, eos_idx])
-
-import enum
-class BSReturn(enum.Enum):
-    OK = enum.auto()
-    CONSTRAINT_VIOLATED = enum.auto()
 
 def update_next_lists(num_case, idx_in_case, new_cost, eos_idx, new_state_ensemble, finished_translations, current_translations,
                       current_attentions,
@@ -315,7 +334,9 @@ def compute_next_states_and_scores(dec_cell_ensemble, current_states_ensemble, c
     return combined_scores, new_state_ensemble, attn_ensemble
 
 
-def advance_one_step(dec_cell_ensemble, eos_idx, current_translations_states, beam_width, beam_pruning_margin,
+def advance_one_step(dec_cell_ensemble, eos_idx, 
+                     current_translations_states: ATranslationState,
+                     beam_width, beam_pruning_margin,
                      beam_score_length_normalization,
                      beam_score_length_normalization_strength,
                      beam_score_coverage_penalty,
@@ -323,7 +344,7 @@ def advance_one_step(dec_cell_ensemble, eos_idx, current_translations_states, be
                      finished_translations,
                      force_finish=False, need_attention=False,
                      prob_space_combination=False,
-                     constraints_fn=None):
+                     constraints_fn=None) -> Optional[ATranslationState]:
     """
         Generate the partial translations / decoder states in the next beam
 
@@ -356,7 +377,8 @@ def advance_one_step(dec_cell_ensemble, eos_idx, current_translations_states, be
 
 #     xp = cuda.get_array_module(dec_ensemble[0].initial_state.data)
     xp = dec_cell_ensemble[0].xp
-    current_translations, current_scores, current_states_ensemble, current_words, current_attentions = current_translations_states
+    current_translations, current_scores, current_states_ensemble, current_words, current_attentions = dataclasses.astuple(
+                                                                                    current_translations_states)
 
     # Compute the next states and associated next word scores
     combined_scores, new_state_ensemble, attn_ensemble = compute_next_states_and_scores(
@@ -394,7 +416,7 @@ def advance_one_step(dec_cell_ensemble, eos_idx, current_translations_states, be
             tuple([F.concat(substates, axis=0) for substates in six.moves.zip(*next_states_list_one_model)])
         )
 
-    next_translations_states = (next_translations_list,
+    next_translations_states = ATranslationState(next_translations_list,
                                 xp.array(next_score_list),
                                 concatenated_next_states_list,
                                 Variable(next_words_array),
@@ -413,9 +435,310 @@ def ensemble_beam_search(model_ensemble, src_batch, src_mask, nb_steps, eos_idx,
                          need_attention=False,
                          force_finish=False,
                          prob_space_combination=False, use_unfinished_translation_if_none_found=False,
-                         constraints_fn=None):
+                         constraints_fn=None,
+                         use_astar: bool = False):
     """
     Compute translations using a beam-search algorithm.
+
+    Args:
+        model_ensemble: list of (trained) EncoderDecoder models
+                    if the list contains more than one model, we do ensemble decoding : the scores given by each
+                    models are combined to produce the best translation
+        src_batch: input sentence in batch form, as generated by make_batch_src.
+                    src_batch should only contains one sentence (ie minibatch size is one)
+        src_mask: mask value returned by make_batch_src
+        nb_steps: maximum length of the generated translation
+        eos_idx: index of the EOS element in the target vocabulary
+        beam_width: number of partial translation kept in each beam
+        beam_pruning_margin: maximum score difference accepted within a beam
+        need_attention: if True, will return the attention values for each translation
+        force_finish: force the generation of EOS if we did not find a translation after nb_steps steps
+        prob_space_combination: if true, ensemble scores are combined by geometric average instead of arithmetic average
+        use_unfinished_translation_if_none_found: will ureturn unfinished translation if we did not find a translation after nb_steps steps
+        constraints_fn: function for enforcing constraints on translations. takes a translation as input. Return 1 if all constraints
+                        are satisfied. -1 if constraints cannot be satisfied. 0<=v<1 if all constraints are not satisfied yet but can 
+                        be satisfied (v being an hint on the number of constraints solved)
+    Return:
+        list of translations
+            each item in the list is a tuple (translation, score) or (translation, score, attention) if need_attention = True
+    """
+    
+    if use_astar:
+        return ensemble_astar_search(
+                         model_ensemble=model_ensemble, 
+                         src_batch=src_batch, 
+                         src_mask=src_mask,
+                         nb_steps=nb_steps, 
+                         eos_idx=eos_idx,
+                         beam_width=beam_width, beam_pruning_margin=beam_pruning_margin,
+                         beam_score_length_normalization=beam_score_length_normalization,
+                         beam_score_length_normalization_strength=beam_score_length_normalization_strength,
+                         beam_score_coverage_penalty=beam_score_coverage_penalty,
+                         beam_score_coverage_penalty_strength=beam_score_coverage_penalty_strength,
+                         need_attention=need_attention,
+                         force_finish=force_finish,
+                         prob_space_combination=prob_space_combination, 
+                         use_unfinished_translation_if_none_found=use_unfinished_translation_if_none_found,
+                         constraints_fn=constraints_fn)
+
+    with chainer.using_config("train", False), chainer.no_backprop_mode():
+        mb_size = src_batch[0].data.shape[0]
+        assert len(model_ensemble) >= 1
+        xp = model_ensemble[0].xp
+    
+        dec_cell_ensemble = [model.give_conditionalized_cell(src_batch, src_mask, noise_on_prev_word=False,
+                                                             demux=True) for model in model_ensemble]
+    
+        assert mb_size == 1
+        # TODO: if mb_size == 1 then src_mask value unnecessary -> remove?
+    
+        finished_translations = []
+    
+        # Create the initial Translation state
+        #previous_states_ensemble = [None] * len(model_ensemble)
+
+        # Current_translations_states will hold the information for the current beam
+
+        current_translations_states = ATranslationState.make_empty(xp, len(model_ensemble))
+        #current_translations_states.previous_states_ensemble = previous_states_ensemble
+        #current_translations_states.scores = xp.array([0])
+
+        # current_translations_states = (
+        #     [[]],  # translations
+        #     xp.array([0]),  # scores
+        #     previous_states_ensemble,  # previous states
+        #     None,  # previous words
+        #     [[]]  # attention
+        # )
+    
+        # Proceed with the search
+        for num_step in six.moves.range(nb_steps):
+            current_translations_states = advance_one_step(
+                dec_cell_ensemble,
+                eos_idx,
+                current_translations_states,
+                beam_width,
+                beam_pruning_margin,
+                beam_score_length_normalization,
+                beam_score_length_normalization_strength,
+                beam_score_coverage_penalty,
+                beam_score_coverage_penalty_strength,
+                finished_translations,
+                force_finish=force_finish and num_step == (nb_steps - 1),
+                need_attention=need_attention,
+                prob_space_combination=prob_space_combination,
+                constraints_fn=constraints_fn)
+    
+            if current_translations_states is None:
+                break
+    
+    #     print(finished_translations, need_attention)
+    
+        # Return finished translations
+        if len(finished_translations) == 0:
+            if use_unfinished_translation_if_none_found:
+                assert current_translations_states is not None
+                if need_attention:
+                    finished_translations.append(
+                        (current_translations_states.translations[0], 
+                        current_translations_states.scores[0], 
+                        current_translations_states.attentions[0]))
+                else:
+                    finished_translations.append(
+                        (current_translations_states.translations[0], 
+                        current_translations_states.scores[0]))
+            else:
+                if need_attention:
+                    finished_translations.append(([], 0, []))
+                else:
+                    finished_translations.append(([], 0))
+        return finished_translations
+
+@dataclass
+class Item:
+    score: float = 0
+    state: Optional[Tuple[np.ndarray, ...]] = None
+    last_word: Optional[int] = None
+    current_translation: List[int] = field(default_factory=list)
+    attention: Optional[List[np.array]] = field(default_factory=list)
+
+import queue
+@dataclass(order=True)
+class PItem:
+    priority: float
+    item: Item = field(compare=False)
+
+class TranslationPriorityQueue:
+    def __init__(self):
+        self.queue = queue.PriorityQueue()
+    def put(self, item:Item, priority:float)->None:
+        self.queue.put(item)
+    def get_n(self, n:int) ->List[Item]:
+        res = []
+        while not self.queue.empty() and len(res) < n:
+            p_item = self.queue.get() 
+            res.append(p_item.item)
+        return res
+
+
+def make_item_list(next_states_list, next_words_list, 
+                next_score_list, next_translations_list, next_attentions_list)->List[Item]:
+    res = []
+    for num_item in range(len(next_states_list)):
+        next_translations_list[num_item]
+        next_score_list[num_item]
+        next_words_list[num_item]
+        next_states_list[num_item]
+        next_attentions_list[num_item]
+        new_item = Item(score = next_score_list[num_item], state = next_states_list[num_item],
+                        last_word=next_words_list[num_item], current_translation = next_translations_list[num_item],
+                        attention=next_attentions_list[num_item])
+        res.append(new_item)
+    return res
+
+def merge_items_into_TState(items_list: List[Item]) -> ATranslationState:
+    assert all(item.last_word is not None for item in items_list)
+    assert all(item.state is not None for item in items_list)
+
+    for item in items_list:
+        assert item.last_word is not None
+
+    translations = [item.current_translation for item in items_list]
+    scores = [item.score for item in items_list]
+
+    last_words = cast(List[int], [item.last_word for item in items_list])
+    attentions = [item.attention for item in items_list]
+
+    next_states_list = cast(List[Tuple[np.ndarray, ...]], [item.state for item in items_list])
+    concatenated_next_states_list: List[Tuple[np.ndarray,...]]= []
+    for next_states_list_one_model in zip(*next_states_list):
+        concatenated_next_states_list.append(
+            tuple([F.concat(substates, axis=0) for substates in zip(*next_states_list_one_model)])
+        )
+
+    return ATranslationState(translations=translations, scores=scores, 
+            previous_states_ensemble= concatenated_next_states_list, 
+            previous_words = last_words, attentions = attentions)
+
+def astar_update(dec_cell_ensemble, eos_idx, 
+                     translations_priority_queue: TranslationPriorityQueue,
+                     beam_width, beam_pruning_margin,
+                     beam_score_length_normalization,
+                     beam_score_length_normalization_strength,
+                     beam_score_coverage_penalty,
+                     beam_score_coverage_penalty_strength,
+                     finished_translations,
+                     force_finish=False, need_attention=False,
+                     prob_space_combination=False,
+                     constraints_fn=None) -> None:
+    """
+        Generate the partial translations / decoder states in the next beam
+
+        Args:
+            dec_cell_ensemble: list of decoder cells conditionalized on the input sentence
+                if the length of this list is larger than one, then we will proceed to do ensemble decoding
+            eos_idx: the index of EOS element in the target vocabulary
+            current_translations_states: a tuple representing the state of the current beam
+                the tuple has the shape (translations, score, previous_states, previous_words, attention) where:
+                    translations is a list of unfinished translations
+                        each item is a sequence of target vocabulary index
+                    score is a numpy/cupy array of same length as translations, giving the score for each item in translations
+                    previous_states is a list of "states", with one state for each cell in dec_cell_ensemble
+                        "states" $i$ in previous_states represents the state of cell $i$ in dec_cell_ensemble after
+                            generating the translations in 'translations'. Each states thus actually represents up to
+                            beam_width state, onr for each translation in 'translations'.
+                            A value of None for a state indicate that the initial state of the decoder should be used.
+                    previous_words is a numpy/cupy array of int32 containing the index of the last word of each translation
+                        in 'translations'. If its value is None, it means the decoder should use its BOS embedding as input.
+                    attention is the list of attentions generated for each of the translations in 'translations'
+            finished_translations: list of finished translations
+                each item in the list is a tuple (translation, score) or (translation, score, attention) if need_attention = True
+            beam_width, beam_pruning_margin, force_finish, need_attention, prob_space_combination:
+                see ensemble_beam_search documentation
+
+        Returns:
+            A tuple (translations, score, states, words, attention) similar to the input
+                argument current_translations_states, but corresponding to the next beam.
+    """
+
+
+
+
+    items = translations_priority_queue.get_n(beam_width)
+
+    current_translations_states = merge_items_into_TState(items)
+
+
+#     xp = cuda.get_array_module(dec_ensemble[0].initial_state.data)
+    xp = dec_cell_ensemble[0].xp
+    current_translations, current_scores, current_states_ensemble, current_words, current_attentions = dataclasses.astuple(
+                                                                                    current_translations_states)
+
+    # Compute the next states and associated next word scores
+    combined_scores, new_state_ensemble, attn_ensemble = compute_next_states_and_scores(
+        dec_cell_ensemble, current_states_ensemble, current_words,
+        prob_space_combination=prob_space_combination)
+
+    
+
+    nb_cases, v_size = combined_scores.shape
+    assert nb_cases <= beam_width
+
+    # Add the new scores to the previous ones for each states in the beam
+    new_scores = current_scores[:, xp.newaxis] + combined_scores
+
+    # Compute the list of new translation states after pruning
+    next_states_list, next_words_list, next_score_list, next_translations_list, next_attentions_list = compute_next_lists(
+        new_state_ensemble, new_scores, beam_width, beam_pruning_margin,
+        beam_score_length_normalization, beam_score_length_normalization_strength,
+        beam_score_coverage_penalty, beam_score_coverage_penalty_strength,
+        eos_idx,
+        current_translations, finished_translations,
+        current_attentions, attn_ensemble, force_finish=force_finish, need_attention=need_attention,
+        constraints_fn=constraints_fn)
+
+    if len(next_states_list) == 0:
+        return None  # We only found finished translations
+
+    # Create the new translation states
+
+    next_words_array = np.array(next_words_list, dtype=np.int32)
+    if xp is not np:
+        next_words_array = cuda.to_gpu(next_words_array)
+
+    # concatenated_next_states_list = []
+    # for next_states_list_one_model in six.moves.zip(*next_states_list):
+    #     concatenated_next_states_list.append(
+    #         tuple([F.concat(substates, axis=0) for substates in six.moves.zip(*next_states_list_one_model)])
+    #     )
+
+
+
+    
+    # next_translations_states = ATranslationState(next_translations_list,
+    #                             xp.array(next_score_list),
+    #                             concatenated_next_states_list,
+    #                             Variable(next_words_array),
+    #                             next_attentions_list
+    #                             )
+    item_list = make_item_list(next_states_list, next_words_list, 
+                next_score_list, next_translations_list, next_attentions_list)
+    for item in item_list:
+        translations_priority_queue.put(item, - item.score)
+
+
+def ensemble_astar_search(model_ensemble, src_batch, src_mask, nb_steps, eos_idx,
+                         beam_width=20, beam_pruning_margin=None,
+                         beam_score_length_normalization=None,
+                         beam_score_length_normalization_strength=0.2,
+                         beam_score_coverage_penalty=None,
+                         beam_score_coverage_penalty_strength=0.2,
+                         need_attention=False,
+                         force_finish=False,
+                         prob_space_combination=False, use_unfinished_translation_if_none_found=False,
+                         constraints_fn=None):
+    """
+    Compute translations using a astar-search algorithm.
 
     Args:
         model_ensemble: list of (trained) EncoderDecoder models
@@ -454,23 +777,33 @@ def ensemble_beam_search(model_ensemble, src_batch, src_mask, nb_steps, eos_idx,
         finished_translations = []
     
         # Create the initial Translation state
-        previous_states_ensemble = [None] * len(model_ensemble)
-    
+        #previous_states_ensemble = [None] * len(model_ensemble)
+
         # Current_translations_states will hold the information for the current beam
-        current_translations_states = (
-            [[]],  # translations
-            xp.array([0]),  # scores
-            previous_states_ensemble,  # previous states
-            None,  # previous words
-            [[]]  # attention
-        )
+
+        astar_queue = TranslationPriorityQueue()    
+        astar_queue.put(Item(), 0)
+
+
+
+        #current_translations_states = ATranslationState.make_empty(xp, len(model_ensemble))
+        #current_translations_states.previous_states_ensemble = previous_states_ensemble
+        #current_translations_states.scores = xp.array([0])
+
+        # current_translations_states = (
+        #     [[]],  # translations
+        #     xp.array([0]),  # scores
+        #     previous_states_ensemble,  # previous states
+        #     None,  # previous words
+        #     [[]]  # attention
+        # )
     
         # Proceed with the search
         for num_step in six.moves.range(nb_steps):
-            current_translations_states = advance_one_step(
+            astar_update(
                 dec_cell_ensemble,
                 eos_idx,
-                current_translations_states,
+                astar_queue,
                 beam_width,
                 beam_pruning_margin,
                 beam_score_length_normalization,
@@ -483,21 +816,27 @@ def ensemble_beam_search(model_ensemble, src_batch, src_mask, nb_steps, eos_idx,
                 prob_space_combination=prob_space_combination,
                 constraints_fn=constraints_fn)
     
-            if current_translations_states is None:
-                break
+            #if current_translations_states is None:
+            #    break
     
     #     print(finished_translations, need_attention)
     
         # Return finished translations
         if len(finished_translations) == 0:
+            log.info("no finished translation found")
             if use_unfinished_translation_if_none_found:
-                assert current_translations_states is not None
+                current_translations_states = merge_items_into_TState(astar_queue.get_n(1))
+                
+                #assert current_translations_states is not None
                 if need_attention:
-                    translations, scores, _, _, attentions = current_translations_states
                     finished_translations.append(
-                        (translations[0], scores[0], attentions[0]))
+                        (current_translations_states.translations[0], 
+                        current_translations_states.scores[0], 
+                        current_translations_states.attentions[0]))
                 else:
-                    finished_translations.append((translations[0], scores[0]))
+                    finished_translations.append(
+                        (current_translations_states.translations[0], 
+                        current_translations_states.scores[0]))
             else:
                 if need_attention:
                     finished_translations.append(([], 0, []))
