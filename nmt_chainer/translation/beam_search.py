@@ -60,6 +60,8 @@ class AStarParams:
     astar_max_queue_size:int =1000
     astar_prune_margin:float = 10
     astar_prune_ratio:float = 10
+    length_normalization_constant:float = 0
+    length_normalization_exponent:float = 1
 
 def iterate_best_score(new_scores: np.ndarray, beam_width: int)->Iterator[Tuple[int, int, float]]:
     """
@@ -837,7 +839,11 @@ def astar_update(dec_cell_ensemble, eos_idx,
                 next_score_list, next_translations_list, next_attentions_list)
     #print("adding", len(item_list), "items")
     for item in item_list:
-        translations_priority_queue.put(item, item.score/(1 + len(item.current_translation)))
+        length_normalization = astar_params.length_normalization_constant + len(item.current_translation)
+        if astar_params.length_normalization_exponent != 1:
+            length_normalization = xp.power(length_normalization, astar_params.length_normalization_exponent)
+        priority = item.score/length_normalization
+        translations_priority_queue.put(item, priority)
 
     return True
 
