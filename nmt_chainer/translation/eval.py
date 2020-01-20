@@ -453,7 +453,9 @@ def do_eval(config_eval):
         astar_batch_size=config_eval.method.astar_batch_size,
         astar_max_queue_size=config_eval.method.astar_max_queue_size,
         astar_prune_margin=config_eval.method.astar_prune_margin,
-        astar_prune_ratio=config_eval.method.astar_prune_ratio)
+        astar_prune_ratio=config_eval.method.astar_prune_ratio,
+        length_normalization_exponent=config_eval.method.astar_length_normalization_exponent,
+        length_normalization_constant=config_eval.method.astar_length_normalization_constant)
 
     if config_eval.process.server is None:
         eval_dir_placeholder = "@eval@/"
