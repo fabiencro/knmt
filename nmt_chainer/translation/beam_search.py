@@ -601,6 +601,9 @@ class PItem:
     priority: float
     item: Item = field(compare=False)
 
+
+from collections import defaultdict
+
 class TranslationPriorityQueue:
     def __init__(self):
         #self.queue = queue.PriorityQueue()
@@ -612,6 +615,12 @@ class TranslationPriorityQueue:
         for pitem in self.queue:
             content.append(f"P:{pitem.priority:2f}  {repr(pitem.item)}")
         return f"L:{len(self.queue)} Dirty:{self.dirty}\n"+"\n".join(content)
+
+    def stats(self):
+        dd = defaultdict(int)
+        for pitem in self.queue:
+            dd[len(pitem.item.current_translation)] +=1
+        return " ".join([f"{key}:{val}" for key, val in sorted(dd.items(), reverse=True))
 
     def prune_queue(self, ratio = None, margin = None, top_n = None):
         if len(self.queue) == 0:
@@ -950,7 +959,7 @@ def ensemble_astar_search(model_ensemble, src_batch, src_mask, nb_steps, eos_idx
     
         # Return finished translations
         if len(finished_translations) == 0:
-            log.info("no finished translation found")
+            log.info(f"no finished translation found  {len(astar_queue.queue)} {astar_queue.stats}")
             if use_unfinished_translation_if_none_found:
                 current_translations_states = merge_items_into_TState(astar_queue.get_n(1), xp)
                 

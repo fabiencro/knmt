@@ -1,44 +1,47 @@
 #!/usr/bin/env python
 """eval.py: Use a RNNSearch Model"""
-from __future__ import absolute_import, division, print_function, unicode_literals
+from __future__ import (absolute_import, division, print_function,
+                        unicode_literals)
+
+import io
+import json
+import logging
+import os.path
+import re
+import sys
+import time
+import unicodedata
+
+# import h5py
+import bokeh.embed
+import numpy as np
+import six
+from chainer import cuda, serializers
+
+import nmt_chainer.dataprocessing.make_data as make_data
+import nmt_chainer.dataprocessing.make_data_conf as make_data_conf
+import nmt_chainer.training_module.train as train
+import nmt_chainer.training_module.train_config as train_config
+import nmt_chainer.translation.beam_search as beam_search
+from nmt_chainer.dataprocessing.processors import build_dataset_one_side_pp
+# import visualisation
+from nmt_chainer.utilities import bleu_computer
+from nmt_chainer.utilities.argument_parsing_tools import OrderedNamespace
+from nmt_chainer.utilities.file_infos import create_filename_infos
+from nmt_chainer.utilities.utils import ensure_path
+
+# from utils import make_batch_src, make_batch_src_tgt, minibatch_provider, compute_bleu_with_unk_as_wrong, de_batch
+from nmt_chainer.translation.evaluation import (  # convert_idx_to_string,; convert_idx_to_string_with_attn
+    batch_align, beam_search_translate, greedy_batch_translate)
+
 __author__ = "Fabien Cromieres"
 __license__ = "undecided"
 __version__ = "1.0"
 __email__ = "fabien.cromieres@gmail.com"
 __status__ = "Development"
 
-import io
-import json
-import numpy as np
-from chainer import cuda, serializers
-import sys
-from nmt_chainer.dataprocessing.processors import build_dataset_one_side_pp
-import nmt_chainer.dataprocessing.make_data as make_data
-import nmt_chainer.training_module.train as train
-import nmt_chainer.training_module.train_config as train_config
-import nmt_chainer.dataprocessing.make_data_conf as make_data_conf
-import re
-from nmt_chainer.utilities.file_infos import create_filename_infos
-from nmt_chainer.utilities.argument_parsing_tools import OrderedNamespace
-import time
-import os.path
-import six
-from nmt_chainer.utilities.utils import ensure_path
-import nmt_chainer.translation.beam_search as beam_search
 
-# from utils import make_batch_src, make_batch_src_tgt, minibatch_provider, compute_bleu_with_unk_as_wrong, de_batch
-from nmt_chainer.translation.evaluation import (greedy_batch_translate,
-                                                #                         convert_idx_to_string,
-                                                batch_align,
-                                                beam_search_translate,
-                                                #                         convert_idx_to_string_with_attn
-                                                )
 
-# import visualisation
-from nmt_chainer.utilities import bleu_computer
-import logging
-# import h5py
-import bokeh.embed
 
 
 logging.basicConfig()
@@ -485,7 +488,7 @@ def do_eval(config_eval):
                 ref = test_tgt_from_config
 
         if config_eval.process.force_placeholders:
-            import re
+            
             placeholder_matcher = re.compile(r"<K-\d+>")
             def make_constraints(src, src_seq):
                 src_placeholders_list = placeholder_matcher.findall(src)
@@ -506,6 +509,49 @@ def do_eval(config_eval):
                     assert len(tgt_placeholders_set) < len(src_placeholders_set)
                     return len(tgt_placeholders_set) / len(src_placeholders_set)
                 return constraint_fn
+
+        elif False:
+
+            re_word = re.compile(r"[A-Za-z]+")
+            re_digits = re.compile(r"\d+")
+            def unsegment(s):
+                res = []
+                for w in s.split(" "):
+                    if w.startswith("▁"):
+                        w = " " + w[1:]
+                    res.append(w)
+                return "".join(res)
+
+            def make_constraints(src, src_seq):
+                line_src = unsegment(src)
+                line_src = unicodedata.normalize('NFKC', line_src)
+                word_list = [word for word in re_word.findall(line_src) if len(word) > 3]
+                digit_list = [digit for digit in re_digits.findall(line_src) if len(digit) > 2]
+                if len(word_list) == 0 and len(digit_list)==0:
+                    def constraint_fn(tgt_seq):
+                        return 1
+                else:
+                    def constraint_fn(tgt_seq):
+                        tgt = tgt_indexer.deconvert(tgt_seq)
+                        line_tgt = unsegment(tgt)
+                        line_tgt = unicodedata.normalize('NFKC', line_tgt)
+                        matched_word = 0
+                        for word in word_list:
+                            if word in line_ref:
+                                matched_word += 1
+
+                        matched_digit = 0
+                        for digit in digit_list:
+                            if digit in line_ref:
+                                matched_digit += 1
+
+                        if matched_word == len(word_list) and matched_digit == len(digit_list):
+                            return 1
+                        else:
+                            return (matched_word + matched_digit)/(len(word_list) + len(digit_list))
+
+                    return constraint_fn
+
         else:
             make_constraints = None
 
