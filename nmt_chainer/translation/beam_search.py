@@ -624,7 +624,7 @@ class TranslationPriorityQueue:
                 threshold_index = bisect.bisect([-item.priority for item in self.queue], -threshold)
                 self.queue = self.queue[:threshold_index]
         final_length = len(self.queue)
-        print(f"pruned {initial_length} -> {final_length} maxp:{max_priority:2f} minp:{min_priority:2f} th1:{threshold1:2f} th2:{threshold2:2f} th:{threshold:2f} thi:{threshold_index}")
+        #print(f"pruned {initial_length} -> {final_length} maxp:{max_priority:2f} minp:{min_priority:2f} th1:{threshold1:2f} th2:{threshold2:2f} th:{threshold:2f} thi:{threshold_index}")
 
     def put(self, item:Item, priority:float)->None:
         #self.queue.put(item)
@@ -807,7 +807,7 @@ def astar_update(dec_cell_ensemble, eos_idx,
     #                             )
     item_list = make_item_list(next_states_list, next_words_list, 
                 next_score_list, next_translations_list, next_attentions_list)
-    print("adding", len(item_list), "items")
+    #print("adding", len(item_list), "items")
     for item in item_list:
         translations_priority_queue.put(item, item.score/(1 + len(item.current_translation)))
 
@@ -888,7 +888,7 @@ def ensemble_astar_search(model_ensemble, src_batch, src_mask, nb_steps, eos_idx
         # Proceed with the search
         for num_step in six.moves.range(nb_steps):
             #breakpoint()
-            print("num_step len", num_step, len(astar_queue.queue))
+            #print("num_step len", num_step, len(astar_queue.queue))
             still_options_to_explore = astar_update(
                 dec_cell_ensemble,
                 eos_idx,
