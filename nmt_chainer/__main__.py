@@ -87,6 +87,10 @@ def main(arguments=None):
     else:
         args.__original_argument_list = sys.argv
 
+    if args.__subcommand_name is None:
+        parser.print_help()
+        sys.exit(1)
+
     func = {"make_data": make_data.do_make_data,
             "train": train.do_train,
             "eval": eval_module.do_eval,
