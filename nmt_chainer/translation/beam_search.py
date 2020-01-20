@@ -620,7 +620,7 @@ class TranslationPriorityQueue:
         dd = defaultdict(int)
         for pitem in self.queue:
             dd[len(pitem.item.current_translation)] +=1
-        return " ".join([f"{key}:{val}" for key, val in sorted(dd.items(), reverse=True))
+        return " ".join([f"{key}:{val}" for key, val in sorted(dd.items(), reverse=True)])
 
     def prune_queue(self, ratio = None, margin = None, top_n = None):
         if len(self.queue) == 0:
