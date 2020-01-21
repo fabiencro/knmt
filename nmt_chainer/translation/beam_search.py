@@ -100,10 +100,53 @@ def iterate_eos_scores(new_scores, eos_idx)->Iterator[Tuple[int, int, float]]:
         idx_in_case = eos_idx
         yield int(num_case), idx_in_case, cuda.to_cpu(new_scores[num_case, eos_idx])
 
+
+@dataclass
+class TranslationInfosList:
+    next_states_list: List[List[Tuple[Variable]]] = field(default_factory = list)  # each item is a list of list
+    next_words_list: List[int] = field(default_factory = list)
+    next_score_list: List[float] = field(default_factory = list)
+    next_normalized_score_list: Optional[List[float]] = None #field(default_factory = list)
+    next_translations_list: List[List[int]] = field(default_factory = list)
+    next_attentions_list: List[List[np.ndarray]] = field(default_factory = list)
+
+    def prune_with_margin(self, beam_pruning_margin:float, use_normalized_score:bool):
+        if use_normalized_score:
+            assert self.next_normalized_score_list is not None
+            score_list = self.next_normalized_score_list
+        else:
+            score_list = self.next_score_list
+        best_next_score = max(score_list)
+        bad_score_indices = [
+            idx for idx,
+            elem in enumerate(score_list) if (
+                best_next_score -
+                elem > beam_pruning_margin)]
+        self.prune_from_index_list(bad_score_indices)
+
+    def prune_from_index_list(self, bad_score_indices:List[int]):
+        for i in bad_score_indices[::-1]:
+            if self.next_normalized_score_list is not None:
+                assert len(self.next_normalized_score_list) == len(self.next_score_list)
+                del self.next_normalized_score_list[i]
+            del self.next_states_list[i]
+            del self.next_words_list[i]
+            del self.next_score_list[i]
+            del self.next_translations_list[i]
+            del self.next_attentions_list[i]
+        assert (len(self.next_states_list) == len(self.next_words_list) == 
+                        len(self.next_score_list) == len(self.next_translations_list) == len(self.next_attentions_list))
+            
+
+
 def update_next_lists(num_case, idx_in_case, new_cost, eos_idx, new_state_ensemble, finished_translations, current_translations,
                       current_attentions,
-                      next_states_list, next_words_list, next_score_list, next_normalized_score_list, next_translations_list,
-                      attn_ensemble, next_attentions_list, beam_score_coverage_penalty, beam_score_coverage_penalty_strength, 
+
+                      t_infos_list: TranslationInfosList,
+                      #next_states_list, next_words_list, next_score_list, next_normalized_score_list, next_translations_list,
+                      attn_ensemble, 
+                      #next_attentions_list, 
+                      beam_score_coverage_penalty, beam_score_coverage_penalty_strength, 
                       need_attention=False,
                       constraints_fn=None) -> BSReturn:
     """
@@ -139,6 +182,7 @@ def update_next_lists(num_case, idx_in_case, new_cost, eos_idx, new_state_ensemb
         But the lists finished_translations, next_states_list, next_words_list, next_score_list, next_translations_list, next_attentions_list
             will be updated.
     """
+
     if idx_in_case == eos_idx:
 
         if constraints_fn is not None and constraints_fn(current_translations[num_case]) != 1:
@@ -157,16 +201,21 @@ def update_next_lists(num_case, idx_in_case, new_cost, eos_idx, new_state_ensemb
 
     else:
         new_translation = current_translations[num_case]+ [idx_in_case]
-        if constraints_fn is not None and constraints_fn(new_translation) <0:
+        if constraints_fn is not None:
+            constraint_val = constraints_fn(new_translation)
+        else:
+            constraint_val = None
+
+        if constraint_val is not None and constraint_val <0:
             return BSReturn.CONSTRAINT_VIOLATED
 
-        next_states_list.append(
+        t_infos_list.next_states_list.append(
             [tuple([Variable(substates.data[num_case].reshape(1, -1)) for substates in new_state])
              for new_state in new_state_ensemble]
         )
 
-        next_words_list.append(idx_in_case)
-        next_score_list.append(-new_cost)
+        t_infos_list.next_words_list.append(idx_in_case)
+        t_infos_list.next_score_list.append(-new_cost)
 
         # Compute the normalized score if needed.
         if beam_score_coverage_penalty == "google":
@@ -178,9 +227,9 @@ def update_next_lists(num_case, idx_in_case, new_cost, eos_idx, new_state_ensemb
                 coverage_penalty = beam_score_coverage_penalty_strength * \
                     xp.sum(log_of_min_of_sum_over_j)
             normalized_score = -new_cost + coverage_penalty
-            next_normalized_score_list.append(normalized_score)
+            t_infos_list.next_normalized_score_list.append(normalized_score)
 
-        next_translations_list.append(new_translation)
+        t_infos_list.next_translations_list.append(new_translation)
 
         if need_attention:
             xp = cuda.get_array_module(attn_ensemble[0].data)
@@ -188,7 +237,7 @@ def update_next_lists(num_case, idx_in_case, new_cost, eos_idx, new_state_ensemb
             for attn in attn_ensemble:
                 attn_summed += attn.data[num_case]
             attn_summed /= len(attn_ensemble)
-            next_attentions_list.append(current_attentions[num_case] + [attn_summed])
+            t_infos_list.next_attentions_list.append(current_attentions[num_case] + [attn_summed])
         return BSReturn.OK
 
 
@@ -202,7 +251,7 @@ def compute_next_lists(new_state_ensemble, new_scores, beam_width, beam_pruning_
                        attn_ensemble,
                        force_finish=False,
                        need_attention=False,
-                       constraints_fn=None):
+                       constraints_fn=None) -> TranslationInfosList:
     """
         Compute the informations for the next beam.
 
@@ -230,12 +279,18 @@ def compute_next_lists(new_state_ensemble, new_scores, beam_width, beam_pruning_
                 containing the informations for the next beam
     """
     # lists that contain infos on the current beam
-    next_states_list = []  # each item is a list of list
-    next_words_list = []
-    next_score_list = []
-    next_normalized_score_list = []
-    next_translations_list = []
-    next_attentions_list = []
+    # next_states_list = []  # each item is a list of list
+    # next_words_list = []
+    # next_score_list = []
+    # next_normalized_score_list = []
+    # next_translations_list = []
+    # next_attentions_list = []
+
+    
+    if beam_score_coverage_penalty == "google":
+        t_infos_list = TranslationInfosList(next_normalized_score_list = [])
+    else:
+        t_infos_list = TranslationInfosList()
 
     if force_finish:
         score_iterator = iterate_eos_scores(new_scores, eos_idx)
@@ -252,53 +307,61 @@ def compute_next_lists(new_state_ensemble, new_scores, beam_width, beam_pruning_
         
         update_next_lists(num_case, idx_in_case, new_cost, eos_idx, new_state_ensemble,
                           finished_translations, current_translations, current_attentions,
-                          next_states_list, next_words_list, next_score_list, next_normalized_score_list, next_translations_list,
-                          attn_ensemble, next_attentions_list, beam_score_coverage_penalty, beam_score_coverage_penalty_strength, 
+                          t_infos_list,
+                          #next_states_list, next_words_list, next_score_list, next_normalized_score_list, next_translations_list,
+                          attn_ensemble, 
+                          #next_attentions_list, 
+                          beam_score_coverage_penalty, beam_score_coverage_penalty_strength, 
                           need_attention=need_attention, constraints_fn=constraints_fn)
-        assert len(next_states_list) <= beam_width
+        assert len(t_infos_list.next_states_list) <= beam_width
 #             if len(next_states_list) >= beam_width:
 #                 break
 
 
     # Prune items that have a score worse than beam_pruning_margin below the
     # best score.
-    if (beam_pruning_margin is not None and next_score_list):
-        best_next_score = max(next_score_list)
-        bad_score_indices = [
-            idx for idx,
-            elem in enumerate(next_score_list) if (
-                best_next_score -
-                elem > beam_pruning_margin)]
+    if (beam_pruning_margin is not None and t_infos_list.next_score_list):
+        t_infos_list.prune_with_margin(beam_pruning_margin, use_normalized_score=False)
 
-        for i in bad_score_indices[::-1]:
-            del next_states_list[i]
-            del next_words_list[i]
-            del next_score_list[i]
-            del next_translations_list[i]
-            del next_attentions_list[i]
-            if beam_score_coverage_penalty == "google":
-                del next_normalized_score_list[i]
+        # best_next_score = max(next_score_list)
+        # bad_score_indices = [
+        #     idx for idx,
+        #     elem in enumerate(next_score_list) if (
+        #         best_next_score -
+        #         elem > beam_pruning_margin)]
+
+        # for i in bad_score_indices[::-1]:
+        #     del next_states_list[i]
+        #     del next_words_list[i]
+        #     del next_score_list[i]
+        #     del next_translations_list[i]
+        #     del next_attentions_list[i]
+        #     if beam_score_coverage_penalty == "google":
+        #         del next_normalized_score_list[i]
 
     # Prune items that have a normalized score worse than beam_pruning_margin
     # below the best normalized score.
     if (beam_score_coverage_penalty ==
-            "google" and beam_pruning_margin is not None and next_normalized_score_list):
-        best_next_normalized_score = max(next_normalized_score_list)
-        bad_score_indices = [
-            idx for idx,
-            elem in enumerate(next_normalized_score_list) if (
-                best_next_normalized_score -
-                elem > beam_pruning_margin)]
+            "google" and beam_pruning_margin is not None and t_infos_list.next_normalized_score_list is not None):
 
-        for i in bad_score_indices[::-1]:
-            del next_states_list[i]
-            del next_words_list[i]
-            del next_score_list[i]
-            del next_normalized_score_list[i]
-            del next_translations_list[i]
-            del next_attentions_list[i]
+        t_infos_list.prune_with_margin(beam_pruning_margin, use_normalized_score=True)
 
-    return next_states_list, next_words_list, next_score_list, next_translations_list, next_attentions_list
+        # best_next_normalized_score = max(next_normalized_score_list)
+        # bad_score_indices = [
+        #     idx for idx,
+        #     elem in enumerate(next_normalized_score_list) if (
+        #         best_next_normalized_score -
+        #         elem > beam_pruning_margin)]
+
+        # for i in bad_score_indices[::-1]:
+        #     del next_states_list[i]
+        #     del next_words_list[i]
+        #     del next_score_list[i]
+        #     del next_normalized_score_list[i]
+        #     del next_translations_list[i]
+        #     del next_attentions_list[i]
+
+    return t_infos_list #next_states_list, next_words_list, next_score_list, next_translations_list, next_attentions_list
 
 
 def compute_next_states_and_scores(dec_cell_ensemble, current_states_ensemble, current_words,
@@ -410,7 +473,8 @@ def advance_one_step(dec_cell_ensemble, eos_idx,
     new_scores = current_scores[:, xp.newaxis] + combined_scores
 
     # Compute the list of new translation states after pruning
-    next_states_list, next_words_list, next_score_list, next_translations_list, next_attentions_list = compute_next_lists(
+    #next_states_list, next_words_list, next_score_list, next_translations_list, next_attentions_list 
+    t_infos_list = compute_next_lists(
         new_state_ensemble, new_scores, beam_width, beam_pruning_margin,
         beam_score_length_normalization, beam_score_length_normalization_strength,
         beam_score_coverage_penalty, beam_score_coverage_penalty_strength,
@@ -419,26 +483,26 @@ def advance_one_step(dec_cell_ensemble, eos_idx,
         current_attentions, attn_ensemble, force_finish=force_finish, need_attention=need_attention,
         constraints_fn=constraints_fn)
 
-    if len(next_states_list) == 0:
+    if len(t_infos_list.next_states_list) == 0:
         return None  # We only found finished translations
 
     # Create the new translation states
 
-    next_words_array = np.array(next_words_list, dtype=np.int32)
+    next_words_array = np.array(t_infos_list.next_words_list, dtype=np.int32)
     if xp is not np:
         next_words_array = cuda.to_gpu(next_words_array)
 
     concatenated_next_states_list = []
-    for next_states_list_one_model in six.moves.zip(*next_states_list):
+    for next_states_list_one_model in six.moves.zip(*t_infos_list.next_states_list):
         concatenated_next_states_list.append(
             tuple([F.concat(substates, axis=0) for substates in six.moves.zip(*next_states_list_one_model)])
         )
 
-    next_translations_states = ATranslationState(next_translations_list,
-                                xp.array(next_score_list),
+    next_translations_states = ATranslationState(t_infos_list.next_translations_list,
+                                xp.array(t_infos_list.next_score_list),
                                 concatenated_next_states_list,
                                 Variable(next_words_array),
-                                next_attentions_list
+                                t_infos_list.next_attentions_list
                                 )
 
     return next_translations_states
@@ -811,7 +875,8 @@ def astar_update(dec_cell_ensemble, eos_idx,
     new_scores = current_scores[:, xp.newaxis] + combined_scores
 
     # Compute the list of new translation states after pruning
-    next_states_list, next_words_list, next_score_list, next_translations_list, next_attentions_list = compute_next_lists(
+    #next_states_list, next_words_list, next_score_list, next_translations_list, next_attentions_list 
+    t_infos_list = compute_next_lists(
         new_state_ensemble, new_scores, beam_width, beam_pruning_margin,
         beam_score_length_normalization, beam_score_length_normalization_strength,
         beam_score_coverage_penalty, beam_score_coverage_penalty_strength,
@@ -820,14 +885,14 @@ def astar_update(dec_cell_ensemble, eos_idx,
         current_attentions, attn_ensemble, force_finish=force_finish, need_attention=need_attention,
         constraints_fn=constraints_fn)
 
-    if len(next_states_list) == 0:
+    if len(t_infos_list.next_states_list) == 0:
         return False  # We only found finished translations
 
     # Create the new translation states
 
-    next_words_array = np.array(next_words_list, dtype=np.int32)
-    if xp is not np:
-        next_words_array = cuda.to_gpu(next_words_array)
+    #next_words_array = np.array(t_infos_list.next_words_list, dtype=np.int32)
+    #if xp is not np:
+    #    next_words_array = cuda.to_gpu(next_words_array)
 
     # concatenated_next_states_list = []
     # for next_states_list_one_model in six.moves.zip(*next_states_list):
@@ -844,8 +909,8 @@ def astar_update(dec_cell_ensemble, eos_idx,
     #                             Variable(next_words_array),
     #                             next_attentions_list
     #                             )
-    item_list = make_item_list(next_states_list, next_words_list, 
-                next_score_list, next_translations_list, next_attentions_list)
+    item_list = make_item_list(t_infos_list.next_states_list, t_infos_list.next_words_list, 
+                t_infos_list.next_score_list, t_infos_list.next_translations_list, t_infos_list.next_attentions_list)
     #print("adding", len(item_list), "items")
     for item in item_list:
         length_normalization = astar_params.length_normalization_constant + len(item.current_translation)
