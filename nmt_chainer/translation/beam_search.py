@@ -62,6 +62,7 @@ class AStarParams:
     astar_prune_ratio:float = 10
     length_normalization_constant:float = 0
     length_normalization_exponent:float = 1
+    astar_priority_eval_string: Optional[str] = None
 
 def iterate_best_score(new_scores: np.ndarray, beam_width: int)->Iterator[Tuple[int, int, float]]:
     """
@@ -109,6 +110,7 @@ class TranslationInfosList:
     next_normalized_score_list: Optional[List[float]] = None #field(default_factory = list)
     next_translations_list: List[List[int]] = field(default_factory = list)
     next_attentions_list: List[List[np.ndarray]] = field(default_factory = list)
+    constraint_values: Optional[List[float]] = None
 
     def prune_with_margin(self, beam_pruning_margin:float, use_normalized_score:bool):
         if use_normalized_score:
@@ -129,6 +131,9 @@ class TranslationInfosList:
             if self.next_normalized_score_list is not None:
                 assert len(self.next_normalized_score_list) == len(self.next_score_list)
                 del self.next_normalized_score_list[i]
+            if self.constraint_values is not None:
+                assert len(self.constraint_values) == len(self.next_score_list)
+                del self.constraint_values[i]
             del self.next_states_list[i]
             del self.next_words_list[i]
             del self.next_score_list[i]
@@ -203,6 +208,8 @@ def update_next_lists(num_case, idx_in_case, new_cost, eos_idx, new_state_ensemb
         new_translation = current_translations[num_case]+ [idx_in_case]
         if constraints_fn is not None:
             constraint_val = constraints_fn(new_translation)
+            assert t_infos_list.constraint_values is not None
+            t_infos_list.constraint_values.append(constraint_val)
         else:
             constraint_val = None
 
@@ -239,7 +246,6 @@ def update_next_lists(num_case, idx_in_case, new_cost, eos_idx, new_state_ensemb
             attn_summed /= len(attn_ensemble)
             t_infos_list.next_attentions_list.append(current_attentions[num_case] + [attn_summed])
         return BSReturn.OK
-
 
 def compute_next_lists(new_state_ensemble, new_scores, beam_width, beam_pruning_margin,
                        beam_score_length_normalization, beam_score_length_normalization_strength,
@@ -291,6 +297,9 @@ def compute_next_lists(new_state_ensemble, new_scores, beam_width, beam_pruning_
         t_infos_list = TranslationInfosList(next_normalized_score_list = [])
     else:
         t_infos_list = TranslationInfosList()
+
+    if constraints_fn is not None:
+        t_infos_list.constraint_values = []
 
     if force_finish:
         score_iterator = iterate_eos_scores(new_scores, eos_idx)
@@ -644,10 +653,11 @@ def ensemble_beam_search(model_ensemble, src_batch, src_mask, nb_steps, eos_idx,
 @dataclass
 class Item:
     score: float = 0
-    state: Tuple[np.ndarray, ...] = ()
+    state: List[Tuple[np.ndarray, ...]] = field(default_factory=list)
     last_word: Optional[int] = None
     current_translation: List[int] = field(default_factory=list)
     attention: Optional[List[np.array]] = field(default_factory=list)
+    constraint_val: Optional[float] = None
 
     def __repr__(self):
         state_repr = []
@@ -656,9 +666,11 @@ class Item:
             for y in x:
                 state_repr.append(str(y.shape))
             state_repr.append(">")
-        return f"Item[SC:{self.score:2f}, T:{self.current_translation}, LW:{self.last_word}, ST:{''.join(state_repr)}]"
+        cv_repr = "" if self.constraint_val is None else " CV:%f"%self.constraint_val
+        return f"Item[SC:{self.score:2f}, T:{self.current_translation}, LW:{self.last_word}, ST:{''.join(state_repr)}{cv_repr}]"
 
-
+    def compute_priority_from_string(self, eval_string):
+        return eval(eval_string)
 
 @dataclass(order=True)
 class PItem:
@@ -747,18 +759,19 @@ class TranslationPriorityQueue:
         # return res
 
 
-def make_item_list(next_states_list, next_words_list, 
-                next_score_list, next_translations_list, next_attentions_list)->List[Item]:
+def make_item_list(t_info_list: TranslationInfosList #next_states_list, next_words_list, 
+                #next_score_list, next_translations_list, next_attentions_list
+                )->List[Item]:
     res = []
-    for num_item in range(len(next_states_list)):
-        next_translations_list[num_item]
-        next_score_list[num_item]
-        next_words_list[num_item]
-        next_states_list[num_item]
-        next_attentions_list[num_item]
-        new_item = Item(score = next_score_list[num_item], state = next_states_list[num_item],
-                        last_word=next_words_list[num_item], current_translation = next_translations_list[num_item],
-                        attention=next_attentions_list[num_item])
+    for num_item in range(len(t_info_list.next_states_list)):
+        if t_info_list.constraint_values is None:
+            constraint_val = None
+        else:
+            constraint_val = t_info_list.constraint_values[num_item]
+        new_item = Item(score = t_info_list.next_score_list[num_item], state = t_info_list.next_states_list[num_item],
+                        last_word=t_info_list.next_words_list[num_item], current_translation = t_info_list.next_translations_list[num_item],
+                        attention=t_info_list.next_attentions_list[num_item],
+                        constraint_val=constraint_val)
         res.append(new_item)
     return res
 
@@ -909,14 +922,17 @@ def astar_update(dec_cell_ensemble, eos_idx,
     #                             Variable(next_words_array),
     #                             next_attentions_list
     #                             )
-    item_list = make_item_list(t_infos_list.next_states_list, t_infos_list.next_words_list, 
-                t_infos_list.next_score_list, t_infos_list.next_translations_list, t_infos_list.next_attentions_list)
+    item_list = make_item_list(t_infos_list) #.next_states_list, t_infos_list.next_words_list, 
+               # t_infos_list.next_score_list, t_infos_list.next_translations_list, t_infos_list.next_attentions_list)
     #print("adding", len(item_list), "items")
     for item in item_list:
-        length_normalization = astar_params.length_normalization_constant + len(item.current_translation)
-        if astar_params.length_normalization_exponent != 1:
-            length_normalization = xp.power(length_normalization, astar_params.length_normalization_exponent)
-        priority = item.score/length_normalization
+        if astar_params.astar_priority_eval_string is not None:
+            priority = item.compute_priority_from_string(astar_params.astar_priority_eval_string)
+        else:
+            length_normalization = astar_params.length_normalization_constant + len(item.current_translation)
+            if astar_params.length_normalization_exponent != 1:
+                length_normalization = xp.power(length_normalization, astar_params.length_normalization_exponent)
+            priority = item.score/length_normalization
         translations_priority_queue.put(item, priority)
 
     return True
