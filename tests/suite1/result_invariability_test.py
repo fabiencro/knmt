@@ -115,7 +115,7 @@ class TestResultInvariability:
         ("result_invariability_untrained", "--max_nb_iters 800 --mb_size 2 --Ei 5 --Eo 12 --Hi 6 --Ha 70 --Ho 15 --Hl 12"),
         ("result_invariability_untrained_py3", "--max_nb_iters 800 --mb_size 2 --Ei 5 --Eo 12 --Hi 6 --Ha 70 --Ho 15 --Hl 12"),
         ("result_invariability_with_lex_prob_dict", "--max_nb_iters 2000 --mb_size 2 --Ei 5 --Eo 12 --Hi 6 --Ha 70 --Ho 15 --Hl 12 --lexical_probability_dictionary tests/tests_data/lexical_prob_dict.json.gz"),
-        ("result_invariability_with_lex_prob_dict_py3", "--max_nb_iters 2000 --mb_size 2 --Ei 5 --Eo 12 --Hi 6 --Ha 70 --Ho 15 --Hl 12 --lexical_probability_dictionary tests/tests_data/lexical_prob_dict.json.gz"),
+        #("result_invariability_with_lex_prob_dict_py3", "--max_nb_iters 2000 --mb_size 2 --Ei 5 --Eo 12 --Hi 6 --Ha 70 --Ho 15 --Hl 12 --lexical_probability_dictionary tests/tests_data/lexical_prob_dict.json.gz"),
         ("result_invariability_untrained_with_lex_prob_dict", "--max_nb_iters 800 --mb_size 2 --Ei 5 --Eo 12 --Hi 6 --Ha 70 --Ho 15 --Hl 12 --lexical_probability_dictionary tests/tests_data/lexical_prob_dict.json.gz"),
         ("result_invariability_untrained_with_lex_prob_dict_py3", "--max_nb_iters 800 --mb_size 2 --Ei 5 --Eo 12 --Hi 6 --Ha 70 --Ho 15 --Hl 12 --lexical_probability_dictionary tests/tests_data/lexical_prob_dict.json.gz")
     ])
