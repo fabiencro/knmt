@@ -45,8 +45,8 @@ def define_parser(parser):
 
     translation_method_group.add_argument("--astar_batch_size", type=int, default=32)
     translation_method_group.add_argument("--astar_max_queue_size", type=int, default=1000)
-    translation_method_group.add_argument("--astar_prune_margin", type=float, default=10)
-    translation_method_group.add_argument("--astar_prune_ratio", type=float, default=10)
+    translation_method_group.add_argument("--astar_prune_margin", type=float)
+    translation_method_group.add_argument("--astar_prune_ratio", type=float)
     translation_method_group.add_argument("--astar_length_normalization_exponent", type=float, default=1)
     translation_method_group.add_argument("--astar_length_normalization_constant", type=float, default=0)
     translation_method_group.add_argument("--astar_priority_eval_string")
