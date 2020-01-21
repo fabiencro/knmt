@@ -810,7 +810,7 @@ def merge_items_into_TState(items_list: List[Item], xp) -> ATranslationState:
 
 
 
-def astar_update(dec_cell_ensemble, eos_idx, 
+def astar_update(num_step:int, nb_steps:int, dec_cell_ensemble, eos_idx, 
                      translations_priority_queue: TranslationPriorityQueue,
                      beam_width, beam_pruning_margin,
                      beam_score_length_normalization,
@@ -913,8 +913,6 @@ def astar_update(dec_cell_ensemble, eos_idx,
     #         tuple([F.concat(substates, axis=0) for substates in six.moves.zip(*next_states_list_one_model)])
     #     )
 
-
-
     
     # next_translations_states = ATranslationState(next_translations_list,
     #                             xp.array(next_score_list),
@@ -927,7 +925,7 @@ def astar_update(dec_cell_ensemble, eos_idx,
     #print("adding", len(item_list), "items")
     for item in item_list:
         if astar_params.astar_priority_eval_string is not None:
-            priority = item.compute_priority_from_string(astar_params.astar_priority_eval_string)
+            priority = eval(astar_params.astar_priority_eval_string)
         else:
             length_normalization = astar_params.length_normalization_constant + len(item.current_translation)
             if astar_params.length_normalization_exponent != 1:
@@ -1015,6 +1013,7 @@ def ensemble_astar_search(model_ensemble, src_batch, src_mask, nb_steps, eos_idx
             #breakpoint()
             #print("num_step len", num_step, len(astar_queue.queue))
             still_options_to_explore = astar_update(
+                num_step, nb_steps,
                 dec_cell_ensemble,
                 eos_idx,
                 astar_queue,
