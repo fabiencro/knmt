@@ -507,6 +507,8 @@ def advance_one_step(dec_cell_ensemble, eos_idx,
             tuple([F.concat(substates, axis=0) for substates in six.moves.zip(*next_states_list_one_model)])
         )
 
+
+
     next_translations_states = ATranslationState(t_infos_list.next_translations_list,
                                 xp.array(t_infos_list.next_score_list),
                                 concatenated_next_states_list,
@@ -629,6 +631,7 @@ def ensemble_beam_search(model_ensemble, src_batch, src_mask, nb_steps, eos_idx,
     
         # Return finished translations
         if len(finished_translations) == 0:
+            log.info(f"no finished translation found  {nb_steps}" )
             if use_unfinished_translation_if_none_found:
                 assert current_translations_states is not None
                 if need_attention:
