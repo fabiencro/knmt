@@ -967,7 +967,7 @@ def astar_update(num_step:int, nb_steps:int, dec_cell_ensemble, eos_idx,
 
 #     xp = cuda.get_array_module(dec_ensemble[0].initial_state.data)
     
-    current_translations, current_scores, current_states_ensemble, current_words, current_attentions = dataclasses.astuple(
+    current_translations, current_scores, current_states_ensemble, current_words, current_attentions, required_tgt_idx_list = dataclasses.astuple(
                                                                                     current_translations_states)
 
     # Compute the next states and associated next word scores
@@ -994,7 +994,8 @@ def astar_update(num_step:int, nb_steps:int, dec_cell_ensemble, eos_idx,
         eos_idx,
         current_translations, finished_translations,
         current_attentions, attn_ensemble, force_finish=force_finish, need_attention=need_attention,
-        constraints_fn=constraints_fn)
+        constraints_fn=constraints_fn,
+        required_tgt_idx_list=required_tgt_idx_list)
 
     if len(t_infos_list.next_states_list) == 0:
         return False  # We only found finished translations
