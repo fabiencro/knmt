@@ -11,6 +11,7 @@ import re
 import sys
 import time
 import unicodedata
+from collections import Counter
 from typing import List, Optional
 
 # import h5py
@@ -435,7 +436,6 @@ def create_encdec(config_eval):
 
     return encdec_list, eos_idx, src_indexer, tgt_indexer, reverse_encdec, model_infos_list
 
-
 def do_eval(config_eval):
     src_fn = config_eval.process.src_fn
     tgt_fn = config_eval.output.tgt_fn
@@ -515,27 +515,51 @@ def do_eval(config_eval):
 
         if config_eval.process.force_placeholders:
             
-            placeholder_matcher = re.compile(r"<K-\d+>")
-            def make_constraints(src, src_seq)->beam_search.BeamSearchConstraints:
-                src_placeholders_list = placeholder_matcher.findall(src)
-                src_placeholders_set = set(src_placeholders_list)
-                if len(src_placeholders_set) != len(src_placeholders_list):
-                    raise Exception("Current assumption is that there is no duplicate placeholders")
-                def constraint_fn(tgt_seq):
-                    tgt = tgt_indexer.deconvert(tgt_seq)
-                    tgt_placeholders_list = placeholder_matcher.findall(tgt)
-                    tgt_placeholders_set = set(tgt_placeholders_list)
-                    if len(tgt_placeholders_set) != len(tgt_placeholders_list):
-                        return -1 #disallow duplicate placeholders on target side
-                    if len(tgt_placeholders_set - src_placeholders_set) != 0:
-                        return -1 #disallow generating a placeholder not in source
-                    if tgt_placeholders_set == src_placeholders_set:
-                        return 1 #all constraints satisfied
-                    #else return proportion of required placeholders in target
-                    assert len(tgt_placeholders_set) < len(src_placeholders_set)
-                    return len(tgt_placeholders_set) / len(src_placeholders_set)
-                
-                return beam_search.BeamSearchConstraints(constraint_fn=constraint_fn)
+            if False:
+                placeholder_matcher = re.compile(r"<K-\d+>")
+                def make_constraints(src, src_seq)->beam_search.BeamSearchConstraints:
+                    src_placeholders_list = placeholder_matcher.findall(src)
+                    src_placeholders_set = set(src_placeholders_list)
+                    if len(src_placeholders_set) != len(src_placeholders_list):
+                        raise Exception("Current assumption is that there is no duplicate placeholders")
+                    def constraint_fn(tgt_seq):
+                        tgt = tgt_indexer.deconvert(tgt_seq)
+                        tgt_placeholders_list = placeholder_matcher.findall(tgt)
+                        tgt_placeholders_set = set(tgt_placeholders_list)
+                        if len(tgt_placeholders_set) != len(tgt_placeholders_list):
+                            return -1 #disallow duplicate placeholders on target side
+                        if len(tgt_placeholders_set - src_placeholders_set) != 0:
+                            return -1 #disallow generating a placeholder not in source
+                        if tgt_placeholders_set == src_placeholders_set:
+                            return 1 #all constraints satisfied
+                        #else return proportion of required placeholders in target
+                        assert len(tgt_placeholders_set) < len(src_placeholders_set)
+                        return len(tgt_placeholders_set) / len(src_placeholders_set)
+                    
+                    return beam_search.BeamSearchConstraints(constraint_fn=constraint_fn)
+            else:
+                placeholder_dictionary = {}
+                placeholders_list = []
+                for i in range(100):
+                    placeholder = "<K-%i>"%i
+                    tgt_idx = tgt_indexer.convert(placeholder)
+                    src_idx = src_indexer.convert(placeholder)
+                    if len(tgt_idx) != 1 or len(src_idx)!=1:
+                        pass
+                    else:
+                        tgt_idx = tgt_idx[0]
+                        src_idx = src_idx[0]
+                        placeholder_dictionary[src_idx] = tgt_idx
+                        placeholders_list.append( (placeholder, src_idx, tgt_idx))
+                log.info("Found %i placeholders: %r"%(len(placeholders_list), placeholders_list))
+
+                def make_constraints(src, src_seq)->beam_search.BeamSearchConstraints:
+                    required_tgt_idx = Counter()
+                    for idx in src_seq:
+                        if idx in placeholder_dictionary:
+                            required_tgt_idx[placeholder_dictionary[idx]] += 1
+                    
+                    return beam_search.BeamSearchConstraints(required_tgt_idx=required_tgt_idx)
 
         elif False:
 

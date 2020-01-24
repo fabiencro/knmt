@@ -9,8 +9,10 @@ import enum
 import logging
 import operator
 import queue
+from collections import defaultdict
 from dataclasses import dataclass, field
-from typing import Iterator, List, Optional, Tuple, Callable, cast
+from typing import (Callable, Counter, Dict, Iterator, List, Mapping, Optional,
+                    Tuple, cast)
 
 import chainer
 import chainer.functions as F
@@ -50,7 +52,7 @@ class BeamSearchParams:
 @dataclass(order=False, frozen=True)
 class BeamSearchConstraints:
     constraint_fn: Optional[Callable[[List[int]], float]] = None
-    required_tgt_idx: Optional[List[int]] = None
+    required_tgt_idx: Optional[Counter[int]] = None
 
 @dataclass(order=False, frozen=True)
 class AStarParams:
@@ -70,10 +72,10 @@ class ATranslationState:
     previous_states_ensemble: List[np.array] = field(default_factory=list)
     previous_words: Optional[List[int]] = None
     attentions: List[List[np.array]] = field(default_factory=lambda:[[]])
-    required_tgt_idx_list: Optional[List[List[int]]] = None
+    required_tgt_idx_list: Optional[List[Counter[int]]] = None
 
     @classmethod
-    def make_empty(cls, xp, ensemble_size, required_tgt_idx:Optional[List[int]]):
+    def make_empty(cls, xp, ensemble_size, required_tgt_idx:Optional[Counter[int]]):
         required_tgt_idx_list = None if required_tgt_idx is None else [required_tgt_idx]
         obj = cls(scores=xp.zeros(1), 
                 previous_states_ensemble = [None] * ensemble_size,
@@ -95,7 +97,7 @@ class TranslationInfosList:
     next_translations_list: List[List[int]] = field(default_factory = list)
     next_attentions_list: List[List[np.ndarray]] = field(default_factory = list)
     constraint_values: Optional[List[float]] = None
-    required_tgt_idx_list: Optional[List[List[int]]] = None
+    required_tgt_idx_list: Optional[List[Counter[int]]] = None
 
     def prune_with_margin(self, beam_pruning_margin:float, use_normalized_score:bool):
         if use_normalized_score:
@@ -177,9 +179,9 @@ def iterate_required_word_scores(new_scores, required:List[List[int]])->Iterator
         for req_idx in required[num_case]:
             yield int(num_case), req_idx, cuda.to_cpu(new_scores[num_case, req_idx])
 
+
 def update_next_lists(num_case, idx_in_case, new_cost, eos_idx, new_state_ensemble, finished_translations, current_translations,
                       current_attentions,
-
                       t_infos_list: TranslationInfosList,
                       #next_states_list, next_words_list, next_score_list, next_normalized_score_list, next_translations_list,
                       attn_ensemble, 
@@ -187,7 +189,7 @@ def update_next_lists(num_case, idx_in_case, new_cost, eos_idx, new_state_ensemb
                       beam_score_coverage_penalty, beam_score_coverage_penalty_strength, 
                       need_attention=False,
                       constraints_fn=None,
-                      required_tgt_idx:Optional[List[int]]=None) -> BSReturn:
+                      required_tgt_idx:Optional[Counter[int]]=None) -> BSReturn:
     """
     Updates the lists containing the infos on translations in current beam
 
@@ -310,7 +312,7 @@ def compute_next_lists(new_state_ensemble, new_scores,
                        force_finish=False,
                        need_attention=False,
                        constraints_fn=None,
-                       required_tgt_idx_list:Optional[List[List[int]]]=None) -> TranslationInfosList:
+                       required_tgt_idx_list:Optional[List[Counter[int]]]=None) -> TranslationInfosList:
     """
         Compute the informations for the next beam.
 
@@ -544,8 +546,6 @@ def advance_one_step(dec_cell_ensemble, eos_idx,
             tuple([F.concat(substates, axis=0) for substates in six.moves.zip(*next_states_list_one_model)])
         )
 
-
-
     next_translations_states = ATranslationState(t_infos_list.next_translations_list,
                                 xp.array(t_infos_list.next_score_list),
                                 concatenated_next_states_list,
@@ -711,6 +711,7 @@ class Item:
     current_translation: List[int] = field(default_factory=list)
     attention: Optional[List[np.array]] = field(default_factory=list)
     constraint_val: Optional[float] = None
+    required_tgt_idx: Optional[Counter[int]] = None
 
     def __repr__(self):
         state_repr = []
@@ -720,7 +721,8 @@ class Item:
                 state_repr.append(str(y.shape))
             state_repr.append(">")
         cv_repr = "" if self.constraint_val is None else " CV:%f"%self.constraint_val
-        return f"Item[SC:{self.score:2f}, T:{self.current_translation}, LW:{self.last_word}, ST:{''.join(state_repr)}{cv_repr}]"
+        required_str = "" if self.required_tgt_idx is None else " RT:%r"%self.required_tgt_idx
+        return f"Item[SC:{self.score:2f}, T:{self.current_translation}, LW:{self.last_word}, ST:{''.join(state_repr)}{cv_repr}{required_str}]"
 
     def compute_priority_from_string(self, eval_string):
         return eval(eval_string)
@@ -731,7 +733,6 @@ class PItem:
     item: Item = field(compare=False)
 
 
-from collections import defaultdict
 
 class TranslationPriorityQueue:
     def __init__(self):
@@ -821,10 +822,14 @@ def make_item_list(t_info_list: TranslationInfosList #next_states_list, next_wor
             constraint_val = None
         else:
             constraint_val = t_info_list.constraint_values[num_item]
+
+        required_tgt_idx = None if t_info_list.required_tgt_idx_list is None else t_info_list.required_tgt_idx_list[num_item]
+
         new_item = Item(score = t_info_list.next_score_list[num_item], state = t_info_list.next_states_list[num_item],
                         last_word=t_info_list.next_words_list[num_item], current_translation = t_info_list.next_translations_list[num_item],
                         attention=t_info_list.next_attentions_list[num_item],
-                        constraint_val=constraint_val)
+                        constraint_val=constraint_val,
+                        required_tgt_idx=required_tgt_idx)
         res.append(new_item)
     return res
 
@@ -1053,8 +1058,10 @@ def ensemble_astar_search(model_ensemble, src_batch, src_mask, nb_steps, eos_idx
 
         # Current_translations_states will hold the information for the current beam
 
+        required_tgt_idx = None if constraints is None else constraints.required_tgt_idx
+
         astar_queue = TranslationPriorityQueue()    
-        astar_queue.put(Item(), 0)
+        astar_queue.put(Item(required_tgt_idx=required_tgt_idx), 0)
 
 
 
