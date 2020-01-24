@@ -515,7 +515,7 @@ def do_eval(config_eval):
 
         if config_eval.process.force_placeholders:
             
-            if False:
+            if not config_eval.process.units_placeholders:
                 placeholder_matcher = re.compile(r"<K-\d+>")
                 def make_constraints(src, src_seq)->beam_search.BeamSearchConstraints:
                     src_placeholders_list = placeholder_matcher.findall(src)

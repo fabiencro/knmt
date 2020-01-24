@@ -87,6 +87,7 @@ def define_parser(parser):
     management_group.add_argument("--pp_command", help="command to call on the translation before sending the response to the client.")
     management_group.add_argument("--force_placeholders", default=False, action="store_true", 
                 help="force the generation of translations with placeholders")
+    management_group.add_argument("--units_placeholders", default=False, action="store_true", help="is each placeholder a subword unit in the vocabulary?")
 
 class CommandLineValuesException(Exception):
     pass
