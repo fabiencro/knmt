@@ -229,6 +229,9 @@ def update_next_lists(num_case, idx_in_case, new_cost, eos_idx, new_state_ensemb
         if constraints_fn is not None and constraints_fn(current_translations[num_case]) != 1:
             return BSReturn.CONSTRAINT_VIOLATED
 
+        if required_tgt_idx is not None and sum(required_tgt_idx.values()) > 0:
+            return BSReturn.CONSTRAINT_VIOLATED
+
         if need_attention:
             finished_translations.append((current_translations[num_case],
                                           -new_cost,
