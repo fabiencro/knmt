@@ -892,6 +892,12 @@ def merge_items_into_TState(items_list: List[Item], xp) -> ATranslationState:
 
     attentions = [item.attention for item in items_list]
 
+    if len(items_list) > 0 and items_list[0].required_tgt_idx is None:
+        assert all(item.required_tgt_idx is None for item in  items_list)
+        required_tgt_idx_list = None
+    else:
+        required_tgt_idx_list = [item.required_tgt_idx for item in items_list]
+
     next_states_list = cast(List[Tuple[np.ndarray, ...]], [item.state for item in items_list])
     concatenated_next_states_list: List[Tuple[np.ndarray,...]]= []
     for next_states_list_one_model in zip(*next_states_list):
@@ -901,7 +907,8 @@ def merge_items_into_TState(items_list: List[Item], xp) -> ATranslationState:
 
     return ATranslationState(translations=translations, scores=scores, 
             previous_states_ensemble= concatenated_next_states_list, 
-            previous_words = next_words_array, attentions = attentions)
+            previous_words = next_words_array, attentions = attentions,
+            required_tgt_idx_list=required_tgt_idx_list)
 
 
 
