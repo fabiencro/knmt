@@ -11,6 +11,7 @@ import re
 import sys
 import time
 import unicodedata
+from typing import List, Optional
 
 # import h5py
 import bokeh.embed
@@ -140,7 +141,7 @@ def beam_search_all(gpu, encdec, eos_idx, src_data,
                     normalize_unicode_unk=False,
                     attempt_to_relocate_unk_source=False,
                     nbest=None,
-                    constraints_fn_list=None,
+                    constraints_fn_list:Optional[List[beam_search.BeamSearchConstraints]]=None,
                     use_astar=False,
                     astar_params:beam_search.AStarParams=beam_search.AStarParams()):
 
@@ -223,7 +224,6 @@ def beam_search_all(gpu, encdec, eos_idx, src_data,
 
         # print('', file=sys.stderr)
 
-
 def translate_to_file_with_beam_search(dest_fn, gpu, encdec, eos_idx, src_data, 
                                        beam_search_params:beam_search.BeamSearchParams,
                                        #beam_width, beam_pruning_margin, beam_score_coverage_penalty, beam_score_coverage_penalty_strength, 
@@ -246,7 +246,7 @@ def translate_to_file_with_beam_search(dest_fn, gpu, encdec, eos_idx, src_data,
                                        attempt_to_relocate_unk_source=False,
                                        unprocessed_output_filename=None,
                                        nbest=None,
-                                       constraints_fn_list=None,
+                                       constraints_fn_list:Optional[List[beam_search.BeamSearchConstraints]]=None,
                                        use_astar=False,
                                        astar_params:beam_search.AStarParams=beam_search.AStarParams()):
 
@@ -516,7 +516,7 @@ def do_eval(config_eval):
         if config_eval.process.force_placeholders:
             
             placeholder_matcher = re.compile(r"<K-\d+>")
-            def make_constraints(src, src_seq):
+            def make_constraints(src, src_seq)->beam_search.BeamSearchConstraints:
                 src_placeholders_list = placeholder_matcher.findall(src)
                 src_placeholders_set = set(src_placeholders_list)
                 if len(src_placeholders_set) != len(src_placeholders_list):
@@ -534,7 +534,8 @@ def do_eval(config_eval):
                     #else return proportion of required placeholders in target
                     assert len(tgt_placeholders_set) < len(src_placeholders_set)
                     return len(tgt_placeholders_set) / len(src_placeholders_set)
-                return constraint_fn
+                
+                return beam_search.BeamSearchConstraints(constraint_fn=constraint_fn)
 
         elif False:
 
