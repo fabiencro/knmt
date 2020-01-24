@@ -64,6 +64,8 @@ def main(arguments=None):
 
     parser.add_argument("--run_in_pdb", default=False, action="store_true", help="run knmt in pdb (python debugger)")
 
+    parser.add_argument("--run_in_cprofile", default=False, action="store_true", help="run knmt in cProfile")
+
     subparsers = parser.add_subparsers(dest="__subcommand_name")
 
     # create the parser for the "make_data" command
@@ -113,6 +115,10 @@ def main(arguments=None):
         #     pdb.set_trace()
         # import signal
         # signal.signal(signal.SIGINT, debug_signal_handler)
+
+    elif args.run_in_cprofile:
+        import cProfile
+        cProfile.runctx("func(args)", globals(), locals(), sort="cumtime")
     
     else:
         try:

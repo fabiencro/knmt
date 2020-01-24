@@ -566,8 +566,15 @@ def advance_one_step(dec_cell_ensemble, eos_idx,
 
 #     xp = cuda.get_array_module(dec_ensemble[0].initial_state.data)
     xp = dec_cell_ensemble[0].xp
-    current_translations, current_scores, current_states_ensemble, current_words, current_attentions, required_tgt_idx_list = dataclasses.astuple(
-                                                                                    current_translations_states)
+    #current_translations, current_scores, current_states_ensemble, current_words, current_attentions, required_tgt_idx_list = dataclasses.astuple(
+    #                                                                                current_translations_states)
+
+    current_translations = current_translations_states.translations
+    current_scores = current_translations_states.scores
+    current_states_ensemble = current_translations_states.previous_states_ensemble
+    current_words = current_translations_states.previous_words
+    current_attentions = current_translations_states.attentions
+    required_tgt_idx_list = current_translations_states.required_tgt_idx_list
 
     # Compute the next states and associated next word scores
     combined_scores, new_state_ensemble, attn_ensemble = compute_next_states_and_scores(
@@ -1000,8 +1007,15 @@ def astar_update(num_step:int, nb_steps:int, dec_cell_ensemble, eos_idx,
 
 #     xp = cuda.get_array_module(dec_ensemble[0].initial_state.data)
     
-    current_translations, current_scores, current_states_ensemble, current_words, current_attentions, required_tgt_idx_list = dataclasses.astuple(
-                                                                                    current_translations_states)
+    current_translations = current_translations_states.translations
+    current_scores = current_translations_states.scores
+    current_states_ensemble = current_translations_states.previous_states_ensemble
+    current_words = current_translations_states.previous_words
+    current_attentions = current_translations_states.attentions
+    required_tgt_idx_list = current_translations_states.required_tgt_idx_list
+
+    #, current_scores, current_states_ensemble, current_words, current_attentions, required_tgt_idx_list = dataclasses.astuple(
+    #                                                                                current_translations_states)
 
     # Compute the next states and associated next word scores
     combined_scores, new_state_ensemble, attn_ensemble = compute_next_states_and_scores(
