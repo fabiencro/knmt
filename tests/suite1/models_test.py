@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 """models_tests.py: Some correctness tests"""
 from __future__ import absolute_import, division, print_function, unicode_literals
+from nmt_chainer.translation.beam_search import BeamSearchParams
 __author__ = "Fabien Cromieres"
 __license__ = "undecided"
 __version__ = "1.0"
@@ -373,9 +374,10 @@ class TestBeamSearch:
 #                           need_attention = False)
 
         # TODO: not much point to this test now that beam_opt distinction is removed
-        best1_gen = evaluation.beam_search_translate(encdec, eos_idx, src_data, beam_width=10, nb_steps=15, gpu=None,
+        import nmt_chainer.translation.beam_search as beam_search
+        best1_gen = evaluation.beam_search_translate(encdec, eos_idx, src_data, beam_search.BeamSearchParams(beam_width=10), nb_steps=15, gpu=None,
                                                      need_attention=False)
-        best2_gen = evaluation.beam_search_translate(encdec, eos_idx, src_data, beam_width=10, nb_steps=15, gpu=None,
+        best2_gen = evaluation.beam_search_translate(encdec, eos_idx, src_data, beam_search.BeamSearchParams(beam_width=10), nb_steps=15, gpu=None,
                                                      need_attention=False)
         res1a, res1b = next(best1_gen), next(best2_gen)
         res2a, res2b = next(best1_gen), next(best2_gen)

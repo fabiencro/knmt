@@ -168,13 +168,22 @@ def reverse_rescore(encdec, src_batch, src_mask, eos_idx, translations, gpu=None
         return de_sorted_scores
 
 
-def beam_search_translate(encdec, eos_idx, src_data, beam_width=20, beam_pruning_margin=None, nb_steps=50, gpu=None,
-                          beam_score_coverage_penalty=None, beam_score_coverage_penalty_strength=0.2,
-                          need_attention=False, nb_steps_ratio=None, beam_score_length_normalization='none', beam_score_length_normalization_strength=0.2, post_score_length_normalization='simple', post_score_length_normalization_strength=0.2,
+def beam_search_translate(encdec, eos_idx, src_data, 
+                          beam_search_params:beam_search.BeamSearchParams = beam_search.BeamSearchParams(),
+                          #beam_width=20, beam_pruning_margin=None, 
+                          nb_steps=50, gpu=None,
+                          
+                          #beam_score_coverage_penalty=None, beam_score_coverage_penalty_strength=0.2,
+                          need_attention=False, nb_steps_ratio=None, 
+                          #beam_score_length_normalization='none', beam_score_length_normalization_strength=0.2, 
+                          
+                          post_score_length_normalization='simple', post_score_length_normalization_strength=0.2,
                           post_score_coverage_penalty='none', post_score_coverage_penalty_strength=0.2,
-                          groundhog=False, force_finish=False,
+                          groundhog=False, 
+                          #force_finish=False,
                           prob_space_combination=False,
-                          reverse_encdec=None, use_unfinished_translation_if_none_found=False,
+                          reverse_encdec=None, 
+                          #use_unfinished_translation_if_none_found=False,
                           nbest=None,
                           constraints_fn_list=None,
                           use_astar=False,
@@ -207,15 +216,17 @@ def beam_search_translate(encdec, eos_idx, src_data, beam_width=20, beam_pruning
         else:
             constraints_fn = None
         translations = beam_search.ensemble_beam_search(encdec, src_batch, src_mask, nb_steps=nb_steps, eos_idx=eos_idx,
-                                                        beam_width=beam_width,
-                                                        beam_pruning_margin=beam_pruning_margin,
-                                                        beam_score_length_normalization=beam_score_length_normalization,
-                                                        beam_score_length_normalization_strength=beam_score_length_normalization_strength,
-                                                        beam_score_coverage_penalty=beam_score_coverage_penalty,
-                                                        beam_score_coverage_penalty_strength=beam_score_coverage_penalty_strength,
-                                                        need_attention=need_attention, force_finish=force_finish,
+                                                        beam_search_params = beam_search_params,
+                                                        #beam_width=beam_width,
+                                                        #beam_pruning_margin=beam_pruning_margin,
+                                                        #beam_score_length_normalization=beam_score_length_normalization,
+                                                        #beam_score_length_normalization_strength=beam_score_length_normalization_strength,
+                                                        #beam_score_coverage_penalty=beam_score_coverage_penalty,
+                                                        #beam_score_coverage_penalty_strength=beam_score_coverage_penalty_strength,
+                                                        need_attention=need_attention, 
+                                                        #force_finish=force_finish,
                                                         prob_space_combination=prob_space_combination,
-                                                        use_unfinished_translation_if_none_found=use_unfinished_translation_if_none_found,
+                                                        #use_unfinished_translation_if_none_found=use_unfinished_translation_if_none_found,
                                                         constraints_fn=constraints_fn,
                                                         use_astar=use_astar,
                                                         astar_params=astar_params)
