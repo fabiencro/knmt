@@ -104,10 +104,11 @@ class AStarParams:
     astar_batch_size:int = 32
     astar_max_queue_size:int =1000
     astar_prune_margin:float = 10
-    astar_prune_ratio:float = 10
+    astar_prune_ratio:Optional[float] = None
     length_normalization_constant:float = 0
     length_normalization_exponent:float = 1
     astar_priority_eval_string: Optional[str] = None
+    max_length_diff:Optional[int]=None
 
 
 @dataclass(eq = False)
@@ -809,9 +810,13 @@ class TranslationPriorityQueue:
             dd[len(pitem.item.current_translation)] +=1
         return " ".join([f"{key}:{val}" for key, val in sorted(dd.items(), reverse=True)])
 
-    def prune_queue(self, ratio = None, margin = None, top_n = None):
+    def prune_queue(self, ratio = None, margin = None, top_n = None, max_length_diff = None):
         if len(self.queue) == 0:
             return
+
+        if max_length_diff is not None:
+            max_length = max(len(pitem.item.current_translation) for pitem in self.queue)
+            self.queue = [pitem for pitem in self.queue if len(pitem.item.current_translation) >= max_length - max_length_diff]
 
         initial_length = len(self.queue)
         if self.dirty:
@@ -980,7 +985,8 @@ def astar_update(num_step:int, nb_steps:int, dec_cell_ensemble, eos_idx,
     translations_priority_queue.prune_queue(
                                 ratio = astar_params.astar_prune_ratio, 
                                 margin = astar_params.astar_prune_margin, 
-                                top_n = astar_params.astar_max_queue_size)
+                                top_n = astar_params.astar_max_queue_size,
+                                max_length_diff = astar_params.max_length_diff)
     items = translations_priority_queue.get_n(astar_params.astar_batch_size)
 
     if len(items) == 0:
