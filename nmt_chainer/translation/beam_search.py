@@ -6,6 +6,7 @@ from __future__ import (absolute_import, division, print_function,
 import bisect
 import dataclasses
 import enum
+import itertools
 import logging
 import operator
 import queue
@@ -48,6 +49,7 @@ class BeamSearchParams:
     beam_score_coverage_penalty_strength: float=0.2
     force_finish:bool = False
     use_unfinished_translation_if_none_found:bool = False
+    always_consider_eos_and_placeholders:bool = False
 
 class TgtIdxConstraint:
     def __init__(self):
@@ -67,6 +69,7 @@ class TgtIdxConstraint:
             self.dict[x] = 1
         else:
             self.dict[x] += 1
+
     def substract(self, x:int)->None:
         if x not in self.dict:
             raise Exception("trying to remove non existant %r"%x)
@@ -74,6 +77,10 @@ class TgtIdxConstraint:
         assert self.dict[x] >= 0
         if self.dict[x] == 0:
             del self.dict[x]
+
+    def __iter__(self):
+        return self.dict.__iter__()
+
     def copy(self)->"TgtIdxConstraint":
         res = TgtIdxConstraint()
         res.dict = self.dict.copy()
@@ -209,7 +216,7 @@ def iterate_eos_scores(new_scores, eos_idx)->Iterator[Tuple[int, int, float]]:
         idx_in_case = eos_idx
         yield int(num_case), idx_in_case, cuda.to_cpu(new_scores[num_case, eos_idx])
 
-def iterate_required_word_scores(new_scores, required:List[List[int]])->Iterator[Tuple[int, int, float]]:
+def iterate_required_word_scores(new_scores, required:List[TgtIdxConstraint])->Iterator[Tuple[int, int, float]]:
     nb_cases, v_size = new_scores.shape
     assert nb_cases == len(required)
 
@@ -340,7 +347,6 @@ def update_next_lists(num_case, idx_in_case, new_cost, eos_idx, new_state_ensemb
 
 
 
-
 def compute_next_lists(new_state_ensemble, new_scores, 
                        beam_search_params: BeamSearchParams,
                        #beam_width, beam_pruning_margin,
@@ -403,6 +409,20 @@ def compute_next_lists(new_state_ensemble, new_scores,
 
     if force_finish:
         score_iterator = iterate_eos_scores(new_scores, eos_idx)
+    elif beam_search_params.always_consider_eos_and_placeholders:
+        score_iterator_list = [iterate_best_score(new_scores, beam_search_params.beam_width),
+                                   iterate_eos_scores(new_scores, eos_idx) ]
+        if required_tgt_idx_list is not None:
+            score_iterator_list.append(iterate_required_word_scores(new_scores, required_tgt_idx_list))
+
+        def chained_score_iterator():
+            already_seen = set()
+            for num_case, idx_in_case, new_cost in itertools.chain(*score_iterator_list):
+                if (num_case, idx_in_case) in already_seen:
+                    continue
+                already_seen.add((num_case, idx_in_case))
+                yield num_case, idx_in_case, new_cost
+        score_iterator = chained_score_iterator()
     else:
         score_iterator = iterate_best_score(new_scores, beam_search_params.beam_width)
 
@@ -426,7 +446,7 @@ def compute_next_lists(new_state_ensemble, new_scores,
                           beam_search_params.beam_score_coverage_penalty_strength, 
                           need_attention=need_attention, constraints_fn=constraints_fn,
                           required_tgt_idx=required_tgt_idx)
-        assert len(t_infos_list.next_states_list) <= beam_search_params.beam_width
+        assert len(t_infos_list.next_states_list) <= beam_search_params.beam_width or beam_search_params.always_consider_eos_and_placeholders
 #             if len(next_states_list) >= beam_width:
 #                 break
 

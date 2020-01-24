@@ -455,6 +455,8 @@ def do_eval(config_eval):
     beam_score_length_normalization_strength = config_eval.method.beam_score_length_normalization_strength
     beam_score_coverage_penalty = config_eval.beam_score_coverage_penalty
     beam_score_coverage_penalty_strength = config_eval.beam_score_coverage_penalty_strength
+    always_consider_eos_and_placeholders = config_eval.method.always_consider_eos_and_placeholders
+
     post_score_length_normalization = config_eval.method.post_score_length_normalization
     post_score_length_normalization_strength = config_eval.method.post_score_length_normalization_strength
     groundhog = config_eval.method.groundhog
@@ -686,7 +688,8 @@ def do_eval(config_eval):
                                                beam_score_length_normalization=beam_score_length_normalization,
                                                beam_score_length_normalization_strength=beam_score_length_normalization_strength,
                                                force_finish=force_finish,
-                                               use_unfinished_translation_if_none_found=True
+                                               use_unfinished_translation_if_none_found=True,
+                                               always_consider_eos_and_placeholders=always_consider_eos_and_placeholders
             )
             translate_to_file_with_beam_search(dest_fn, gpu, encdec_list, eos_idx, src_data,
                                                beam_search_params=beam_search_params,

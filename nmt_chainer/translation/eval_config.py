@@ -51,6 +51,9 @@ def define_parser(parser):
     translation_method_group.add_argument("--astar_length_normalization_constant", type=float, default=0)
     translation_method_group.add_argument("--astar_priority_eval_string")
 
+    translation_method_group.add_argument("--always_consider_eos_and_placeholders", default=False, action="store_true")
+    
+
     output_group = parser.add_argument_group(_CONFIG_SECTION_TO_DESCRIPTION["output"])
     output_group.add_argument("--tgt_fn", help="target text")
     output_group.add_argument("--nbest_to_rescore", help="nbest list in moses format")
