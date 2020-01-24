@@ -20,6 +20,13 @@ except ImportError:
 
 
 def run_in_pdb(func, args):
+    def debug_signal_handler(signal, frame):
+        import pdb
+        pdb.set_trace()
+    import signal
+    signal.signal(signal.SIGINT, debug_signal_handler)
+
+
     import pdb as pdb_module
     import sys
     import traceback
@@ -99,8 +106,14 @@ def main(arguments=None):
 
     if args.run_in_pdb:
         run_in_pdb(func, args)
-#         import pdb
-#         pdb.runcall(func, args)
+        # import pdb
+        # pdb.runcall(func, args)
+        # def debug_signal_handler(signal, frame):
+        #     import pdb
+        #     pdb.set_trace()
+        # import signal
+        # signal.signal(signal.SIGINT, debug_signal_handler)
+    
     else:
         try:
             func(args)
