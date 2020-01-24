@@ -554,10 +554,10 @@ def do_eval(config_eval):
                 log.info("Found %i placeholders: %r"%(len(placeholders_list), placeholders_list))
 
                 def make_constraints(src, src_seq)->beam_search.BeamSearchConstraints:
-                    required_tgt_idx = Counter()
+                    required_tgt_idx = beam_search.TgtIdxConstraint()
                     for idx in src_seq:
                         if idx in placeholder_dictionary:
-                            required_tgt_idx[placeholder_dictionary[idx]] += 1
+                            required_tgt_idx.add(placeholder_dictionary[idx])
                     
                     return beam_search.BeamSearchConstraints(required_tgt_idx=required_tgt_idx)
 

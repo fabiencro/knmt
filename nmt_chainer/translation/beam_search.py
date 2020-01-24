@@ -49,10 +49,40 @@ class BeamSearchParams:
     force_finish:bool = False
     use_unfinished_translation_if_none_found:bool = False
 
+class TgtIdxConstraint:
+    def __init__(self):
+        self.dict = {}
+    def __contains__(self, x:int)->bool:
+        return x in self.dict
+    def add(self, x:int)->None:
+        if not isinstance(x, int):
+            raise Exception("wrong type %s"%x)
+        if x not in self.dict:
+            self.dict[x] = 1
+        else:
+            self.dict[x] += 1
+    def substract(self, x:int)->None:
+        if x not in self.dict:
+            raise Exception("trying to remove non existant %r"%x)
+        self.dict[x] -= 1
+        assert self.dict[x] >= 0
+        if self.dict[x] == 0:
+            del self.dict[x]
+    def copy(self)->"TgtIdxConstraint":
+        res = TgtIdxConstraint()
+        res.dict = self.dict.copy()
+        return res
+    def __len__(self)->int:
+        return sum(self.dict.values())
+    def __repr__(self):
+        return repr(self.dict)
+    def __str__(self):
+        return str(self.dict)  
+
 @dataclass(order=False, frozen=True)
 class BeamSearchConstraints:
     constraint_fn: Optional[Callable[[List[int]], float]] = None
-    required_tgt_idx: Optional[Counter[int]] = None
+    required_tgt_idx: Optional[TgtIdxConstraint] = None
 
 @dataclass(order=False, frozen=True)
 class AStarParams:
@@ -72,7 +102,7 @@ class ATranslationState:
     previous_states_ensemble: List[np.array] = field(default_factory=list)
     previous_words: Optional[List[int]] = None
     attentions: List[List[np.array]] = field(default_factory=lambda:[[]])
-    required_tgt_idx_list: Optional[List[Counter[int]]] = None
+    required_tgt_idx_list: Optional[List[TgtIdxConstraint]] = None
 
     @classmethod
     def make_empty(cls, xp, ensemble_size, required_tgt_idx:Optional[Counter[int]]):
@@ -97,7 +127,7 @@ class TranslationInfosList:
     next_translations_list: List[List[int]] = field(default_factory = list)
     next_attentions_list: List[List[np.ndarray]] = field(default_factory = list)
     constraint_values: Optional[List[float]] = None
-    required_tgt_idx_list: Optional[List[Counter[int]]] = None
+    required_tgt_idx_list: Optional[List[TgtIdxConstraint]] = None
 
     def prune_with_margin(self, beam_pruning_margin:float, use_normalized_score:bool):
         if use_normalized_score:
@@ -189,7 +219,7 @@ def update_next_lists(num_case, idx_in_case, new_cost, eos_idx, new_state_ensemb
                       beam_score_coverage_penalty, beam_score_coverage_penalty_strength, 
                       need_attention=False,
                       constraints_fn=None,
-                      required_tgt_idx:Optional[Counter[int]]=None) -> BSReturn:
+                      required_tgt_idx:Optional[TgtIdxConstraint]=None) -> BSReturn:
     """
     Updates the lists containing the infos on translations in current beam
 
@@ -229,7 +259,7 @@ def update_next_lists(num_case, idx_in_case, new_cost, eos_idx, new_state_ensemb
         if constraints_fn is not None and constraints_fn(current_translations[num_case]) != 1:
             return BSReturn.CONSTRAINT_VIOLATED
 
-        if required_tgt_idx is not None and sum(required_tgt_idx.values()) > 0:
+        if required_tgt_idx is not None and len(required_tgt_idx) > 0:
             return BSReturn.CONSTRAINT_VIOLATED
 
         if need_attention:
@@ -244,12 +274,12 @@ def update_next_lists(num_case, idx_in_case, new_cost, eos_idx, new_state_ensemb
         return BSReturn.OK
 
     else:
-        if required_tgt_idx is not None and idx_in_case in required_tgt_idx:
-            if required_tgt_idx[idx_in_case] > 0:
+        if required_tgt_idx is not None:
+            if idx_in_case in required_tgt_idx:
                 required_tgt_idx = required_tgt_idx.copy()
-                required_tgt_idx[idx_in_case] -= 1
+                required_tgt_idx.substract(idx_in_case)
             else:
-                assert required_tgt_idx[idx_in_case] == 0
+                #assert required_tgt_idx[idx_in_case] == 0
                 return BSReturn.CONSTRAINT_VIOLATED
 
 
@@ -714,7 +744,7 @@ class Item:
     current_translation: List[int] = field(default_factory=list)
     attention: Optional[List[np.array]] = field(default_factory=list)
     constraint_val: Optional[float] = None
-    required_tgt_idx: Optional[Counter[int]] = None
+    required_tgt_idx: Optional[TgtIdxConstraint] = None
 
     def __repr__(self):
         state_repr = []
