@@ -225,8 +225,8 @@ def iterate_required_word_scores(new_scores, required:List[TgtIdxConstraint])->I
         for req_idx in required[num_case]:
             yield int(num_case), req_idx, cuda.to_cpu(new_scores[num_case, req_idx])
 
-
-def update_next_lists(num_case, idx_in_case, new_cost, eos_idx, new_state_ensemble, finished_translations, current_translations,
+#@profile
+def update_next_lists(num_case, idx_in_case, new_cost, eos_idx, get_slice_of_new_state_ensemble, finished_translations, current_translations,
                       current_attentions,
                       t_infos_list: TranslationInfosList,
                       #next_states_list, next_words_list, next_score_list, next_normalized_score_list, next_translations_list,
@@ -311,10 +311,10 @@ def update_next_lists(num_case, idx_in_case, new_cost, eos_idx, new_state_ensemb
         if constraint_val is not None and constraint_val <0:
             return BSReturn.CONSTRAINT_VIOLATED
 
-        t_infos_list.next_states_list.append(
-            [tuple([Variable(substates.data[num_case].reshape(1, -1)) for substates in new_state])
-             for new_state in new_state_ensemble]
-        )
+        t_infos_list.next_states_list.append(get_slice_of_new_state_ensemble(num_case))
+        #     [tuple([Variable(substates.data[num_case].reshape(1, -1)) for substates in new_state])
+        #      for new_state in new_state_ensemble]
+        # )
 
         t_infos_list.next_words_list.append(idx_in_case)
         t_infos_list.next_score_list.append(-new_cost)
@@ -427,6 +427,14 @@ def compute_next_lists(new_state_ensemble, new_scores,
     else:
         score_iterator = iterate_best_score(new_scores, beam_search_params.beam_width)
 
+    memoized_state_ensemble_slices = {}
+    def get_slice_of_new_state_ensemble(num_case):
+        if num_case not in memoized_state_ensemble_slices:
+            memoized_state_ensemble_slices[num_case] = [
+                tuple([Variable(substates.data[num_case].reshape(1, -1)) for substates in new_state])
+                                for new_state in new_state_ensemble]
+        return memoized_state_ensemble_slices[num_case]
+
     for num_case, idx_in_case, new_cost in score_iterator:
         if len(current_translations[num_case]) > 0:
             if beam_search_params.beam_score_length_normalization == 'simple':
@@ -437,7 +445,10 @@ def compute_next_lists(new_state_ensemble, new_scores,
                     pow(6, beam_search_params.beam_score_length_normalization_strength))
         
         required_tgt_idx=required_tgt_idx_list[num_case] if required_tgt_idx_list is not None else None
-        update_next_lists(num_case, idx_in_case, new_cost, eos_idx, new_state_ensemble,
+
+        
+
+        update_next_lists(num_case, idx_in_case, new_cost, eos_idx, get_slice_of_new_state_ensemble,
                           finished_translations, current_translations, current_attentions,
                           t_infos_list,
                           #next_states_list, next_words_list, next_score_list, next_normalized_score_list, next_translations_list,
