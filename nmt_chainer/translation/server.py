@@ -70,13 +70,27 @@ class Translator(object):
             src_data, stats_src_pp = build_dataset_one_side_pp(src_file.name, self.src_indexer, max_nb_ex=self.config_server.process.max_nb_ex)
 
             from nmt_chainer.translation.eval import translate_to_file_with_beam_search
-            translate_to_file_with_beam_search(dest_file.name, self.config_server.process.gpu, self.encdec, self.eos_idx, src_data, beam_width, beam_pruning_margin,
+            from nmt_chainer.translation.beam_search import BeamSearchParams
+
+            beam_search_params = BeamSearchParams(                
+                                               beam_width=beam_width, 
+                                               beam_pruning_margin=beam_pruning_margin,                        
                                                beam_score_coverage_penalty=beam_score_coverage_penalty,
                                                beam_score_coverage_penalty_strength=beam_score_coverage_penalty_strength,
-                                               nb_steps=nb_steps,
-                                               nb_steps_ratio=nb_steps_ratio,
                                                beam_score_length_normalization=beam_score_length_normalization,
                                                beam_score_length_normalization_strength=beam_score_length_normalization_strength,
+                                               force_finish=force_finish,
+                                               use_unfinished_translation_if_none_found=True,)
+
+            translate_to_file_with_beam_search(dest_file.name, self.config_server.process.gpu, self.encdec, self.eos_idx, src_data, 
+                                               beam_search_params,
+                                                #beam_width, beam_pruning_margin,
+                                               #beam_score_coverage_penalty=beam_score_coverage_penalty,
+                                               #beam_score_coverage_penalty_strength=beam_score_coverage_penalty_strength,
+                                               nb_steps=nb_steps,
+                                               nb_steps_ratio=nb_steps_ratio,
+                                               #beam_score_length_normalization=beam_score_length_normalization,
+                                               #beam_score_length_normalization_strength=beam_score_length_normalization_strength,
                                                post_score_length_normalization=post_score_length_normalization,
                                                post_score_length_normalization_strength=post_score_length_normalization_strength,
                                                post_score_coverage_penalty=post_score_coverage_penalty,
@@ -84,13 +98,13 @@ class Translator(object):
                                                groundhog=groundhog,
                                                tgt_unk_id=self.config_server.output.tgt_unk_id,
                                                tgt_indexer=self.tgt_indexer,
-                                               force_finish=force_finish,
+                                               #force_finish=force_finish,
                                                prob_space_combination=prob_space_combination, reverse_encdec=self.reverse_encdec,
                                                generate_attention_html=(attn_graph_script_file.name, attn_graph_div_file.name),
                                                attn_graph_with_sum=False,
                                                attn_graph_attribs={'title': '', 'toolbar_location': 'below', 'plot_width': attn_graph_width, 'plot_height': attn_graph_height}, src_indexer=self.src_indexer,
                                                rich_output_filename=rich_output_file.name,
-                                               use_unfinished_translation_if_none_found=True,
+                                               #use_unfinished_translation_if_none_found=True,
                                                replace_unk=True, src=sentence, dic=self.config_server.output.dic,
                                                remove_unk=remove_unk, normalize_unicode_unk=normalize_unicode_unk, attempt_to_relocate_unk_source=attempt_to_relocate_unk_source)
 
