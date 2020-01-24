@@ -550,11 +550,12 @@ def do_eval(config_eval):
                     else:
                         tgt_idx = tgt_idx[0]
                         src_idx = src_idx[0]
-                        placeholder_dictionary[src_idx] = tgt_idx
-                        placeholders_list_all.append( (placeholder, src_idx, tgt_idx))
-                        placeholders_list.append(tgt_idx)
-                log.info("Found %i placeholders: %r  l:%i,%i"%(len(placeholders_list_all), placeholders_list_all), 
-                        len(tgt_indexer), len(src_indexer))
+                        if not tgt_indexer.is_unk_idx(tgt_idx) and not src_indexer.is_unk_idx(src_idx):
+                            placeholder_dictionary[src_idx] = tgt_idx
+                            placeholders_list_all.append( (placeholder, src_idx, tgt_idx))
+                            placeholders_list.append(tgt_idx)
+                log.info("Found %i placeholders: %r  l:%i,%i"%(len(placeholders_list_all), placeholders_list_all, 
+                        len(tgt_indexer), len(src_indexer)))
 
                 def make_constraints(src, src_seq)->beam_search.BeamSearchConstraints:
                     required_tgt_idx = beam_search.TgtIdxConstraint()
