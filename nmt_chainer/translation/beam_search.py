@@ -77,7 +77,9 @@ class TgtIdxConstraint:
     def copy(self)->"TgtIdxConstraint":
         res = TgtIdxConstraint()
         res.dict = self.dict.copy()
+        res.placeholders_list = self.placeholders_list
         return res
+
     def __len__(self)->int:
         return sum(self.dict.values())
     def __repr__(self):
