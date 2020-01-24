@@ -52,8 +52,14 @@ class BeamSearchParams:
 class TgtIdxConstraint:
     def __init__(self):
         self.dict = {}
+        self.placeholders_list: Optional[List[int]] = None
+
     def __contains__(self, x:int)->bool:
         return x in self.dict
+
+    def set_placeholders_idx_list(self, lst:List[int]):
+        self.placeholders_list = lst
+
     def add(self, x:int)->None:
         if not isinstance(x, int):
             raise Exception("wrong type %s"%x)
@@ -275,12 +281,13 @@ def update_next_lists(num_case, idx_in_case, new_cost, eos_idx, new_state_ensemb
 
     else:
         if required_tgt_idx is not None:
-            if idx_in_case in required_tgt_idx:
-                required_tgt_idx = required_tgt_idx.copy()
-                required_tgt_idx.substract(idx_in_case)
-            else:
-                #assert required_tgt_idx[idx_in_case] == 0
-                return BSReturn.CONSTRAINT_VIOLATED
+            if idx_in_case in required_tgt_idx.placeholders_list:
+                if idx_in_case in required_tgt_idx:
+                    required_tgt_idx = required_tgt_idx.copy()
+                    required_tgt_idx.substract(idx_in_case)
+                else:
+                    #assert required_tgt_idx[idx_in_case] == 0
+                    return BSReturn.CONSTRAINT_VIOLATED
 
 
         new_translation = current_translations[num_case]+ [idx_in_case]
@@ -565,6 +572,7 @@ def advance_one_step(dec_cell_ensemble, eos_idx,
         required_tgt_idx_list=required_tgt_idx_list)
 
     if len(t_infos_list.next_states_list) == 0:
+
         return None  # We only found finished translations
 
     # Create the new translation states
@@ -695,12 +703,6 @@ def ensemble_beam_search(model_ensemble, src_batch, src_mask, nb_steps, eos_idx,
                 eos_idx,
                 current_translations_states,
                 beam_search_params,
-                #beam_width,
-                #beam_pruning_margin,
-                #beam_score_length_normalization,
-                #beam_score_length_normalization_strength,
-                #beam_score_coverage_penalty,
-                #beam_score_coverage_penalty_strength,
                 finished_translations,
                 force_finish=beam_search_params.force_finish and num_step == (nb_steps - 1),
                 need_attention=need_attention,
