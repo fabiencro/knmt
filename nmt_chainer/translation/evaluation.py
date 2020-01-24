@@ -7,6 +7,7 @@ import io
 import logging
 import math
 import operator
+from typing import List, Optional
 
 import chainer
 import numpy as np
@@ -167,7 +168,6 @@ def reverse_rescore(encdec, src_batch, src_mask, eos_idx, translations, gpu=None
             de_sorted_scores[original_pos] = scores[xpos]
         return de_sorted_scores
 
-
 def beam_search_translate(encdec, eos_idx, src_data, 
                           beam_search_params:beam_search.BeamSearchParams = beam_search.BeamSearchParams(),
                           #beam_width=20, beam_pruning_margin=None, 
@@ -185,7 +185,7 @@ def beam_search_translate(encdec, eos_idx, src_data,
                           reverse_encdec=None, 
                           #use_unfinished_translation_if_none_found=False,
                           nbest=None,
-                          constraints_fn_list=None,
+                          constraints_fn_list:Optional[List[beam_search.BeamSearchConstraints]]=None,
                           use_astar=False,
                           astar_params:beam_search.AStarParams=beam_search.AStarParams()):
     nb_ex = len(src_data)
@@ -227,7 +227,7 @@ def beam_search_translate(encdec, eos_idx, src_data,
                                                         #force_finish=force_finish,
                                                         prob_space_combination=prob_space_combination,
                                                         #use_unfinished_translation_if_none_found=use_unfinished_translation_if_none_found,
-                                                        constraints_fn=constraints_fn,
+                                                        constraints=constraints_fn,
                                                         use_astar=use_astar,
                                                         astar_params=astar_params)
 

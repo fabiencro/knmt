@@ -10,7 +10,7 @@ import logging
 import operator
 import queue
 from dataclasses import dataclass, field
-from typing import Iterator, List, Optional, Tuple, cast
+from typing import Iterator, List, Optional, Tuple, Callable, cast
 
 import chainer
 import chainer.functions as F
@@ -46,6 +46,11 @@ class BeamSearchParams:
     beam_score_coverage_penalty_strength: float=0.2
     force_finish:bool = False
     use_unfinished_translation_if_none_found:bool = False
+
+@dataclass(order=False, frozen=True)
+class BeamSearchConstraints:
+    constraint_fn: Optional[Callable[[List[int]], float]] = None
+    required_tgt_idx: Optional[List[int]] = None
 
 @dataclass(order=False, frozen=True)
 class AStarParams:
@@ -565,10 +570,12 @@ def ensemble_beam_search(model_ensemble, src_batch, src_mask, nb_steps, eos_idx,
                          #force_finish=False,
                          prob_space_combination=False, 
                          #use_unfinished_translation_if_none_found=False,
-                         constraints_fn=None,
+                         constraints:Optional[BeamSearchConstraints] = None,
+                         #constraints_fn=None,
                          use_astar: bool = False,
-                         astar_params:AStarParams = AStarParams(),
-                         required_tgt_idx:Optional[List[int]] = None):
+                         astar_params:AStarParams = AStarParams()
+                         #required_tgt_idx:Optional[List[int]] = None
+                         ):
     """
     Compute translations using a beam-search algorithm.
 
@@ -612,7 +619,8 @@ def ensemble_beam_search(model_ensemble, src_batch, src_mask, nb_steps, eos_idx,
                          #force_finish=force_finish,
                          prob_space_combination=prob_space_combination, 
                          #use_unfinished_translation_if_none_found=use_unfinished_translation_if_none_found,
-                         constraints_fn=constraints_fn,
+                         constraints=constraints,
+                         #constraints_fn=constraints_fn,
                          astar_params=astar_params)
 
     with chainer.using_config("train", False), chainer.no_backprop_mode():
@@ -632,6 +640,8 @@ def ensemble_beam_search(model_ensemble, src_batch, src_mask, nb_steps, eos_idx,
         #previous_states_ensemble = [None] * len(model_ensemble)
 
         # Current_translations_states will hold the information for the current beam
+        required_tgt_idx = constraints.required_tgt_idx if constraints is not None else None
+        constraints_fn = constraints.constraint_fn if constraints is not None else None
 
         current_translations_states = ATranslationState.make_empty(xp, len(model_ensemble), required_tgt_idx=required_tgt_idx)
         #current_translations_states.previous_states_ensemble = previous_states_ensemble
@@ -993,7 +1003,8 @@ def ensemble_astar_search(model_ensemble, src_batch, src_mask, nb_steps, eos_idx
                          #force_finish=False,
                          prob_space_combination=False, 
                          #use_unfinished_translation_if_none_found=False,
-                         constraints_fn=None,
+                         constraints: Optional[BeamSearchConstraints] = None,
+                         #constraints_fn=None,
                          astar_params:AStarParams = AStarParams()):
     """
     Compute translations using a astar-search algorithm.
@@ -1021,6 +1032,9 @@ def ensemble_astar_search(model_ensemble, src_batch, src_mask, nb_steps, eos_idx
             each item in the list is a tuple (translation, score) or (translation, score, attention) if need_attention = True
     """
     
+    required_tgt_idx = constraints.required_tgt_idx if constraints is not None else None
+    constraints_fn = constraints.constraint_fn if constraints is not None else None
+
     with chainer.using_config("train", False), chainer.no_backprop_mode():
         mb_size = src_batch[0].data.shape[0]
         assert len(model_ensemble) >= 1
