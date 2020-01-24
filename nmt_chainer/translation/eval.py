@@ -539,6 +539,7 @@ def do_eval(config_eval):
                     return beam_search.BeamSearchConstraints(constraint_fn=constraint_fn)
             else:
                 placeholder_dictionary = {}
+                placeholders_list_all = []
                 placeholders_list = []
                 for i in range(100):
                     placeholder = "<K-%i>"%i
@@ -550,11 +551,14 @@ def do_eval(config_eval):
                         tgt_idx = tgt_idx[0]
                         src_idx = src_idx[0]
                         placeholder_dictionary[src_idx] = tgt_idx
-                        placeholders_list.append( (placeholder, src_idx, tgt_idx))
-                log.info("Found %i placeholders: %r"%(len(placeholders_list), placeholders_list))
+                        placeholders_list_all.append( (placeholder, src_idx, tgt_idx))
+                        placeholders_list.append(tgt_idx)
+                log.info("Found %i placeholders: %r  l:%i,%i"%(len(placeholders_list_all), placeholders_list_all), 
+                        len(tgt_indexer), len(src_indexer))
 
                 def make_constraints(src, src_seq)->beam_search.BeamSearchConstraints:
                     required_tgt_idx = beam_search.TgtIdxConstraint()
+                    required_tgt_idx.set_placeholders_idx_list(placeholders_list)
                     for idx in src_seq:
                         if idx in placeholder_dictionary:
                             required_tgt_idx.add(placeholder_dictionary[idx])
