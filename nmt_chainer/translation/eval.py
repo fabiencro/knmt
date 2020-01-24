@@ -24,6 +24,7 @@ import nmt_chainer.training_module.train as train
 import nmt_chainer.training_module.train_config as train_config
 import nmt_chainer.translation.beam_search as beam_search
 from nmt_chainer.dataprocessing.processors import build_dataset_one_side_pp
+from nmt_chainer.translation.beam_search import BeamSearchParams
 # import visualisation
 from nmt_chainer.utilities import bleu_computer
 from nmt_chainer.utilities.argument_parsing_tools import OrderedNamespace
@@ -119,13 +120,19 @@ class RichOutputWriter(object):
         log.info("done writing JSON translation infos to %s" % self.filename)
 
 
-def beam_search_all(gpu, encdec, eos_idx, src_data, beam_width, beam_pruning_margin, beam_score_coverage_penalty, beam_score_coverage_penalty_strength, nb_steps,
-                    nb_steps_ratio, beam_score_length_normalization, beam_score_length_normalization_strength, post_score_length_normalization, post_score_length_normalization_strength,
+def beam_search_all(gpu, encdec, eos_idx, src_data,
+                    beam_search_params:beam_search.BeamSearchParams,
+                    #beam_width, beam_pruning_margin, beam_score_coverage_penalty, beam_score_coverage_penalty_strength, 
+                    nb_steps,
+                    nb_steps_ratio, 
+                    #beam_score_length_normalization, beam_score_length_normalization_strength, 
+                    post_score_length_normalization, post_score_length_normalization_strength,
                     post_score_coverage_penalty, post_score_coverage_penalty_strength,
                     groundhog,
-                    tgt_unk_id, tgt_indexer, force_finish=False,
+                    tgt_unk_id, tgt_indexer, 
+                    #force_finish=False,
                     prob_space_combination=False, reverse_encdec=None,
-                    use_unfinished_translation_if_none_found=False,
+                    #use_unfinished_translation_if_none_found=False,
                     replace_unk=False,
                     src=None,
                     dic=None,
@@ -143,22 +150,28 @@ def beam_search_all(gpu, encdec, eos_idx, src_data, beam_width, beam_pruning_mar
 
     with cuda.get_device_from_id(gpu):
         translations_gen = beam_search_translate(
-            encdec, eos_idx, src_data, beam_width=beam_width, nb_steps=nb_steps,
-            gpu=gpu, beam_pruning_margin=beam_pruning_margin,
-            beam_score_coverage_penalty=beam_score_coverage_penalty,
-            beam_score_coverage_penalty_strength=beam_score_coverage_penalty_strength,
+            encdec, eos_idx, src_data, 
+            beam_search_params,
+            
+            #beam_width=beam_width, 
+            nb_steps=nb_steps,
+            gpu=gpu, 
+            #beam_pruning_margin=beam_pruning_margin,
+            #beam_score_coverage_penalty=beam_score_coverage_penalty,
+            #beam_score_coverage_penalty_strength=beam_score_coverage_penalty_strength,
             nb_steps_ratio=nb_steps_ratio,
             need_attention=True,
-            beam_score_length_normalization=beam_score_length_normalization,
-            beam_score_length_normalization_strength=beam_score_length_normalization_strength,
+            #beam_score_length_normalization=beam_score_length_normalization,
+            #beam_score_length_normalization_strength=beam_score_length_normalization_strength,
             post_score_length_normalization=post_score_length_normalization,
             post_score_length_normalization_strength=post_score_length_normalization_strength,
             post_score_coverage_penalty=post_score_coverage_penalty,
             post_score_coverage_penalty_strength=post_score_coverage_penalty_strength,
-            groundhog=groundhog, force_finish=force_finish,
+            groundhog=groundhog, 
+            #force_finish=force_finish,
             prob_space_combination=prob_space_combination,
             reverse_encdec=reverse_encdec,
-            use_unfinished_translation_if_none_found=use_unfinished_translation_if_none_found,
+            #use_unfinished_translation_if_none_found=use_unfinished_translation_if_none_found,
             nbest=nbest,
             constraints_fn_list=constraints_fn_list,
             use_astar=use_astar,
@@ -211,14 +224,20 @@ def beam_search_all(gpu, encdec, eos_idx, src_data, beam_width, beam_pruning_mar
         # print('', file=sys.stderr)
 
 
-def translate_to_file_with_beam_search(dest_fn, gpu, encdec, eos_idx, src_data, beam_width, beam_pruning_margin, beam_score_coverage_penalty, beam_score_coverage_penalty_strength, nb_steps,
-                                       nb_steps_ratio, beam_score_length_normalization, beam_score_length_normalization_strength, post_score_length_normalization, post_score_length_normalization_strength,
+def translate_to_file_with_beam_search(dest_fn, gpu, encdec, eos_idx, src_data, 
+                                       beam_search_params:beam_search.BeamSearchParams,
+                                       #beam_width, beam_pruning_margin, beam_score_coverage_penalty, beam_score_coverage_penalty_strength, 
+                                       nb_steps,
+                                       nb_steps_ratio, 
+                                       #beam_score_length_normalization, beam_score_length_normalization_strength, 
+                                       post_score_length_normalization, post_score_length_normalization_strength,
                                        post_score_coverage_penalty, post_score_coverage_penalty_strength,
                                        groundhog,
-                                       tgt_unk_id, tgt_indexer, force_finish=False,
+                                       tgt_unk_id, tgt_indexer, 
+                                       #force_finish=False,
                                        prob_space_combination=False, reverse_encdec=None,
                                        generate_attention_html=None, attn_graph_with_sum=True, attn_graph_attribs=None, src_indexer=None, rich_output_filename=None,
-                                       use_unfinished_translation_if_none_found=False,
+                                       #use_unfinished_translation_if_none_found=False,
                                        replace_unk=False,
                                        src=None,
                                        dic=None,
@@ -234,13 +253,19 @@ def translate_to_file_with_beam_search(dest_fn, gpu, encdec, eos_idx, src_data, 
     log.info("writing translation to %s " % dest_fn)
     out = io.open(dest_fn, "wt", encoding="utf8")
 
-    translation_iterator = beam_search_all(gpu, encdec, eos_idx, src_data, beam_width, beam_pruning_margin, beam_score_coverage_penalty, beam_score_coverage_penalty_strength, nb_steps,
-                                           nb_steps_ratio, beam_score_length_normalization, beam_score_length_normalization_strength, post_score_length_normalization, post_score_length_normalization_strength,
+    translation_iterator = beam_search_all(gpu, encdec, eos_idx, src_data, 
+                                           beam_search_params,
+                                           #beam_width, beam_pruning_margin, beam_score_coverage_penalty, beam_score_coverage_penalty_strength, 
+                                           nb_steps,
+                                           nb_steps_ratio, 
+                                           #beam_score_length_normalization, beam_score_length_normalization_strength, 
+                                           post_score_length_normalization, post_score_length_normalization_strength,
                                            post_score_coverage_penalty, post_score_coverage_penalty_strength,
                                            groundhog,
-                                           tgt_unk_id, tgt_indexer, force_finish=force_finish,
+                                           tgt_unk_id, tgt_indexer, 
+                                           #force_finish=force_finish,
                                            prob_space_combination=prob_space_combination, reverse_encdec=reverse_encdec,
-                                           use_unfinished_translation_if_none_found=use_unfinished_translation_if_none_found,
+                                           #use_unfinished_translation_if_none_found=use_unfinished_translation_if_none_found,
                                            replace_unk=replace_unk,
                                            src=src,
                                            dic=dic,
@@ -623,15 +648,26 @@ def do_eval(config_eval):
             from nmt_chainer.translation.server import do_start_server
             do_start_server(config_eval)
         else:
-            translate_to_file_with_beam_search(dest_fn, gpu, encdec_list, eos_idx, src_data,
+            beam_search_params = beam_search.BeamSearchParams(
                                                beam_width=beam_width,
                                                beam_pruning_margin=beam_pruning_margin,
                                                beam_score_coverage_penalty=beam_score_coverage_penalty,
                                                beam_score_coverage_penalty_strength=beam_score_coverage_penalty_strength,
-                                               nb_steps=nb_steps,
-                                               nb_steps_ratio=nb_steps_ratio,
                                                beam_score_length_normalization=beam_score_length_normalization,
                                                beam_score_length_normalization_strength=beam_score_length_normalization_strength,
+                                               force_finish=force_finish,
+                                               use_unfinished_translation_if_none_found=True
+            )
+            translate_to_file_with_beam_search(dest_fn, gpu, encdec_list, eos_idx, src_data,
+                                               beam_search_params=beam_search_params,
+                                               #beam_width=beam_width,
+                                               #beam_pruning_margin=beam_pruning_margin,
+                                               #beam_score_coverage_penalty=beam_score_coverage_penalty,
+                                               #beam_score_coverage_penalty_strength=beam_score_coverage_penalty_strength,
+                                               nb_steps=nb_steps,
+                                               nb_steps_ratio=nb_steps_ratio,
+                                               #beam_score_length_normalization=beam_score_length_normalization,
+                                               #beam_score_length_normalization_strength=beam_score_length_normalization_strength,
                                                post_score_length_normalization=post_score_length_normalization,
                                                post_score_length_normalization_strength=post_score_length_normalization_strength,
                                                post_score_coverage_penalty=post_score_coverage_penalty,
@@ -639,13 +675,13 @@ def do_eval(config_eval):
                                                groundhog=groundhog,
                                                tgt_unk_id=tgt_unk_id,
                                                tgt_indexer=tgt_indexer,
-                                               force_finish=force_finish,
+                                               #force_finish=force_finish,
                                                prob_space_combination=prob_space_combination,
                                                reverse_encdec=reverse_encdec,
                                                generate_attention_html=generate_attention_html,
                                                src_indexer=src_indexer,
                                                rich_output_filename=rich_output_filename,
-                                               use_unfinished_translation_if_none_found=True,
+                                               #use_unfinished_translation_if_none_found=True,
                                                unprocessed_output_filename=dest_fn + ".unprocessed",
                                                nbest=nbest,
                                                constraints_fn_list=constraints_list,

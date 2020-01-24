@@ -36,23 +36,16 @@ logging.basicConfig()
 log = logging.getLogger("rnns:beam_search")
 log.setLevel(logging.INFO)
 
-
-@dataclass(eq = False)
-class ATranslationState:
-    translations: List[List[int]] = field(default_factory=lambda:[[]])
-    scores: np.array = field(default_factory=lambda:np.zeros(1))
-    previous_states_ensemble: List[np.array] = field(default_factory=list)
-    previous_words: Optional[List[int]] = None
-    attentions: List[List[np.array]] = field(default_factory=lambda:[[]])
-
-    @classmethod
-    def make_empty(cls, xp, ensemble_size):
-        obj = cls(scores=xp.zeros(1), previous_states_ensemble = [None] * ensemble_size)
-        return obj
-
-class BSReturn(enum.Enum):
-    OK = enum.auto()
-    CONSTRAINT_VIOLATED = enum.auto()
+@dataclass(order=False, frozen=True)
+class BeamSearchParams:
+    beam_width:int = 20
+    beam_pruning_margin:Optional[float] = None
+    beam_score_length_normalization:str = "none" # none simple google
+    beam_score_length_normalization_strength:float = 0.2
+    beam_score_coverage_penalty:str = "none" # none google
+    beam_score_coverage_penalty_strength: float=0.2
+    force_finish:bool = False
+    use_unfinished_translation_if_none_found:bool = False
 
 @dataclass(order=False, frozen=True)
 class AStarParams:
@@ -63,6 +56,76 @@ class AStarParams:
     length_normalization_constant:float = 0
     length_normalization_exponent:float = 1
     astar_priority_eval_string: Optional[str] = None
+
+
+@dataclass(eq = False)
+class ATranslationState:
+    translations: List[List[int]] = field(default_factory=lambda:[[]])
+    scores: np.array = field(default_factory=lambda:np.zeros(1))
+    previous_states_ensemble: List[np.array] = field(default_factory=list)
+    previous_words: Optional[List[int]] = None
+    attentions: List[List[np.array]] = field(default_factory=lambda:[[]])
+    required_tgt_idx_list: Optional[List[List[int]]] = None
+
+    @classmethod
+    def make_empty(cls, xp, ensemble_size, required_tgt_idx:Optional[List[int]]):
+        required_tgt_idx_list = None if required_tgt_idx is None else [required_tgt_idx]
+        obj = cls(scores=xp.zeros(1), 
+                previous_states_ensemble = [None] * ensemble_size,
+                required_tgt_idx_list=required_tgt_idx_list)
+        return obj
+
+class BSReturn(enum.Enum):
+    OK = enum.auto()
+    CONSTRAINT_VIOLATED = enum.auto()
+
+
+
+@dataclass
+class TranslationInfosList:
+    next_states_list: List[List[Tuple[Variable]]] = field(default_factory = list)  # each item is a list of list
+    next_words_list: List[int] = field(default_factory = list)
+    next_score_list: List[float] = field(default_factory = list)
+    next_normalized_score_list: Optional[List[float]] = None #field(default_factory = list)
+    next_translations_list: List[List[int]] = field(default_factory = list)
+    next_attentions_list: List[List[np.ndarray]] = field(default_factory = list)
+    constraint_values: Optional[List[float]] = None
+    required_tgt_idx_list: Optional[List[List[int]]] = None
+
+    def prune_with_margin(self, beam_pruning_margin:float, use_normalized_score:bool):
+        if use_normalized_score:
+            assert self.next_normalized_score_list is not None
+            score_list = self.next_normalized_score_list
+        else:
+            score_list = self.next_score_list
+        best_next_score = max(score_list)
+        bad_score_indices = [
+            idx for idx,
+            elem in enumerate(score_list) if (
+                best_next_score -
+                elem > beam_pruning_margin)]
+        self.prune_from_index_list(bad_score_indices)
+
+    def prune_from_index_list(self, bad_score_indices:List[int]):
+        for i in bad_score_indices[::-1]:
+            if self.next_normalized_score_list is not None:
+                assert len(self.next_normalized_score_list) == len(self.next_score_list)
+                del self.next_normalized_score_list[i]
+            if self.constraint_values is not None:
+                assert len(self.constraint_values) == len(self.next_score_list)
+                del self.constraint_values[i]
+            if self.required_tgt_idx_list is not None:
+                assert len(self.required_tgt_idx_list) == len(self.next_score_list)
+                del self.required_tgt_idx_list[i]
+            del self.next_states_list[i]
+            del self.next_words_list[i]
+            del self.next_score_list[i]
+            del self.next_translations_list[i]
+            del self.next_attentions_list[i]
+        assert (len(self.next_states_list) == len(self.next_words_list) == 
+                        len(self.next_score_list) == len(self.next_translations_list) == len(self.next_attentions_list)
+                        )
+            
 
 def iterate_best_score(new_scores: np.ndarray, beam_width: int)->Iterator[Tuple[int, int, float]]:
     """
@@ -101,48 +164,13 @@ def iterate_eos_scores(new_scores, eos_idx)->Iterator[Tuple[int, int, float]]:
         idx_in_case = eos_idx
         yield int(num_case), idx_in_case, cuda.to_cpu(new_scores[num_case, eos_idx])
 
+def iterate_required_word_scores(new_scores, required:List[List[int]])->Iterator[Tuple[int, int, float]]:
+    nb_cases, v_size = new_scores.shape
+    assert nb_cases == len(required)
 
-@dataclass
-class TranslationInfosList:
-    next_states_list: List[List[Tuple[Variable]]] = field(default_factory = list)  # each item is a list of list
-    next_words_list: List[int] = field(default_factory = list)
-    next_score_list: List[float] = field(default_factory = list)
-    next_normalized_score_list: Optional[List[float]] = None #field(default_factory = list)
-    next_translations_list: List[List[int]] = field(default_factory = list)
-    next_attentions_list: List[List[np.ndarray]] = field(default_factory = list)
-    constraint_values: Optional[List[float]] = None
-
-    def prune_with_margin(self, beam_pruning_margin:float, use_normalized_score:bool):
-        if use_normalized_score:
-            assert self.next_normalized_score_list is not None
-            score_list = self.next_normalized_score_list
-        else:
-            score_list = self.next_score_list
-        best_next_score = max(score_list)
-        bad_score_indices = [
-            idx for idx,
-            elem in enumerate(score_list) if (
-                best_next_score -
-                elem > beam_pruning_margin)]
-        self.prune_from_index_list(bad_score_indices)
-
-    def prune_from_index_list(self, bad_score_indices:List[int]):
-        for i in bad_score_indices[::-1]:
-            if self.next_normalized_score_list is not None:
-                assert len(self.next_normalized_score_list) == len(self.next_score_list)
-                del self.next_normalized_score_list[i]
-            if self.constraint_values is not None:
-                assert len(self.constraint_values) == len(self.next_score_list)
-                del self.constraint_values[i]
-            del self.next_states_list[i]
-            del self.next_words_list[i]
-            del self.next_score_list[i]
-            del self.next_translations_list[i]
-            del self.next_attentions_list[i]
-        assert (len(self.next_states_list) == len(self.next_words_list) == 
-                        len(self.next_score_list) == len(self.next_translations_list) == len(self.next_attentions_list))
-            
-
+    for num_case in six.moves.range(nb_cases):
+        for req_idx in required[num_case]:
+            yield int(num_case), req_idx, cuda.to_cpu(new_scores[num_case, req_idx])
 
 def update_next_lists(num_case, idx_in_case, new_cost, eos_idx, new_state_ensemble, finished_translations, current_translations,
                       current_attentions,
@@ -153,7 +181,8 @@ def update_next_lists(num_case, idx_in_case, new_cost, eos_idx, new_state_ensemb
                       #next_attentions_list, 
                       beam_score_coverage_penalty, beam_score_coverage_penalty_strength, 
                       need_attention=False,
-                      constraints_fn=None) -> BSReturn:
+                      constraints_fn=None,
+                      required_tgt_idx:Optional[List[int]]=None) -> BSReturn:
     """
     Updates the lists containing the infos on translations in current beam
 
@@ -205,6 +234,15 @@ def update_next_lists(num_case, idx_in_case, new_cost, eos_idx, new_state_ensemb
         return BSReturn.OK
 
     else:
+        if required_tgt_idx is not None and idx_in_case in required_tgt_idx:
+            if required_tgt_idx[idx_in_case] > 0:
+                required_tgt_idx = required_tgt_idx.copy()
+                required_tgt_idx[idx_in_case] -= 1
+            else:
+                assert required_tgt_idx[idx_in_case] == 0
+                return BSReturn.CONSTRAINT_VIOLATED
+
+
         new_translation = current_translations[num_case]+ [idx_in_case]
         if constraints_fn is not None:
             constraint_val = constraints_fn(new_translation)
@@ -223,6 +261,10 @@ def update_next_lists(num_case, idx_in_case, new_cost, eos_idx, new_state_ensemb
 
         t_infos_list.next_words_list.append(idx_in_case)
         t_infos_list.next_score_list.append(-new_cost)
+
+        if required_tgt_idx is not None:
+            assert t_infos_list.required_tgt_idx_list is not None
+            t_infos_list.required_tgt_idx_list.append(required_tgt_idx)
 
         # Compute the normalized score if needed.
         if beam_score_coverage_penalty == "google":
@@ -247,9 +289,14 @@ def update_next_lists(num_case, idx_in_case, new_cost, eos_idx, new_state_ensemb
             t_infos_list.next_attentions_list.append(current_attentions[num_case] + [attn_summed])
         return BSReturn.OK
 
-def compute_next_lists(new_state_ensemble, new_scores, beam_width, beam_pruning_margin,
-                       beam_score_length_normalization, beam_score_length_normalization_strength,
-                       beam_score_coverage_penalty, beam_score_coverage_penalty_strength,
+
+
+
+def compute_next_lists(new_state_ensemble, new_scores, 
+                       beam_search_params: BeamSearchParams,
+                       #beam_width, beam_pruning_margin,
+                       #beam_score_length_normalization, beam_score_length_normalization_strength,
+                       #beam_score_coverage_penalty, beam_score_coverage_penalty_strength,
                        eos_idx,
                        current_translations,
                        finished_translations,
@@ -257,7 +304,8 @@ def compute_next_lists(new_state_ensemble, new_scores, beam_width, beam_pruning_
                        attn_ensemble,
                        force_finish=False,
                        need_attention=False,
-                       constraints_fn=None) -> TranslationInfosList:
+                       constraints_fn=None,
+                       required_tgt_idx_list:Optional[List[List[int]]]=None) -> TranslationInfosList:
     """
         Compute the informations for the next beam.
 
@@ -293,7 +341,7 @@ def compute_next_lists(new_state_ensemble, new_scores, beam_width, beam_pruning_
     # next_attentions_list = []
 
     
-    if beam_score_coverage_penalty == "google":
+    if beam_search_params.beam_score_coverage_penalty == "google":
         t_infos_list = TranslationInfosList(next_normalized_score_list = [])
     else:
         t_infos_list = TranslationInfosList()
@@ -301,74 +349,53 @@ def compute_next_lists(new_state_ensemble, new_scores, beam_width, beam_pruning_
     if constraints_fn is not None:
         t_infos_list.constraint_values = []
 
+    if required_tgt_idx_list is not None:
+        t_infos_list.required_tgt_idx_list = []
+
     if force_finish:
         score_iterator = iterate_eos_scores(new_scores, eos_idx)
     else:
-        score_iterator = iterate_best_score(new_scores, beam_width)
+        score_iterator = iterate_best_score(new_scores, beam_search_params.beam_width)
 
     for num_case, idx_in_case, new_cost in score_iterator:
         if len(current_translations[num_case]) > 0:
-            if beam_score_length_normalization == 'simple':
+            if beam_search_params.beam_score_length_normalization == 'simple':
                 new_cost /= len(current_translations[num_case])
-            elif beam_score_length_normalization == 'google':
-                new_cost /= (pow((len(current_translations[num_case]) + 5), beam_score_length_normalization_strength) / pow(6, beam_score_length_normalization_strength))
+            elif beam_search_params.beam_score_length_normalization == 'google':
+                new_cost /= (pow((len(current_translations[num_case]) + 5), 
+                    beam_search_params.beam_score_length_normalization_strength) / 
+                    pow(6, beam_search_params.beam_score_length_normalization_strength))
         
-        
+        required_tgt_idx=required_tgt_idx_list[num_case] if required_tgt_idx_list is not None else None
         update_next_lists(num_case, idx_in_case, new_cost, eos_idx, new_state_ensemble,
                           finished_translations, current_translations, current_attentions,
                           t_infos_list,
                           #next_states_list, next_words_list, next_score_list, next_normalized_score_list, next_translations_list,
                           attn_ensemble, 
                           #next_attentions_list, 
-                          beam_score_coverage_penalty, beam_score_coverage_penalty_strength, 
-                          need_attention=need_attention, constraints_fn=constraints_fn)
-        assert len(t_infos_list.next_states_list) <= beam_width
+                          beam_search_params.beam_score_coverage_penalty, 
+                          beam_search_params.beam_score_coverage_penalty_strength, 
+                          need_attention=need_attention, constraints_fn=constraints_fn,
+                          required_tgt_idx=required_tgt_idx)
+        assert len(t_infos_list.next_states_list) <= beam_search_params.beam_width
 #             if len(next_states_list) >= beam_width:
 #                 break
 
 
     # Prune items that have a score worse than beam_pruning_margin below the
     # best score.
-    if (beam_pruning_margin is not None and t_infos_list.next_score_list):
-        t_infos_list.prune_with_margin(beam_pruning_margin, use_normalized_score=False)
+    if (beam_search_params.beam_pruning_margin is not None and t_infos_list.next_score_list):
+        t_infos_list.prune_with_margin(beam_search_params.beam_pruning_margin, use_normalized_score=False)
 
-        # best_next_score = max(next_score_list)
-        # bad_score_indices = [
-        #     idx for idx,
-        #     elem in enumerate(next_score_list) if (
-        #         best_next_score -
-        #         elem > beam_pruning_margin)]
-
-        # for i in bad_score_indices[::-1]:
-        #     del next_states_list[i]
-        #     del next_words_list[i]
-        #     del next_score_list[i]
-        #     del next_translations_list[i]
-        #     del next_attentions_list[i]
-        #     if beam_score_coverage_penalty == "google":
-        #         del next_normalized_score_list[i]
 
     # Prune items that have a normalized score worse than beam_pruning_margin
     # below the best normalized score.
-    if (beam_score_coverage_penalty ==
-            "google" and beam_pruning_margin is not None and t_infos_list.next_normalized_score_list is not None):
+    if (beam_search_params.beam_score_coverage_penalty ==
+            "google" and beam_search_params.beam_pruning_margin is not None and t_infos_list.next_normalized_score_list is not None):
 
-        t_infos_list.prune_with_margin(beam_pruning_margin, use_normalized_score=True)
+        t_infos_list.prune_with_margin(beam_search_params.beam_pruning_margin, use_normalized_score=True)
 
-        # best_next_normalized_score = max(next_normalized_score_list)
-        # bad_score_indices = [
-        #     idx for idx,
-        #     elem in enumerate(next_normalized_score_list) if (
-        #         best_next_normalized_score -
-        #         elem > beam_pruning_margin)]
 
-        # for i in bad_score_indices[::-1]:
-        #     del next_states_list[i]
-        #     del next_words_list[i]
-        #     del next_score_list[i]
-        #     del next_normalized_score_list[i]
-        #     del next_translations_list[i]
-        #     del next_attentions_list[i]
 
     return t_infos_list #next_states_list, next_words_list, next_score_list, next_translations_list, next_attentions_list
 
@@ -424,13 +451,15 @@ def compute_next_states_and_scores(dec_cell_ensemble, current_states_ensemble, c
     return combined_scores, new_state_ensemble, attn_ensemble
 
 
+
 def advance_one_step(dec_cell_ensemble, eos_idx, 
                      current_translations_states: ATranslationState,
-                     beam_width, beam_pruning_margin,
-                     beam_score_length_normalization,
-                     beam_score_length_normalization_strength,
-                     beam_score_coverage_penalty,
-                     beam_score_coverage_penalty_strength,
+                     beam_search_params:BeamSearchParams,
+                     #beam_width, beam_pruning_margin,
+                     #beam_score_length_normalization,
+                     #beam_score_length_normalization_strength,
+                     #beam_score_coverage_penalty,
+                     #beam_score_coverage_penalty_strength,
                      finished_translations,
                      force_finish=False, need_attention=False,
                      prob_space_combination=False,
@@ -467,7 +496,7 @@ def advance_one_step(dec_cell_ensemble, eos_idx,
 
 #     xp = cuda.get_array_module(dec_ensemble[0].initial_state.data)
     xp = dec_cell_ensemble[0].xp
-    current_translations, current_scores, current_states_ensemble, current_words, current_attentions = dataclasses.astuple(
+    current_translations, current_scores, current_states_ensemble, current_words, current_attentions, required_tgt_idx_list = dataclasses.astuple(
                                                                                     current_translations_states)
 
     # Compute the next states and associated next word scores
@@ -476,7 +505,7 @@ def advance_one_step(dec_cell_ensemble, eos_idx,
         prob_space_combination=prob_space_combination)
 
     nb_cases, v_size = combined_scores.shape
-    assert nb_cases <= beam_width
+    assert nb_cases <= beam_search_params.beam_width
 
     # Add the new scores to the previous ones for each states in the beam
     new_scores = current_scores[:, xp.newaxis] + combined_scores
@@ -484,13 +513,16 @@ def advance_one_step(dec_cell_ensemble, eos_idx,
     # Compute the list of new translation states after pruning
     #next_states_list, next_words_list, next_score_list, next_translations_list, next_attentions_list 
     t_infos_list = compute_next_lists(
-        new_state_ensemble, new_scores, beam_width, beam_pruning_margin,
-        beam_score_length_normalization, beam_score_length_normalization_strength,
-        beam_score_coverage_penalty, beam_score_coverage_penalty_strength,
+        new_state_ensemble, new_scores, 
+        beam_search_params,
+        #beam_width, beam_pruning_margin,
+        #beam_score_length_normalization, beam_score_length_normalization_strength,
+        #beam_score_coverage_penalty, beam_score_coverage_penalty_strength,
         eos_idx,
         current_translations, finished_translations,
         current_attentions, attn_ensemble, force_finish=force_finish, need_attention=need_attention,
-        constraints_fn=constraints_fn)
+        constraints_fn=constraints_fn,
+        required_tgt_idx_list=required_tgt_idx_list)
 
     if len(t_infos_list.next_states_list) == 0:
         return None  # We only found finished translations
@@ -513,24 +545,30 @@ def advance_one_step(dec_cell_ensemble, eos_idx,
                                 xp.array(t_infos_list.next_score_list),
                                 concatenated_next_states_list,
                                 Variable(next_words_array),
-                                t_infos_list.next_attentions_list
+                                t_infos_list.next_attentions_list,
+                                required_tgt_idx_list=t_infos_list.required_tgt_idx_list
                                 )
 
     return next_translations_states
 
 
+
 def ensemble_beam_search(model_ensemble, src_batch, src_mask, nb_steps, eos_idx,
-                         beam_width=20, beam_pruning_margin=None,
-                         beam_score_length_normalization=None,
-                         beam_score_length_normalization_strength=0.2,
-                         beam_score_coverage_penalty=None,
-                         beam_score_coverage_penalty_strength=0.2,
+                         beam_search_params:BeamSearchParams,
+                         
+                         #beam_width=20, beam_pruning_margin=None,
+                         #beam_score_length_normalization=None,
+                         #beam_score_length_normalization_strength=0.2,
+                         #beam_score_coverage_penalty=None,
+                         #beam_score_coverage_penalty_strength=0.2,
                          need_attention=False,
-                         force_finish=False,
-                         prob_space_combination=False, use_unfinished_translation_if_none_found=False,
+                         #force_finish=False,
+                         prob_space_combination=False, 
+                         #use_unfinished_translation_if_none_found=False,
                          constraints_fn=None,
                          use_astar: bool = False,
-                         astar_params:AStarParams = AStarParams()):
+                         astar_params:AStarParams = AStarParams(),
+                         required_tgt_idx:Optional[List[int]] = None):
     """
     Compute translations using a beam-search algorithm.
 
@@ -564,15 +602,16 @@ def ensemble_beam_search(model_ensemble, src_batch, src_mask, nb_steps, eos_idx,
                          src_mask=src_mask,
                          nb_steps=nb_steps, 
                          eos_idx=eos_idx,
-                         beam_width=beam_width, beam_pruning_margin=beam_pruning_margin,
-                         beam_score_length_normalization=beam_score_length_normalization,
-                         beam_score_length_normalization_strength=beam_score_length_normalization_strength,
-                         beam_score_coverage_penalty=beam_score_coverage_penalty,
-                         beam_score_coverage_penalty_strength=beam_score_coverage_penalty_strength,
+                         beam_search_params=beam_search_params,
+                         #beam_width=beam_width, beam_pruning_margin=beam_pruning_margin,
+                         #beam_score_length_normalization=beam_score_length_normalization,
+                         #beam_score_length_normalization_strength=beam_score_length_normalization_strength,
+                         #beam_score_coverage_penalty=beam_score_coverage_penalty,
+                         #beam_score_coverage_penalty_strength=beam_score_coverage_penalty_strength,
                          need_attention=need_attention,
-                         force_finish=force_finish,
+                         #force_finish=force_finish,
                          prob_space_combination=prob_space_combination, 
-                         use_unfinished_translation_if_none_found=use_unfinished_translation_if_none_found,
+                         #use_unfinished_translation_if_none_found=use_unfinished_translation_if_none_found,
                          constraints_fn=constraints_fn,
                          astar_params=astar_params)
 
@@ -594,7 +633,7 @@ def ensemble_beam_search(model_ensemble, src_batch, src_mask, nb_steps, eos_idx,
 
         # Current_translations_states will hold the information for the current beam
 
-        current_translations_states = ATranslationState.make_empty(xp, len(model_ensemble))
+        current_translations_states = ATranslationState.make_empty(xp, len(model_ensemble), required_tgt_idx=required_tgt_idx)
         #current_translations_states.previous_states_ensemble = previous_states_ensemble
         #current_translations_states.scores = xp.array([0])
 
@@ -612,14 +651,15 @@ def ensemble_beam_search(model_ensemble, src_batch, src_mask, nb_steps, eos_idx,
                 dec_cell_ensemble,
                 eos_idx,
                 current_translations_states,
-                beam_width,
-                beam_pruning_margin,
-                beam_score_length_normalization,
-                beam_score_length_normalization_strength,
-                beam_score_coverage_penalty,
-                beam_score_coverage_penalty_strength,
+                beam_search_params,
+                #beam_width,
+                #beam_pruning_margin,
+                #beam_score_length_normalization,
+                #beam_score_length_normalization_strength,
+                #beam_score_coverage_penalty,
+                #beam_score_coverage_penalty_strength,
                 finished_translations,
-                force_finish=force_finish and num_step == (nb_steps - 1),
+                force_finish=beam_search_params.force_finish and num_step == (nb_steps - 1),
                 need_attention=need_attention,
                 prob_space_combination=prob_space_combination,
                 constraints_fn=constraints_fn)
@@ -632,7 +672,7 @@ def ensemble_beam_search(model_ensemble, src_batch, src_mask, nb_steps, eos_idx,
         # Return finished translations
         if len(finished_translations) == 0:
             log.info(f"no finished translation found  {nb_steps}" )
-            if use_unfinished_translation_if_none_found:
+            if beam_search_params.use_unfinished_translation_if_none_found:
                 assert current_translations_states is not None
                 if need_attention:
                     finished_translations.append(
@@ -815,11 +855,12 @@ def merge_items_into_TState(items_list: List[Item], xp) -> ATranslationState:
 
 def astar_update(num_step:int, nb_steps:int, dec_cell_ensemble, eos_idx, 
                      translations_priority_queue: TranslationPriorityQueue,
-                     beam_width, beam_pruning_margin,
-                     beam_score_length_normalization,
-                     beam_score_length_normalization_strength,
-                     beam_score_coverage_penalty,
-                     beam_score_coverage_penalty_strength,
+                     beam_search_params:BeamSearchParams,
+                     #beam_width, beam_pruning_margin,
+                     #beam_score_length_normalization,
+                     #beam_score_length_normalization_strength,
+                     #beam_score_coverage_penalty,
+                     #beam_score_coverage_penalty_strength,
                      finished_translations,
                      force_finish=False, need_attention=False,
                      prob_space_combination=False,
@@ -885,7 +926,7 @@ def astar_update(num_step:int, nb_steps:int, dec_cell_ensemble, eos_idx,
     
 
     nb_cases, v_size = combined_scores.shape
-    assert nb_cases <= beam_width
+    assert nb_cases <= beam_search_params.beam_width
 
     # Add the new scores to the previous ones for each states in the beam
     new_scores = current_scores[:, xp.newaxis] + combined_scores
@@ -893,9 +934,11 @@ def astar_update(num_step:int, nb_steps:int, dec_cell_ensemble, eos_idx,
     # Compute the list of new translation states after pruning
     #next_states_list, next_words_list, next_score_list, next_translations_list, next_attentions_list 
     t_infos_list = compute_next_lists(
-        new_state_ensemble, new_scores, beam_width, beam_pruning_margin,
-        beam_score_length_normalization, beam_score_length_normalization_strength,
-        beam_score_coverage_penalty, beam_score_coverage_penalty_strength,
+        new_state_ensemble, new_scores, 
+        beam_search_params,
+        #beam_width, beam_pruning_margin,
+        #beam_score_length_normalization, beam_score_length_normalization_strength,
+        #beam_score_coverage_penalty, beam_score_coverage_penalty_strength,
         eos_idx,
         current_translations, finished_translations,
         current_attentions, attn_ensemble, force_finish=force_finish, need_attention=need_attention,
@@ -940,14 +983,16 @@ def astar_update(num_step:int, nb_steps:int, dec_cell_ensemble, eos_idx,
 
 
 def ensemble_astar_search(model_ensemble, src_batch, src_mask, nb_steps, eos_idx,
-                         beam_width=20, beam_pruning_margin=None,
-                         beam_score_length_normalization=None,
-                         beam_score_length_normalization_strength=0.2,
-                         beam_score_coverage_penalty=None,
-                         beam_score_coverage_penalty_strength=0.2,
+                         beam_search_params:BeamSearchParams,
+                         #beam_width=20, beam_pruning_margin=None,
+                         #beam_score_length_normalization=None,
+                         #beam_score_length_normalization_strength=0.2,
+                         #beam_score_coverage_penalty=None,
+                         #beam_score_coverage_penalty_strength=0.2,
                          need_attention=False,
-                         force_finish=False,
-                         prob_space_combination=False, use_unfinished_translation_if_none_found=False,
+                         #force_finish=False,
+                         prob_space_combination=False, 
+                         #use_unfinished_translation_if_none_found=False,
                          constraints_fn=None,
                          astar_params:AStarParams = AStarParams()):
     """
@@ -1020,14 +1065,15 @@ def ensemble_astar_search(model_ensemble, src_batch, src_mask, nb_steps, eos_idx
                 dec_cell_ensemble,
                 eos_idx,
                 astar_queue,
-                beam_width,
-                beam_pruning_margin,
-                beam_score_length_normalization,
-                beam_score_length_normalization_strength,
-                beam_score_coverage_penalty,
-                beam_score_coverage_penalty_strength,
+                beam_search_params,
+                #beam_width,
+                #beam_pruning_margin,
+                #beam_score_length_normalization,
+                #beam_score_length_normalization_strength,
+                #beam_score_coverage_penalty,
+                #beam_score_coverage_penalty_strength,
                 finished_translations,
-                force_finish=force_finish and num_step == (nb_steps - 1),
+                force_finish=beam_search_params.force_finish and num_step == (nb_steps - 1),
                 need_attention=need_attention,
                 prob_space_combination=prob_space_combination,
                 constraints_fn=constraints_fn,
@@ -1043,7 +1089,7 @@ def ensemble_astar_search(model_ensemble, src_batch, src_mask, nb_steps, eos_idx
         # Return finished translations
         if len(finished_translations) == 0:
             log.info(f"no finished translation found  {nb_steps} {len(astar_queue.queue)} {astar_queue.stats()}")
-            if use_unfinished_translation_if_none_found:
+            if beam_search_params.use_unfinished_translation_if_none_found:
                 current_translations_states = merge_items_into_TState(astar_queue.get_n(1), xp)
                 
                 #assert current_translations_states is not None
