@@ -225,7 +225,7 @@ def iterate_required_word_scores(new_scores, required:List[TgtIdxConstraint])->I
         for req_idx in required[num_case]:
             yield int(num_case), req_idx, cuda.to_cpu(new_scores[num_case, req_idx])
 
-#@profile
+
 def update_next_lists(num_case, idx_in_case, new_cost, eos_idx, get_slice_of_new_state_ensemble, finished_translations, current_translations,
                       current_attentions,
                       t_infos_list: TranslationInfosList,
@@ -521,7 +521,7 @@ def compute_next_states_and_scores(dec_cell_ensemble, current_states_ensemble, c
 
     if not prob_space_combination:
         for logits in logits_ensemble:
-            combined_scores += xp.log(F.softmax(logits).data)
+            combined_scores += F.log_softmax(logits).data #xp.log(F.softmax(logits).data)
         combined_scores /= len(dec_cell_ensemble)
     else:
         for logits in logits_ensemble:
@@ -918,8 +918,8 @@ def merge_items_into_TState(items_list: List[Item], xp) -> ATranslationState:
         assert all(item.last_word is not None for item in items_list)
         assert all(item.state is not None for item in items_list)
 
-    for item in items_list:
-        assert item.last_word is not None
+    # for item in items_list:
+    #     assert item.last_word is not None #except first item...
 
     translations = [item.current_translation for item in items_list]
     scores = xp.array([item.score for item in items_list])
