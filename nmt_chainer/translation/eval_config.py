@@ -50,6 +50,8 @@ def define_parser(parser):
     translation_method_group.add_argument("--astar_length_normalization_exponent", type=float, default=1)
     translation_method_group.add_argument("--astar_length_normalization_constant", type=float, default=0)
     translation_method_group.add_argument("--astar_priority_eval_string")
+    translation_method_group.add_argument("--astar_max_length_diff", type=float)
+    
 
     translation_method_group.add_argument("--always_consider_eos_and_placeholders", default=False, action="store_true")
     
