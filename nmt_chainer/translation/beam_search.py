@@ -639,7 +639,7 @@ def advance_one_step(dec_cell_ensemble, eos_idx,
         concatenated_next_states_list.append([])
         for substates in next_states_list_one_model:
             new_substate = xp.take(substates.data, t_infos_list.next_states_list, axis=0)
-            concatenated_next_states_list[-1].append(new_substate)
+            concatenated_next_states_list[-1].append(Variable(new_substate))
 
     next_translations_states = ATranslationState(t_infos_list.next_translations_list,
                                 xp.array(t_infos_list.next_score_list),
