@@ -13,7 +13,7 @@ import queue
 from collections import defaultdict
 from dataclasses import dataclass, field
 from typing import (Callable, Counter, Dict, Iterator, List, Mapping, Optional,
-                    Tuple, cast)
+                    Tuple, Union, cast)
 
 import chainer
 import chainer.functions as F
@@ -133,10 +133,9 @@ class BSReturn(enum.Enum):
     CONSTRAINT_VIOLATED = enum.auto()
 
 
-
 @dataclass
 class TranslationInfosList:
-    next_states_list: List[List[Tuple[Variable]]] = field(default_factory = list)  # each item is a list of list
+    next_states_list: Union[List[List[Tuple[Variable]]], List[int]] = field(default_factory = list)  # each item is a list of list
     next_words_list: List[int] = field(default_factory = list)
     next_score_list: List[float] = field(default_factory = list)
     next_normalized_score_list: Optional[List[float]] = None #field(default_factory = list)
@@ -311,7 +310,11 @@ def update_next_lists(num_case, idx_in_case, new_cost, eos_idx, get_slice_of_new
         if constraint_val is not None and constraint_val <0:
             return BSReturn.CONSTRAINT_VIOLATED
 
-        t_infos_list.next_states_list.append(get_slice_of_new_state_ensemble(num_case))
+        if get_slice_of_new_state_ensemble is not None:
+            t_infos_list.next_states_list.append(get_slice_of_new_state_ensemble(num_case))
+        else:
+            t_infos_list.next_states_list.append(num_case)
+
         #     [tuple([Variable(substates.data[num_case].reshape(1, -1)) for substates in new_state])
         #      for new_state in new_state_ensemble]
         # )
@@ -427,13 +430,16 @@ def compute_next_lists(new_state_ensemble, new_scores,
     else:
         score_iterator = iterate_best_score(new_scores, beam_search_params.beam_width)
 
-    memoized_state_ensemble_slices = {}
-    def get_slice_of_new_state_ensemble(num_case):
-        if num_case not in memoized_state_ensemble_slices:
-            memoized_state_ensemble_slices[num_case] = [
-                tuple([substates.data[num_case].reshape(1, -1) for substates in new_state])
-                                for new_state in new_state_ensemble]
-        return memoized_state_ensemble_slices[num_case]
+    if new_state_ensemble is not None:
+        memoized_state_ensemble_slices = {}
+        def get_slice_of_new_state_ensemble(num_case):
+            if num_case not in memoized_state_ensemble_slices:
+                memoized_state_ensemble_slices[num_case] = [
+                    tuple([substates.data[num_case].reshape(1, -1) for substates in new_state])
+                                    for new_state in new_state_ensemble]
+            return memoized_state_ensemble_slices[num_case]
+    else:
+        get_slice_of_new_state_ensemble = None
 
     for num_case, idx_in_case, new_cost in score_iterator:
         if len(current_translations[num_case]) > 0:
@@ -601,7 +607,7 @@ def advance_one_step(dec_cell_ensemble, eos_idx,
     # Compute the list of new translation states after pruning
     #next_states_list, next_words_list, next_score_list, next_translations_list, next_attentions_list 
     t_infos_list = compute_next_lists(
-        new_state_ensemble, new_scores, 
+        None, new_scores, 
         beam_search_params,
         #beam_width, beam_pruning_margin,
         #beam_score_length_normalization, beam_score_length_normalization_strength,
@@ -622,11 +628,18 @@ def advance_one_step(dec_cell_ensemble, eos_idx,
     if xp is not np:
         next_words_array = cuda.to_gpu(next_words_array)
 
+    # concatenated_next_states_list = []
+    # for next_states_list_one_model in six.moves.zip(*t_infos_list.next_states_list):
+    #     concatenated_next_states_list.append(
+    #         tuple([Variable(xp.concatenate(substates, axis=0)) for substates in six.moves.zip(*next_states_list_one_model)])
+    #     )
+
     concatenated_next_states_list = []
-    for next_states_list_one_model in six.moves.zip(*t_infos_list.next_states_list):
-        concatenated_next_states_list.append(
-            tuple([Variable(xp.concatenate(substates, axis=0)) for substates in six.moves.zip(*next_states_list_one_model)])
-        )
+    for next_states_list_one_model in new_state_ensemble:
+        concatenated_next_states_list.append([])
+        for substates in next_states_list_one_model:
+            new_substate = xp.take(substates.data, t_infos_list.next_states_list, axis=0)
+            concatenated_next_states_list[-1].append(new_substate)
 
     next_translations_states = ATranslationState(t_infos_list.next_translations_list,
                                 xp.array(t_infos_list.next_score_list),
