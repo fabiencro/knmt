@@ -431,7 +431,7 @@ def compute_next_lists(new_state_ensemble, new_scores,
     def get_slice_of_new_state_ensemble(num_case):
         if num_case not in memoized_state_ensemble_slices:
             memoized_state_ensemble_slices[num_case] = [
-                tuple([Variable(substates.data[num_case].reshape(1, -1)) for substates in new_state])
+                tuple([substates.data[num_case].reshape(1, -1) for substates in new_state])
                                 for new_state in new_state_ensemble]
         return memoized_state_ensemble_slices[num_case]
 
@@ -625,7 +625,7 @@ def advance_one_step(dec_cell_ensemble, eos_idx,
     concatenated_next_states_list = []
     for next_states_list_one_model in six.moves.zip(*t_infos_list.next_states_list):
         concatenated_next_states_list.append(
-            tuple([F.concat(substates, axis=0) for substates in six.moves.zip(*next_states_list_one_model)])
+            tuple([Variable(xp.concatenate(substates, axis=0)) for substates in six.moves.zip(*next_states_list_one_model)])
         )
 
     next_translations_states = ATranslationState(t_infos_list.next_translations_list,
@@ -945,7 +945,7 @@ def merge_items_into_TState(items_list: List[Item], xp) -> ATranslationState:
     concatenated_next_states_list: List[Tuple[np.ndarray,...]]= []
     for next_states_list_one_model in zip(*next_states_list):
         concatenated_next_states_list.append(
-            tuple([F.concat(substates, axis=0) for substates in zip(*next_states_list_one_model)])
+            tuple([Variable(xp.concatenate(substates, axis=0)) for substates in zip(*next_states_list_one_model)])
         )
 
     return ATranslationState(translations=translations, scores=scores, 
