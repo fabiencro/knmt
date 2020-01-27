@@ -177,9 +177,8 @@ class TranslationInfosList:
         assert (len(self.next_states_list) == len(self.next_words_list) == 
                         len(self.next_score_list) == len(self.next_translations_list) == len(self.next_attentions_list)
                         )
-            
 
-def iterate_best_score(new_scores: np.ndarray, beam_width: int)->Iterator[Tuple[int, int, float]]:
+def iterate_best_score(new_scores: np.ndarray, beam_width: int, xp=np)->Iterator[Tuple[int, int, float]]:
     """
     Create generator over the beam_width best scores.
 
@@ -194,19 +193,31 @@ def iterate_best_score(new_scores: np.ndarray, beam_width: int)->Iterator[Tuple[
             idx_in_case is the column of this score
     """
     nb_cases, v_size = new_scores.shape
-    new_costs_flattened = cuda.to_cpu(- new_scores).ravel()
 
-    # TODO replace wit a cupy argpartition when/if implemented
-    best_idx = np.argpartition(new_costs_flattened, beam_width)[:beam_width]
+    if xp != np:
+        new_costs_flattened_non_neg = new_scores.ravel()
+        best_idx = xp.argsort(new_costs_flattened_non_neg)[-beam_width:]
+        best_scores = -new_costs_flattened_non_neg[best_idx]
+        all_num_cases = best_idx / v_size
+        all_idx_in_cases = best_idx % v_size
+        best_scores = chainer.cuda.to_cpu(best_scores)
+        all_num_cases = chainer.cuda.to_cpu(all_num_cases)
+        all_idx_in_cases = chainer.cuda.to_cpu(all_idx_in_cases)
+    else:
+        new_costs_flattened = (- new_scores).ravel()
+        
+        # TODO replace wit a cupy argpartition when/if implemented
+        best_idx = np.argpartition(new_costs_flattened, beam_width)[:beam_width]
+        best_scores = new_costs_flattened[best_idx]
 
-    all_num_cases = best_idx / v_size
-    all_idx_in_cases = best_idx % v_size
+        all_num_cases = best_idx / v_size
+        all_idx_in_cases = best_idx % v_size
 
     for num in six.moves.range(len(best_idx)):
         idx = best_idx[num]
         num_case = all_num_cases[num]
         idx_in_case = all_idx_in_cases[num]
-        yield int(num_case), idx_in_case, new_costs_flattened[idx]
+        yield int(num_case), idx_in_case, best_scores[num] #new_costs_flattened[idx]
 
 
 def iterate_eos_scores(new_scores, eos_idx)->Iterator[Tuple[int, int, float]]:
@@ -214,7 +225,7 @@ def iterate_eos_scores(new_scores, eos_idx)->Iterator[Tuple[int, int, float]]:
 
     for num_case in six.moves.range(nb_cases):
         idx_in_case = eos_idx
-        yield int(num_case), idx_in_case, cuda.to_cpu(new_scores[num_case, eos_idx])
+        yield int(num_case), idx_in_case, -cuda.to_cpu(new_scores[num_case, eos_idx])
 
 def iterate_required_word_scores(new_scores, required:List[TgtIdxConstraint])->Iterator[Tuple[int, int, float]]:
     nb_cases, v_size = new_scores.shape
@@ -222,7 +233,7 @@ def iterate_required_word_scores(new_scores, required:List[TgtIdxConstraint])->I
 
     for num_case in six.moves.range(nb_cases):
         for req_idx in required[num_case]:
-            yield int(num_case), req_idx, cuda.to_cpu(new_scores[num_case, req_idx])
+            yield int(num_case), req_idx, -cuda.to_cpu(new_scores[num_case, req_idx])
 
 
 def update_next_lists(num_case, idx_in_case, new_cost, eos_idx, get_slice_of_new_state_ensemble, finished_translations, current_translations,
@@ -234,7 +245,8 @@ def update_next_lists(num_case, idx_in_case, new_cost, eos_idx, get_slice_of_new
                       beam_score_coverage_penalty, beam_score_coverage_penalty_strength, 
                       need_attention=False,
                       constraints_fn=None,
-                      required_tgt_idx:Optional[TgtIdxConstraint]=None) -> BSReturn:
+                      required_tgt_idx:Optional[TgtIdxConstraint]=None,
+                      xp=np) -> BSReturn:
     """
     Updates the lists containing the infos on translations in current beam
 
@@ -341,7 +353,7 @@ def update_next_lists(num_case, idx_in_case, new_cost, eos_idx, get_slice_of_new
         t_infos_list.next_translations_list.append(new_translation)
 
         if need_attention:
-            xp = cuda.get_array_module(attn_ensemble[0].data)
+            #xp = cuda.get_array_module(attn_ensemble[0].data)
             attn_summed = xp.zeros((attn_ensemble[0].data[0].shape), dtype=xp.float32)
             for attn in attn_ensemble:
                 attn_summed += attn.data[num_case]
@@ -364,7 +376,8 @@ def compute_next_lists(new_state_ensemble, new_scores,
                        force_finish=False,
                        need_attention=False,
                        constraints_fn=None,
-                       required_tgt_idx_list:Optional[List[Counter[int]]]=None) -> TranslationInfosList:
+                       required_tgt_idx_list:Optional[List[Counter[int]]]=None,
+                       xp=np) -> TranslationInfosList:
     """
         Compute the informations for the next beam.
 
@@ -414,7 +427,7 @@ def compute_next_lists(new_state_ensemble, new_scores,
     if force_finish:
         score_iterator = iterate_eos_scores(new_scores, eos_idx)
     elif beam_search_params.always_consider_eos_and_placeholders:
-        score_iterator_list = [iterate_best_score(new_scores, beam_search_params.beam_width),
+        score_iterator_list = [iterate_best_score(new_scores, beam_search_params.beam_width, xp=xp),
                                    iterate_eos_scores(new_scores, eos_idx) ]
         if required_tgt_idx_list is not None:
             score_iterator_list.append(iterate_required_word_scores(new_scores, required_tgt_idx_list))
@@ -428,7 +441,7 @@ def compute_next_lists(new_state_ensemble, new_scores,
                 yield num_case, idx_in_case, new_cost
         score_iterator = chained_score_iterator()
     else:
-        score_iterator = iterate_best_score(new_scores, beam_search_params.beam_width)
+        score_iterator = iterate_best_score(new_scores, beam_search_params.beam_width, xp=xp)
 
     if new_state_ensemble is not None:
         memoized_state_ensemble_slices = {}
@@ -463,7 +476,8 @@ def compute_next_lists(new_state_ensemble, new_scores,
                           beam_search_params.beam_score_coverage_penalty, 
                           beam_search_params.beam_score_coverage_penalty_strength, 
                           need_attention=need_attention, constraints_fn=constraints_fn,
-                          required_tgt_idx=required_tgt_idx)
+                          required_tgt_idx=required_tgt_idx,
+                          xp=xp)
         assert len(t_infos_list.next_states_list) <= beam_search_params.beam_width or beam_search_params.always_consider_eos_and_placeholders
 #             if len(next_states_list) >= beam_width:
 #                 break
@@ -534,6 +548,9 @@ def compute_next_states_and_scores(dec_cell_ensemble, current_states_ensemble, c
             combined_scores += F.softmax(logits).data
         combined_scores /= len(dec_cell_ensemble)
         combined_scores = xp.log(combined_scores)
+
+
+    #print(combined_scores[0,0]) #force sync
 
     return combined_scores, new_state_ensemble, attn_ensemble
 
@@ -616,7 +633,8 @@ def advance_one_step(dec_cell_ensemble, eos_idx,
         current_translations, finished_translations,
         current_attentions, attn_ensemble, force_finish=force_finish, need_attention=need_attention,
         constraints_fn=constraints_fn,
-        required_tgt_idx_list=required_tgt_idx_list)
+        required_tgt_idx_list=required_tgt_idx_list,
+        xp=xp)
 
     if len(t_infos_list.next_states_list) == 0:
 
@@ -1066,7 +1084,8 @@ def astar_update(num_step:int, nb_steps:int, dec_cell_ensemble, eos_idx,
         current_translations, finished_translations,
         current_attentions, attn_ensemble, force_finish=force_finish, need_attention=need_attention,
         constraints_fn=constraints_fn,
-        required_tgt_idx_list=required_tgt_idx_list)
+        required_tgt_idx_list=required_tgt_idx_list,
+        xp=xp)
 
     if len(t_infos_list.next_states_list) == 0:
         return False  # We only found finished translations
