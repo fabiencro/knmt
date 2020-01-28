@@ -168,6 +168,7 @@ def reverse_rescore(encdec, src_batch, src_mask, eos_idx, translations, gpu=None
             de_sorted_scores[original_pos] = scores[xpos]
         return de_sorted_scores
 
+
 def beam_search_translate(encdec, eos_idx, src_data, 
                           beam_search_params:beam_search.BeamSearchParams = beam_search.BeamSearchParams(),
                           #beam_width=20, beam_pruning_margin=None, 
@@ -187,13 +188,14 @@ def beam_search_translate(encdec, eos_idx, src_data,
                           nbest=None,
                           constraints_fn_list:Optional[List[beam_search.BeamSearchConstraints]]=None,
                           use_astar=False,
-                          astar_params:beam_search.AStarParams=beam_search.AStarParams()):
+                          astar_params:beam_search.AStarParams=beam_search.AStarParams(),
+                          use_chainerx=False):
     nb_ex = len(src_data)
 
     assert constraints_fn_list is None or len(constraints_fn_list) == nb_ex
 
     for num_ex in tqdm.trange(nb_ex):
-        src_batch, src_mask = make_batch_src([src_data[num_ex]], gpu=gpu)
+        src_batch, src_mask = make_batch_src([src_data[num_ex]], gpu=gpu, use_chainerx=use_chainerx)
 
         assert len(src_mask) == 0
         if nb_steps_ratio is not None:
@@ -229,7 +231,8 @@ def beam_search_translate(encdec, eos_idx, src_data,
                                                         #use_unfinished_translation_if_none_found=use_unfinished_translation_if_none_found,
                                                         constraints=constraints_fn,
                                                         use_astar=use_astar,
-                                                        astar_params=astar_params)
+                                                        astar_params=astar_params,
+                                                        gpu=gpu)
 
         # TODO: This is a quick patch, but actually ensemble_beam_search probably should not return empty translations except when no translation found
         if len(translations) > 1:

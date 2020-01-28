@@ -121,9 +121,14 @@ class ATranslationState:
     required_tgt_idx_list: Optional[List[TgtIdxConstraint]] = None
 
     @classmethod
-    def make_empty(cls, xp, ensemble_size, required_tgt_idx:Optional[Counter[int]]):
+    def make_empty(cls, xp, ensemble_size, required_tgt_idx:Optional[Counter[int]], gpu=None):
         required_tgt_idx_list = None if required_tgt_idx is None else [required_tgt_idx]
-        obj = cls(scores=xp.zeros(1), 
+        if gpu is not None and xp == chainerx:
+            scores=xp.zeros(1, device="cuda:%i"%gpu)
+        else:
+            scores=xp.zeros(1)
+            
+        obj = cls(scores=scores, 
                 previous_states_ensemble = [None] * ensemble_size,
                 required_tgt_idx_list=required_tgt_idx_list)
         return obj
@@ -178,6 +183,8 @@ class TranslationInfosList:
                         len(self.next_score_list) == len(self.next_translations_list) == len(self.next_attentions_list)
                         )
 
+import chainerx
+
 def iterate_best_score(new_scores: np.ndarray, beam_width: int, xp=np)->Iterator[Tuple[int, int, float]]:
     """
     Create generator over the beam_width best scores.
@@ -194,7 +201,13 @@ def iterate_best_score(new_scores: np.ndarray, beam_width: int, xp=np)->Iterator
     """
     nb_cases, v_size = new_scores.shape
 
-    if xp != np:
+    if xp == chainerx:
+        xp, device, new_scores = chainerx._fallback_workarounds._from_chx(new_scores)
+        with device:
+            yield from iterate_best_score(new_scores, beam_width, xp)
+        return
+
+    elif xp != np:
         new_costs_flattened_non_neg = new_scores.ravel()
         best_idx = xp.argsort(new_costs_flattened_non_neg)[-beam_width:]
         best_scores = -new_costs_flattened_non_neg[best_idx]
@@ -214,7 +227,7 @@ def iterate_best_score(new_scores: np.ndarray, beam_width: int, xp=np)->Iterator
         all_idx_in_cases = best_idx % v_size
 
     for num in six.moves.range(len(best_idx)):
-        idx = best_idx[num]
+        #idx = best_idx[num]
         num_case = all_num_cases[num]
         idx_in_case = all_idx_in_cases[num]
         yield int(num_case), idx_in_case, best_scores[num] #new_costs_flattened[idx]
@@ -234,7 +247,6 @@ def iterate_required_word_scores(new_scores, required:List[TgtIdxConstraint])->I
     for num_case in six.moves.range(nb_cases):
         for req_idx in required[num_case]:
             yield int(num_case), req_idx, -cuda.to_cpu(new_scores[num_case, req_idx])
-
 
 def update_next_lists(num_case, idx_in_case, new_cost, eos_idx, get_slice_of_new_state_ensemble, finished_translations, current_translations,
                       current_attentions,
@@ -354,9 +366,13 @@ def update_next_lists(num_case, idx_in_case, new_cost, eos_idx, get_slice_of_new
 
         if need_attention:
             #xp = cuda.get_array_module(attn_ensemble[0].data)
-            attn_summed = xp.zeros((attn_ensemble[0].data[0].shape), dtype=xp.float32)
+            #attn_summed = xp.zeros((attn_ensemble[0].data[0].shape), dtype=xp.float32)
+            attn_summed = None
             for attn in attn_ensemble:
-                attn_summed += attn.data[num_case]
+                if attn_summed is None:
+                    attn_summed = attn.data[num_case]
+                else:
+                    attn_summed += attn.data[num_case]
             attn_summed /= len(attn_ensemble)
             t_infos_list.next_attentions_list.append(current_attentions[num_case] + [attn_summed])
         return BSReturn.OK
@@ -537,15 +553,21 @@ def compute_next_states_and_scores(dec_cell_ensemble, current_states_ensemble, c
     new_state_ensemble, logits_ensemble, attn_ensemble = list(six.moves.zip(*states_logits_attn_ensemble))
 
     # Combine the scores of the ensembled models
-    combined_scores = xp.zeros((logits_ensemble[0].data.shape), dtype=xp.float32)
-
+    #combined_scores = xp.zeros((logits_ensemble[0].data.shape), dtype=xp.float32)
+    combined_scores = None
     if not prob_space_combination:
         for logits in logits_ensemble:
-            combined_scores += F.log_softmax(logits).data #xp.log(F.softmax(logits).data)
+            if combined_scores is None:
+                combined_scores = F.log_softmax(logits).data
+            else:
+                combined_scores += F.log_softmax(logits).data #xp.log(F.softmax(logits).data)
         combined_scores /= len(dec_cell_ensemble)
     else:
         for logits in logits_ensemble:
-            combined_scores += F.softmax(logits).data
+            if combined_scores is None:
+                combined_scores = F.softmax(logits).data
+            else:
+                combined_scores += F.softmax(logits).data
         combined_scores /= len(dec_cell_ensemble)
         combined_scores = xp.log(combined_scores)
 
@@ -567,7 +589,8 @@ def advance_one_step(dec_cell_ensemble, eos_idx,
                      finished_translations,
                      force_finish=False, need_attention=False,
                      prob_space_combination=False,
-                     constraints_fn=None) -> Optional[ATranslationState]:
+                     constraints_fn=None,
+                     gpu=None) -> Optional[ATranslationState]:
     """
         Generate the partial translations / decoder states in the next beam
 
@@ -641,10 +664,23 @@ def advance_one_step(dec_cell_ensemble, eos_idx,
         return None  # We only found finished translations
 
     # Create the new translation states
-
-    next_words_array = np.array(t_infos_list.next_words_list, dtype=np.int32)
-    if xp is not np:
+    if xp == np:
+        next_words_array = np.array(t_infos_list.next_words_list, dtype=np.int32)
+        next_score_array = np.array(t_infos_list.next_score_list, dtype=np.float32)
+    elif xp == chainerx:
+        if gpu is None:
+            next_words_array = xp.array(t_infos_list.next_words_list, dtype=xp.int32)
+            next_score_array = xp.array(t_infos_list.next_score_list, dtype=xp.float32)
+        else:
+            next_words_array = xp.array(t_infos_list.next_words_list, dtype=xp.int32, device="cuda:%i"%gpu)
+            next_score_array = xp.array(t_infos_list.next_score_list, dtype=np.float32, device="cuda:%i"%gpu)
+    else:
+        next_words_array = np.array(t_infos_list.next_words_list, dtype=np.int32)
         next_words_array = cuda.to_gpu(next_words_array)
+
+        next_score_array = np.array(t_infos_list.next_score_list, dtype=np.float32)
+        next_score_array = cuda.to_gpu(next_score_array)
+
 
     # concatenated_next_states_list = []
     # for next_states_list_one_model in six.moves.zip(*t_infos_list.next_states_list):
@@ -660,9 +696,9 @@ def advance_one_step(dec_cell_ensemble, eos_idx,
             concatenated_next_states_list[-1].append(Variable(new_substate))
 
     next_translations_states = ATranslationState(t_infos_list.next_translations_list,
-                                xp.array(t_infos_list.next_score_list),
+                                next_score_array,
                                 concatenated_next_states_list,
-                                Variable(next_words_array),
+                                Variable(next_words_array, requires_grad=False),
                                 t_infos_list.next_attentions_list,
                                 required_tgt_idx_list=t_infos_list.required_tgt_idx_list
                                 )
@@ -686,7 +722,8 @@ def ensemble_beam_search(model_ensemble, src_batch, src_mask, nb_steps, eos_idx,
                          constraints:Optional[BeamSearchConstraints] = None,
                          #constraints_fn=None,
                          use_astar: bool = False,
-                         astar_params:AStarParams = AStarParams()
+                         astar_params:AStarParams = AStarParams(),
+                         gpu=None
                          #required_tgt_idx:Optional[List[int]] = None
                          ):
     """
@@ -756,7 +793,9 @@ def ensemble_beam_search(model_ensemble, src_batch, src_mask, nb_steps, eos_idx,
         required_tgt_idx = constraints.required_tgt_idx if constraints is not None else None
         constraints_fn = constraints.constraint_fn if constraints is not None else None
 
-        current_translations_states = ATranslationState.make_empty(xp, len(model_ensemble), required_tgt_idx=required_tgt_idx)
+        current_translations_states = ATranslationState.make_empty(xp, len(model_ensemble), 
+                        required_tgt_idx=required_tgt_idx,
+                        gpu=gpu)
         #current_translations_states.previous_states_ensemble = previous_states_ensemble
         #current_translations_states.scores = xp.array([0])
 
@@ -779,7 +818,8 @@ def ensemble_beam_search(model_ensemble, src_batch, src_mask, nb_steps, eos_idx,
                 force_finish=beam_search_params.force_finish and num_step == (nb_steps - 1),
                 need_attention=need_attention,
                 prob_space_combination=prob_space_combination,
-                constraints_fn=constraints_fn)
+                constraints_fn=constraints_fn,
+                gpu=gpu)
     
             if current_translations_states is None:
                 break
