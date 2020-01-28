@@ -144,7 +144,8 @@ def beam_search_all(gpu, encdec, eos_idx, src_data,
                     nbest=None,
                     constraints_fn_list:Optional[List[beam_search.BeamSearchConstraints]]=None,
                     use_astar=False,
-                    astar_params:beam_search.AStarParams=beam_search.AStarParams()):
+                    astar_params:beam_search.AStarParams=beam_search.AStarParams(),
+                    use_chainerx=False):
 
     log.info("starting beam search translation of %i sentences" % len(src_data))
     if isinstance(encdec, (list, tuple)) and len(encdec) > 1:
@@ -177,7 +178,8 @@ def beam_search_all(gpu, encdec, eos_idx, src_data,
             nbest=nbest,
             constraints_fn_list=constraints_fn_list,
             use_astar=use_astar,
-            astar_params=astar_params)
+            astar_params=astar_params,
+            use_chainerx=use_chainerx)
 
         for num_t, translations in enumerate(translations_gen):
             res_trans = []
@@ -249,7 +251,8 @@ def translate_to_file_with_beam_search(dest_fn, gpu, encdec, eos_idx, src_data,
                                        nbest=None,
                                        constraints_fn_list:Optional[List[beam_search.BeamSearchConstraints]]=None,
                                        use_astar=False,
-                                       astar_params:beam_search.AStarParams=beam_search.AStarParams()):
+                                       astar_params:beam_search.AStarParams=beam_search.AStarParams(),
+                                       use_chainerx=False):
 
     log.info("writing translation to %s " % dest_fn)
     out = io.open(dest_fn, "wt", encoding="utf8")
@@ -276,7 +279,8 @@ def translate_to_file_with_beam_search(dest_fn, gpu, encdec, eos_idx, src_data,
                                            nbest=nbest,
                                            constraints_fn_list=constraints_fn_list,
                                            use_astar=use_astar,
-                                           astar_params=astar_params)
+                                           astar_params=astar_params,
+                                           use_chainerx=use_chainerx)
 
     attn_vis = None
     if generate_attention_html is not None:
@@ -413,8 +417,16 @@ def create_encdec(config_eval):
 
             encdec_list.append(this_encdec)
 
-    if 'gpu' in config_eval.process and config_eval.process.gpu is not None:
-        encdec_list = [encdec.to_gpu(config_eval.process.gpu) for encdec in encdec_list]
+    if config_eval.process.use_chainerx:
+        if 'gpu' in config_eval.process and config_eval.process.gpu is not None:
+            encdec_list = [encdec.to_device("cuda:%i"%config_eval.process.gpu) for encdec in encdec_list]
+        else:
+            encdec_list = [encdec.to_device("native:0") for encdec in encdec_list]
+    else:
+        if 'gpu' in config_eval.process and config_eval.process.gpu is not None:
+            encdec_list = [encdec.to_gpu(config_eval.process.gpu) for encdec in encdec_list]
+
+        
 
     if 'reverse_training_config' in config_eval.process and config_eval.process.reverse_training_config is not None:
         reverse_encdec, reverse_eos_idx, reverse_src_indexer, reverse_tgt_indexer = create_and_load_encdec_from_files(
@@ -720,7 +732,8 @@ def do_eval(config_eval):
                                                nbest=nbest,
                                                constraints_fn_list=constraints_list,
                                                use_astar= (mode == "astar_search" or mode == "astar_eval_bleu"),
-                                               astar_params=astar_params)
+                                               astar_params=astar_params,
+                                               use_chainerx=config_eval.process.use_chainerx)
 
             translation_infos["dest"] = dest_fn
             translation_infos["unprocessed"] = dest_fn + ".unprocessed"

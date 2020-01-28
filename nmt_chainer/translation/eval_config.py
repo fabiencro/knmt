@@ -93,6 +93,7 @@ def define_parser(parser):
     management_group.add_argument("--force_placeholders", default=False, action="store_true", 
                 help="force the generation of translations with placeholders")
     management_group.add_argument("--units_placeholders", default=False, action="store_true", help="is each placeholder a subword unit in the vocabulary?")
+    management_group.add_argument("--use_chainerx", default=False, action="store_true")
 
 class CommandLineValuesException(Exception):
     pass

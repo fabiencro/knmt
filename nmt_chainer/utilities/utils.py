@@ -1,5 +1,15 @@
 #!/usr/bin/env python
-from __future__ import absolute_import, division, print_function, unicode_literals
+from __future__ import (
+    absolute_import, division, print_function, unicode_literals)
+import logging
+import os
+import random
+
+import chainer
+from chainer import Variable, cuda
+import chainerx
+import numpy as np
+import six
 """utils.py: Various utilitity functions for RNNSearch"""
 __author__ = "Fabien Cromieres"
 __license__ = "undecided"
@@ -7,13 +17,7 @@ __version__ = "1.0"
 __email__ = "fabien.cromieres@gmail.com"
 __status__ = "Development"
 
-import os
-import logging
-import numpy as np
-import chainer
-from chainer import Variable, cuda
-import random
-import six
+
 
 logging.basicConfig()
 log = logging.getLogger("rnns:utils")
@@ -31,7 +35,7 @@ def ensure_path(path):
             raise
 
 
-def make_batch_src(src_data, padding_idx=0, gpu=None):
+def make_batch_src(src_data, padding_idx=0, gpu=None, use_chainerx=False):
     max_src_size = max(len(x) for x in src_data)
     min_src_size = min(len(x) for x in src_data)
     mb_size = len(src_data)
@@ -51,11 +55,20 @@ def make_batch_src(src_data, padding_idx=0, gpu=None):
                 assert i >= min_src_size
                 src_mask[i - min_src_size][num_ex] = False
 
-    if gpu is not None:
-        return ([Variable(cuda.to_gpu(x, gpu)) for x in src_batch],
-                [cuda.to_gpu(x, gpu) for x in src_mask])
+    if use_chainerx:
+        if gpu is not None:
+            return [Variable(chainerx.array(x, device="cuda:%i"%gpu, dtype=chainerx.int32), requires_grad=False) 
+                            for x in src_batch], chainerx.array(src_mask, device="cuda:%i"%gpu, dtype=chainerx.int32)
+        else:
+            return [Variable(chainerx.array(x, device="native:0", dtype=chainerx.int32), requires_grad=False) 
+                            for x in src_batch], chainerx.array(src_mask, device="native:0", dtype=chainerx.int32)
+
     else:
-        return [Variable(x) for x in src_batch], src_mask
+        if gpu is not None:
+            return ([Variable(cuda.to_gpu(x, gpu)) for x in src_batch],
+                    [cuda.to_gpu(x, gpu) for x in src_mask])
+        else:
+            return [Variable(x, requires_grad=False) for x in src_batch], src_mask
 
 
 def make_batch_src_tgt(training_data, eos_idx=1, padding_idx=0, gpu=None, need_arg_sort=False):
