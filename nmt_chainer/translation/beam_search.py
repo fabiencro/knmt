@@ -364,9 +364,9 @@ def update_next_lists(num_case, idx_in_case, new_cost, eos_idx, get_slice_of_new
             #xp = cuda.get_array_module(attn_ensemble[0].data)
             #attn_summed = xp.zeros((attn_ensemble[0].data[0].shape), dtype=xp.float32)
             if len(attn_ensemble) == 1:
-                attn_summed = attn_ensemble.array[0]
+                attn_summed = attn_ensemble[0].array[num_case]
             else:
-                attn_summed = attn_ensemble[0].array.copy() 
+                attn_summed = attn_ensemble[0].array[num_case].copy() 
                 for attn in attn_ensemble[1:]:
                     attn_summed += attn.array[num_case]
                 attn_summed /= len(attn_ensemble)
