@@ -247,7 +247,33 @@ def iterate_required_word_scores(new_scores, required:List[TgtIdxConstraint])->I
         for req_idx in required[num_case]:
             yield int(num_case), req_idx, -cuda.to_cpu(new_scores[num_case, req_idx])
 
-def update_next_lists(num_case, idx_in_case, new_cost, eos_idx, get_slice_of_new_state_ensemble, finished_translations, current_translations,
+def update_finished_translation(num_case, current_translations, new_cost, finished_translations, 
+                                current_attentions,
+                                need_attention=False,
+                                constraints_fn=None,
+                                required_tgt_idx=None):
+    if constraints_fn is not None and constraints_fn(current_translations[num_case]) != 1:
+        return BSReturn.CONSTRAINT_VIOLATED
+
+    if required_tgt_idx is not None and len(required_tgt_idx) > 0:
+        return BSReturn.CONSTRAINT_VIOLATED
+
+    if need_attention:
+        finished_translations.append((current_translations[num_case],
+                                        -new_cost,
+                                        current_attentions[num_case]
+                                        ))
+    else:
+        finished_translations.append((current_translations[num_case],
+                                        -new_cost))
+
+    return BSReturn.OK
+
+def update_next_lists(num_case, idx_in_case, new_cost, 
+                      #eos_idx, 
+                      get_slice_of_new_state_ensemble, 
+                      #finished_translations, 
+                      current_translations,
                       current_attentions,
                       t_infos_list: TranslationInfosList,
                       #next_states_list, next_words_list, next_score_list, next_normalized_score_list, next_translations_list,
@@ -292,89 +318,89 @@ def update_next_lists(num_case, idx_in_case, new_cost, eos_idx, get_slice_of_new
             will be updated.
     """
 
-    if idx_in_case == eos_idx:
+    # if idx_in_case == eos_idx:
 
-        if constraints_fn is not None and constraints_fn(current_translations[num_case]) != 1:
-            return BSReturn.CONSTRAINT_VIOLATED
+    #     if constraints_fn is not None and constraints_fn(current_translations[num_case]) != 1:
+    #         return BSReturn.CONSTRAINT_VIOLATED
 
-        if required_tgt_idx is not None and len(required_tgt_idx) > 0:
-            return BSReturn.CONSTRAINT_VIOLATED
+    #     if required_tgt_idx is not None and len(required_tgt_idx) > 0:
+    #         return BSReturn.CONSTRAINT_VIOLATED
 
-        if need_attention:
-            finished_translations.append((current_translations[num_case],
-                                          -new_cost,
-                                          current_attentions[num_case]
-                                          ))
-        else:
-            finished_translations.append((current_translations[num_case],
-                                          -new_cost))
+    #     if need_attention:
+    #         finished_translations.append((current_translations[num_case],
+    #                                       -new_cost,
+    #                                       current_attentions[num_case]
+    #                                       ))
+    #     else:
+    #         finished_translations.append((current_translations[num_case],
+    #                                       -new_cost))
 
-        return BSReturn.OK
+    #     return BSReturn.OK
 
-    else:
-        if required_tgt_idx is not None:
-            if idx_in_case in required_tgt_idx.placeholders_list:
-                if idx_in_case in required_tgt_idx:
-                    required_tgt_idx = required_tgt_idx.copy()
-                    required_tgt_idx.substract(idx_in_case)
-                else:
-                    #assert required_tgt_idx[idx_in_case] == 0
-                    return BSReturn.CONSTRAINT_VIOLATED
-
-
-        new_translation = current_translations[num_case]+ [idx_in_case]
-        if constraints_fn is not None:
-            constraint_val = constraints_fn(new_translation)
-            assert t_infos_list.constraint_values is not None
-            t_infos_list.constraint_values.append(constraint_val)
-        else:
-            constraint_val = None
-
-        if constraint_val is not None and constraint_val <0:
-            return BSReturn.CONSTRAINT_VIOLATED
-
-        if get_slice_of_new_state_ensemble is not None:
-            t_infos_list.next_states_list.append(get_slice_of_new_state_ensemble(num_case))
-        else:
-            t_infos_list.next_states_list.append(num_case)
-
-        #     [tuple([Variable(substates.data[num_case].reshape(1, -1)) for substates in new_state])
-        #      for new_state in new_state_ensemble]
-        # )
-
-        t_infos_list.next_words_list.append(idx_in_case)
-        t_infos_list.next_score_list.append(-new_cost)
-
-        if required_tgt_idx is not None:
-            assert t_infos_list.required_tgt_idx_list is not None
-            t_infos_list.required_tgt_idx_list.append(required_tgt_idx)
-
-        # Compute the normalized score if needed.
-        if beam_score_coverage_penalty == "google":
-            coverage_penalty = 0
-            if len(current_attentions[num_case]) > 0:
-                xp = cuda.get_array_module(attn_ensemble[0].data)
-                log_of_min_of_sum_over_j = xp.log(xp.minimum(
-                    sum(current_attentions[num_case]), xp.array(1.0)))
-                coverage_penalty = beam_score_coverage_penalty_strength * \
-                    xp.sum(log_of_min_of_sum_over_j)
-            normalized_score = -new_cost + coverage_penalty
-            t_infos_list.next_normalized_score_list.append(normalized_score)
-
-        t_infos_list.next_translations_list.append(new_translation)
-
-        if need_attention:
-            #xp = cuda.get_array_module(attn_ensemble[0].data)
-            #attn_summed = xp.zeros((attn_ensemble[0].data[0].shape), dtype=xp.float32)
-            if len(attn_ensemble) == 1:
-                attn_summed = attn_ensemble[0].array[num_case]
+    # else:
+    if required_tgt_idx is not None:
+        if idx_in_case in required_tgt_idx.placeholders_list:
+            if idx_in_case in required_tgt_idx:
+                required_tgt_idx = required_tgt_idx.copy()
+                required_tgt_idx.substract(idx_in_case)
             else:
-                attn_summed = attn_ensemble[0].array[num_case].copy() 
-                for attn in attn_ensemble[1:]:
-                    attn_summed += attn.array[num_case]
-                attn_summed /= len(attn_ensemble)
-            t_infos_list.next_attentions_list.append(current_attentions[num_case] + [attn_summed])
-        return BSReturn.OK
+                #assert required_tgt_idx[idx_in_case] == 0
+                return BSReturn.CONSTRAINT_VIOLATED
+
+
+    new_translation = current_translations[num_case]+ [idx_in_case]
+    if constraints_fn is not None:
+        constraint_val = constraints_fn(new_translation)
+        assert t_infos_list.constraint_values is not None
+        t_infos_list.constraint_values.append(constraint_val)
+    else:
+        constraint_val = None
+
+    if constraint_val is not None and constraint_val <0:
+        return BSReturn.CONSTRAINT_VIOLATED
+
+    if get_slice_of_new_state_ensemble is not None:
+        t_infos_list.next_states_list.append(get_slice_of_new_state_ensemble(num_case))
+    else:
+        t_infos_list.next_states_list.append(num_case)
+
+    #     [tuple([Variable(substates.data[num_case].reshape(1, -1)) for substates in new_state])
+    #      for new_state in new_state_ensemble]
+    # )
+
+    t_infos_list.next_words_list.append(idx_in_case)
+    t_infos_list.next_score_list.append(-new_cost)
+
+    if required_tgt_idx is not None:
+        assert t_infos_list.required_tgt_idx_list is not None
+        t_infos_list.required_tgt_idx_list.append(required_tgt_idx)
+
+    # Compute the normalized score if needed.
+    if beam_score_coverage_penalty == "google":
+        coverage_penalty = 0
+        if len(current_attentions[num_case]) > 0:
+            xp = cuda.get_array_module(attn_ensemble[0].data)
+            log_of_min_of_sum_over_j = xp.log(xp.minimum(
+                sum(current_attentions[num_case]), xp.array(1.0)))
+            coverage_penalty = beam_score_coverage_penalty_strength * \
+                xp.sum(log_of_min_of_sum_over_j)
+        normalized_score = -new_cost + coverage_penalty
+        t_infos_list.next_normalized_score_list.append(normalized_score)
+
+    t_infos_list.next_translations_list.append(new_translation)
+
+    if need_attention:
+        #xp = cuda.get_array_module(attn_ensemble[0].data)
+        #attn_summed = xp.zeros((attn_ensemble[0].data[0].shape), dtype=xp.float32)
+        if len(attn_ensemble) == 1:
+            attn_summed = attn_ensemble[0].array[num_case]
+        else:
+            attn_summed = attn_ensemble[0].array[num_case].copy() 
+            for attn in attn_ensemble[1:]:
+                attn_summed += attn.array[num_case]
+            attn_summed /= len(attn_ensemble)
+        t_infos_list.next_attentions_list.append(current_attentions[num_case] + [attn_summed])
+    return BSReturn.OK
 
 
 
@@ -470,29 +496,39 @@ def compute_next_lists(new_state_ensemble, new_scores,
         get_slice_of_new_state_ensemble = None
 
     for num_case, idx_in_case, new_cost in score_iterator:
-        if len(current_translations[num_case]) > 0:
-            if beam_search_params.beam_score_length_normalization == 'simple':
-                new_cost /= len(current_translations[num_case])
-            elif beam_search_params.beam_score_length_normalization == 'google':
-                new_cost /= (pow((len(current_translations[num_case]) + 5), 
-                    beam_search_params.beam_score_length_normalization_strength) / 
-                    pow(6, beam_search_params.beam_score_length_normalization_strength))
-        
         required_tgt_idx=required_tgt_idx_list[num_case] if required_tgt_idx_list is not None else None
 
-        
+        if idx_in_case == eos_idx:
+            update_finished_translation(num_case, current_translations, new_cost, finished_translations, 
+                                current_attentions,
+                                need_attention=need_attention,
+                                constraints_fn=constraints_fn,
+                                required_tgt_idx=required_tgt_idx)
+        else:
 
-        update_next_lists(num_case, idx_in_case, new_cost, eos_idx, get_slice_of_new_state_ensemble,
-                          finished_translations, current_translations, current_attentions,
-                          t_infos_list,
-                          #next_states_list, next_words_list, next_score_list, next_normalized_score_list, next_translations_list,
-                          attn_ensemble, 
-                          #next_attentions_list, 
-                          beam_search_params.beam_score_coverage_penalty, 
-                          beam_search_params.beam_score_coverage_penalty_strength, 
-                          need_attention=need_attention, constraints_fn=constraints_fn,
-                          required_tgt_idx=required_tgt_idx,
-                          xp=xp)
+            if len(current_translations[num_case]) > 0:
+                if beam_search_params.beam_score_length_normalization == 'simple':
+                    new_cost /= len(current_translations[num_case])
+                elif beam_search_params.beam_score_length_normalization == 'google':
+                    new_cost /= (pow((len(current_translations[num_case]) + 5), 
+                        beam_search_params.beam_score_length_normalization_strength) / 
+                        pow(6, beam_search_params.beam_score_length_normalization_strength))
+            
+
+            update_next_lists(num_case, idx_in_case, new_cost, 
+                            #eos_idx, 
+                            get_slice_of_new_state_ensemble,
+                            #finished_translations, 
+                            current_translations, current_attentions,
+                            t_infos_list,
+                            #next_states_list, next_words_list, next_score_list, next_normalized_score_list, next_translations_list,
+                            attn_ensemble, 
+                            #next_attentions_list, 
+                            beam_search_params.beam_score_coverage_penalty, 
+                            beam_search_params.beam_score_coverage_penalty_strength, 
+                            need_attention=need_attention, constraints_fn=constraints_fn,
+                            required_tgt_idx=required_tgt_idx,
+                            xp=xp)
         assert len(t_infos_list.next_states_list) <= beam_search_params.beam_width or beam_search_params.always_consider_eos_and_placeholders
 #             if len(next_states_list) >= beam_width:
 #                 break
@@ -516,64 +552,6 @@ def compute_next_lists(new_state_ensemble, new_scores,
     return t_infos_list #next_states_list, next_words_list, next_score_list, next_translations_list, next_attentions_list
 
 
-def compute_next_states_and_scores(dec_cell_ensemble, current_states_ensemble, current_words,
-                                   prob_space_combination=False):
-    """
-        Compute the next states and scores when giving current_words as input to the decoding cells in dec_cell_ensemble.
-
-        Args:
-            dec_cell_ensemble: list of decoder cells conditionalized on the input sentence
-                if the length of this list is larger than one, then we will proceed to do ensemble decoding
-            current_states_ensemble: list of decoder states
-                                        one item for each decoder cell in dec_cell_ensemble
-                                        each item can actually be a minibatch of states
-            current_words: array of int32 representing the next words to give as input
-                            if None, the decoder cell should use its BOS embedding as input
-            prob_space_combination: if true, ensemble scores are combined by geometric average instead of arithmetic average
-
-        Return:
-            A tuple (combined_scores, new_state_ensemble, attn_ensemble) where:
-                combined_scores is the log_probability returned by the decoder cell
-                    or a combination of the log probabilities if there was more than one cell in dec_cell_ensemble
-                new_state_ensemble is a list of states of same length as dec_cell_ensemble corresponding to the
-                    new decoder states after the input of current_words
-                attn_ensemble is a list attention generated by each decoder cell after being given the input current_words
-    """
-#     xp = cuda.get_array_module(dec_ensemble[0].initial_state.data)
-    xp = dec_cell_ensemble[0].xp
-
-    if current_words is not None:
-        states_logits_attn_ensemble = [dec_cell(states, current_words) for (dec_cell, states) in six.moves.zip(
-            dec_cell_ensemble, current_states_ensemble)]
-    else:
-        assert all(x is None for x in current_states_ensemble)
-        states_logits_attn_ensemble = [dec_cell.get_initial_logits(1) for dec_cell in dec_cell_ensemble]
-
-    new_state_ensemble, logits_ensemble, attn_ensemble = list(six.moves.zip(*states_logits_attn_ensemble))
-
-    # Combine the scores of the ensembled models
-    #combined_scores = xp.zeros((logits_ensemble[0].data.shape), dtype=xp.float32)
-    combined_scores = None
-    if not prob_space_combination:
-        for logits in logits_ensemble:
-            if combined_scores is None:
-                combined_scores = F.log_softmax(logits).data
-            else:
-                combined_scores += F.log_softmax(logits).data #xp.log(F.softmax(logits).data)
-        combined_scores /= len(dec_cell_ensemble)
-    else:
-        for logits in logits_ensemble:
-            if combined_scores is None:
-                combined_scores = F.softmax(logits).data
-            else:
-                combined_scores += F.softmax(logits).data
-        combined_scores /= len(dec_cell_ensemble)
-        combined_scores = xp.log(combined_scores)
-
-
-    #print(combined_scores[0,0]) #force sync
-
-    return combined_scores, new_state_ensemble, attn_ensemble
 
 def build_next_translation_state(new_state_ensemble, new_scores, 
         beam_search_params,
@@ -642,6 +620,66 @@ def build_next_translation_state(new_state_ensemble, new_scores,
                                 required_tgt_idx_list=t_infos_list.required_tgt_idx_list
                                 )
     return next_translations_states
+
+def compute_next_states_and_scores(dec_cell_ensemble, current_states_ensemble, current_words,
+                                   prob_space_combination=False):
+    """
+        Compute the next states and scores when giving current_words as input to the decoding cells in dec_cell_ensemble.
+
+        Args:
+            dec_cell_ensemble: list of decoder cells conditionalized on the input sentence
+                if the length of this list is larger than one, then we will proceed to do ensemble decoding
+            current_states_ensemble: list of decoder states
+                                        one item for each decoder cell in dec_cell_ensemble
+                                        each item can actually be a minibatch of states
+            current_words: array of int32 representing the next words to give as input
+                            if None, the decoder cell should use its BOS embedding as input
+            prob_space_combination: if true, ensemble scores are combined by geometric average instead of arithmetic average
+
+        Return:
+            A tuple (combined_scores, new_state_ensemble, attn_ensemble) where:
+                combined_scores is the log_probability returned by the decoder cell
+                    or a combination of the log probabilities if there was more than one cell in dec_cell_ensemble
+                new_state_ensemble is a list of states of same length as dec_cell_ensemble corresponding to the
+                    new decoder states after the input of current_words
+                attn_ensemble is a list attention generated by each decoder cell after being given the input current_words
+    """
+#     xp = cuda.get_array_module(dec_ensemble[0].initial_state.data)
+    xp = dec_cell_ensemble[0].xp
+
+    if current_words is not None:
+        states_logits_attn_ensemble = [dec_cell(states, current_words) for (dec_cell, states) in six.moves.zip(
+            dec_cell_ensemble, current_states_ensemble)]
+    else:
+        assert all(x is None for x in current_states_ensemble)
+        states_logits_attn_ensemble = [dec_cell.get_initial_logits(1) for dec_cell in dec_cell_ensemble]
+
+    new_state_ensemble, logits_ensemble, attn_ensemble = list(six.moves.zip(*states_logits_attn_ensemble))
+
+    # Combine the scores of the ensembled models
+    #combined_scores = xp.zeros((logits_ensemble[0].data.shape), dtype=xp.float32)
+    combined_scores = None
+    if not prob_space_combination:
+        for logits in logits_ensemble:
+            if combined_scores is None:
+                combined_scores = F.log_softmax(logits).data
+            else:
+                combined_scores += F.log_softmax(logits).data #xp.log(F.softmax(logits).data)
+        combined_scores /= len(dec_cell_ensemble)
+    else:
+        for logits in logits_ensemble:
+            if combined_scores is None:
+                combined_scores = F.softmax(logits).data
+            else:
+                combined_scores += F.softmax(logits).data
+        combined_scores /= len(dec_cell_ensemble)
+        combined_scores = xp.log(combined_scores)
+
+
+    #print(combined_scores[0,0]) #force sync
+
+    return combined_scores, new_state_ensemble, attn_ensemble
+
 
 
 def advance_one_step(dec_cell_ensemble, eos_idx, 
