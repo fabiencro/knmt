@@ -18,6 +18,7 @@ from typing import (Callable, Counter, Dict, Iterator, List, Mapping, Optional,
 import chainer
 import chainer.functions as F
 import chainer.links as L
+import chainerx
 import numpy as np
 import six
 from chainer import Chain, ChainList, Link, Variable, cuda
@@ -127,7 +128,7 @@ class ATranslationState:
             scores=xp.zeros(1, device="cuda:%i"%gpu)
         else:
             scores=xp.zeros(1)
-            
+
         obj = cls(scores=scores, 
                 previous_states_ensemble = [None] * ensemble_size,
                 required_tgt_idx_list=required_tgt_idx_list)
@@ -183,8 +184,6 @@ class TranslationInfosList:
                         len(self.next_score_list) == len(self.next_translations_list) == len(self.next_attentions_list)
                         )
 
-import chainerx
-
 def iterate_best_score(new_scores: np.ndarray, beam_width: int, xp=np)->Iterator[Tuple[int, int, float]]:
     """
     Create generator over the beam_width best scores.
@@ -203,11 +202,8 @@ def iterate_best_score(new_scores: np.ndarray, beam_width: int, xp=np)->Iterator
 
     if xp == chainerx:
         xp, device, new_scores = chainerx._fallback_workarounds._from_chx(new_scores)
-        with device:
-            yield from iterate_best_score(new_scores, beam_width, xp)
-        return
 
-    elif xp != np:
+    if xp != np:
         new_costs_flattened_non_neg = new_scores.ravel()
         best_idx = xp.argsort(new_costs_flattened_non_neg)[-beam_width:]
         best_scores = -new_costs_flattened_non_neg[best_idx]
@@ -367,13 +363,13 @@ def update_next_lists(num_case, idx_in_case, new_cost, eos_idx, get_slice_of_new
         if need_attention:
             #xp = cuda.get_array_module(attn_ensemble[0].data)
             #attn_summed = xp.zeros((attn_ensemble[0].data[0].shape), dtype=xp.float32)
-            attn_summed = None
-            for attn in attn_ensemble:
-                if attn_summed is None:
-                    attn_summed = attn.data[num_case]
-                else:
-                    attn_summed += attn.data[num_case]
-            attn_summed /= len(attn_ensemble)
+            if len(attn_ensemble) == 1:
+                attn_summed = attn_ensemble.array[0]
+            else:
+                attn_summed = attn_ensemble[0].array.copy() 
+                for attn in attn_ensemble[1:]:
+                    attn_summed += attn.array[num_case]
+                attn_summed /= len(attn_ensemble)
             t_infos_list.next_attentions_list.append(current_attentions[num_case] + [attn_summed])
         return BSReturn.OK
 
