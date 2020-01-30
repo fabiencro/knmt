@@ -13,7 +13,7 @@ import queue
 from collections import defaultdict
 from dataclasses import dataclass, field
 from typing import (Callable, Counter, Dict, Iterator, List, Mapping, Optional,
-                    Tuple, Union, cast)
+                    Sequence, Tuple, Union, cast)
 
 import chainer
 import chainer.functions as F
@@ -205,9 +205,10 @@ def iterate_best_score(new_scores: np.ndarray, beam_width: int, xp=np)->Iterator
 
     if xp != np:
         new_costs_flattened_non_neg = new_scores.ravel()
+        #import pdb; pdb.set_trace()
         best_idx = xp.argsort(new_costs_flattened_non_neg)[-beam_width:]
         best_scores = -new_costs_flattened_non_neg[best_idx]
-        all_num_cases = best_idx / v_size
+        all_num_cases = best_idx // v_size
         all_idx_in_cases = best_idx % v_size
         best_scores = chainer.cuda.to_cpu(best_scores)
         all_num_cases = chainer.cuda.to_cpu(all_num_cases)
@@ -219,14 +220,16 @@ def iterate_best_score(new_scores: np.ndarray, beam_width: int, xp=np)->Iterator
         best_idx = np.argpartition(new_costs_flattened, beam_width)[:beam_width]
         best_scores = new_costs_flattened[best_idx]
 
-        all_num_cases = best_idx / v_size
+        all_num_cases = best_idx // v_size
         all_idx_in_cases = best_idx % v_size
 
-    for num in six.moves.range(len(best_idx)):
-        #idx = best_idx[num]
-        num_case = all_num_cases[num]
-        idx_in_case = all_idx_in_cases[num]
-        yield int(num_case), idx_in_case, best_scores[num] #new_costs_flattened[idx]
+    return zip(all_num_cases, all_idx_in_cases, best_scores)
+
+    # for num in six.moves.range(len(best_idx)):
+    #     #idx = best_idx[num]
+    #     num_case = all_num_cases[num]
+    #     idx_in_case = all_idx_in_cases[num]
+    #     yield int(num_case), idx_in_case, best_scores[num] #new_costs_flattened[idx]
 
 
 def iterate_eos_scores(new_scores, eos_idx)->Iterator[Tuple[int, int, float]]:
@@ -572,6 +575,73 @@ def compute_next_states_and_scores(dec_cell_ensemble, current_states_ensemble, c
 
     return combined_scores, new_state_ensemble, attn_ensemble
 
+def build_next_translation_state(new_state_ensemble, new_scores, 
+        beam_search_params,
+        eos_idx,
+        current_translations, finished_translations,
+        current_attentions, attn_ensemble, force_finish=False, need_attention=False,
+        constraints_fn=None,
+        required_tgt_idx_list=None,
+        xp=np,
+        gpu=None):
+
+    t_infos_list = compute_next_lists(
+        None, new_scores, 
+        beam_search_params,
+        #beam_width, beam_pruning_margin,
+        #beam_score_length_normalization, beam_score_length_normalization_strength,
+        #beam_score_coverage_penalty, beam_score_coverage_penalty_strength,
+        eos_idx,
+        current_translations, finished_translations,
+        current_attentions, attn_ensemble, force_finish=force_finish, need_attention=need_attention,
+        constraints_fn=constraints_fn,
+        required_tgt_idx_list=required_tgt_idx_list,
+        xp=xp)
+
+    if len(t_infos_list.next_states_list) == 0:
+
+        return None  # We only found finished translations
+
+    # Create the new translation states
+    if xp == np:
+        next_words_array = np.array(t_infos_list.next_words_list, dtype=np.int32)
+        next_score_array = np.array(t_infos_list.next_score_list, dtype=np.float32)
+    elif xp == chainerx:
+        if gpu is None:
+            next_words_array = xp.array(t_infos_list.next_words_list, dtype=xp.int32)
+            next_score_array = xp.array(t_infos_list.next_score_list, dtype=xp.float32)
+        else:
+            next_words_array = xp.array(t_infos_list.next_words_list, dtype=xp.int32, device="cuda:%i"%gpu)
+            next_score_array = xp.array(t_infos_list.next_score_list, dtype=np.float32, device="cuda:%i"%gpu)
+    else:
+        next_words_array = np.array(t_infos_list.next_words_list, dtype=np.int32)
+        next_words_array = cuda.to_gpu(next_words_array)
+
+        next_score_array = np.array(t_infos_list.next_score_list, dtype=np.float32)
+        next_score_array = cuda.to_gpu(next_score_array)
+
+
+    # concatenated_next_states_list = []
+    # for next_states_list_one_model in six.moves.zip(*t_infos_list.next_states_list):
+    #     concatenated_next_states_list.append(
+    #         tuple([Variable(xp.concatenate(substates, axis=0)) for substates in six.moves.zip(*next_states_list_one_model)])
+    #     )
+
+    concatenated_next_states_list = []
+    for next_states_list_one_model in new_state_ensemble:
+        concatenated_next_states_list.append([])
+        for substates in next_states_list_one_model:
+            new_substate = xp.take(substates.data, t_infos_list.next_states_list, axis=0)
+            concatenated_next_states_list[-1].append(Variable(new_substate))
+
+    next_translations_states = ATranslationState(t_infos_list.next_translations_list,
+                                next_score_array,
+                                concatenated_next_states_list,
+                                Variable(next_words_array, requires_grad=False),
+                                t_infos_list.next_attentions_list,
+                                required_tgt_idx_list=t_infos_list.required_tgt_idx_list
+                                )
+    return next_translations_states
 
 
 def advance_one_step(dec_cell_ensemble, eos_idx, 
@@ -642,64 +712,79 @@ def advance_one_step(dec_cell_ensemble, eos_idx,
 
     # Compute the list of new translation states after pruning
     #next_states_list, next_words_list, next_score_list, next_translations_list, next_attentions_list 
-    t_infos_list = compute_next_lists(
-        None, new_scores, 
+
+    next_translations_states = build_next_translation_state(
+        new_state_ensemble,
+        new_scores, 
         beam_search_params,
-        #beam_width, beam_pruning_margin,
-        #beam_score_length_normalization, beam_score_length_normalization_strength,
-        #beam_score_coverage_penalty, beam_score_coverage_penalty_strength,
         eos_idx,
         current_translations, finished_translations,
         current_attentions, attn_ensemble, force_finish=force_finish, need_attention=need_attention,
         constraints_fn=constraints_fn,
         required_tgt_idx_list=required_tgt_idx_list,
-        xp=xp)
-
-    if len(t_infos_list.next_states_list) == 0:
-
-        return None  # We only found finished translations
-
-    # Create the new translation states
-    if xp == np:
-        next_words_array = np.array(t_infos_list.next_words_list, dtype=np.int32)
-        next_score_array = np.array(t_infos_list.next_score_list, dtype=np.float32)
-    elif xp == chainerx:
-        if gpu is None:
-            next_words_array = xp.array(t_infos_list.next_words_list, dtype=xp.int32)
-            next_score_array = xp.array(t_infos_list.next_score_list, dtype=xp.float32)
-        else:
-            next_words_array = xp.array(t_infos_list.next_words_list, dtype=xp.int32, device="cuda:%i"%gpu)
-            next_score_array = xp.array(t_infos_list.next_score_list, dtype=np.float32, device="cuda:%i"%gpu)
-    else:
-        next_words_array = np.array(t_infos_list.next_words_list, dtype=np.int32)
-        next_words_array = cuda.to_gpu(next_words_array)
-
-        next_score_array = np.array(t_infos_list.next_score_list, dtype=np.float32)
-        next_score_array = cuda.to_gpu(next_score_array)
-
-
-    # concatenated_next_states_list = []
-    # for next_states_list_one_model in six.moves.zip(*t_infos_list.next_states_list):
-    #     concatenated_next_states_list.append(
-    #         tuple([Variable(xp.concatenate(substates, axis=0)) for substates in six.moves.zip(*next_states_list_one_model)])
-    #     )
-
-    concatenated_next_states_list = []
-    for next_states_list_one_model in new_state_ensemble:
-        concatenated_next_states_list.append([])
-        for substates in next_states_list_one_model:
-            new_substate = xp.take(substates.data, t_infos_list.next_states_list, axis=0)
-            concatenated_next_states_list[-1].append(Variable(new_substate))
-
-    next_translations_states = ATranslationState(t_infos_list.next_translations_list,
-                                next_score_array,
-                                concatenated_next_states_list,
-                                Variable(next_words_array, requires_grad=False),
-                                t_infos_list.next_attentions_list,
-                                required_tgt_idx_list=t_infos_list.required_tgt_idx_list
-                                )
+        xp=xp,
+        gpu=gpu)
 
     return next_translations_states
+
+    # t_infos_list = compute_next_lists(
+    #     None, new_scores, 
+    #     beam_search_params,
+    #     #beam_width, beam_pruning_margin,
+    #     #beam_score_length_normalization, beam_score_length_normalization_strength,
+    #     #beam_score_coverage_penalty, beam_score_coverage_penalty_strength,
+    #     eos_idx,
+    #     current_translations, finished_translations,
+    #     current_attentions, attn_ensemble, force_finish=force_finish, need_attention=need_attention,
+    #     constraints_fn=constraints_fn,
+    #     required_tgt_idx_list=required_tgt_idx_list,
+    #     xp=xp)
+
+    # if len(t_infos_list.next_states_list) == 0:
+
+    #     return None  # We only found finished translations
+
+    # # Create the new translation states
+    # if xp == np:
+    #     next_words_array = np.array(t_infos_list.next_words_list, dtype=np.int32)
+    #     next_score_array = np.array(t_infos_list.next_score_list, dtype=np.float32)
+    # elif xp == chainerx:
+    #     if gpu is None:
+    #         next_words_array = xp.array(t_infos_list.next_words_list, dtype=xp.int32)
+    #         next_score_array = xp.array(t_infos_list.next_score_list, dtype=xp.float32)
+    #     else:
+    #         next_words_array = xp.array(t_infos_list.next_words_list, dtype=xp.int32, device="cuda:%i"%gpu)
+    #         next_score_array = xp.array(t_infos_list.next_score_list, dtype=np.float32, device="cuda:%i"%gpu)
+    # else:
+    #     next_words_array = np.array(t_infos_list.next_words_list, dtype=np.int32)
+    #     next_words_array = cuda.to_gpu(next_words_array)
+
+    #     next_score_array = np.array(t_infos_list.next_score_list, dtype=np.float32)
+    #     next_score_array = cuda.to_gpu(next_score_array)
+
+
+    # # concatenated_next_states_list = []
+    # # for next_states_list_one_model in six.moves.zip(*t_infos_list.next_states_list):
+    # #     concatenated_next_states_list.append(
+    # #         tuple([Variable(xp.concatenate(substates, axis=0)) for substates in six.moves.zip(*next_states_list_one_model)])
+    # #     )
+
+    # concatenated_next_states_list = []
+    # for next_states_list_one_model in new_state_ensemble:
+    #     concatenated_next_states_list.append([])
+    #     for substates in next_states_list_one_model:
+    #         new_substate = xp.take(substates.data, t_infos_list.next_states_list, axis=0)
+    #         concatenated_next_states_list[-1].append(Variable(new_substate))
+
+    # next_translations_states = ATranslationState(t_infos_list.next_translations_list,
+    #                             next_score_array,
+    #                             concatenated_next_states_list,
+    #                             Variable(next_words_array, requires_grad=False),
+    #                             t_infos_list.next_attentions_list,
+    #                             required_tgt_idx_list=t_infos_list.required_tgt_idx_list
+    #                             )
+
+    # return next_translations_states
 
 
 
