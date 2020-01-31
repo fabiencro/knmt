@@ -591,6 +591,10 @@ def compute_next_lists(new_state_ensemble, new_scores,
                                 constraints_fn=constraints_fn,
                                 required_tgt_idx=required_tgt_idx,
                                 invalid_finished_translations=invalid_finished_translations)
+
+
+
+
     for num_case, idx_in_case, new_cost in zip( all_num_cases[is_not_eos], all_idx_in_cases[is_not_eos], best_scores[is_not_eos]):
         required_tgt_idx=required_tgt_idx_list[num_case] if required_tgt_idx_list is not None else None
 
@@ -638,41 +642,8 @@ def compute_next_lists(new_state_ensemble, new_scores,
 
     return t_infos_list #next_states_list, next_words_list, next_score_list, next_translations_list, next_attentions_list
 
+def convert_t_infos_list_to_translation_state(t_infos_list, new_state_ensemble, xp, gpu):
 
-
-def build_next_translation_state(new_state_ensemble, new_scores, 
-        beam_search_params,
-        eos_idx,
-        current_translations, finished_translations,
-        current_attentions, attn_ensemble, force_finish=False, need_attention=False,
-        constraints_fn=None,
-        required_tgt_idx_list=None,
-        xp=np,
-        gpu=None,
-        invalid_finished_translations=None):
-
-    t_infos_list = compute_next_lists(
-        None, new_scores, 
-        beam_search_params,
-        #beam_width, beam_pruning_margin,
-        #beam_score_length_normalization, beam_score_length_normalization_strength,
-        #beam_score_coverage_penalty, beam_score_coverage_penalty_strength,
-        eos_idx,
-        current_translations, finished_translations,
-        current_attentions, attn_ensemble, force_finish=force_finish, need_attention=need_attention,
-        constraints_fn=constraints_fn,
-        required_tgt_idx_list=required_tgt_idx_list,
-        xp=xp,
-        gpu=gpu,
-        invalid_finished_translations=invalid_finished_translations)
-
-    if len(t_infos_list.next_states_list) == 0:
-        if len(finished_translations) == 0 and (invalid_finished_translations is None or len(invalid_finished_translations)==0):
-            assert False
-            #import ipdb;ipdb.set_trace()
-        return None  # We only found finished translations
-
-    # Create the new translation states
     if xp == np:
         next_words_array = np.array(t_infos_list.next_words_list, dtype=np.int32)
         next_score_array = np.array(t_infos_list.next_score_list, dtype=np.float32)
@@ -711,6 +682,45 @@ def build_next_translation_state(new_state_ensemble, new_scores,
                                 t_infos_list.next_attentions_list,
                                 required_tgt_idx_list=t_infos_list.required_tgt_idx_list
                                 )
+    return next_translations_states
+
+
+def build_next_translation_state(new_state_ensemble, new_scores, 
+        beam_search_params,
+        eos_idx,
+        current_translations, finished_translations,
+        current_attentions, attn_ensemble, force_finish=False, need_attention=False,
+        constraints_fn=None,
+        required_tgt_idx_list=None,
+        xp=np,
+        gpu=None,
+        invalid_finished_translations=None):
+
+    t_infos_list = compute_next_lists(
+        None, new_scores, 
+        beam_search_params,
+        #beam_width, beam_pruning_margin,
+        #beam_score_length_normalization, beam_score_length_normalization_strength,
+        #beam_score_coverage_penalty, beam_score_coverage_penalty_strength,
+        eos_idx,
+        current_translations, finished_translations,
+        current_attentions, attn_ensemble, force_finish=force_finish, need_attention=need_attention,
+        constraints_fn=constraints_fn,
+        required_tgt_idx_list=required_tgt_idx_list,
+        xp=xp,
+        gpu=gpu,
+        invalid_finished_translations=invalid_finished_translations)
+
+    if len(t_infos_list.next_states_list) == 0:
+        if len(finished_translations) == 0 and (invalid_finished_translations is None or len(invalid_finished_translations)==0):
+            assert False
+            #import ipdb;ipdb.set_trace()
+        return None  # We only found finished translations
+
+    # Create the new translation states
+    next_translations_states = convert_t_infos_list_to_translation_state(t_infos_list, new_state_ensemble, xp, gpu)
+
+
     return next_translations_states
 
 def compute_next_states_and_scores(dec_cell_ensemble, current_states_ensemble, current_words,
