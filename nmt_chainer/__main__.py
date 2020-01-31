@@ -18,6 +18,15 @@ try:
 except ImportError:
     argcomplete = None
 
+try:
+    import ipdb as pdb
+except ImportError:
+    import pdb
+
+def run_in_ipdb(func, args):
+    import ipdb
+    with ipdb.launch_ipdb_on_exception():
+        func(args)
 
 def run_in_pdb(func, args):
     def debug_signal_handler(signal, frame):
@@ -26,8 +35,8 @@ def run_in_pdb(func, args):
     import signal
     signal.signal(signal.SIGINT, debug_signal_handler)
 
-
     import pdb as pdb_module
+
     import sys
     import traceback
     pdb = pdb_module.Pdb()
@@ -107,7 +116,11 @@ def main(arguments=None):
             "utils": utils_command.do_utils}[args.__subcommand_name]
 
     if args.run_in_pdb:
-        run_in_pdb(func, args)
+        try:
+            import ipdb
+            run_in_ipdb(func, args)
+        except ImportError:
+            run_in_pdb(func, args)
         # import pdb
         # pdb.runcall(func, args)
         # def debug_signal_handler(signal, frame):

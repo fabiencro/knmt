@@ -22,6 +22,7 @@ import chainerx
 import numpy as np
 import six
 from chainer import Chain, ChainList, Link, Variable, cuda
+from chainerx import to_numpy
 
 from nmt_chainer.models.attention import AttentionModule
 
@@ -184,7 +185,7 @@ class TranslationInfosList:
                         len(self.next_score_list) == len(self.next_translations_list) == len(self.next_attentions_list)
                         )
 
-def iterate_best_score(new_scores: np.ndarray, beam_width: int, xp=np)->Iterator[Tuple[int, int, float]]:
+def iterate_best_score(new_scores: np.ndarray, beam_width: int, xp=np)->Tuple[Sequence, Sequence, Sequence]:
     """
     Create generator over the beam_width best scores.
 
@@ -223,7 +224,7 @@ def iterate_best_score(new_scores: np.ndarray, beam_width: int, xp=np)->Iterator
         all_num_cases = best_idx // v_size
         all_idx_in_cases = best_idx % v_size
 
-    return zip(all_num_cases, all_idx_in_cases, best_scores)
+    return all_num_cases, all_idx_in_cases, best_scores
 
     # for num in six.moves.range(len(best_idx)):
     #     #idx = best_idx[num]
@@ -232,42 +233,100 @@ def iterate_best_score(new_scores: np.ndarray, beam_width: int, xp=np)->Iterator
     #     yield int(num_case), idx_in_case, best_scores[num] #new_costs_flattened[idx]
 
 
-def iterate_eos_scores(new_scores, eos_idx)->Iterator[Tuple[int, int, float]]:
+def iterate_eos_scores(new_scores, eos_idx, existing_cases = None)->Tuple[Sequence, Sequence, Sequence]:
     nb_cases, v_size = new_scores.shape
+    num_cases = np.arange(nb_cases, dtype=np.int32)
+    scores = -cuda.to_cpu(new_scores[:, eos_idx])
+    if existing_cases is not None:
+        need_to_return = np.logical_not(np.isin(num_cases, existing_cases))
+        num_cases = num_cases[need_to_return]
+        scores = scores[need_to_return]
 
-    for num_case in six.moves.range(nb_cases):
-        idx_in_case = eos_idx
-        yield int(num_case), idx_in_case, -cuda.to_cpu(new_scores[num_case, eos_idx])
+    idx_in_cases = np.full(num_cases.shape[0], eos_idx, dtype=np.int32)
 
-def iterate_required_word_scores(new_scores, required:List[TgtIdxConstraint])->Iterator[Tuple[int, int, float]]:
+    return num_cases, idx_in_cases, scores
+    
+
+    # for num_case in six.moves.range(nb_cases):
+    #     idx_in_case = eos_idx
+    #     yield int(num_case), idx_in_case, -cuda.to_cpu(new_scores[num_case, eos_idx])
+
+def iterate_required_word_scores(new_scores, required:List[TgtIdxConstraint], 
+            existing_cases_idx = None,
+            xp=np,
+            gpu=None)->Tuple[Sequence, Sequence, Sequence]:
     nb_cases, v_size = new_scores.shape
     assert nb_cases == len(required)
 
+    required_num_cases_list = []
+    required_idx_in_cases_list = []
     for num_case in six.moves.range(nb_cases):
         for req_idx in required[num_case]:
-            yield int(num_case), req_idx, -cuda.to_cpu(new_scores[num_case, req_idx])
+            required_num_cases_list.append(num_case)
+            required_idx_in_cases_list.append(req_idx)
+    
+    required_num_cases_list = np.array(required_num_cases_list, dtype=np.int32)
+    required_idx_in_cases_list = np.array(required_idx_in_cases_list, dtype=np.int32)
+
+    required_ravel = required_idx_in_cases_list + v_size * required_num_cases_list
+
+    if existing_cases_idx is not None:
+        existing_num_cases, existing_idx_in_cases = existing_cases_idx
+        existing_ravel = existing_idx_in_cases + existing_num_cases * v_size
+        need_to_return = np.logical_not(np.isin(required_ravel, existing_ravel))
+        required_ravel = required_ravel[need_to_return]
+        required_num_cases_list = required_num_cases_list[need_to_return]
+        required_idx_in_cases_list = required_idx_in_cases_list[need_to_return]
+
+    if xp == chainerx:
+        if gpu is None:
+            required_ravel = chainerx.array(required_ravel)
+        else:
+            required_ravel = chainerx.array(required_ravel, device="cuda:%i"%gpu)
+    elif xp != np: #cupy
+        required_ravel = xp.array(required_ravel)
+
+
+
+    scores = - cuda.to_cpu(new_scores.ravel()[required_ravel])
+
+    return required_num_cases_list, required_idx_in_cases_list, scores
+
+    # for num_case in six.moves.range(nb_cases):
+    #     for req_idx in required[num_case]:
+    #         yield int(num_case), req_idx, -cuda.to_cpu(new_scores[num_case, req_idx])
 
 def update_finished_translation(num_case, current_translations, new_cost, finished_translations, 
                                 current_attentions,
                                 need_attention=False,
                                 constraints_fn=None,
-                                required_tgt_idx=None):
+                                required_tgt_idx=None,
+                                invalid_finished_translations = None):
+
+    return_val = BSReturn.OK
+
     if constraints_fn is not None and constraints_fn(current_translations[num_case]) != 1:
-        return BSReturn.CONSTRAINT_VIOLATED
+        return_val = BSReturn.CONSTRAINT_VIOLATED
 
     if required_tgt_idx is not None and len(required_tgt_idx) > 0:
-        return BSReturn.CONSTRAINT_VIOLATED
+        return_val = BSReturn.CONSTRAINT_VIOLATED
 
-    if need_attention:
-        finished_translations.append((current_translations[num_case],
-                                        -new_cost,
-                                        current_attentions[num_case]
-                                        ))
+    if return_val == BSReturn.OK:
+        translations_container = finished_translations
     else:
-        finished_translations.append((current_translations[num_case],
-                                        -new_cost))
+        translations_container = invalid_finished_translations
 
-    return BSReturn.OK
+    if translations_container is not None:
+        if need_attention:
+            translations_container.append((current_translations[num_case],
+                                            -new_cost,
+                                            current_attentions[num_case]
+                                            ))
+        else:
+            translations_container.append((current_translations[num_case],
+                                            -new_cost))
+
+    return return_val
 
 def update_next_lists(num_case, idx_in_case, new_cost, 
                       #eos_idx, 
@@ -418,7 +477,9 @@ def compute_next_lists(new_state_ensemble, new_scores,
                        need_attention=False,
                        constraints_fn=None,
                        required_tgt_idx_list:Optional[List[Counter[int]]]=None,
-                       xp=np) -> TranslationInfosList:
+                       xp=np,
+                       gpu=None,
+                       invalid_finished_translations=None) -> TranslationInfosList:
     """
         Compute the informations for the next beam.
 
@@ -467,20 +528,29 @@ def compute_next_lists(new_state_ensemble, new_scores,
 
     if force_finish:
         score_iterator = iterate_eos_scores(new_scores, eos_idx)
-    elif beam_search_params.always_consider_eos_and_placeholders:
-        score_iterator_list = [iterate_best_score(new_scores, beam_search_params.beam_width, xp=xp),
-                                   iterate_eos_scores(new_scores, eos_idx) ]
-        if required_tgt_idx_list is not None:
-            score_iterator_list.append(iterate_required_word_scores(new_scores, required_tgt_idx_list))
 
-        def chained_score_iterator():
-            already_seen = set()
-            for num_case, idx_in_case, new_cost in itertools.chain(*score_iterator_list):
-                if (num_case, idx_in_case) in already_seen:
-                    continue
-                already_seen.add((num_case, idx_in_case))
-                yield num_case, idx_in_case, new_cost
-        score_iterator = chained_score_iterator()
+    elif beam_search_params.always_consider_eos_and_placeholders:
+
+
+        score_iterator_list = [iterate_best_score(new_scores, beam_search_params.beam_width, xp=xp)]
+        score_iterator_list.append(iterate_eos_scores(new_scores, eos_idx, existing_cases = score_iterator_list[0]))
+        score_iterator = tuple(np.concatenate(items) for items in zip(*score_iterator_list))
+        
+
+        if required_tgt_idx_list is not None:
+            score_iterator_list =[score_iterator]
+            score_iterator_list.append(iterate_required_word_scores(new_scores, required_tgt_idx_list,
+                existing_cases_idx=(score_iterator_list[0][0], score_iterator_list[0][1]), xp=xp, gpu=gpu))
+            score_iterator = tuple(np.concatenate(items) for items in zip(*score_iterator_list))
+        # def chained_score_iterator():
+        #     already_seen = set()
+        #     for num_case, idx_in_case, new_cost in itertools.chain(*score_iterator_list):
+        #         if (num_case, idx_in_case) in already_seen:
+        #             continue
+        #         already_seen.add((num_case, idx_in_case))
+        #         yield num_case, idx_in_case, new_cost
+        # score_iterator = chained_score_iterator()
+        # assert False
     else:
         score_iterator = iterate_best_score(new_scores, beam_search_params.beam_width, xp=xp)
 
@@ -495,41 +565,59 @@ def compute_next_lists(new_state_ensemble, new_scores,
     else:
         get_slice_of_new_state_ensemble = None
 
-    for num_case, idx_in_case, new_cost in score_iterator:
+
+    all_num_cases, all_idx_in_cases, best_scores = score_iterator
+
+    is_eos = (all_idx_in_cases == eos_idx)
+    is_not_eos = np.logical_not(is_eos)
+
+
+    #all_num_cases[is_eos], all_idx_in_cases[is_eos], best_scores[is_eos]
+    #print(force_finish,all_num_cases, all_idx_in_cases, is_eos, best_scores[is_eos].shape, len(finished_translations))
+
+    for num_case, idx_in_case, new_cost in zip( all_num_cases[is_eos], all_idx_in_cases[is_eos], best_scores[is_eos]):
         required_tgt_idx=required_tgt_idx_list[num_case] if required_tgt_idx_list is not None else None
 
-        if idx_in_case == eos_idx:
-            update_finished_translation(num_case, current_translations, new_cost, finished_translations, 
+        if len(current_translations[num_case]) > 0:
+            if beam_search_params.beam_score_length_normalization == 'simple':
+                new_cost /= len(current_translations[num_case])
+            elif beam_search_params.beam_score_length_normalization == 'google':
+                new_cost /= (pow((len(current_translations[num_case]) + 5), 
+                    beam_search_params.beam_score_length_normalization_strength) / 
+                    pow(6, beam_search_params.beam_score_length_normalization_strength))
+
+        update_finished_translation(num_case, current_translations, new_cost, finished_translations, 
                                 current_attentions,
                                 need_attention=need_attention,
                                 constraints_fn=constraints_fn,
-                                required_tgt_idx=required_tgt_idx)
-        else:
+                                required_tgt_idx=required_tgt_idx,
+                                invalid_finished_translations=invalid_finished_translations)
+    for num_case, idx_in_case, new_cost in zip( all_num_cases[is_not_eos], all_idx_in_cases[is_not_eos], best_scores[is_not_eos]):
+        required_tgt_idx=required_tgt_idx_list[num_case] if required_tgt_idx_list is not None else None
 
-            if len(current_translations[num_case]) > 0:
-                if beam_search_params.beam_score_length_normalization == 'simple':
-                    new_cost /= len(current_translations[num_case])
-                elif beam_search_params.beam_score_length_normalization == 'google':
-                    new_cost /= (pow((len(current_translations[num_case]) + 5), 
-                        beam_search_params.beam_score_length_normalization_strength) / 
-                        pow(6, beam_search_params.beam_score_length_normalization_strength))
-            
+        if len(current_translations[num_case]) > 0:
+            if beam_search_params.beam_score_length_normalization == 'simple':
+                new_cost /= len(current_translations[num_case])
+            elif beam_search_params.beam_score_length_normalization == 'google':
+                new_cost /= (pow((len(current_translations[num_case]) + 5), 
+                    beam_search_params.beam_score_length_normalization_strength) / 
+                    pow(6, beam_search_params.beam_score_length_normalization_strength))
 
-            update_next_lists(num_case, idx_in_case, new_cost, 
-                            #eos_idx, 
-                            get_slice_of_new_state_ensemble,
-                            #finished_translations, 
-                            current_translations, current_attentions,
-                            t_infos_list,
-                            #next_states_list, next_words_list, next_score_list, next_normalized_score_list, next_translations_list,
-                            attn_ensemble, 
-                            #next_attentions_list, 
-                            beam_search_params.beam_score_coverage_penalty, 
-                            beam_search_params.beam_score_coverage_penalty_strength, 
-                            need_attention=need_attention, constraints_fn=constraints_fn,
-                            required_tgt_idx=required_tgt_idx,
-                            xp=xp)
-        assert len(t_infos_list.next_states_list) <= beam_search_params.beam_width or beam_search_params.always_consider_eos_and_placeholders
+        update_next_lists(num_case, idx_in_case, new_cost, 
+                        #eos_idx, 
+                        get_slice_of_new_state_ensemble,
+                        #finished_translations, 
+                        current_translations, current_attentions,
+                        t_infos_list,
+                        #next_states_list, next_words_list, next_score_list, next_normalized_score_list, next_translations_list,
+                        attn_ensemble, 
+                        #next_attentions_list, 
+                        beam_search_params.beam_score_coverage_penalty, 
+                        beam_search_params.beam_score_coverage_penalty_strength, 
+                        need_attention=need_attention, constraints_fn=constraints_fn,
+                        required_tgt_idx=required_tgt_idx,
+                        xp=xp)
+    assert len(t_infos_list.next_states_list) <= beam_search_params.beam_width or beam_search_params.always_consider_eos_and_placeholders
 #             if len(next_states_list) >= beam_width:
 #                 break
 
@@ -561,7 +649,8 @@ def build_next_translation_state(new_state_ensemble, new_scores,
         constraints_fn=None,
         required_tgt_idx_list=None,
         xp=np,
-        gpu=None):
+        gpu=None,
+        invalid_finished_translations=None):
 
     t_infos_list = compute_next_lists(
         None, new_scores, 
@@ -574,10 +663,14 @@ def build_next_translation_state(new_state_ensemble, new_scores,
         current_attentions, attn_ensemble, force_finish=force_finish, need_attention=need_attention,
         constraints_fn=constraints_fn,
         required_tgt_idx_list=required_tgt_idx_list,
-        xp=xp)
+        xp=xp,
+        gpu=gpu,
+        invalid_finished_translations=invalid_finished_translations)
 
     if len(t_infos_list.next_states_list) == 0:
-
+        if len(finished_translations) == 0 and (invalid_finished_translations is None or len(invalid_finished_translations)==0):
+            assert False
+            #import ipdb;ipdb.set_trace()
         return None  # We only found finished translations
 
     # Create the new translation states
@@ -694,7 +787,8 @@ def advance_one_step(dec_cell_ensemble, eos_idx,
                      force_finish=False, need_attention=False,
                      prob_space_combination=False,
                      constraints_fn=None,
-                     gpu=None) -> Optional[ATranslationState]:
+                     gpu=None,
+                     invalid_finished_translations=None) -> Optional[ATranslationState]:
     """
         Generate the partial translations / decoder states in the next beam
 
@@ -761,7 +855,8 @@ def advance_one_step(dec_cell_ensemble, eos_idx,
         constraints_fn=constraints_fn,
         required_tgt_idx_list=required_tgt_idx_list,
         xp=xp,
-        gpu=gpu)
+        gpu=gpu,
+        invalid_finished_translations=invalid_finished_translations)
 
     return next_translations_states
 
@@ -904,7 +999,7 @@ def ensemble_beam_search(model_ensemble, src_batch, src_mask, nb_steps, eos_idx,
         # TODO: if mb_size == 1 then src_mask value unnecessary -> remove?
     
         finished_translations = []
-    
+        invalid_finished_translations = []
         # Create the initial Translation state
         #previous_states_ensemble = [None] * len(model_ensemble)
 
@@ -934,11 +1029,12 @@ def ensemble_beam_search(model_ensemble, src_batch, src_mask, nb_steps, eos_idx,
                 current_translations_states,
                 beam_search_params,
                 finished_translations,
-                force_finish=beam_search_params.force_finish and num_step == (nb_steps - 1),
+                force_finish=beam_search_params.force_finish and num_step == (nb_steps - 1) and len(finished_translations) == 0,
                 need_attention=need_attention,
                 prob_space_combination=prob_space_combination,
                 constraints_fn=constraints_fn,
-                gpu=gpu)
+                gpu=gpu,
+                invalid_finished_translations=invalid_finished_translations)
     
             if current_translations_states is None:
                 break
@@ -949,17 +1045,26 @@ def ensemble_beam_search(model_ensemble, src_batch, src_mask, nb_steps, eos_idx,
         if len(finished_translations) == 0:
             log.info(f"no finished translation found  {nb_steps}" )
             if beam_search_params.use_unfinished_translation_if_none_found:
-                assert current_translations_states is not None
-                if need_attention:
-                    finished_translations.append(
-                        (current_translations_states.translations[0], 
-                        current_translations_states.scores[0], 
-                        current_translations_states.attentions[0]))
+                if current_translations_states is None: #We have explored all possibilities
+                    if len(invalid_finished_translations) > 0:
+                        log.info(f"no valid finished translation found  {nb_steps}" )
+                    else:
+                        assert False
+                    return invalid_finished_translations
                 else:
-                    finished_translations.append(
-                        (current_translations_states.translations[0], 
-                        current_translations_states.scores[0]))
+                    assert current_translations_states is not None
+                    log.info(f"extending unfinished translations {nb_steps}" )
+                    if need_attention:
+                        finished_translations.append(
+                            (current_translations_states.translations[0], 
+                            current_translations_states.scores[0], 
+                            current_translations_states.attentions[0]))
+                    else:
+                        finished_translations.append(
+                            (current_translations_states.translations[0], 
+                            current_translations_states.scores[0]))
             else:
+                log.info(f"no translation generated  {nb_steps}" )
                 if need_attention:
                     finished_translations.append(([], 0, []))
                 else:
