@@ -461,6 +461,81 @@ def update_next_lists(num_case, idx_in_case, new_cost,
     return BSReturn.OK
 
 
+def make_t_infos_list_from_beam(new_state_ensemble, all_num_cases_not_eos, all_idx_in_cases_not_eos, best_scores_not_eos,
+                                    attn_ensemble,
+                                    current_translations, current_attentions, need_attention,
+                                    beam_search_params, constraints_fn, required_tgt_idx_list, xp):
+
+    if beam_search_params.beam_score_coverage_penalty == "google":
+        t_infos_list = TranslationInfosList(next_normalized_score_list = [])
+    else:
+        t_infos_list = TranslationInfosList()
+
+    if constraints_fn is not None:
+        t_infos_list.constraint_values = []
+
+    if required_tgt_idx_list is not None:
+        t_infos_list.required_tgt_idx_list = []
+
+    if new_state_ensemble is not None:
+        memoized_state_ensemble_slices = {}
+        def get_slice_of_new_state_ensemble(num_case):
+            if num_case not in memoized_state_ensemble_slices:
+                memoized_state_ensemble_slices[num_case] = [
+                    tuple([substates.data[num_case].reshape(1, -1) for substates in new_state])
+                                    for new_state in new_state_ensemble]
+            return memoized_state_ensemble_slices[num_case]
+    else:
+        get_slice_of_new_state_ensemble = None
+
+    for num_case, idx_in_case, new_cost in zip( all_num_cases_not_eos, all_idx_in_cases_not_eos, best_scores_not_eos):
+        required_tgt_idx=required_tgt_idx_list[num_case] if required_tgt_idx_list is not None else None
+
+        if len(current_translations[num_case]) > 0:
+            if beam_search_params.beam_score_length_normalization == 'simple':
+                new_cost /= len(current_translations[num_case])
+            elif beam_search_params.beam_score_length_normalization == 'google':
+                new_cost /= (pow((len(current_translations[num_case]) + 5), 
+                    beam_search_params.beam_score_length_normalization_strength) / 
+                    pow(6, beam_search_params.beam_score_length_normalization_strength))
+
+        update_next_lists(num_case, idx_in_case, new_cost, 
+                        #eos_idx, 
+                        get_slice_of_new_state_ensemble,
+                        #finished_translations, 
+                        current_translations, current_attentions,
+                        t_infos_list,
+                        #next_states_list, next_words_list, next_score_list, next_normalized_score_list, next_translations_list,
+                        attn_ensemble, 
+                        #next_attentions_list, 
+                        beam_search_params.beam_score_coverage_penalty, 
+                        beam_search_params.beam_score_coverage_penalty_strength, 
+                        need_attention=need_attention, constraints_fn=constraints_fn,
+                        required_tgt_idx=required_tgt_idx,
+                        xp=xp)
+
+    assert len(t_infos_list.next_states_list) <= beam_search_params.beam_width or beam_search_params.always_consider_eos_and_placeholders
+#             if len(next_states_list) >= beam_width:
+#                 break
+
+
+    # Prune items that have a score worse than beam_pruning_margin below the
+    # best score.
+    if (beam_search_params.beam_pruning_margin is not None and t_infos_list.next_score_list):
+        t_infos_list.prune_with_margin(beam_search_params.beam_pruning_margin, use_normalized_score=False)
+
+
+    # Prune items that have a normalized score worse than beam_pruning_margin
+    # below the best normalized score.
+    if (beam_search_params.beam_score_coverage_penalty ==
+            "google" and beam_search_params.beam_pruning_margin is not None and t_infos_list.next_normalized_score_list is not None):
+
+        t_infos_list.prune_with_margin(beam_search_params.beam_pruning_margin, use_normalized_score=True)
+
+
+
+    return t_infos_list #next_states_list, next_words_list, next_score_list, next_translations_list, next_attentions_list
+
 
 def compute_next_lists(new_state_ensemble, new_scores, 
                        beam_search_params: BeamSearchParams,
@@ -513,17 +588,7 @@ def compute_next_lists(new_state_ensemble, new_scores,
     # next_translations_list = []
     # next_attentions_list = []
 
-    
-    if beam_search_params.beam_score_coverage_penalty == "google":
-        t_infos_list = TranslationInfosList(next_normalized_score_list = [])
-    else:
-        t_infos_list = TranslationInfosList()
 
-    if constraints_fn is not None:
-        t_infos_list.constraint_values = []
-
-    if required_tgt_idx_list is not None:
-        t_infos_list.required_tgt_idx_list = []
 
     if force_finish:
         score_iterator = iterate_eos_scores(new_scores, eos_idx)
@@ -552,17 +617,6 @@ def compute_next_lists(new_state_ensemble, new_scores,
         # assert False
     else:
         score_iterator = iterate_best_score(new_scores, beam_search_params.beam_width, xp=xp)
-
-    if new_state_ensemble is not None:
-        memoized_state_ensemble_slices = {}
-        def get_slice_of_new_state_ensemble(num_case):
-            if num_case not in memoized_state_ensemble_slices:
-                memoized_state_ensemble_slices[num_case] = [
-                    tuple([substates.data[num_case].reshape(1, -1) for substates in new_state])
-                                    for new_state in new_state_ensemble]
-            return memoized_state_ensemble_slices[num_case]
-    else:
-        get_slice_of_new_state_ensemble = None
 
 
     all_num_cases, all_idx_in_cases, best_scores = score_iterator
@@ -593,54 +647,11 @@ def compute_next_lists(new_state_ensemble, new_scores,
                                 invalid_finished_translations=invalid_finished_translations)
 
 
-
-
-    for num_case, idx_in_case, new_cost in zip( all_num_cases[is_not_eos], all_idx_in_cases[is_not_eos], best_scores[is_not_eos]):
-        required_tgt_idx=required_tgt_idx_list[num_case] if required_tgt_idx_list is not None else None
-
-        if len(current_translations[num_case]) > 0:
-            if beam_search_params.beam_score_length_normalization == 'simple':
-                new_cost /= len(current_translations[num_case])
-            elif beam_search_params.beam_score_length_normalization == 'google':
-                new_cost /= (pow((len(current_translations[num_case]) + 5), 
-                    beam_search_params.beam_score_length_normalization_strength) / 
-                    pow(6, beam_search_params.beam_score_length_normalization_strength))
-
-        update_next_lists(num_case, idx_in_case, new_cost, 
-                        #eos_idx, 
-                        get_slice_of_new_state_ensemble,
-                        #finished_translations, 
-                        current_translations, current_attentions,
-                        t_infos_list,
-                        #next_states_list, next_words_list, next_score_list, next_normalized_score_list, next_translations_list,
-                        attn_ensemble, 
-                        #next_attentions_list, 
-                        beam_search_params.beam_score_coverage_penalty, 
-                        beam_search_params.beam_score_coverage_penalty_strength, 
-                        need_attention=need_attention, constraints_fn=constraints_fn,
-                        required_tgt_idx=required_tgt_idx,
-                        xp=xp)
-    assert len(t_infos_list.next_states_list) <= beam_search_params.beam_width or beam_search_params.always_consider_eos_and_placeholders
-#             if len(next_states_list) >= beam_width:
-#                 break
-
-
-    # Prune items that have a score worse than beam_pruning_margin below the
-    # best score.
-    if (beam_search_params.beam_pruning_margin is not None and t_infos_list.next_score_list):
-        t_infos_list.prune_with_margin(beam_search_params.beam_pruning_margin, use_normalized_score=False)
-
-
-    # Prune items that have a normalized score worse than beam_pruning_margin
-    # below the best normalized score.
-    if (beam_search_params.beam_score_coverage_penalty ==
-            "google" and beam_search_params.beam_pruning_margin is not None and t_infos_list.next_normalized_score_list is not None):
-
-        t_infos_list.prune_with_margin(beam_search_params.beam_pruning_margin, use_normalized_score=True)
-
-
-
-    return t_infos_list #next_states_list, next_words_list, next_score_list, next_translations_list, next_attentions_list
+    return make_t_infos_list_from_beam(new_state_ensemble, all_num_cases[is_not_eos], all_idx_in_cases[is_not_eos], best_scores[is_not_eos],
+                                    attn_ensemble,
+                                    current_translations, current_attentions, need_attention,
+                                    beam_search_params, constraints_fn, required_tgt_idx_list, xp)
+    
 
 def convert_t_infos_list_to_translation_state(t_infos_list, new_state_ensemble, xp, gpu):
 
