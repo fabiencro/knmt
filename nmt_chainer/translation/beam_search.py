@@ -22,7 +22,6 @@ import chainerx
 import numpy as np
 import six
 from chainer import Chain, ChainList, Link, Variable, cuda
-from chainerx import to_numpy
 
 from nmt_chainer.models.attention import AttentionModule
 
