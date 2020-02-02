@@ -35,6 +35,12 @@ def ensure_path(path):
             raise
 
 
+
+def safe_to_gpu(x, gpu):
+    if hasattr(gpu, "device"):
+        gpu = gpu.device
+    return cuda.to_gpu(x, gpu)
+
 def make_batch_src(src_data, padding_idx=0, gpu=None, use_chainerx=False):
     max_src_size = max(len(x) for x in src_data)
     min_src_size = min(len(x) for x in src_data)
@@ -62,11 +68,10 @@ def make_batch_src(src_data, padding_idx=0, gpu=None, use_chainerx=False):
         else:
             return [Variable(chainerx.array(x, device="native:0", dtype=chainerx.int32), requires_grad=False) 
                             for x in src_batch], chainerx.array(src_mask, device="native:0", dtype=chainerx.int32)
-
     else:
         if gpu is not None:
-            return ([Variable(cuda.to_gpu(x, gpu)) for x in src_batch],
-                    [cuda.to_gpu(x, gpu) for x in src_mask])
+            return ([Variable(safe_to_gpu(x, gpu)) for x in src_batch],
+                    [safe_to_gpu(x, gpu) for x in src_mask])
         else:
             return [Variable(x, requires_grad=False) for x in src_batch], src_mask
 
@@ -109,7 +114,7 @@ def make_batch_src_tgt(training_data, eos_idx=1, padding_idx=0, gpu=None, need_a
                 tgt_batch[-1][num_ex] = training_data[num_ex][1][i]
 
     if gpu is not None:
-        tgt_batch_v = [Variable(cuda.to_gpu(x, gpu)) for x in tgt_batch]
+        tgt_batch_v = [Variable(safe_to_gpu(x, gpu)) for x in tgt_batch]
     else:
         tgt_batch_v = [Variable(x) for x in tgt_batch]
 
@@ -154,7 +159,7 @@ def make_batch_tgt(training_data, eos_idx=1, gpu=None, need_arg_sort=False):
                 tgt_batch[-1][num_ex] = training_data[num_ex][i]
 
     if gpu is not None:
-        tgt_batch_v = [Variable(cuda.to_gpu(x, gpu)) for x in tgt_batch]
+        tgt_batch_v = [Variable(safe_to_gpu(x, gpu)) for x in tgt_batch]
     else:
         tgt_batch_v = [Variable(x) for x in tgt_batch]
 
