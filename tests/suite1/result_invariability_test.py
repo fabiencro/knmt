@@ -39,27 +39,30 @@ class TestResultInvariability:
         #     "--beam_score_length_normalization simple "
         #     "--post_score_coverage_penalty google --post_score_coverage_penalty_strength 0.4 "
         #     "--post_score_length_normalization simple"),
-        ("result_invariability_untrained", "beam_search_and_google_options_1",
-            "--mode beam_search --beam_width 30 "
-            "--beam_pruning_margin 1.5 "
-            "--beam_score_coverage_penalty google --beam_score_coverage_penalty_strength 0.3 "
-            "--beam_score_length_normalization simple "
-            "--post_score_coverage_penalty google --post_score_coverage_penalty_strength 0.4 "
-            "--post_score_length_normalization simple"),
-        ("result_invariability", "beam_search_and_google_options_2",
-            "--mode beam_search --beam_width 30 "
-            "--beam_pruning_margin 1.5 "
-            "--beam_score_coverage_penalty google --beam_score_coverage_penalty_strength 0.3 "
-            "--beam_score_length_normalization google --beam_score_length_normalization_strength 0.25 "
-            "--post_score_coverage_penalty google --post_score_coverage_penalty_strength 0.4 "
-            "--post_score_length_normalization google --post_score_length_normalization_strength 0.33"),
-        ("result_invariability_untrained", "beam_search_and_google_options_2",
-            "--mode beam_search --beam_width 30 "
-            "--beam_pruning_margin 1.5 "
-            "--beam_score_coverage_penalty google --beam_score_coverage_penalty_strength 0.3 "
-            "--beam_score_length_normalization google --beam_score_length_normalization_strength 0.25 "
-            "--post_score_coverage_penalty google --post_score_coverage_penalty_strength 0.4 "
-            "--post_score_length_normalization google --post_score_length_normalization_strength 0.33"),
+        
+        # ("result_invariability_untrained", "beam_search_and_google_options_1",
+        #     "--mode beam_search --beam_width 30 "
+        #     "--beam_pruning_margin 1.5 "
+        #     "--beam_score_coverage_penalty google --beam_score_coverage_penalty_strength 0.3 "
+        #     "--beam_score_length_normalization simple "
+        #     "--post_score_coverage_penalty google --post_score_coverage_penalty_strength 0.4 "
+        #     "--post_score_length_normalization simple"),
+        # ("result_invariability", "beam_search_and_google_options_2",
+        #     "--mode beam_search --beam_width 30 "
+        #     "--beam_pruning_margin 1.5 "
+        #     "--beam_score_coverage_penalty google --beam_score_coverage_penalty_strength 0.3 "
+        #     "--beam_score_length_normalization google --beam_score_length_normalization_strength 0.25 "
+        #     "--post_score_coverage_penalty google --post_score_coverage_penalty_strength 0.4 "
+        #     "--post_score_length_normalization google --post_score_length_normalization_strength 0.33"),
+        # ("result_invariability_untrained", "beam_search_and_google_options_2",
+        #     "--mode beam_search --beam_width 30 "
+        #     "--beam_pruning_margin 1.5 "
+        #     "--beam_score_coverage_penalty google --beam_score_coverage_penalty_strength 0.3 "
+        #     "--beam_score_length_normalization google --beam_score_length_normalization_strength 0.25 "
+        #     "--post_score_coverage_penalty google --post_score_coverage_penalty_strength 0.4 "
+        #     "--post_score_length_normalization google --post_score_length_normalization_strength 0.33"),
+        
+        
         ("result_invariability", "ensemble_search",
             "--mode beam_search --beam_width 30 "
             "--additional_training_config tests/tests_data/models/result_invariability.train.train.config "
