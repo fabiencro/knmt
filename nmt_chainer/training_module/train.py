@@ -465,8 +465,14 @@ def do_train(config_training):
 #                 dicseri.load(encdec)
                 
     gpu = config_training.training_management.gpu
-    if gpu is not None:
-        encdec = encdec.to_gpu(gpu)
+    if config_training.training_management.use_chainerx:
+        if gpu is not None:
+            encdec = encdec.to_device("cuda:%i"%gpu)
+        else:
+            encdec = encdec.to_device("native:0")
+    else:
+        if gpu is not None:
+            encdec = encdec.to_gpu(gpu)
 
     if config_training.training.optimizer == "adadelta":
         optimizer = optimizers.AdaDelta()
@@ -543,7 +549,8 @@ def do_train(config_training):
                                                    src_indexer, tgt_indexer, eos_idx=eos_idx,
                                                    config_training=config_training,
                                                    stop_trigger=stop_trigger,
-                                                   test_data=test_data, dev_data=dev_data, valid_data=valid_data
+                                                   test_data=test_data, dev_data=dev_data, valid_data=valid_data,
+                                                   use_chainerx=config_training.training_management.use_chainerx
                                                    )
 
 

@@ -679,7 +679,8 @@ def do_eval(config_eval):
         with cuda.get_device_from_id(gpu):
             assert len(encdec_list) == 1
             translations = greedy_batch_translate(
-                encdec_list[0], eos_idx, src_data, batch_size=mb_size, gpu=gpu, nb_steps=nb_steps)
+                encdec_list[0], eos_idx, src_data, batch_size=mb_size, gpu=gpu, nb_steps=nb_steps, 
+                                use_chainerx=config_eval.process.use_chainerx)
         out = io.open(dest_fn, "wt", encoding="utf8")
         for t in translations:
             if t[-1] == eos_idx:
@@ -766,7 +767,7 @@ def do_eval(config_eval):
             assert len(encdec_list) == 1
             translations, attn_all = greedy_batch_translate(
                 encdec_list[0], eos_idx, src_data, batch_size=mb_size, gpu=gpu,
-                get_attention=True, nb_steps=nb_steps)
+                get_attention=True, nb_steps=nb_steps, use_chainerx=config_eval.process.use_chainerx)
 #         tgt_voc_with_unk = tgt_voc + ["#T_UNK#"]
 #         src_voc_with_unk = src_voc + ["#S_UNK#"]
         assert len(translations) == len(src_data)
@@ -799,7 +800,8 @@ def do_eval(config_eval):
         with cuda.get_device_from_id(gpu):
             assert len(encdec_list) == 1
             loss, attn_all = batch_align(
-                encdec_list[0], eos_idx, list(six.moves.zip(src_data, tgt_data)), batch_size=mb_size, gpu=gpu)
+                encdec_list[0], eos_idx, list(six.moves.zip(src_data, tgt_data)), batch_size=mb_size, gpu=gpu, 
+                            use_chainerx=config_eval.process.use_chainerx)
 #         tgt_voc_with_unk = tgt_voc + ["#T_UNK#"]
 #         src_voc_with_unk = src_voc + ["#S_UNK#"]
 

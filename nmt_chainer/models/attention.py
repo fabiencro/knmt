@@ -1,6 +1,16 @@
 #!/usr/bin/env python
 """attention.py: Implementation of Attention mechanisms"""
-from __future__ import absolute_import, division, print_function, unicode_literals
+from __future__ import (absolute_import, division, print_function,
+                        unicode_literals)
+
+import logging
+
+import chainer.functions as F
+import chainer.links as L
+import chainerx
+from chainer import Chain, ChainList, Link, Variable, cuda
+
+from nmt_chainer.utilities.utils import ortho_init
 
 __author__ = "Fabien Cromieres"
 __license__ = "undecided"
@@ -8,14 +18,8 @@ __version__ = "1.0"
 __email__ = "fabien.cromieres@gmail.com"
 __status__ = "Development"
 
-from chainer import cuda, Variable
-from chainer import Link, Chain, ChainList
-import chainer.functions as F
-import chainer.links as L
 
-from nmt_chainer.utilities.utils import ortho_init
 
-import logging
 logging.basicConfig()
 log = logging.getLogger("rnns:attn")
 log.setLevel(logging.INFO)
@@ -25,7 +29,6 @@ log.setLevel(logging.INFO)
 #except AttributeError: # for chainer>=3
 def batch_matmul(a, b, transa=False, transb=False):
     return F.matmul(a[:, :, None], b, transa=transa, transb=transb)
-
 
 class AttentionModule(Chain):
     """ Attention Module for computing the current context during decoding.
@@ -70,9 +73,13 @@ class AttentionModule(Chain):
         if mask_length > 0:
             with cuda.get_device_from_array(mask[0]):
                 if mask_offset > 0:
+                    if self.xp != chainerx:
+                        starting_mask = self.xp.zeros((mb_size, mask_offset), dtype=self.xp.float32)
+                    else:
+                        starting_mask = self.xp.zeros((mb_size, mask_offset), dtype=self.xp.float32, device=mask.device)
                     concatenated_penalties = self.xp.concatenate(
-                        [
-                            self.xp.zeros((mb_size, mask_offset), dtype=self.xp.float32),
+                        [   starting_mask
+                            ,
                             -10000 * (1 - self.xp.concatenate([
                                 self.xp.reshape(mask_elem, (mb_size, 1)).astype(self.xp.float32) for mask_elem in mask], 1))
                         ], 1

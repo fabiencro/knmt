@@ -407,7 +407,8 @@ class ComputeLossExtension(chainer.training.Extension):
 
     def __init__(self, data, eos_idx,
                  mb_size, gpu, reverse_src, reverse_tgt,
-                 save_best_model_to=None, observation_name="dev_loss", config_training=None):
+                 save_best_model_to=None, observation_name="dev_loss", config_training=None,
+                 use_chainerx=False):
         self.best_loss = None
         self.save_best_model_to = save_best_model_to
         self.observation_name = observation_name
@@ -418,13 +419,15 @@ class ComputeLossExtension(chainer.training.Extension):
         self.reverse_src = reverse_src
         self.reverse_tgt = reverse_tgt
         self.config_training = config_training
+        self.use_chainerx = use_chainerx
 
     def __call__(self, trainer):
         encdec = trainer.updater.get_optimizer("main").target
         log.info("computing %s" % self.observation_name)
         dev_loss = compute_loss_all(encdec, self.data, self.eos_idx, self.mb_size,
                                     gpu=self.gpu,
-                                    reverse_src=self.reverse_src, reverse_tgt=self.reverse_tgt)
+                                    reverse_src=self.reverse_src, reverse_tgt=self.reverse_tgt,
+                                    use_chainerx=self.use_chainerx)
         log.info("%s: %f (current best: %r)" % (self.observation_name, dev_loss, self.best_loss))
         chainer.reporter.report({self.observation_name: dev_loss})
 
@@ -474,7 +477,8 @@ class ComputeBleuExtension(chainer.training.Extension):
                  nb_steps=50,
                  s_unk_tag=lambda num, utag: "S_UNK_%i" % utag,
                  t_unk_tag=lambda num, utag: "T_UNK_%i" % utag,
-                 config_training=None):
+                 config_training=None,
+                 use_chainerx = False):
         self.best_bleu = None
         self.save_best_model_to = save_best_model_to
         self.observation_name = observation_name
@@ -498,6 +502,7 @@ class ComputeBleuExtension(chainer.training.Extension):
         self.references = [y for x, y in data]
 
         self.config_training = config_training
+        self.use_chainerx = use_chainerx
 
     def __call__(self, trainer):
         encdec = trainer.updater.get_optimizer("main").target
@@ -509,7 +514,8 @@ class ComputeBleuExtension(chainer.training.Extension):
                                        control_src_fn=self.control_src_fn,
                                        src_indexer=self.src_indexer, gpu=self.gpu, nb_steps=50,
                                        reverse_src=self.reverse_src, reverse_tgt=self.reverse_tgt,
-                                       s_unk_tag=self.s_unk_tag, t_unk_tag=self.t_unk_tag)
+                                       s_unk_tag=self.s_unk_tag, t_unk_tag=self.t_unk_tag,
+                                       use_chainerx=self.use_chainerx)
         bleu = bleu_stats.bleu()
         chainer.reporter.report({self.observation_name: bleu,
                                  self.observation_name + "_details": repr(bleu)})
@@ -667,6 +673,7 @@ def train_on_data_chainer(encdec, optimizer, training_data, output_files_dict,
                           config_training,
                           stop_trigger=None,
                           test_data=None, dev_data=None, valid_data=None,
+                          use_chainerx = False
                           ):
 
     output_dir = config_training.training_management.save_prefix
@@ -720,7 +727,8 @@ def train_on_data_chainer(encdec, optimizer, training_data, output_files_dict,
                     s_unk_tag=s_unk_tag, t_unk_tag=t_unk_tag)
             else:
     
-                src_batch, tgt_batch, src_mask = make_batch_src_tgt(mb_raw, eos_idx=eos_idx, padding_idx=0, gpu=gpu, need_arg_sort=False)
+                src_batch, tgt_batch, src_mask = make_batch_src_tgt(mb_raw, eos_idx=eos_idx, padding_idx=0, gpu=gpu, need_arg_sort=False,
+                                                                    use_chainerx = use_chainerx)
         
                 sample_once(encdec, src_batch, tgt_batch, src_mask, src_indexer, tgt_indexer, eos_idx,
                             max_nb=20,
@@ -808,14 +816,27 @@ def train_on_data_chainer(encdec, optimizer, training_data, output_files_dict,
             return avg_loss
 
         def convert_mb(mb_raw, device):
-            return make_batch_src_tgt(mb_raw, eos_idx=eos_idx, padding_idx=0, gpu=device, need_arg_sort=False)
+            return make_batch_src_tgt(mb_raw, eos_idx=eos_idx, padding_idx=0, gpu=device, need_arg_sort=False,
+                                            use_chainerx=use_chainerx)
+
+
+    if use_chainerx:
+        if gpu is None:
+            device_string = "native:0"
+        else:
+            device_string = "cuda:%i"%gpu
+    else:
+        if gpu is None:
+            device_string = "@numpy"
+        else:
+            device_string = "@cupy:%i"%gpu
 
     updater = Updater(iterator_training_data, optimizer,
                       converter=convert_mb,
                       # iterator_training_data = chainer.iterators.SerialIterator(training_data, mb_size,
                       # repeat = True,
                       # shuffle = reshuffle_every_epoch)
-                      device=gpu,
+                      device=device_string,
                       loss_func=loss_func,
                       need_to_convert_to_variables=False)
 
@@ -828,7 +849,8 @@ def train_on_data_chainer(encdec, optimizer, training_data, output_files_dict,
         dev_loss_extension = ComputeLossExtension(dev_data, eos_idx,
                                                   mb_size, gpu, reverse_src, reverse_tgt,
                                                   save_best_model_to=output_files_dict["model_best_loss"],
-                                                  observation_name="dev_loss", config_training=config_training)
+                                                  observation_name="dev_loss", config_training=config_training,
+                                                  use_chainerx=use_chainerx)
         trainer.extend(dev_loss_extension, trigger=(report_every, "iteration"))
 
         dev_bleu_extension = ComputeBleuExtension(dev_data, eos_idx, src_indexer, tgt_indexer,
@@ -836,21 +858,25 @@ def train_on_data_chainer(encdec, optimizer, training_data, output_files_dict,
                                                   output_files_dict["dev_src_output"],
                                                   mb_size, gpu, reverse_src, reverse_tgt,
                                                   save_best_model_to=output_files_dict["model_best"],
-                                                  observation_name="dev_bleu", config_training=config_training)
+                                                  observation_name="dev_bleu", config_training=config_training,
+                                                  use_chainerx=use_chainerx)
 
         trainer.extend(dev_bleu_extension, trigger=(report_every, "iteration"))
 
     if test_data is not None and not no_report_or_save:
         test_loss_extension = ComputeLossExtension(test_data, eos_idx,
                                                    mb_size, gpu, reverse_src, reverse_tgt,
-                                                   observation_name="test_loss")
+                                                   observation_name="test_loss",
+                                                   use_chainerx=use_chainerx)
+
         trainer.extend(test_loss_extension, trigger=(report_every, "iteration"))
 
         test_bleu_extension = ComputeBleuExtension(test_data, eos_idx, src_indexer, tgt_indexer,
                                                    output_files_dict["test_translation_output"],
                                                    output_files_dict["test_src_output"],
                                                    mb_size, gpu, reverse_src, reverse_tgt,
-                                                   observation_name="test_bleu")
+                                                   observation_name="test_bleu",
+                                                   use_chainerx=use_chainerx)
 
         trainer.extend(test_bleu_extension, trigger=(report_every, "iteration"))
 
