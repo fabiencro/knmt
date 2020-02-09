@@ -37,6 +37,16 @@ def commandline():
     do_graph(args)
 
 
+def none_safe_op(op):
+    def safe_op(x, y):
+        if x is None:
+            return y
+        if y is None:
+            return x
+        return op(x,y)
+    return safe_op
+
+
 def generate_graph(sqldb, dest, title="Training Evolution"):
     db = sqlite3.connect(sqldb)
     c = db.cursor()
@@ -91,7 +101,7 @@ def generate_graph(sqldb, dest, title="Training Evolution"):
 
     trace0min = go.Scatter(
         #             x = random_x,
-        y=build_prefix_list(test_loss, op=min),
+        y=build_prefix_list(test_loss, op=none_safe_op(min)),
         mode='lines',
         name='min_test_loss',
         line=dict(
@@ -118,7 +128,7 @@ def generate_graph(sqldb, dest, title="Training Evolution"):
     )
 
     trace1max = go.Scatter(
-        y=build_prefix_list(test_bleu, op=max),
+        y=build_prefix_list(test_bleu, op=none_safe_op(max)),
         mode='lines',
         name='max_test_bleu',
         yaxis='y2',
@@ -138,7 +148,7 @@ def generate_graph(sqldb, dest, title="Training Evolution"):
     )
 
     trace2min = go.Scatter(
-        y=build_prefix_list(dev_loss, op=min),
+        y=build_prefix_list(dev_loss, op=none_safe_op(min)),
         mode='lines',
         name='min_dev_loss',
         line=dict(
@@ -160,7 +170,7 @@ def generate_graph(sqldb, dest, title="Training Evolution"):
     )
 
     trace3max = go.Scatter(
-        y=build_prefix_list(dev_bleu, op=max),
+        y=build_prefix_list(dev_bleu, op=none_safe_op(max)),
         mode='lines',
         name='max_dev_bleu',
         yaxis='y2',
