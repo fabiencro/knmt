@@ -37,12 +37,13 @@ log.setLevel(logging.INFO)
 def translate_to_file(encdec, eos_idx, test_src_data, mb_size, tgt_indexer,
                       translations_fn, test_references=None, control_src_fn=None, src_indexer=None, gpu=None, nb_steps=50,
                       reverse_src=False, reverse_tgt=False,
-                      s_unk_tag="#S_UNK#", t_unk_tag="#T_UNK#"):
+                      s_unk_tag="#S_UNK#", t_unk_tag="#T_UNK#",
+                      use_chainerx=False):
 
     log.info("computing translations")
     translations = greedy_batch_translate(encdec, eos_idx, test_src_data,
                                           batch_size=mb_size, gpu=gpu, nb_steps=nb_steps,
-                                          reverse_src=reverse_src, reverse_tgt=reverse_tgt)
+                                          reverse_src=reverse_src, reverse_tgt=reverse_tgt, use_chainerx=use_chainerx)
 
     log.info("writing translation of set to %s" % translations_fn)
     out = io.open(translations_fn, "wt", encoding="utf8")
@@ -71,7 +72,8 @@ def translate_to_file(encdec, eos_idx, test_src_data, mb_size, tgt_indexer,
         return None
 
 
-def compute_loss_all(encdec, test_data, eos_idx, mb_size, gpu=None, reverse_src=False, reverse_tgt=False):
+def compute_loss_all(encdec, test_data, eos_idx, mb_size, gpu=None, reverse_src=False, reverse_tgt=False,
+                        use_chainerx=False):
     with chainer.using_config("train", False), chainer.no_backprop_mode():
         if encdec.encdec_type() == "ff":
             assert not reverse_src and not reverse_tgt
@@ -79,7 +81,7 @@ def compute_loss_all(encdec, test_data, eos_idx, mb_size, gpu=None, reverse_src=
         
         mb_provider_test = minibatch_provider(test_data, eos_idx, mb_size, nb_mb_for_sorting=-1, loop=False,
                                               gpu=gpu,
-                                              reverse_src=reverse_src, reverse_tgt=reverse_tgt)
+                                              reverse_src=reverse_src, reverse_tgt=reverse_tgt, use_chainerx=use_chainerx)
         test_loss = 0
         test_nb_predictions = 0
         for src_batch, tgt_batch, src_mask in mb_provider_test:
@@ -91,7 +93,7 @@ def compute_loss_all(encdec, test_data, eos_idx, mb_size, gpu=None, reverse_src=
 
 
 def greedy_batch_translate(encdec, eos_idx, src_data, batch_size=80, gpu=None, get_attention=False, nb_steps=50,
-                           reverse_src=False, reverse_tgt=False):
+                           reverse_src=False, reverse_tgt=False, use_chainerx=False):
     with chainer.using_config("train", False), chainer.no_backprop_mode():
         if encdec.encdec_type() == "ff":
             result = encdec.greedy_batch_translate(src_data,  mb_size=batch_size, nb_steps=nb_steps)
@@ -116,7 +118,7 @@ def greedy_batch_translate(encdec, eos_idx, src_data, batch_size=80, gpu=None, g
                     current_batch_raw_data_new.append(src_side[::-1])
                 current_batch_raw_data = current_batch_raw_data_new
     
-            src_batch, src_mask = make_batch_src(current_batch_raw_data, gpu=gpu)
+            src_batch, src_mask = make_batch_src(current_batch_raw_data, gpu=gpu, use_chainerx=use_chainerx)
             sample_greedy, score, attn_list = encdec(src_batch, nb_steps, src_mask, use_best_for_sample=True,
                                                      keep_attn_values=get_attention)
             deb = de_batch(sample_greedy, mask=None, eos_idx=eos_idx, is_variable=False)
@@ -143,7 +145,7 @@ def greedy_batch_translate(encdec, eos_idx, src_data, batch_size=80, gpu=None, g
             return res
 
 
-def reverse_rescore(encdec, src_batch, src_mask, eos_idx, translations, gpu=None):
+def reverse_rescore(encdec, src_batch, src_mask, eos_idx, translations, gpu=None, use_chainerx=False):
     with chainer.using_config("train", False), chainer.no_backprop_mode():
         from nmt_chainer.utilities import utils
     
@@ -155,7 +157,7 @@ def reverse_rescore(encdec, src_batch, src_mask, eos_idx, translations, gpu=None
     
         scorer = encdec.nbest_scorer(src_batch, src_mask)
         tgt_batch, arg_sort = utils.make_batch_tgt(reversed_translations,
-                                                   eos_idx=eos_idx, gpu=gpu, need_arg_sort=True)
+                                                   eos_idx=eos_idx, gpu=gpu, need_arg_sort=True, use_chainerx=use_chainerx)
     
         scores, attn = scorer(tgt_batch)
         scores, _ = scores
@@ -245,7 +247,7 @@ def beam_search_translate(encdec, eos_idx, src_data,
             rescored_translations = []
             reverse_scores = reverse_rescore(
                 reverse_encdec, src_batch, src_mask, eos_idx, [
-                    t[0] for t in translations], gpu)
+                    t[0] for t in translations], gpu, use_chainerx=use_chainerx)
             for num_t in six.moves.range(len(translations)):
                 tr, sc, attn = translations[num_t]
                 rescored_translations.append(
@@ -305,7 +307,7 @@ def beam_search_translate(encdec, eos_idx, src_data,
             yield [translations[0]]
 
 
-def batch_align(encdec, eos_idx, src_tgt_data, batch_size=80, gpu=None):
+def batch_align(encdec, eos_idx, src_tgt_data, batch_size=80, gpu=None, use_chainerx=False):
     nb_ex = len(src_tgt_data)
     nb_batch = nb_ex // batch_size + (1 if nb_ex % batch_size != 0 else 0)
     sum_loss = 0
@@ -314,7 +316,7 @@ def batch_align(encdec, eos_idx, src_tgt_data, batch_size=80, gpu=None):
         current_batch_raw_data = src_tgt_data[i * batch_size: (i + 1) * batch_size]
 #         print(current_batch_raw_data)
         src_batch, tgt_batch, src_mask, arg_sort = make_batch_src_tgt(
-            current_batch_raw_data, eos_idx=eos_idx, gpu=gpu, need_arg_sort=True)
+            current_batch_raw_data, eos_idx=eos_idx, gpu=gpu, need_arg_sort=True, use_chainerx = use_chainerx)
         loss, attn_list = encdec(src_batch, tgt_batch, src_mask, keep_attn_values=True)
         deb_attn = de_batch(attn_list, mask=None, eos_idx=None, is_variable=True, raw=True)
 

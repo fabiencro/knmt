@@ -122,6 +122,7 @@ def define_parser(parser):
     training_monitoring_group.add_argument("--generate_computation_graph", help="will generate computation graph of the first loss computed")
 
     training_monitoring_group.add_argument("--disable_cudnn_softmax", default=False, action="store_true")
+    training_monitoring_group.add_argument("--use_chainerx", default=False, action="store_true", help="use chainerx")
 
 class CommandLineValuesException(Exception):
     pass

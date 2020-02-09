@@ -1,33 +1,41 @@
 #!/usr/bin/env python
 """decoder_cells.py: Implementation of RNNSearch in Chainer"""
-from __future__ import absolute_import, division, print_function, unicode_literals
+from __future__ import (absolute_import, division, print_function,
+                        unicode_literals)
+
+import logging
+import random
+import sys
+
+import chainer
+import chainer.functions as F
+import chainer.links as L
+import chainerx
+import numpy as np
+import six
+from chainer import Chain, ChainList, Link, Variable, cuda
+
+from nmt_chainer.utilities.constant_batch_mul import (batch_matmul_constant,
+                                                      matmul_constant)
+from nmt_chainer.utilities.utils import minibatch_sampling, ortho_init
+
+from . import rnn_cells
+from .attention import AttentionModule
+
 __author__ = "Fabien Cromieres"
 __license__ = "undecided"
 __version__ = "1.0"
 __email__ = "fabien.cromieres@gmail.com"
 __status__ = "Development"
 
-import numpy as np
-import chainer
-from chainer import cuda, Variable
-from chainer import Link, Chain, ChainList
-import chainer.functions as F
-import chainer.links as L
-import random
-import sys
-import six
 
-from . import rnn_cells
-from nmt_chainer.utilities.utils import ortho_init, minibatch_sampling
 
-from nmt_chainer.utilities.constant_batch_mul import batch_matmul_constant, matmul_constant
 
-from .attention import AttentionModule
 
-import logging
 logging.basicConfig()
 log = logging.getLogger("rnns:dec")
 log.setLevel(logging.INFO)
+
 
 class ConditionalizedDecoderCell(object):
     """
@@ -56,8 +64,12 @@ class ConditionalizedDecoderCell(object):
         self.xp = decoder_chain.xp
 
         if noise_on_prev_word:
-            self.noise_mean = self.xp.ones((mb_size, self.decoder_chain.Eo), dtype=self.xp.float32)
-            self.noise_lnvar = self.xp.zeros((mb_size, self.decoder_chain.Eo), dtype=self.xp.float32)
+            if self.xp == chainerx:
+                self.noise_mean = self.xp.ones((mb_size, self.decoder_chain.Eo), dtype=self.xp.float32, device=decoder_chain.device.device)
+                self.noise_lnvar = self.xp.zeros((mb_size, self.decoder_chain.Eo), dtype=self.xp.float32, device=decoder_chain.device.device)
+            else:
+                self.noise_mean = self.xp.ones((mb_size, self.decoder_chain.Eo), dtype=self.xp.float32)
+                self.noise_lnvar = self.xp.zeros((mb_size, self.decoder_chain.Eo), dtype=self.xp.float32)
 
     def advance_state(self, previous_states, prev_y):
         current_mb_size = prev_y.data.shape[0]
@@ -218,7 +230,7 @@ def compute_loss_from_decoder_cell(cell, targets, use_previous_prediction=0,
             previous_word = F.softmax(logits_for_soft_predictions)
         else:
             if use_previous_prediction > 0 and random.random() < use_previous_prediction:
-                previous_word = Variable(cell.xp.argmax(logits.data[:required_next_mb_size], axis=1).astype(cell.xp.int32))
+                previous_word = Variable(cell.xp.argmax(logits.data[:required_next_mb_size], axis=1).astype(cell.xp.int32), requires_grad=False)
             else:
                 if required_next_mb_size < current_mb_size:
                     previous_word, _ = F.split_axis(targets[i], (required_next_mb_size,), 0)
@@ -233,7 +245,6 @@ def compute_loss_from_decoder_cell(cell, targets, use_previous_prediction=0,
     else:
         loss = loss / total_nb_predictions
         return loss, attn_list
-
 
 def sample_from_decoder_cell(cell, nb_steps, best=False, keep_attn_values=False,
                              need_score=False):
@@ -262,7 +273,9 @@ def sample_from_decoder_cell(cell, nb_steps, best=False, keep_attn_values=False,
                 else:
                     probs_data = probs.data
                 curr_idx = minibatch_sampling(probs_data)
-                if cell.xp != np:
+                if cell.xp == chainerx:
+                    curr_idx = chainerx.array(curr_idx.astype(np.int32), dtype=chainerx.int32, device=logits.array.device)
+                elif cell.xp != np:
                     curr_idx = cuda.to_gpu(curr_idx.astype(np.int32))
                 else:
                     curr_idx = curr_idx.astype(np.int32)
@@ -273,7 +286,7 @@ def sample_from_decoder_cell(cell, nb_steps, best=False, keep_attn_values=False,
                 score = score + np.log(cuda.to_cpu(probs.data)[np.arange(cell.mb_size), cuda.to_cpu(curr_idx)])
             sequences.append(curr_idx)
     
-            previous_word = Variable(curr_idx)
+            previous_word = Variable(curr_idx, requires_grad=False)
     
             states, logits, attn = cell(states, previous_word)
     

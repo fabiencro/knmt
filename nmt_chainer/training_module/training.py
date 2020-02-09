@@ -46,7 +46,8 @@ def train_on_data(encdec, optimizer, training_data, output_files_dict,
                   use_previous_prediction=0, no_report_or_save=False,
                   use_memory_optimization=False, sample_every=200,
                   use_reinf=False,
-                  save_ckpt_every=2000):
+                  save_ckpt_every=2000,
+                  use_chainerx=False):
     #     ,
     #                   lexical_probability_dictionary = None,
     #                   V_tgt = None,
@@ -65,11 +66,13 @@ def train_on_data(encdec, optimizer, training_data, output_files_dict,
 
         mb_provider = minibatch_provider_curiculum(training_data_sorted_by_complexity, eos_idx, mb_size, nb_of_batch_to_sort, gpu=gpu,
                                                    randomized=randomized, sort_key=lambda x: len(x[0]),
-                                                   reverse_src=reverse_src, reverse_tgt=reverse_tgt)
+                                                   reverse_src=reverse_src, reverse_tgt=reverse_tgt,
+                                                   use_chainerx=use_chainerx)
     else:
         mb_provider = minibatch_provider(training_data, eos_idx, mb_size, nb_of_batch_to_sort, gpu=gpu,
                                          randomized=randomized, sort_key=lambda x: len(x[0]),
-                                         reverse_src=reverse_src, reverse_tgt=reverse_tgt)
+                                         reverse_src=reverse_src, reverse_tgt=reverse_tgt,
+                                         use_chainerx=use_chainerx)
 
 #     mb_provider = minibatch_provider(training_data, eos_idx, mb_size, nb_of_batch_to_sort, gpu = gpu,
 #                                      randomized = randomized, sort_key = lambda x:len(x[1]))
@@ -167,7 +170,8 @@ def train_on_data(encdec, optimizer, training_data, output_files_dict,
         def compute_test_loss():
             log.info("computing test loss")
             test_loss = compute_loss_all(encdec, test_data, eos_idx, mb_size, gpu=gpu,
-                                         reverse_src=reverse_src, reverse_tgt=reverse_tgt)
+                                         reverse_src=reverse_src, reverse_tgt=reverse_tgt,
+                                         use_chainerx=use_chainerx)
             log.info("test loss: %f" % test_loss)
             return test_loss
     else:
@@ -194,7 +198,8 @@ def train_on_data(encdec, optimizer, training_data, output_files_dict,
         def compute_dev_loss():
             log.info("computing dev loss")
             dev_loss = compute_loss_all(encdec, dev_data, eos_idx, mb_size, gpu=gpu,
-                                        reverse_src=reverse_src, reverse_tgt=reverse_tgt)
+                                        reverse_src=reverse_src, reverse_tgt=reverse_tgt,
+                                        use_chainerx=use_chainerx)
             log.info("dev loss: %f" % dev_loss)
             return dev_loss
     else:
@@ -221,7 +226,8 @@ def train_on_data(encdec, optimizer, training_data, output_files_dict,
         def compute_valid_loss():
             log.info("computing valid loss")
             dev_loss = compute_loss_all(encdec, valid_data, eos_idx, mb_size, gpu=gpu,
-                                        reverse_src=reverse_src, reverse_tgt=reverse_tgt)
+                                        reverse_src=reverse_src, reverse_tgt=reverse_tgt,
+                                        use_chainerx=use_chainerx)
             log.info("valid loss: %f" % dev_loss)
             return dev_loss
     else:
