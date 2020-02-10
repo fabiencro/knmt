@@ -19,7 +19,7 @@ import pytest
 
 
 class TestMacro:
-    @pytest.mark.parametrize("options", ["", " --use_chainerx"])
+    @pytest.mark.parametrize("options", [""]) #, " --use_chainerx"
     def test_overfitting(self, tmpdir, gpu, options):
         """
         Test whether the translation results are equal to the target translations or not
