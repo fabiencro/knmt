@@ -62,22 +62,23 @@ def make_batch_src(src_data, padding_idx=0, gpu=None, use_chainerx=False):
     min_src_size = min(len(x) for x in src_data)
     mb_size = len(src_data)
 
-    src_batch = [np.empty((mb_size,), dtype=np.int32) for _ in six.moves.range(max_src_size)]
+    src_batch = np.empty((max_src_size, mb_size), dtype=np.int32) #for _ in six.moves.range(max_src_size)]
     src_mask = np.empty((max_src_size - min_src_size, mb_size), dtype=np.bool) #[np.empty((mb_size,), dtype=np.bool) for _ in six.moves.range(max_src_size - min_src_size)]
 
     for num_ex in six.moves.range(mb_size):
         this_src_len = len(src_data[num_ex])
         for i in six.moves.range(max_src_size):
             if i < this_src_len:
-                src_batch[i][num_ex] = src_data[num_ex][i]
+                src_batch[i,num_ex] = src_data[num_ex][i]
                 if i >= min_src_size:
-                    src_mask[i - min_src_size][num_ex] = True
+                    src_mask[i - min_src_size, num_ex] = True
             else:
-                src_batch[i][num_ex] = padding_idx
+                src_batch[i,num_ex] = padding_idx
                 assert i >= min_src_size
-                src_mask[i - min_src_size][num_ex] = False
+                src_mask[i - min_src_size, num_ex] = False
 
-    return [Variable(move_input_to_device(x, gpu, use_chainerx), requires_grad=False) 
+    src_batch = move_input_to_device(src_batch, gpu, use_chainerx)
+    return [Variable(x, requires_grad=False) 
                             for x in src_batch], move_input_to_device(src_mask, gpu, use_chainerx) 
 
 
