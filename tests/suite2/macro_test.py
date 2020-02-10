@@ -19,8 +19,8 @@ import pytest
 
 
 class TestMacro:
-
-    def test_overfitting(self, tmpdir, gpu):
+    @pytest.mark.parametrize("options", ["", " --use_chainerx"])
+    def test_overfitting(self, tmpdir, gpu, options):
         """
         Test whether the translation results are equal to the target translations or not
         when the model is overtrained.
@@ -38,14 +38,16 @@ class TestMacro:
             data_src_file, data_tgt_file, data_prefix).split(' ')
         main(arguments=args)
 
-        args_train = ["train", data_prefix, train_prefix] + "--max_nb_iters 1500 --mb_size 2 --Ei 10 --Eo 12 --Hi 30 --Ha 70 --Ho 15 --Hl 23".split(" ")
+        args_train = (["train", data_prefix, train_prefix] + 
+                    ("--max_nb_iters 1500 --mb_size 2 --Ei 10 --Eo 12 --Hi 30 --Ha 70 --Ho 15 --Hl 23" + options).split(" "))
         if gpu is not None:
             args_train += ['--gpu', gpu]
         main(arguments=args_train)
 
         eval_dir = tmpdir.mkdir("eval")
         translation_file = os.path.join(str(eval_dir), 'translations.txt')
-        args_eval = ["eval", train_prefix + '.train.config', train_prefix + '.model.best.npz', data_src_file, translation_file] + '--mode beam_search --beam_width 30'.split(' ')
+        args_eval = (["eval", train_prefix + '.train.config', train_prefix + '.model.best.npz', data_src_file, translation_file] 
+                        + ('--mode beam_search --beam_width 30'+options).split(' '))
         if gpu is not None:
             args_eval += ['--gpu', gpu]
         main(arguments=args_eval)
