@@ -456,15 +456,19 @@ class ComputeLossExtension(chainer.training.Extension):
         # Make sure that best_loss is at the right location.
         # After deserialization, the best_loss is
         # instanciated on the CPU instead of the GPU.
-        if self.gpu is None:
-            pass  # best_loss should be on the cpu memory anyway
-#             if isinstance(self.best_loss, cupy.core.ndarray):
-#                 self.best_loss = cupy.asnumpy(self.best_loss)
+        if self.use_chainerx:
+            pass
+            #if self.gpu is not None and self.best_loss is not None:
         else:
-            import cupy
-            if self.best_loss is not None and (isinstance(self.best_loss, numpy.ndarray) or self.best_loss.device.id != self.gpu):
-                with cupy.cuda.Device(self.gpu):
-                    self.best_loss = cupy.array(self.best_loss)
+            if self.gpu is None:
+                pass  # best_loss should be on the cpu memory anyway
+    #             if isinstance(self.best_loss, cupy.core.ndarray):
+    #                 self.best_loss = cupy.asnumpy(self.best_loss)
+            else:
+                import cupy
+                if self.best_loss is not None and (isinstance(self.best_loss, numpy.ndarray) or self.best_loss.device.id != self.gpu):
+                    with cupy.cuda.Device(self.gpu):
+                        self.best_loss = cupy.array(self.best_loss)
 
 
 class ComputeBleuExtension(chainer.training.Extension):
