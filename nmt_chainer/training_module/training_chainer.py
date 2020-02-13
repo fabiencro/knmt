@@ -1,7 +1,33 @@
 #!/usr/bin/env python
 """training.py: training procedures."""
-from __future__ import absolute_import, division, print_function, unicode_literals
+from __future__ import (absolute_import, division, print_function,
+                        unicode_literals)
+
+import datetime
+import json
+import logging
+import math
+import socket
+import sys
+import time
+
+import chainer.dataset.iterator
+import chainer.functions as F
+import chainer.iterators
+import chainer.training
+import chainer.training.extensions
+import chainerx
+import numpy
+import six
+from chainer import serializers
+
+from nmt_chainer.translation.evaluation import (compute_loss_all, sample_once,
+                                                sample_once_ff,
+                                                translate_to_file)
 from nmt_chainer.utilities import argument_parsing_tools
+from nmt_chainer.utilities.utils import (make_batch_src_tgt,
+                                         minibatch_provider,
+                                         minibatch_provider_curiculum)
 
 try:
     from chainer.iterators import _statemachine  #for chainer >=6
@@ -14,26 +40,11 @@ __version__ = "1.0"
 __email__ = "fabien.cromieres@gmail.com"
 __status__ = "Development"
 
-from chainer import serializers
-import time
 
-import logging
-import sys
 # import h5py
 
-import math
-import json
 
-from nmt_chainer.utilities.utils import minibatch_provider, minibatch_provider_curiculum, make_batch_src_tgt
-from nmt_chainer.translation.evaluation import (
-    compute_loss_all, translate_to_file, sample_once, sample_once_ff)
 
-import chainer.functions as F
-import chainer.iterators
-import chainer.dataset.iterator
-import chainer.training
-import chainer.training.extensions
-import datetime
 
 try:
     import cupy
@@ -57,7 +68,6 @@ def example_complexity(ex):
     return sent_complexity(ex[0]) + sent_complexity(ex[1])
 
 
-import numpy
 
 # def write_encdec_loss_computation_graph(encdec, dest_file):
 #     batch = [
@@ -348,7 +358,6 @@ class DynamicLengthBasedSerialIterator(chainer.dataset.iterator.Iterator):
 
 
 
-import six
 
 
 def make_collection_of_variables(in_arrays):
@@ -400,7 +409,6 @@ class Updater(chainer.training.StandardUpdater):
         chainer.reporter.report({"update_duration": update_duration,
                                  "mb_preparation_duration": mb_preparation_duration,
                                  "optimizer_update_cycle_duration": optimizer_update_cycle_duration})
-
 
 class ComputeLossExtension(chainer.training.Extension):
     priority = chainer.training.PRIORITY_WRITER
@@ -457,7 +465,17 @@ class ComputeLossExtension(chainer.training.Extension):
         # After deserialization, the best_loss is
         # instanciated on the CPU instead of the GPU.
         if self.use_chainerx:
-            pass
+            if self.gpu is None:
+                if self.best_loss is not None and not isinstance(self.best_loss, chainerx.ndarray):
+                    self.best_loss = chainerx.array(self.best_loss)
+            else:
+                if self.best_loss is not None:
+                    if isinstance(self.best_loss, chainerx.ndarray):
+                        self.best_loss = chainerx.array(self.best_loss, device="cuda:%i"%self.gpu)
+                    else:
+                        self.best_loss = chainerx.array(self.best_loss, device="cuda:%i"%self.gpu)
+
+
             #if self.gpu is not None and self.best_loss is not None:
         else:
             if self.gpu is None:
@@ -593,7 +611,6 @@ class TrainingLossSummaryExtension(chainer.training.Extension):
             chainer.reporter.report({"avg_update_time": avg_update_time})
             self.reset()
 
-import socket
 class SqliteLogExtension(chainer.training.Extension):
     priority = chainer.training.PRIORITY_READER
 
