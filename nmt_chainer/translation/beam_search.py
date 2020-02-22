@@ -339,12 +339,14 @@ def update_next_lists(num_case, idx_in_case, new_cost,
                       get_slice_of_new_state_ensemble, 
                       #finished_translations, 
                       current_translations,
-                      current_attentions,
+                      #current_attentions,
+                      compute_aggregated_attention_and_coverage_penalty,
                       t_infos_list: TranslationInfosList,
                       #next_states_list, next_words_list, next_score_list, next_normalized_score_list, next_translations_list,
-                      attn_ensemble, 
+                      #attn_ensemble, 
                       #next_attentions_list, 
-                      beam_score_coverage_penalty, beam_score_coverage_penalty_strength, 
+                      beam_score_coverage_penalty, 
+                      #beam_score_coverage_penalty_strength, 
                       need_attention=False,
                       constraints_fn=None,
                       required_tgt_idx:Optional[TgtIdxConstraint]=None,
@@ -441,31 +443,38 @@ def update_next_lists(num_case, idx_in_case, new_cost,
         assert t_infos_list.required_tgt_idx_list is not None
         t_infos_list.required_tgt_idx_list.append(required_tgt_idx)
 
+
+    aggregated_attention, coverage_penalty = compute_aggregated_attention_and_coverage_penalty(num_case)
+    # if need_attention or beam_score_coverage_penalty == "google":
+    #     #xp = cuda.get_array_module(attn_ensemble[0].data)
+    #     #attn_summed = xp.zeros((attn_ensemble[0].data[0].shape), dtype=xp.float32)
+    #     if len(attn_ensemble) == 1:
+    #         attn_summed = attn_ensemble[0].array[num_case]
+    #     else:
+    #         attn_summed = attn_ensemble[0].array[num_case].copy() 
+    #         for attn in attn_ensemble[1:]:
+    #             attn_summed += attn.array[num_case]
+    #         attn_summed /= len(attn_ensemble)
+    t_infos_list.next_attentions_list.append(aggregated_attention)
+
+
     # Compute the normalized score if needed.
     if beam_score_coverage_penalty == "google":
-        coverage_penalty = 0
-        if len(current_attentions[num_case]) > 0:
-            #xp = cuda.get_array_module(attn_ensemble[0].data)
-            log_of_min_of_sum_over_j = xp.log(xp.minimum(
-                sum(current_attentions[num_case]), convert_array_if_needed(np.array(1.0, dtype=np.float32), xp, gpu)))
-            coverage_penalty = beam_score_coverage_penalty_strength * \
-                xp.sum(log_of_min_of_sum_over_j)
+        # coverage_penalty = 0
+        # if len(current_attentions[num_case]) > 0:
+        #     #xp = cuda.get_array_module(attn_ensemble[0].data)
+        #     log_of_min_of_sum_over_j = xp.log(xp.minimum(
+        #         sum(current_attentions[num_case]), convert_array_if_needed(np.array(1.0, dtype=np.float32), xp, gpu)))
+        #     coverage_penalty = beam_score_coverage_penalty_strength * \
+        #         xp.sum(log_of_min_of_sum_over_j)
         normalized_score = -new_cost + coverage_penalty
         t_infos_list.next_normalized_score_list.append(normalized_score)
 
     t_infos_list.next_translations_list.append(new_translation)
 
-    if need_attention:
-        #xp = cuda.get_array_module(attn_ensemble[0].data)
-        #attn_summed = xp.zeros((attn_ensemble[0].data[0].shape), dtype=xp.float32)
-        if len(attn_ensemble) == 1:
-            attn_summed = attn_ensemble[0].array[num_case]
-        else:
-            attn_summed = attn_ensemble[0].array[num_case].copy() 
-            for attn in attn_ensemble[1:]:
-                attn_summed += attn.array[num_case]
-            attn_summed /= len(attn_ensemble)
-        t_infos_list.next_attentions_list.append(current_attentions[num_case] + [attn_summed])
+
+
+
     return BSReturn.OK
 
 
@@ -496,6 +505,53 @@ def make_t_infos_list_from_beam(new_state_ensemble, all_num_cases_not_eos, all_i
     else:
         get_slice_of_new_state_ensemble = None
 
+
+    memoized_attention_info = {}
+    memoized_coverage_penalty_info = {}
+    ONE_ON_DEVICE = convert_array_if_needed(np.array(1.0, dtype=np.float32), xp, gpu)
+    def compute_aggregated_attention_and_coverage_penalty(num_case):
+        aggregated_attention = None
+        coverage_penalty = None
+        if need_attention or beam_search_params.beam_score_coverage_penalty == "google":
+            if num_case not in memoized_attention_info:
+                #xp = cuda.get_array_module(attn_ensemble[0].data)
+                #attn_summed = xp.zeros((attn_ensemble[0].data[0].shape), dtype=xp.float32)
+                if len(attn_ensemble) == 1:
+                    attn_summed = attn_ensemble[0].array[num_case]
+                else:
+                    attn_summed = attn_ensemble[0].array[num_case].copy() 
+                    for attn in attn_ensemble[1:]:
+                        attn_summed += attn.array[num_case]
+                    attn_summed /= len(attn_ensemble)
+                memoized_attention_info[num_case] = attn_summed
+            else:
+                attn_summed = memoized_attention_info[num_case]
+
+            aggregated_attention = current_attentions[num_case] + [attn_summed]
+            #t_infos_list.next_attentions_list.append(current_attentions[num_case] + [attn_summed])
+
+
+        # Compute the normalized score if needed.
+        if beam_search_params.beam_score_coverage_penalty == "google":
+            if num_case not in memoized_coverage_penalty_info:
+                coverage_penalty = 0
+                if len(current_attentions[num_case]) > 0:
+                    #xp = cuda.get_array_module(attn_ensemble[0].data)
+                    log_of_min_of_sum_over_j = xp.log(xp.minimum(
+                        sum(current_attentions[num_case]), ONE_ON_DEVICE))
+                    coverage_penalty = beam_search_params.beam_score_coverage_penalty_strength * \
+                        xp.sum(log_of_min_of_sum_over_j)
+                memoized_coverage_penalty_info[num_case] = coverage_penalty
+            else:
+                coverage_penalty = memoized_coverage_penalty_info[num_case]
+
+            #normalized_score = -new_cost + coverage_penalty
+            #t_infos_list.next_normalized_score_list.append(normalized_score)
+
+        return aggregated_attention, coverage_penalty
+
+
+
     for num_case, idx_in_case, new_cost in zip( all_num_cases_not_eos, all_idx_in_cases_not_eos, best_scores_not_eos):
         required_tgt_idx=required_tgt_idx_list[num_case] if required_tgt_idx_list is not None else None
 
@@ -511,13 +567,15 @@ def make_t_infos_list_from_beam(new_state_ensemble, all_num_cases_not_eos, all_i
                         #eos_idx, 
                         get_slice_of_new_state_ensemble,
                         #finished_translations, 
-                        current_translations, current_attentions,
+                        current_translations,
+                        compute_aggregated_attention_and_coverage_penalty,
+                        #current_attentions,
                         t_infos_list,
                         #next_states_list, next_words_list, next_score_list, next_normalized_score_list, next_translations_list,
-                        attn_ensemble, 
+                        #attn_ensemble, 
                         #next_attentions_list, 
                         beam_search_params.beam_score_coverage_penalty, 
-                        beam_search_params.beam_score_coverage_penalty_strength, 
+                        #beam_search_params.beam_score_coverage_penalty_strength, 
                         need_attention=need_attention, constraints_fn=constraints_fn,
                         required_tgt_idx=required_tgt_idx,
                         xp=xp,
