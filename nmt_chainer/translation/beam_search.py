@@ -132,6 +132,7 @@ class ATranslationState:
     previous_words: Optional[List[int]] = None
     attentions: List[List[np.array]] = field(default_factory=lambda:[[]])
     required_tgt_idx_list: Optional[List[TgtIdxConstraint]] = None
+    sum_attentions: List = field(default_factory=lambda:list())
 
     @classmethod
     def make_empty(cls, xp, ensemble_size, required_tgt_idx:Optional[Counter[int]], gpu=None):
@@ -143,7 +144,8 @@ class ATranslationState:
 
         obj = cls(scores=scores, 
                 previous_states_ensemble = [None] * ensemble_size,
-                required_tgt_idx_list=required_tgt_idx_list)
+                required_tgt_idx_list=required_tgt_idx_list,
+                sum_attentions = [None])
         return obj
 
 class BSReturn(enum.Enum):
@@ -161,6 +163,7 @@ class TranslationInfosList:
     next_attentions_list: List[List[np.ndarray]] = field(default_factory = list)
     constraint_values: Optional[List[float]] = None
     required_tgt_idx_list: Optional[List[TgtIdxConstraint]] = None
+    sum_attentions: Optional[List] = None
 
     def prune_with_margin(self, beam_pruning_margin:float, use_normalized_score:bool):
         if use_normalized_score:
@@ -187,13 +190,17 @@ class TranslationInfosList:
             if self.required_tgt_idx_list is not None:
                 assert len(self.required_tgt_idx_list) == len(self.next_score_list)
                 del self.required_tgt_idx_list[i]
+            if self.sum_attentions is not None:
+                assert len(self.sum_attentions) == len(self.next_score_list)
+                del self.sum_attentions[i]
             del self.next_states_list[i]
             del self.next_words_list[i]
             del self.next_score_list[i]
             del self.next_translations_list[i]
             del self.next_attentions_list[i]
         assert (len(self.next_states_list) == len(self.next_words_list) == 
-                        len(self.next_score_list) == len(self.next_translations_list) == len(self.next_attentions_list)
+                        len(self.next_score_list) == len(self.next_translations_list) == 
+                        len(self.next_attentions_list)
                         )
 
 def iterate_best_score(new_scores: np.ndarray, beam_width: int, xp=np)->Tuple[Sequence, Sequence, Sequence]:
@@ -444,7 +451,8 @@ def update_next_lists(num_case, idx_in_case, new_cost,
         t_infos_list.required_tgt_idx_list.append(required_tgt_idx)
 
 
-    aggregated_attention, coverage_penalty = compute_aggregated_attention_and_coverage_penalty(num_case)
+    (aggregated_attention, coverage_penalty, 
+            new_sum_attention) = compute_aggregated_attention_and_coverage_penalty(num_case)
     # if need_attention or beam_score_coverage_penalty == "google":
     #     #xp = cuda.get_array_module(attn_ensemble[0].data)
     #     #attn_summed = xp.zeros((attn_ensemble[0].data[0].shape), dtype=xp.float32)
@@ -469,6 +477,7 @@ def update_next_lists(num_case, idx_in_case, new_cost,
         #         xp.sum(log_of_min_of_sum_over_j)
         normalized_score = -new_cost + coverage_penalty
         t_infos_list.next_normalized_score_list.append(normalized_score)
+        t_infos_list.sum_attentions.append(new_sum_attention)
 
     t_infos_list.next_translations_list.append(new_translation)
 
@@ -479,12 +488,12 @@ def update_next_lists(num_case, idx_in_case, new_cost,
 
 
 def make_t_infos_list_from_beam(new_state_ensemble, all_num_cases_not_eos, all_idx_in_cases_not_eos, best_scores_not_eos,
-                                    attn_ensemble,
+                                    attn_ensemble, previous_sum_attentions,
                                     current_translations, current_attentions, need_attention,
                                     beam_search_params, constraints_fn, required_tgt_idx_list, xp, gpu):
 
     if beam_search_params.beam_score_coverage_penalty == "google":
-        t_infos_list = TranslationInfosList(next_normalized_score_list = [])
+        t_infos_list = TranslationInfosList(next_normalized_score_list = [], sum_attentions= [])
     else:
         t_infos_list = TranslationInfosList()
 
@@ -512,6 +521,7 @@ def make_t_infos_list_from_beam(new_state_ensemble, all_num_cases_not_eos, all_i
     def compute_aggregated_attention_and_coverage_penalty(num_case):
         aggregated_attention = None
         coverage_penalty = None
+        sum_attention = None
         if need_attention or beam_search_params.beam_score_coverage_penalty == "google":
             if num_case not in memoized_attention_info:
                 #xp = cuda.get_array_module(attn_ensemble[0].data)
@@ -536,19 +546,23 @@ def make_t_infos_list_from_beam(new_state_ensemble, all_num_cases_not_eos, all_i
             if num_case not in memoized_coverage_penalty_info:
                 coverage_penalty = 0
                 if len(current_attentions[num_case]) > 0:
+                    if previous_sum_attentions[num_case] is None:
+                        sum_attention = attn_summed
+                    else:
+                        sum_attention = attn_summed + previous_sum_attentions[num_case] #sum(aggregated_attention)
                     #xp = cuda.get_array_module(attn_ensemble[0].data)
                     log_of_min_of_sum_over_j = xp.log(xp.minimum(
-                        sum(current_attentions[num_case]), ONE_ON_DEVICE))
+                        sum_attention, ONE_ON_DEVICE))
                     coverage_penalty = beam_search_params.beam_score_coverage_penalty_strength * \
                         xp.sum(log_of_min_of_sum_over_j)
-                memoized_coverage_penalty_info[num_case] = coverage_penalty
+                memoized_coverage_penalty_info[num_case] = (coverage_penalty, sum_attention)
             else:
-                coverage_penalty = memoized_coverage_penalty_info[num_case]
+                coverage_penalty, sum_attention = memoized_coverage_penalty_info[num_case]
 
             #normalized_score = -new_cost + coverage_penalty
             #t_infos_list.next_normalized_score_list.append(normalized_score)
 
-        return aggregated_attention, coverage_penalty
+        return aggregated_attention, coverage_penalty, sum_attention
 
 
 
@@ -614,6 +628,7 @@ def compute_next_lists(new_state_ensemble, new_scores,
                        finished_translations,
                        current_attentions,
                        attn_ensemble,
+                       previous_sum_attentions,
                        force_finish=False,
                        need_attention=False,
                        constraints_fn=None,
@@ -715,7 +730,7 @@ def compute_next_lists(new_state_ensemble, new_scores,
 
 
     return make_t_infos_list_from_beam(new_state_ensemble, all_num_cases[is_not_eos], all_idx_in_cases[is_not_eos], best_scores[is_not_eos],
-                                    attn_ensemble,
+                                    attn_ensemble, previous_sum_attentions,
                                     current_translations, current_attentions, need_attention,
                                     beam_search_params, constraints_fn, required_tgt_idx_list, xp, gpu)
     
@@ -758,7 +773,8 @@ def convert_t_infos_list_to_translation_state(t_infos_list, new_state_ensemble, 
                                 concatenated_next_states_list,
                                 Variable(next_words_array, requires_grad=False),
                                 t_infos_list.next_attentions_list,
-                                required_tgt_idx_list=t_infos_list.required_tgt_idx_list
+                                required_tgt_idx_list=t_infos_list.required_tgt_idx_list,
+                                sum_attentions=t_infos_list.sum_attentions
                                 )
     return next_translations_states
 
@@ -767,7 +783,10 @@ def build_next_translation_state(new_state_ensemble, new_scores,
         beam_search_params,
         eos_idx,
         current_translations, finished_translations,
-        current_attentions, attn_ensemble, force_finish=False, need_attention=False,
+        current_attentions, attn_ensemble, 
+        previous_sum_attentions,
+
+        force_finish=False, need_attention=False,
         constraints_fn=None,
         required_tgt_idx_list=None,
         xp=np,
@@ -782,7 +801,9 @@ def build_next_translation_state(new_state_ensemble, new_scores,
         #beam_score_coverage_penalty, beam_score_coverage_penalty_strength,
         eos_idx,
         current_translations, finished_translations,
-        current_attentions, attn_ensemble, force_finish=force_finish, need_attention=need_attention,
+        current_attentions, attn_ensemble, 
+        previous_sum_attentions,
+        force_finish=force_finish, need_attention=need_attention,
         constraints_fn=constraints_fn,
         required_tgt_idx_list=required_tgt_idx_list,
         xp=xp,
@@ -917,6 +938,7 @@ def advance_one_step(dec_cell_ensemble, eos_idx,
     current_words = current_translations_states.previous_words
     current_attentions = current_translations_states.attentions
     required_tgt_idx_list = current_translations_states.required_tgt_idx_list
+    previous_sum_attentions = current_translations_states.sum_attentions
 
     # Compute the next states and associated next word scores
     combined_scores, new_state_ensemble, attn_ensemble = compute_next_states_and_scores(
@@ -938,7 +960,9 @@ def advance_one_step(dec_cell_ensemble, eos_idx,
         beam_search_params,
         eos_idx,
         current_translations, finished_translations,
-        current_attentions, attn_ensemble, force_finish=force_finish, need_attention=need_attention,
+        current_attentions, attn_ensemble, 
+        previous_sum_attentions,
+        force_finish=force_finish, need_attention=need_attention,
         constraints_fn=constraints_fn,
         required_tgt_idx_list=required_tgt_idx_list,
         xp=xp,
