@@ -40,6 +40,18 @@ logging.basicConfig()
 log = logging.getLogger("rnns:beam_search")
 log.setLevel(logging.INFO)
 
+def convert_array_if_needed(values, xp, gpu):
+    if xp == chainerx:
+        if gpu is None:
+            array = chainerx.array(values)
+        else:
+            array = chainerx.array(values, device="cuda:%i"%gpu)
+    elif xp != np: #cupy
+        array = xp.array(values)
+    else:
+        array = values
+    return array
+
 @dataclass(order=False, frozen=True)
 class BeamSearchParams:
     beam_width:int = 20
@@ -250,6 +262,9 @@ def iterate_eos_scores(new_scores, eos_idx, existing_cases = None)->Tuple[Sequen
     #     idx_in_case = eos_idx
     #     yield int(num_case), idx_in_case, -cuda.to_cpu(new_scores[num_case, eos_idx])
 
+
+
+
 def iterate_required_word_scores(new_scores, required:List[TgtIdxConstraint], 
             existing_cases_idx = None,
             xp=np,
@@ -277,15 +292,7 @@ def iterate_required_word_scores(new_scores, required:List[TgtIdxConstraint],
         required_num_cases_list = required_num_cases_list[need_to_return]
         required_idx_in_cases_list = required_idx_in_cases_list[need_to_return]
 
-    if xp == chainerx:
-        if gpu is None:
-            required_ravel = chainerx.array(required_ravel)
-        else:
-            required_ravel = chainerx.array(required_ravel, device="cuda:%i"%gpu)
-    elif xp != np: #cupy
-        required_ravel = xp.array(required_ravel)
-
-
+    required_ravel = convert_array_if_needed(required_ravel, xp, gpu)
 
     scores = - cuda.to_cpu(new_scores.ravel()[required_ravel])
 
@@ -341,7 +348,8 @@ def update_next_lists(num_case, idx_in_case, new_cost,
                       need_attention=False,
                       constraints_fn=None,
                       required_tgt_idx:Optional[TgtIdxConstraint]=None,
-                      xp=np) -> BSReturn:
+                      xp=np,
+                      gpu=None) -> BSReturn:
     """
     Updates the lists containing the infos on translations in current beam
 
@@ -437,9 +445,9 @@ def update_next_lists(num_case, idx_in_case, new_cost,
     if beam_score_coverage_penalty == "google":
         coverage_penalty = 0
         if len(current_attentions[num_case]) > 0:
-            xp = cuda.get_array_module(attn_ensemble[0].data)
+            #xp = cuda.get_array_module(attn_ensemble[0].data)
             log_of_min_of_sum_over_j = xp.log(xp.minimum(
-                sum(current_attentions[num_case]), xp.array(1.0)))
+                sum(current_attentions[num_case]), convert_array_if_needed(np.array(1.0, dtype=np.float32), xp, gpu)))
             coverage_penalty = beam_score_coverage_penalty_strength * \
                 xp.sum(log_of_min_of_sum_over_j)
         normalized_score = -new_cost + coverage_penalty
@@ -464,7 +472,7 @@ def update_next_lists(num_case, idx_in_case, new_cost,
 def make_t_infos_list_from_beam(new_state_ensemble, all_num_cases_not_eos, all_idx_in_cases_not_eos, best_scores_not_eos,
                                     attn_ensemble,
                                     current_translations, current_attentions, need_attention,
-                                    beam_search_params, constraints_fn, required_tgt_idx_list, xp):
+                                    beam_search_params, constraints_fn, required_tgt_idx_list, xp, gpu):
 
     if beam_search_params.beam_score_coverage_penalty == "google":
         t_infos_list = TranslationInfosList(next_normalized_score_list = [])
@@ -512,7 +520,8 @@ def make_t_infos_list_from_beam(new_state_ensemble, all_num_cases_not_eos, all_i
                         beam_search_params.beam_score_coverage_penalty_strength, 
                         need_attention=need_attention, constraints_fn=constraints_fn,
                         required_tgt_idx=required_tgt_idx,
-                        xp=xp)
+                        xp=xp,
+                        gpu=gpu)
 
     assert len(t_infos_list.next_states_list) <= beam_search_params.beam_width or beam_search_params.always_consider_eos_and_placeholders
 #             if len(next_states_list) >= beam_width:
@@ -650,7 +659,7 @@ def compute_next_lists(new_state_ensemble, new_scores,
     return make_t_infos_list_from_beam(new_state_ensemble, all_num_cases[is_not_eos], all_idx_in_cases[is_not_eos], best_scores[is_not_eos],
                                     attn_ensemble,
                                     current_translations, current_attentions, need_attention,
-                                    beam_search_params, constraints_fn, required_tgt_idx_list, xp)
+                                    beam_search_params, constraints_fn, required_tgt_idx_list, xp, gpu)
     
 
 def convert_t_infos_list_to_translation_state(t_infos_list, new_state_ensemble, xp, gpu):
