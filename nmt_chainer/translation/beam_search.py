@@ -251,7 +251,7 @@ def iterate_best_score(new_scores: np.ndarray, beam_width: int, xp=np)->Tuple[Se
     #     yield int(num_case), idx_in_case, best_scores[num] #new_costs_flattened[idx]
 
 
-def iterate_eos_scores(new_scores, eos_idx, existing_cases = None)->Tuple[Sequence, Sequence, Sequence]:
+def iterate_eos_scores(new_scores, eos_idx, existing_cases = None, beam_width=None)->Tuple[Sequence, Sequence, Sequence]:
     nb_cases, v_size = new_scores.shape
     num_cases = np.arange(nb_cases, dtype=np.int32)
     scores = -cuda.to_cpu(new_scores[:, eos_idx])
@@ -261,6 +261,13 @@ def iterate_eos_scores(new_scores, eos_idx, existing_cases = None)->Tuple[Sequen
         scores = scores[need_to_return]
 
     idx_in_cases = np.full(num_cases.shape[0], eos_idx, dtype=np.int32)
+
+    if beam_width is not None:
+        if beam_width < len(scores):
+            idx_to_keep = np.argpartition(scores, beam_width)[:beam_width]
+            scores = scores[idx_to_keep]
+            num_cases = num_cases[idx_to_keep]
+            idx_in_cases = idx_in_cases[idx_to_keep]
 
     return num_cases, idx_in_cases, scores
     
@@ -275,7 +282,8 @@ def iterate_eos_scores(new_scores, eos_idx, existing_cases = None)->Tuple[Sequen
 def iterate_required_word_scores(new_scores, required:List[TgtIdxConstraint], 
             existing_cases_idx = None,
             xp=np,
-            gpu=None)->Tuple[Sequence, Sequence, Sequence]:
+            gpu=None,
+            beam_width = None)->Tuple[Sequence, Sequence, Sequence]:
     nb_cases, v_size = new_scores.shape
     assert nb_cases == len(required)
 
@@ -302,6 +310,14 @@ def iterate_required_word_scores(new_scores, required:List[TgtIdxConstraint],
     required_ravel = convert_array_if_needed(required_ravel, xp, gpu)
 
     scores = - cuda.to_cpu(new_scores.ravel()[required_ravel])
+
+    if beam_width is not None:
+        if beam_width < len(scores):
+            idx_to_keep = np.argpartition(scores, beam_width)[:beam_width]
+            scores = scores[idx_to_keep]
+            required_num_cases_list = required_num_cases_list[idx_to_keep]
+            required_idx_in_cases_list = required_idx_in_cases_list[idx_to_keep]
+
 
     return required_num_cases_list, required_idx_in_cases_list, scores
 
@@ -673,20 +689,30 @@ def compute_next_lists(new_state_ensemble, new_scores,
 
 
     if force_finish:
-        score_iterator = iterate_eos_scores(new_scores, eos_idx)
+        score_iterator = iterate_eos_scores(new_scores, eos_idx, beam_width=beam_search_params.beam_width*2)
 
     elif beam_search_params.always_consider_eos_and_placeholders:
 
 
         score_iterator_list = [iterate_best_score(new_scores, beam_search_params.beam_width, xp=xp)]
-        score_iterator_list.append(iterate_eos_scores(new_scores, eos_idx, existing_cases = score_iterator_list[0]))
+        #print("orig:", len(score_iterator_list[0][0]))
+        score_iterator_list.append(
+            iterate_eos_scores(new_scores, eos_idx, existing_cases = score_iterator_list[0],
+                    beam_width=beam_search_params.beam_width*2))
+        #print("eos:", len(score_iterator_list[1][0]))
+        
         score_iterator = tuple(np.concatenate(items) for items in zip(*score_iterator_list))
+        
         
 
         if required_tgt_idx_list is not None:
             score_iterator_list =[score_iterator]
-            score_iterator_list.append(iterate_required_word_scores(new_scores, required_tgt_idx_list,
-                existing_cases_idx=(score_iterator_list[0][0], score_iterator_list[0][1]), xp=xp, gpu=gpu))
+            score_iterator_list.append(
+                iterate_required_word_scores(new_scores, required_tgt_idx_list,
+                existing_cases_idx=(score_iterator_list[0][0], score_iterator_list[0][1]), xp=xp, gpu=gpu,
+                beam_width=beam_search_params.beam_width*4
+                ))
+            #print("ph:", len(score_iterator_list[1][0]))
             score_iterator = tuple(np.concatenate(items) for items in zip(*score_iterator_list))
         # def chained_score_iterator():
         #     already_seen = set()
@@ -706,6 +732,7 @@ def compute_next_lists(new_state_ensemble, new_scores,
     is_eos = (all_idx_in_cases == eos_idx)
     is_not_eos = np.logical_not(is_eos)
 
+    #print("selected:", len(all_num_cases), len(all_num_cases[is_eos]), len(all_num_cases[is_not_eos]))
 
     #all_num_cases[is_eos], all_idx_in_cases[is_eos], best_scores[is_eos]
     #print(force_finish,all_num_cases, all_idx_in_cases, is_eos, best_scores[is_eos].shape, len(finished_translations))

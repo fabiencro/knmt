@@ -259,6 +259,7 @@ def beam_search_translate(encdec, eos_idx, src_data,
         if post_score_length_normalization == 'none' and post_score_coverage_penalty == 'none':
             ranking_criterion = operator.itemgetter(1)
         else:
+            ONE_ON_DEVICE = beam_search.convert_array_if_needed(np.array(1.0, dtype=np.float32), xp, gpu)
             def ranking_criterion(x):
                 length_normalization = 1
                 if post_score_length_normalization == 'simple':
@@ -273,7 +274,7 @@ def beam_search_translate(encdec, eos_idx, src_data,
                     # log.info("sum={0}".format(sum(x[2])))
                     # log.info("min={0}".format(xp.minimum(sum(x[2]), xp.array(1.0))))
                     # log.info("log={0}".format(xp.log(xp.minimum(sum(x[2]), xp.array(1.0)))))
-                    log_of_min_of_sum_over_j = xp.log(xp.minimum(sum(x[2]), xp.array(1.0)))
+                    log_of_min_of_sum_over_j = xp.log(xp.minimum(sum(x[2]), ONE_ON_DEVICE))
                     coverage_penalty = post_score_coverage_penalty_strength * xp.sum(log_of_min_of_sum_over_j)
                     # log.info("cp={0}".format(coverage_penalty))
                     # cp = 0
