@@ -557,7 +557,7 @@ def do_eval(config_eval):
                 placeholders_list_all = []
                 placeholders_list = []
                 for i in range(100):
-                    placeholder = "<K-%i>"%i
+                    placeholder = "<K-%02i>"%i
                     tgt_idx = tgt_indexer.convert(placeholder)
                     src_idx = src_indexer.convert(placeholder)
                     if len(tgt_idx) != 1 or len(src_idx)!=1:
