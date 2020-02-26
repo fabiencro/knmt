@@ -691,9 +691,10 @@ def compute_next_lists(new_state_ensemble, new_scores,
     if force_finish:
         score_iterator = iterate_eos_scores(new_scores, eos_idx, beam_width=beam_search_params.beam_width*2)
 
-    elif beam_search_params.always_consider_eos_and_placeholders:
+    elif beam_search_params.always_consider_eos_and_placeholders and (
+                required_tgt_idx_list is not None and any(len(req_list)>0 for req_list in required_tgt_idx_list)):
 
-
+        #print("force_eos", len(required_tgt_idx_list), required_tgt_idx_list)
         score_iterator_list = [iterate_best_score(new_scores, beam_search_params.beam_width, xp=xp)]
         #print("orig:", len(score_iterator_list[0][0]))
         score_iterator_list.append(
@@ -705,7 +706,7 @@ def compute_next_lists(new_state_ensemble, new_scores,
         
         
 
-        if required_tgt_idx_list is not None:
+        if required_tgt_idx_list is not None and any(len(req_list)>0 for req_list in required_tgt_idx_list):
             score_iterator_list =[score_iterator]
             score_iterator_list.append(
                 iterate_required_word_scores(new_scores, required_tgt_idx_list,
