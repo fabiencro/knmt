@@ -448,6 +448,61 @@ def create_encdec(config_eval):
 
     return encdec_list, eos_idx, src_indexer, tgt_indexer, reverse_encdec, model_infos_list
 
+def placeholder_constraints_builder(src_indexer, tgt_indexer, units_placeholders=False):
+    if not units_placeholders:
+        placeholder_matcher = re.compile(r"<K-\d+>")
+        def make_constraints(src, src_seq)->beam_search.BeamSearchConstraints:
+            src_placeholders_list = placeholder_matcher.findall(src)
+            src_placeholders_set = set(src_placeholders_list)
+            if len(src_placeholders_set) != len(src_placeholders_list):
+                raise Exception("Current assumption is that there is no duplicate placeholders")
+            def constraint_fn(tgt_seq):
+                tgt = tgt_indexer.deconvert(tgt_seq)
+                tgt_placeholders_list = placeholder_matcher.findall(tgt)
+                tgt_placeholders_set = set(tgt_placeholders_list)
+                if len(tgt_placeholders_set) != len(tgt_placeholders_list):
+                    return -1 #disallow duplicate placeholders on target side
+                if len(tgt_placeholders_set - src_placeholders_set) != 0:
+                    return -1 #disallow generating a placeholder not in source
+                if tgt_placeholders_set == src_placeholders_set:
+                    return 1 #all constraints satisfied
+                #else return proportion of required placeholders in target
+                assert len(tgt_placeholders_set) < len(src_placeholders_set)
+                return len(tgt_placeholders_set) / len(src_placeholders_set)
+            
+            return beam_search.BeamSearchConstraints(constraint_fn=constraint_fn)
+        return make_constraints
+    else:
+        placeholder_dictionary = {}
+        placeholders_list_all = []
+        placeholders_list = []
+        for i in range(100):
+            placeholder = "<K-%02i>"%i
+            tgt_idx = tgt_indexer.convert(placeholder)
+            src_idx = src_indexer.convert(placeholder)
+            if len(tgt_idx) != 1 or len(src_idx)!=1:
+                pass
+            else:
+                tgt_idx = tgt_idx[0]
+                src_idx = src_idx[0]
+                if not tgt_indexer.is_unk_idx(tgt_idx) and not src_indexer.is_unk_idx(src_idx):
+                    placeholder_dictionary[src_idx] = tgt_idx
+                    placeholders_list_all.append( (placeholder, src_idx, tgt_idx))
+                    placeholders_list.append(tgt_idx)
+        log.info("Found %i placeholders: %r  l:%i,%i"%(len(placeholders_list_all), placeholders_list_all, 
+                len(tgt_indexer), len(src_indexer)))
+
+        def make_constraints(src, src_seq)->beam_search.BeamSearchConstraints:
+            required_tgt_idx = beam_search.TgtIdxConstraint()
+            required_tgt_idx.set_placeholders_idx_list(placeholders_list)
+            for idx in src_seq:
+                if idx in placeholder_dictionary:
+                    required_tgt_idx.add(placeholder_dictionary[idx])
+            
+            return beam_search.BeamSearchConstraints(required_tgt_idx=required_tgt_idx)
+        return make_constraints
+
+
 def do_eval(config_eval):
     src_fn = config_eval.process.src_fn
     tgt_fn = config_eval.output.tgt_fn
@@ -529,57 +584,58 @@ def do_eval(config_eval):
                 ref = test_tgt_from_config
 
         if config_eval.process.force_placeholders:
-            
-            if not config_eval.process.units_placeholders:
-                placeholder_matcher = re.compile(r"<K-\d+>")
-                def make_constraints(src, src_seq)->beam_search.BeamSearchConstraints:
-                    src_placeholders_list = placeholder_matcher.findall(src)
-                    src_placeholders_set = set(src_placeholders_list)
-                    if len(src_placeholders_set) != len(src_placeholders_list):
-                        raise Exception("Current assumption is that there is no duplicate placeholders")
-                    def constraint_fn(tgt_seq):
-                        tgt = tgt_indexer.deconvert(tgt_seq)
-                        tgt_placeholders_list = placeholder_matcher.findall(tgt)
-                        tgt_placeholders_set = set(tgt_placeholders_list)
-                        if len(tgt_placeholders_set) != len(tgt_placeholders_list):
-                            return -1 #disallow duplicate placeholders on target side
-                        if len(tgt_placeholders_set - src_placeholders_set) != 0:
-                            return -1 #disallow generating a placeholder not in source
-                        if tgt_placeholders_set == src_placeholders_set:
-                            return 1 #all constraints satisfied
-                        #else return proportion of required placeholders in target
-                        assert len(tgt_placeholders_set) < len(src_placeholders_set)
-                        return len(tgt_placeholders_set) / len(src_placeholders_set)
+            make_constraints = placeholder_constraints_builder(src_indexer, tgt_indexer, 
+                    units_placeholders=config_eval.process.units_placeholders)
+            # if not config_eval.process.units_placeholders:
+            #     placeholder_matcher = re.compile(r"<K-\d+>")
+            #     def make_constraints(src, src_seq)->beam_search.BeamSearchConstraints:
+            #         src_placeholders_list = placeholder_matcher.findall(src)
+            #         src_placeholders_set = set(src_placeholders_list)
+            #         if len(src_placeholders_set) != len(src_placeholders_list):
+            #             raise Exception("Current assumption is that there is no duplicate placeholders")
+            #         def constraint_fn(tgt_seq):
+            #             tgt = tgt_indexer.deconvert(tgt_seq)
+            #             tgt_placeholders_list = placeholder_matcher.findall(tgt)
+            #             tgt_placeholders_set = set(tgt_placeholders_list)
+            #             if len(tgt_placeholders_set) != len(tgt_placeholders_list):
+            #                 return -1 #disallow duplicate placeholders on target side
+            #             if len(tgt_placeholders_set - src_placeholders_set) != 0:
+            #                 return -1 #disallow generating a placeholder not in source
+            #             if tgt_placeholders_set == src_placeholders_set:
+            #                 return 1 #all constraints satisfied
+            #             #else return proportion of required placeholders in target
+            #             assert len(tgt_placeholders_set) < len(src_placeholders_set)
+            #             return len(tgt_placeholders_set) / len(src_placeholders_set)
                     
-                    return beam_search.BeamSearchConstraints(constraint_fn=constraint_fn)
-            else:
-                placeholder_dictionary = {}
-                placeholders_list_all = []
-                placeholders_list = []
-                for i in range(100):
-                    placeholder = "<K-%02i>"%i
-                    tgt_idx = tgt_indexer.convert(placeholder)
-                    src_idx = src_indexer.convert(placeholder)
-                    if len(tgt_idx) != 1 or len(src_idx)!=1:
-                        pass
-                    else:
-                        tgt_idx = tgt_idx[0]
-                        src_idx = src_idx[0]
-                        if not tgt_indexer.is_unk_idx(tgt_idx) and not src_indexer.is_unk_idx(src_idx):
-                            placeholder_dictionary[src_idx] = tgt_idx
-                            placeholders_list_all.append( (placeholder, src_idx, tgt_idx))
-                            placeholders_list.append(tgt_idx)
-                log.info("Found %i placeholders: %r  l:%i,%i"%(len(placeholders_list_all), placeholders_list_all, 
-                        len(tgt_indexer), len(src_indexer)))
+            #         return beam_search.BeamSearchConstraints(constraint_fn=constraint_fn)
+            # else:
+            #     placeholder_dictionary = {}
+            #     placeholders_list_all = []
+            #     placeholders_list = []
+            #     for i in range(100):
+            #         placeholder = "<K-%02i>"%i
+            #         tgt_idx = tgt_indexer.convert(placeholder)
+            #         src_idx = src_indexer.convert(placeholder)
+            #         if len(tgt_idx) != 1 or len(src_idx)!=1:
+            #             pass
+            #         else:
+            #             tgt_idx = tgt_idx[0]
+            #             src_idx = src_idx[0]
+            #             if not tgt_indexer.is_unk_idx(tgt_idx) and not src_indexer.is_unk_idx(src_idx):
+            #                 placeholder_dictionary[src_idx] = tgt_idx
+            #                 placeholders_list_all.append( (placeholder, src_idx, tgt_idx))
+            #                 placeholders_list.append(tgt_idx)
+            #     log.info("Found %i placeholders: %r  l:%i,%i"%(len(placeholders_list_all), placeholders_list_all, 
+            #             len(tgt_indexer), len(src_indexer)))
 
-                def make_constraints(src, src_seq)->beam_search.BeamSearchConstraints:
-                    required_tgt_idx = beam_search.TgtIdxConstraint()
-                    required_tgt_idx.set_placeholders_idx_list(placeholders_list)
-                    for idx in src_seq:
-                        if idx in placeholder_dictionary:
-                            required_tgt_idx.add(placeholder_dictionary[idx])
+            #     def make_constraints(src, src_seq)->beam_search.BeamSearchConstraints:
+            #         required_tgt_idx = beam_search.TgtIdxConstraint()
+            #         required_tgt_idx.set_placeholders_idx_list(placeholders_list)
+            #         for idx in src_seq:
+            #             if idx in placeholder_dictionary:
+            #                 required_tgt_idx.add(placeholder_dictionary[idx])
                     
-                    return beam_search.BeamSearchConstraints(required_tgt_idx=required_tgt_idx)
+            #         return beam_search.BeamSearchConstraints(required_tgt_idx=required_tgt_idx)
 
         elif False:
 

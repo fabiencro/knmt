@@ -35,6 +35,8 @@ logging.basicConfig()
 log = logging.getLogger("rnns:server")
 log.setLevel(logging.INFO)
 
+from .eval import placeholder_constraints_builder
+
 class Translator(object):
 
     def __init__(self, config_server):
@@ -44,6 +46,15 @@ class Translator(object):
             config_server)
 
         self.encdec_list = [self.encdec]
+
+        if config_server.process.force_placeholders:
+            self.make_constraints = placeholder_constraints_builder(self.src_indexer, self.tgt_indexer, 
+                    units_placeholders=config_server.process.units_placeholders)
+        else:
+            self.make_constraints = None
+
+        self.always_consider_eos_and_placeholders = config_server.method.always_consider_eos_and_placeholders
+        self.use_chainerx = config_server.process.use_chainerx
 
     def translate(self, sentence, beam_width, beam_pruning_margin, beam_score_coverage_penalty, beam_score_coverage_penalty_strength, nb_steps, nb_steps_ratio,
                   remove_unk, normalize_unicode_unk, attempt_to_relocate_unk_source, beam_score_length_normalization, beam_score_length_normalization_strength, post_score_length_normalization, post_score_length_normalization_strength,
@@ -67,7 +78,17 @@ class Translator(object):
             div = '<div/>'
             unk_mapping = []
 
-            src_data, stats_src_pp = build_dataset_one_side_pp(src_file.name, self.src_indexer, max_nb_ex=self.config_server.process.max_nb_ex)
+            #src_data, stats_src_pp = build_dataset_one_side_pp(src_file.name, self.src_indexer, max_nb_ex=self.config_server.process.max_nb_ex)
+
+
+            preprocessed_input = build_dataset_one_side_pp(src_file.name, self.src_indexer, max_nb_ex=self.config_server.process.max_nb_ex,
+                                                           make_constraints=self.make_constraints)
+
+            if self.make_constraints is not None:
+                src_data, stats_src_pp, constraints_list = preprocessed_input
+            else:
+                src_data, stats_src_pp = preprocessed_input
+                constraints_list = None      
 
             from nmt_chainer.translation.eval import translate_to_file_with_beam_search
             from nmt_chainer.translation.beam_search import BeamSearchParams
@@ -80,7 +101,8 @@ class Translator(object):
                                                beam_score_length_normalization=beam_score_length_normalization,
                                                beam_score_length_normalization_strength=beam_score_length_normalization_strength,
                                                force_finish=force_finish,
-                                               use_unfinished_translation_if_none_found=True,)
+                                               use_unfinished_translation_if_none_found=True,
+                                               always_consider_eos_and_placeholders=self.always_consider_eos_and_placeholders)
 
             translate_to_file_with_beam_search(dest_file.name, self.config_server.process.gpu, self.encdec, self.eos_idx, src_data, 
                                                beam_search_params,
@@ -106,7 +128,9 @@ class Translator(object):
                                                rich_output_filename=rich_output_file.name,
                                                #use_unfinished_translation_if_none_found=True,
                                                replace_unk=True, src=sentence, dic=self.config_server.output.dic,
-                                               remove_unk=remove_unk, normalize_unicode_unk=normalize_unicode_unk, attempt_to_relocate_unk_source=attempt_to_relocate_unk_source)
+                                               remove_unk=remove_unk, normalize_unicode_unk=normalize_unicode_unk, attempt_to_relocate_unk_source=attempt_to_relocate_unk_source,
+                                               constraints_fn_list=constraints_list,
+                                               use_chainerx = self.use_chainerx)
 
             dest_file.seek(0)
             out = dest_file.read()
