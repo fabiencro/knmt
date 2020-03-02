@@ -216,7 +216,7 @@ def beam_search_translate(encdec, eos_idx, src_data,
             encdec = [encdec]
 
         if constraints_fn_list is not None:
-            constraints_fn = constraints_fn_list[num_ex]
+            constraints_fn = constraints_fn_list[num_ex].get("ph_constraint", None)
         else:
             constraints_fn = None
         translations = beam_search.ensemble_beam_search(encdec, src_batch, src_mask, nb_steps=nb_steps, eos_idx=eos_idx,
@@ -267,6 +267,13 @@ def beam_search_translate(encdec, eos_idx, src_data,
                 elif post_score_length_normalization == 'google':
                     length_normalization = pow((len(x[0]) + 5), post_score_length_normalization_strength) / pow(6, post_score_length_normalization_strength)
 
+                dic_score = 0
+                dic_score_computer = (constraints_fn_list[num_ex].get("dic_constraint", None) 
+                            if constraints_fn_list is not None else None)
+                if dic_score_computer is not None:
+                    dic_score = dic_score_computer(x[0])
+                    
+
                 coverage_penalty = 0
                 if post_score_coverage_penalty == 'google':
                     assert len(src_data[num_ex]) == x[2][0].shape[0]
@@ -298,7 +305,7 @@ def beam_search_translate(encdec, eos_idx, src_data,
                     #    test = ''
                     # log.info("score slow <=> optimized: {0} <=> {1} {2}".format(slow, opti, test))
 
-                return x[1] / length_normalization + coverage_penalty
+                return x[1] / length_normalization + coverage_penalty + dic_score
 
         translations.sort(key=ranking_criterion, reverse=True)
 

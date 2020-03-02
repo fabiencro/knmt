@@ -95,6 +95,12 @@ def define_parser(parser):
     management_group.add_argument("--units_placeholders", default=False, action="store_true", help="is each placeholder a subword unit in the vocabulary?")
     management_group.add_argument("--use_chainerx", default=False, action="store_true")
 
+
+    management_group.add_argument("--bilingual_dic_for_reranking", help="tsv file")
+    management_group.add_argument("--invert_bilingual_dic_for_reranking", default=False, action="store_true")
+
+    management_group.add_argument("--do_hyper_param_search", nargs=3)
+
 class CommandLineValuesException(Exception):
     pass
 
