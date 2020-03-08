@@ -48,8 +48,8 @@ class Translator(object):
         self.encdec_list = [self.encdec]
 
         if config_server.process.force_placeholders:
-            self.make_constraints = placeholder_constraints_builder(self.src_indexer, self.tgt_indexer, 
-                    units_placeholders=config_server.process.units_placeholders)
+            self.make_constraints = {"ph_constraint": placeholder_constraints_builder(self.src_indexer, self.tgt_indexer, 
+                    units_placeholders=config_server.process.units_placeholders)}
         else:
             self.make_constraints = None
 
@@ -82,7 +82,7 @@ class Translator(object):
 
 
             preprocessed_input = build_dataset_one_side_pp(src_file.name, self.src_indexer, max_nb_ex=self.config_server.process.max_nb_ex,
-                                                           make_constraints=self.make_constraints)
+                                                           make_constraints_dict=self.make_constraints)
 
             if self.make_constraints is not None:
                 src_data, stats_src_pp, constraints_list = preprocessed_input
@@ -106,13 +106,8 @@ class Translator(object):
 
             translate_to_file_with_beam_search(dest_file.name, self.config_server.process.gpu, self.encdec, self.eos_idx, src_data, 
                                                beam_search_params,
-                                                #beam_width, beam_pruning_margin,
-                                               #beam_score_coverage_penalty=beam_score_coverage_penalty,
-                                               #beam_score_coverage_penalty_strength=beam_score_coverage_penalty_strength,
                                                nb_steps=nb_steps,
                                                nb_steps_ratio=nb_steps_ratio,
-                                               #beam_score_length_normalization=beam_score_length_normalization,
-                                               #beam_score_length_normalization_strength=beam_score_length_normalization_strength,
                                                post_score_length_normalization=post_score_length_normalization,
                                                post_score_length_normalization_strength=post_score_length_normalization_strength,
                                                post_score_coverage_penalty=post_score_coverage_penalty,
@@ -120,7 +115,6 @@ class Translator(object):
                                                groundhog=groundhog,
                                                tgt_unk_id=self.config_server.output.tgt_unk_id,
                                                tgt_indexer=self.tgt_indexer,
-                                               #force_finish=force_finish,
                                                prob_space_combination=prob_space_combination, reverse_encdec=self.reverse_encdec,
                                                generate_attention_html=(attn_graph_script_file.name, attn_graph_div_file.name),
                                                attn_graph_with_sum=False,
