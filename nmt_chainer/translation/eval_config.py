@@ -53,7 +53,8 @@ def define_parser(parser):
     translation_method_group.add_argument("--astar_max_length_diff", type=float)
     
 
-    translation_method_group.add_argument("--always_consider_eos_and_placeholders", default=False, action="store_true")
+    translation_method_group.add_argument("--always_consider_eos_and_placeholders", default=False, action="store_true",
+                        help="consider the possibility of outputing eos and placeholders at each steps during beam search.")
     
 
     output_group = parser.add_argument_group(_CONFIG_SECTION_TO_DESCRIPTION["output"])
@@ -92,11 +93,12 @@ def define_parser(parser):
     management_group.add_argument("--pp_command", help="command to call on the translation before sending the response to the client.")
     management_group.add_argument("--force_placeholders", default=False, action="store_true", 
                 help="force the generation of translations with placeholders")
-    management_group.add_argument("--units_placeholders", default=False, action="store_true", help="is each placeholder a subword unit in the vocabulary?")
-    management_group.add_argument("--use_chainerx", default=False, action="store_true")
+    management_group.add_argument("--units_placeholders", default=False, action="store_true", help="Use in conjunction with --force_placeholders if each placeholder is a subword unit in the vocabulary?")
+    management_group.add_argument("--use_chainerx", default=False, action="store_true", 
+                                    help="Use the chainerx library instead of chainer. Can provide speed improvement (if chainerx is installed)")
 
 
-    management_group.add_argument("--bilingual_dic_for_reranking", help="tsv file")
+    management_group.add_argument("--bilingual_dic_for_reranking", help="Dictionary file in TSV format. Will be used to create additional constraints during beam search.")
     management_group.add_argument("--invert_bilingual_dic_for_reranking", default=False, action="store_true")
 
     management_group.add_argument("--do_hyper_param_search", nargs=3)
