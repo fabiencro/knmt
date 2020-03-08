@@ -57,6 +57,6 @@ server_cmd="knmt eval --server $HOST:$PORT \
     $OPT_PP_COMMAND \
     --mode beam_search \
     $RNN_SEARCH_CONFIG $RNN_SEARCH_MODEL $OPT_GPU \
-	$OPT_ADDITIONAL_CONFIGS $OPT_ADDITIONAL_MODELS --use_chainerx --force_placeholders --units_placeholders --always_consider_eos_and_placeholders"
+	$OPT_ADDITIONAL_CONFIGS $OPT_ADDITIONAL_MODELS $ADDITIONAL_OPTIONS"
 echo "$server_cmd"
 eval "$server_cmd"
