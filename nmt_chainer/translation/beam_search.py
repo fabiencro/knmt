@@ -31,9 +31,6 @@ __version__ = "1.0"
 __email__ = "fabien.cromieres@gmail.com"
 __status__ = "Development"
 
-
-
-
 #from nmt_chainer.translation.astar_search_utils import AStarParams, Item, TranslationPriorityQueue
 
 logging.basicConfig()
@@ -54,6 +51,13 @@ def convert_array_if_needed(values, xp, gpu):
 
 @dataclass(order=False, frozen=True)
 class BeamSearchParams:
+    """
+    Record holding parameters controling the beam search
+        beam_width: number of partial translation kept in each beam
+        beam_pruning_margin: maximum score difference accepted within a beam
+        force_finish: force the generation of EOS if we did not find a translation after nb_steps steps
+        use_unfinished_translation_if_none_found: will ureturn unfinished translation if we did not find a translation after nb_steps steps
+    """
     beam_width:int = 20
     beam_pruning_margin:Optional[float] = None
     beam_score_length_normalization:str = "none" # none simple google
@@ -65,6 +69,7 @@ class BeamSearchParams:
     always_consider_eos_and_placeholders:bool = False
 
 class TgtIdxConstraint:
+    "Class managing a set of placeholders constraints"
     def __init__(self):
         self.dict = {}
         self.placeholders_list: Optional[List[int]] = None
@@ -107,13 +112,16 @@ class TgtIdxConstraint:
     def __str__(self):
         return str(self.dict)  
 
+
 @dataclass(order=False, frozen=True)
 class BeamSearchConstraints:
+    "Record containing constraints for the beam search translation"
     constraint_fn: Optional[Callable[[List[int]], float]] = None
     required_tgt_idx: Optional[TgtIdxConstraint] = None
 
 @dataclass(order=False, frozen=True)
 class AStarParams:
+    "Record containing parameters controling the A* search"
     astar_batch_size:int = 32
     astar_max_queue_size:int =1000
     astar_prune_margin:float = 10
@@ -126,6 +134,7 @@ class AStarParams:
 
 @dataclass(eq = False)
 class ATranslationState:
+    "Record containing a list of current translation states for the current beam search step"
     translations: List[List[int]] = field(default_factory=lambda:[[]])
     scores: np.array = field(default_factory=lambda:np.zeros(1))
     previous_states_ensemble: List[np.array] = field(default_factory=list)
@@ -149,12 +158,14 @@ class ATranslationState:
         return obj
 
 class BSReturn(enum.Enum):
+    "Enum used in beam search to indicate if a current translation hypothesis violate a constraint"
     OK = enum.auto()
     CONSTRAINT_VIOLATED = enum.auto()
 
 
 @dataclass
 class TranslationInfosList:
+    "Intermediate structure for constructing the next translation state list during the beam search"
     next_states_list: Union[List[List[Tuple[Variable]]], List[int]] = field(default_factory = list)  # each item is a list of list
     next_words_list: List[int] = field(default_factory = list)
     next_score_list: List[float] = field(default_factory = list)
@@ -205,14 +216,14 @@ class TranslationInfosList:
 
 def iterate_best_score(new_scores: np.ndarray, beam_width: int, xp=np)->Tuple[Sequence, Sequence, Sequence]:
     """
-    Create generator over the beam_width best scores.
+    Return the indices and scores of the beam_width best scores.
 
     Args:
         new_scores: a numpy/cupy 2-dimensional array
         beam_width: a positive integer
 
     Returns:
-        a generator that yields tuples (num_case, idx_in_case, score) where
+        a of three list/arrays (num_case, idx_in_case, score) where
             score is one of the top beam_width values of new_scores
             num_case is the row of this score in new_scores
             idx_in_case is the column of this score
@@ -224,7 +235,6 @@ def iterate_best_score(new_scores: np.ndarray, beam_width: int, xp=np)->Tuple[Se
 
     if xp != np:
         new_costs_flattened_non_neg = new_scores.ravel()
-        #import pdb; pdb.set_trace()
         best_idx = xp.argsort(new_costs_flattened_non_neg)[-beam_width:]
         best_scores = -new_costs_flattened_non_neg[best_idx]
         all_num_cases = best_idx // v_size
@@ -235,7 +245,6 @@ def iterate_best_score(new_scores: np.ndarray, beam_width: int, xp=np)->Tuple[Se
     else:
         new_costs_flattened = (- new_scores).ravel()
         
-        # TODO replace wit a cupy argpartition when/if implemented
         best_idx = np.argpartition(new_costs_flattened, beam_width)[:beam_width]
         best_scores = new_costs_flattened[best_idx]
 
@@ -244,14 +253,11 @@ def iterate_best_score(new_scores: np.ndarray, beam_width: int, xp=np)->Tuple[Se
 
     return all_num_cases, all_idx_in_cases, best_scores
 
-    # for num in six.moves.range(len(best_idx)):
-    #     #idx = best_idx[num]
-    #     num_case = all_num_cases[num]
-    #     idx_in_case = all_idx_in_cases[num]
-    #     yield int(num_case), idx_in_case, best_scores[num] #new_costs_flattened[idx]
-
-
 def iterate_eos_scores(new_scores, eos_idx, existing_cases = None, beam_width=None)->Tuple[Sequence, Sequence, Sequence]:
+    """
+    Return the indices and scores corresponding to the eos word.
+    Meaning of returned values is the same as for iterate_best_score
+    """
     nb_cases, v_size = new_scores.shape
     num_cases = np.arange(nb_cases, dtype=np.int32)
     scores = -cuda.to_cpu(new_scores[:, eos_idx])
@@ -270,20 +276,16 @@ def iterate_eos_scores(new_scores, eos_idx, existing_cases = None, beam_width=No
             idx_in_cases = idx_in_cases[idx_to_keep]
 
     return num_cases, idx_in_cases, scores
-    
-
-    # for num_case in six.moves.range(nb_cases):
-    #     idx_in_case = eos_idx
-    #     yield int(num_case), idx_in_case, -cuda.to_cpu(new_scores[num_case, eos_idx])
-
-
-
 
 def iterate_required_word_scores(new_scores, required:List[TgtIdxConstraint], 
             existing_cases_idx = None,
             xp=np,
             gpu=None,
             beam_width = None)->Tuple[Sequence, Sequence, Sequence]:
+    """
+    Return the indices and scores corresponding to the placeholders specified by the 'required' parameter.
+    Meaning of returned values is the same as for iterate_best_score
+    """
     nb_cases, v_size = new_scores.shape
     assert nb_cases == len(required)
 
@@ -321,10 +323,6 @@ def iterate_required_word_scores(new_scores, required:List[TgtIdxConstraint],
 
     return required_num_cases_list, required_idx_in_cases_list, scores
 
-    # for num_case in six.moves.range(nb_cases):
-    #     for req_idx in required[num_case]:
-    #         yield int(num_case), req_idx, -cuda.to_cpu(new_scores[num_case, req_idx])
-
 def update_finished_translation(num_case, current_translations, new_cost, finished_translations, 
                                 current_attentions,
                                 need_attention=False,
@@ -358,18 +356,11 @@ def update_finished_translation(num_case, current_translations, new_cost, finish
     return return_val
 
 def update_next_lists(num_case, idx_in_case, new_cost, 
-                      #eos_idx, 
                       get_slice_of_new_state_ensemble, 
-                      #finished_translations, 
                       current_translations,
-                      #current_attentions,
                       compute_aggregated_attention_and_coverage_penalty,
                       t_infos_list: TranslationInfosList,
-                      #next_states_list, next_words_list, next_score_list, next_normalized_score_list, next_translations_list,
-                      #attn_ensemble, 
-                      #next_attentions_list, 
                       beam_score_coverage_penalty, 
-                      #beam_score_coverage_penalty_strength, 
                       need_attention=False,
                       constraints_fn=None,
                       required_tgt_idx:Optional[TgtIdxConstraint]=None,
@@ -409,33 +400,12 @@ def update_next_lists(num_case, idx_in_case, new_cost,
             will be updated.
     """
 
-    # if idx_in_case == eos_idx:
-
-    #     if constraints_fn is not None and constraints_fn(current_translations[num_case]) != 1:
-    #         return BSReturn.CONSTRAINT_VIOLATED
-
-    #     if required_tgt_idx is not None and len(required_tgt_idx) > 0:
-    #         return BSReturn.CONSTRAINT_VIOLATED
-
-    #     if need_attention:
-    #         finished_translations.append((current_translations[num_case],
-    #                                       -new_cost,
-    #                                       current_attentions[num_case]
-    #                                       ))
-    #     else:
-    #         finished_translations.append((current_translations[num_case],
-    #                                       -new_cost))
-
-    #     return BSReturn.OK
-
-    # else:
     if required_tgt_idx is not None:
         if idx_in_case in required_tgt_idx.placeholders_list:
             if idx_in_case in required_tgt_idx:
                 required_tgt_idx = required_tgt_idx.copy()
                 required_tgt_idx.substract(idx_in_case)
             else:
-                #assert required_tgt_idx[idx_in_case] == 0
                 return BSReturn.CONSTRAINT_VIOLATED
 
 
@@ -454,10 +424,6 @@ def update_next_lists(num_case, idx_in_case, new_cost,
         t_infos_list.next_states_list.append(get_slice_of_new_state_ensemble(num_case))
     else:
         t_infos_list.next_states_list.append(num_case)
-
-    #     [tuple([Variable(substates.data[num_case].reshape(1, -1)) for substates in new_state])
-    #      for new_state in new_state_ensemble]
-    # )
 
     t_infos_list.next_words_list.append(idx_in_case)
     t_infos_list.next_score_list.append(-new_cost)
@@ -540,8 +506,6 @@ def make_t_infos_list_from_beam(new_state_ensemble, all_num_cases_not_eos, all_i
         sum_attention = None
         if need_attention or beam_search_params.beam_score_coverage_penalty == "google":
             if num_case not in memoized_attention_info:
-                #xp = cuda.get_array_module(attn_ensemble[0].data)
-                #attn_summed = xp.zeros((attn_ensemble[0].data[0].shape), dtype=xp.float32)
                 if len(attn_ensemble) == 1:
                     attn_summed = attn_ensemble[0].array[num_case]
                 else:
@@ -554,7 +518,6 @@ def make_t_infos_list_from_beam(new_state_ensemble, all_num_cases_not_eos, all_i
                 attn_summed = memoized_attention_info[num_case]
 
             aggregated_attention = current_attentions[num_case] + [attn_summed]
-            #t_infos_list.next_attentions_list.append(current_attentions[num_case] + [attn_summed])
 
 
         # Compute the normalized score if needed.
@@ -566,7 +529,6 @@ def make_t_infos_list_from_beam(new_state_ensemble, all_num_cases_not_eos, all_i
                         sum_attention = attn_summed
                     else:
                         sum_attention = attn_summed + previous_sum_attentions[num_case] #sum(aggregated_attention)
-                    #xp = cuda.get_array_module(attn_ensemble[0].data)
                     log_of_min_of_sum_over_j = xp.log(xp.minimum(
                         sum_attention, ONE_ON_DEVICE))
                     coverage_penalty = beam_search_params.beam_score_coverage_penalty_strength * \
@@ -575,12 +537,7 @@ def make_t_infos_list_from_beam(new_state_ensemble, all_num_cases_not_eos, all_i
             else:
                 coverage_penalty, sum_attention = memoized_coverage_penalty_info[num_case]
 
-            #normalized_score = -new_cost + coverage_penalty
-            #t_infos_list.next_normalized_score_list.append(normalized_score)
-
         return aggregated_attention, coverage_penalty, sum_attention
-
-
 
     for num_case, idx_in_case, new_cost in zip( all_num_cases_not_eos, all_idx_in_cases_not_eos, best_scores_not_eos):
         required_tgt_idx=required_tgt_idx_list[num_case] if required_tgt_idx_list is not None else None
@@ -594,33 +551,22 @@ def make_t_infos_list_from_beam(new_state_ensemble, all_num_cases_not_eos, all_i
                     pow(6, beam_search_params.beam_score_length_normalization_strength))
 
         update_next_lists(num_case, idx_in_case, new_cost, 
-                        #eos_idx, 
                         get_slice_of_new_state_ensemble,
-                        #finished_translations, 
                         current_translations,
                         compute_aggregated_attention_and_coverage_penalty,
-                        #current_attentions,
                         t_infos_list,
-                        #next_states_list, next_words_list, next_score_list, next_normalized_score_list, next_translations_list,
-                        #attn_ensemble, 
-                        #next_attentions_list, 
                         beam_search_params.beam_score_coverage_penalty, 
-                        #beam_search_params.beam_score_coverage_penalty_strength, 
                         need_attention=need_attention, constraints_fn=constraints_fn,
                         required_tgt_idx=required_tgt_idx,
                         xp=xp,
                         gpu=gpu)
 
     assert len(t_infos_list.next_states_list) <= beam_search_params.beam_width or beam_search_params.always_consider_eos_and_placeholders
-#             if len(next_states_list) >= beam_width:
-#                 break
-
 
     # Prune items that have a score worse than beam_pruning_margin below the
     # best score.
     if (beam_search_params.beam_pruning_margin is not None and t_infos_list.next_score_list):
         t_infos_list.prune_with_margin(beam_search_params.beam_pruning_margin, use_normalized_score=False)
-
 
     # Prune items that have a normalized score worse than beam_pruning_margin
     # below the best normalized score.
@@ -629,16 +575,11 @@ def make_t_infos_list_from_beam(new_state_ensemble, all_num_cases_not_eos, all_i
 
         t_infos_list.prune_with_margin(beam_search_params.beam_pruning_margin, use_normalized_score=True)
 
-
-
     return t_infos_list #next_states_list, next_words_list, next_score_list, next_translations_list, next_attentions_list
 
 
 def compute_next_lists(new_state_ensemble, new_scores, 
                        beam_search_params: BeamSearchParams,
-                       #beam_width, beam_pruning_margin,
-                       #beam_score_length_normalization, beam_score_length_normalization_strength,
-                       #beam_score_coverage_penalty, beam_score_coverage_penalty_strength,
                        eos_idx,
                        current_translations,
                        finished_translations,
@@ -678,15 +619,6 @@ def compute_next_lists(new_state_ensemble, new_scores,
             A tuple (next_states_list, next_words_list, next_score_list, next_translations_list, next_attentions_list)
                 containing the informations for the next beam
     """
-    # lists that contain infos on the current beam
-    # next_states_list = []  # each item is a list of list
-    # next_words_list = []
-    # next_score_list = []
-    # next_normalized_score_list = []
-    # next_translations_list = []
-    # next_attentions_list = []
-
-
 
     if force_finish:
         score_iterator = iterate_eos_scores(new_scores, eos_idx, beam_width=beam_search_params.beam_width*2)
@@ -694,13 +626,10 @@ def compute_next_lists(new_state_ensemble, new_scores,
     elif beam_search_params.always_consider_eos_and_placeholders and (
                 required_tgt_idx_list is not None and any(len(req_list)>0 for req_list in required_tgt_idx_list)):
 
-        #print("force_eos", len(required_tgt_idx_list), required_tgt_idx_list)
         score_iterator_list = [iterate_best_score(new_scores, beam_search_params.beam_width, xp=xp)]
-        #print("orig:", len(score_iterator_list[0][0]))
         score_iterator_list.append(
             iterate_eos_scores(new_scores, eos_idx, existing_cases = score_iterator_list[0],
                     beam_width=beam_search_params.beam_width*2))
-        #print("eos:", len(score_iterator_list[1][0]))
         
         score_iterator = tuple(np.concatenate(items) for items in zip(*score_iterator_list))
         
@@ -713,17 +642,7 @@ def compute_next_lists(new_state_ensemble, new_scores,
                 existing_cases_idx=(score_iterator_list[0][0], score_iterator_list[0][1]), xp=xp, gpu=gpu,
                 beam_width=beam_search_params.beam_width*4
                 ))
-            #print("ph:", len(score_iterator_list[1][0]))
             score_iterator = tuple(np.concatenate(items) for items in zip(*score_iterator_list))
-        # def chained_score_iterator():
-        #     already_seen = set()
-        #     for num_case, idx_in_case, new_cost in itertools.chain(*score_iterator_list):
-        #         if (num_case, idx_in_case) in already_seen:
-        #             continue
-        #         already_seen.add((num_case, idx_in_case))
-        #         yield num_case, idx_in_case, new_cost
-        # score_iterator = chained_score_iterator()
-        # assert False
     else:
         score_iterator = iterate_best_score(new_scores, beam_search_params.beam_width, xp=xp)
 
@@ -732,11 +651,6 @@ def compute_next_lists(new_state_ensemble, new_scores,
 
     is_eos = (all_idx_in_cases == eos_idx)
     is_not_eos = np.logical_not(is_eos)
-
-    #print("selected:", len(all_num_cases), len(all_num_cases[is_eos]), len(all_num_cases[is_not_eos]))
-
-    #all_num_cases[is_eos], all_idx_in_cases[is_eos], best_scores[is_eos]
-    #print(force_finish,all_num_cases, all_idx_in_cases, is_eos, best_scores[is_eos].shape, len(finished_translations))
 
     for num_case, idx_in_case, new_cost in zip( all_num_cases[is_eos], all_idx_in_cases[is_eos], best_scores[is_eos]):
         required_tgt_idx=required_tgt_idx_list[num_case] if required_tgt_idx_list is not None else None
@@ -783,12 +697,6 @@ def convert_t_infos_list_to_translation_state(t_infos_list, new_state_ensemble, 
         next_score_array = cuda.to_gpu(next_score_array)
 
 
-    # concatenated_next_states_list = []
-    # for next_states_list_one_model in six.moves.zip(*t_infos_list.next_states_list):
-    #     concatenated_next_states_list.append(
-    #         tuple([Variable(xp.concatenate(substates, axis=0)) for substates in six.moves.zip(*next_states_list_one_model)])
-    #     )
-
     concatenated_next_states_list = []
     for next_states_list_one_model in new_state_ensemble:
         concatenated_next_states_list.append([])
@@ -824,9 +732,6 @@ def build_next_translation_state(new_state_ensemble, new_scores,
     t_infos_list = compute_next_lists(
         None, new_scores, 
         beam_search_params,
-        #beam_width, beam_pruning_margin,
-        #beam_score_length_normalization, beam_score_length_normalization_strength,
-        #beam_score_coverage_penalty, beam_score_coverage_penalty_strength,
         eos_idx,
         current_translations, finished_translations,
         current_attentions, attn_ensemble, 
@@ -841,7 +746,6 @@ def build_next_translation_state(new_state_ensemble, new_scores,
     if len(t_infos_list.next_states_list) == 0:
         if len(finished_translations) == 0 and (invalid_finished_translations is None or len(invalid_finished_translations)==0):
             assert False
-            #import ipdb;ipdb.set_trace()
         return None  # We only found finished translations
 
     # Create the new translation states
@@ -873,7 +777,6 @@ def compute_next_states_and_scores(dec_cell_ensemble, current_states_ensemble, c
                     new decoder states after the input of current_words
                 attn_ensemble is a list attention generated by each decoder cell after being given the input current_words
     """
-#     xp = cuda.get_array_module(dec_ensemble[0].initial_state.data)
     xp = dec_cell_ensemble[0].xp
 
     if current_words is not None:
@@ -914,11 +817,6 @@ def compute_next_states_and_scores(dec_cell_ensemble, current_states_ensemble, c
 def advance_one_step(dec_cell_ensemble, eos_idx, 
                      current_translations_states: ATranslationState,
                      beam_search_params:BeamSearchParams,
-                     #beam_width, beam_pruning_margin,
-                     #beam_score_length_normalization,
-                     #beam_score_length_normalization_strength,
-                     #beam_score_coverage_penalty,
-                     #beam_score_coverage_penalty_strength,
                      finished_translations,
                      force_finish=False, need_attention=False,
                      prob_space_combination=False,
@@ -955,10 +853,7 @@ def advance_one_step(dec_cell_ensemble, eos_idx,
                 argument current_translations_states, but corresponding to the next beam.
     """
 
-#     xp = cuda.get_array_module(dec_ensemble[0].initial_state.data)
     xp = dec_cell_ensemble[0].xp
-    #current_translations, current_scores, current_states_ensemble, current_words, current_attentions, required_tgt_idx_list = dataclasses.astuple(
-    #                                                                                current_translations_states)
 
     current_translations = current_translations_states.translations
     current_scores = current_translations_states.scores
@@ -980,7 +875,6 @@ def advance_one_step(dec_cell_ensemble, eos_idx,
     new_scores = current_scores[:, xp.newaxis] + combined_scores
 
     # Compute the list of new translation states after pruning
-    #next_states_list, next_words_list, next_score_list, next_translations_list, next_attentions_list 
 
     next_translations_states = build_next_translation_state(
         new_state_ensemble,
@@ -999,85 +893,15 @@ def advance_one_step(dec_cell_ensemble, eos_idx,
 
     return next_translations_states
 
-    # t_infos_list = compute_next_lists(
-    #     None, new_scores, 
-    #     beam_search_params,
-    #     #beam_width, beam_pruning_margin,
-    #     #beam_score_length_normalization, beam_score_length_normalization_strength,
-    #     #beam_score_coverage_penalty, beam_score_coverage_penalty_strength,
-    #     eos_idx,
-    #     current_translations, finished_translations,
-    #     current_attentions, attn_ensemble, force_finish=force_finish, need_attention=need_attention,
-    #     constraints_fn=constraints_fn,
-    #     required_tgt_idx_list=required_tgt_idx_list,
-    #     xp=xp)
-
-    # if len(t_infos_list.next_states_list) == 0:
-
-    #     return None  # We only found finished translations
-
-    # # Create the new translation states
-    # if xp == np:
-    #     next_words_array = np.array(t_infos_list.next_words_list, dtype=np.int32)
-    #     next_score_array = np.array(t_infos_list.next_score_list, dtype=np.float32)
-    # elif xp == chainerx:
-    #     if gpu is None:
-    #         next_words_array = xp.array(t_infos_list.next_words_list, dtype=xp.int32)
-    #         next_score_array = xp.array(t_infos_list.next_score_list, dtype=xp.float32)
-    #     else:
-    #         next_words_array = xp.array(t_infos_list.next_words_list, dtype=xp.int32, device="cuda:%i"%gpu)
-    #         next_score_array = xp.array(t_infos_list.next_score_list, dtype=np.float32, device="cuda:%i"%gpu)
-    # else:
-    #     next_words_array = np.array(t_infos_list.next_words_list, dtype=np.int32)
-    #     next_words_array = cuda.to_gpu(next_words_array)
-
-    #     next_score_array = np.array(t_infos_list.next_score_list, dtype=np.float32)
-    #     next_score_array = cuda.to_gpu(next_score_array)
-
-
-    # # concatenated_next_states_list = []
-    # # for next_states_list_one_model in six.moves.zip(*t_infos_list.next_states_list):
-    # #     concatenated_next_states_list.append(
-    # #         tuple([Variable(xp.concatenate(substates, axis=0)) for substates in six.moves.zip(*next_states_list_one_model)])
-    # #     )
-
-    # concatenated_next_states_list = []
-    # for next_states_list_one_model in new_state_ensemble:
-    #     concatenated_next_states_list.append([])
-    #     for substates in next_states_list_one_model:
-    #         new_substate = xp.take(substates.data, t_infos_list.next_states_list, axis=0)
-    #         concatenated_next_states_list[-1].append(Variable(new_substate))
-
-    # next_translations_states = ATranslationState(t_infos_list.next_translations_list,
-    #                             next_score_array,
-    #                             concatenated_next_states_list,
-    #                             Variable(next_words_array, requires_grad=False),
-    #                             t_infos_list.next_attentions_list,
-    #                             required_tgt_idx_list=t_infos_list.required_tgt_idx_list
-    #                             )
-
-    # return next_translations_states
-
-
 
 def ensemble_beam_search(model_ensemble, src_batch, src_mask, nb_steps, eos_idx,
                          beam_search_params:BeamSearchParams,
-                         
-                         #beam_width=20, beam_pruning_margin=None,
-                         #beam_score_length_normalization=None,
-                         #beam_score_length_normalization_strength=0.2,
-                         #beam_score_coverage_penalty=None,
-                         #beam_score_coverage_penalty_strength=0.2,
                          need_attention=False,
-                         #force_finish=False,
                          prob_space_combination=False, 
-                         #use_unfinished_translation_if_none_found=False,
                          constraints:Optional[BeamSearchConstraints] = None,
-                         #constraints_fn=None,
                          use_astar: bool = False,
                          astar_params:AStarParams = AStarParams(),
                          gpu=None
-                         #required_tgt_idx:Optional[List[int]] = None
                          ):
     """
     Compute translations using a beam-search algorithm.
@@ -1091,13 +915,10 @@ def ensemble_beam_search(model_ensemble, src_batch, src_mask, nb_steps, eos_idx,
         src_mask: mask value returned by make_batch_src
         nb_steps: maximum length of the generated translation
         eos_idx: index of the EOS element in the target vocabulary
-        beam_width: number of partial translation kept in each beam
-        beam_pruning_margin: maximum score difference accepted within a beam
+        beam_search_params: record of type BeamSearchParams that contains parameters of the beam search
         need_attention: if True, will return the attention values for each translation
-        force_finish: force the generation of EOS if we did not find a translation after nb_steps steps
         prob_space_combination: if true, ensemble scores are combined by geometric average instead of arithmetic average
-        use_unfinished_translation_if_none_found: will ureturn unfinished translation if we did not find a translation after nb_steps steps
-        constraints_fn: function for enforcing constraints on translations. takes a translation as input. Return 1 if all constraints
+        constraints: function for enforcing constraints on translations. takes a translation as input. Return 1 if all constraints
                         are satisfied. -1 if constraints cannot be satisfied. 0<=v<1 if all constraints are not satisfied yet but can 
                         be satisfied (v being an hint on the number of constraints solved)
     Return:
@@ -1113,17 +934,9 @@ def ensemble_beam_search(model_ensemble, src_batch, src_mask, nb_steps, eos_idx,
                          nb_steps=nb_steps, 
                          eos_idx=eos_idx,
                          beam_search_params=beam_search_params,
-                         #beam_width=beam_width, beam_pruning_margin=beam_pruning_margin,
-                         #beam_score_length_normalization=beam_score_length_normalization,
-                         #beam_score_length_normalization_strength=beam_score_length_normalization_strength,
-                         #beam_score_coverage_penalty=beam_score_coverage_penalty,
-                         #beam_score_coverage_penalty_strength=beam_score_coverage_penalty_strength,
                          need_attention=need_attention,
-                         #force_finish=force_finish,
                          prob_space_combination=prob_space_combination, 
-                         #use_unfinished_translation_if_none_found=use_unfinished_translation_if_none_found,
                          constraints=constraints,
-                         #constraints_fn=constraints_fn,
                          astar_params=astar_params)
 
     with chainer.using_config("train", False), chainer.no_backprop_mode():
@@ -1149,16 +962,6 @@ def ensemble_beam_search(model_ensemble, src_batch, src_mask, nb_steps, eos_idx,
         current_translations_states = ATranslationState.make_empty(xp, len(model_ensemble), 
                         required_tgt_idx=required_tgt_idx,
                         gpu=gpu)
-        #current_translations_states.previous_states_ensemble = previous_states_ensemble
-        #current_translations_states.scores = xp.array([0])
-
-        # current_translations_states = (
-        #     [[]],  # translations
-        #     xp.array([0]),  # scores
-        #     previous_states_ensemble,  # previous states
-        #     None,  # previous words
-        #     [[]]  # attention
-        # )
     
         # Proceed with the search
         for num_step in six.moves.range(nb_steps):
@@ -1177,8 +980,6 @@ def ensemble_beam_search(model_ensemble, src_batch, src_mask, nb_steps, eos_idx,
     
             if current_translations_states is None:
                 break
-    
-    #     print(finished_translations, need_attention)
     
         # Return finished translations
         if len(finished_translations) == 0:
