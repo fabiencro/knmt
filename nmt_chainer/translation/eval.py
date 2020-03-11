@@ -519,7 +519,7 @@ def do_eval(config_eval):
 
     time_start = time.perf_counter()
 
-    encdec_list, eos_idx, src_indexer, tgt_indexer, reverse_encdec, model_infos_list = create_encdec(config_eval)
+    
 
     astar_params = beam_search.AStarParams(
         astar_batch_size=config_eval.method.astar_batch_size,
@@ -534,6 +534,8 @@ def do_eval(config_eval):
     make_constraints_dict = None
 
     if config_eval.process.server is None:
+        encdec_list, eos_idx, src_indexer, tgt_indexer, reverse_encdec, model_infos_list = create_encdec(config_eval)
+
         eval_dir_placeholder = "@eval@/"
         if dest_fn.startswith(eval_dir_placeholder):
             if config_eval.trained_model is not None:
@@ -639,12 +641,20 @@ def do_eval(config_eval):
              constraints_list = None                                             
         log.info("src data stats:\n%s", stats_src_pp.make_report())
 
+        translation_infos = OrderedNamespace()
+        translation_infos["src"] = src_fn
+        translation_infos["tgt"] = tgt_fn
+        translation_infos["ref"] = ref
+
+        for num_model, model_infos in enumerate(model_infos_list):
+            translation_infos["model%i" % num_model] = model_infos
+
     if dest_fn is not None:
         save_eval_config_fn = dest_fn + ".eval.init.config.json"
         log.info("Saving initial eval config to %s" % save_eval_config_fn)
         config_eval.save_to(save_eval_config_fn)
 
-    translation_infos = OrderedNamespace()
+
 #     log.info("%i sentences loaded" % make_data_infos.nb_ex)
 #     log.info("#tokens src: %i   of which %i (%f%%) are unknown"%(make_data_infos.total_token,
 #                                                                  make_data_infos.total_count_unk,
@@ -665,12 +675,7 @@ def do_eval(config_eval):
 
 #     translations = greedy_batch_translate(encdec, eos_idx, src_data, batch_size = mb_size, gpu = args.gpu)
 
-    translation_infos["src"] = src_fn
-    translation_infos["tgt"] = tgt_fn
-    translation_infos["ref"] = ref
 
-    for num_model, model_infos in enumerate(model_infos_list):
-        translation_infos["model%i" % num_model] = model_infos
 
     time_all_loaded = time.perf_counter()
 
