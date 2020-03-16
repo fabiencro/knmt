@@ -424,7 +424,7 @@ def create_encdec(config_eval):
     return encdec_list, eos_idx, src_indexer, tgt_indexer, reverse_encdec, model_infos_list
 
 def placeholder_constraints_builder(src_indexer, tgt_indexer, units_placeholders=False):
-    if not units_placeholders:
+    if False: #not units_placeholders:
         placeholder_matcher = re.compile(r"<K-\d+>")
         def make_constraints(src, src_seq)->beam_search.BeamSearchConstraints:
             src_placeholders_list = placeholder_matcher.findall(src)
@@ -498,6 +498,10 @@ def do_eval(config_eval):
     beam_score_coverage_penalty = config_eval.beam_score_coverage_penalty
     beam_score_coverage_penalty_strength = config_eval.beam_score_coverage_penalty_strength
     always_consider_eos_and_placeholders = config_eval.method.always_consider_eos_and_placeholders
+
+    if config_eval.process.force_placeholders:
+        # making it  default for now
+        always_consider_eos_and_placeholders = True
 
     post_score_length_normalization = config_eval.method.post_score_length_normalization
     post_score_length_normalization_strength = config_eval.method.post_score_length_normalization_strength
