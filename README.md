@@ -139,6 +139,9 @@ In general, the translation process may generate some tags `T_UNK_X`, where `X` 
 
       knmt utils replace_tgt_unk translation.txt input.txt translation.no_unk.txt --dic dictionary.json
 
+### Placeholders special processing
+One might want to translate a sentence with "placeholders". E.g. Translate a sentence like "We bought <K-00> tons of coal". In order to force the decoder to output one-to-one translations of such placeholders, one can use the "--force_placeholders" option. When using the option "--force_placeholders", tokens in the vocabulary of the form "<K-00>", "<K-01>", ... will be detected as placeholders. Then the decoder will try its best to output a translation in which each placeholder in the input has exactly one corresponding placeholder in the output. Note however that the model should still have been trained to translate these placeholders correctly. The "--force_placeholders" only put additional constraints on the decoder but will not work if the model assign very low probabilities to placeholders.
+
 ## Using GPUs
 
 Neural Network training and evaluation can often be much faster on a GPU than on a CPU. Both `knmt eval` and `knmt train` accept a `--gpu` argument to specify a GPU device to use. `--gpu` should be followed by a number indicating the specific device to use. eg. `--gpu 0` to use the first GPU device of the system; `--gpu 2` to use the third GPU device (assuming the machine has at least 3 GPUs).
