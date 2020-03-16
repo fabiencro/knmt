@@ -54,7 +54,7 @@ def define_parser(parser):
     
 
     translation_method_group.add_argument("--always_consider_eos_and_placeholders", default=False, action="store_true",
-                        help="consider the possibility of outputing eos and placeholders at each steps during beam search.")
+                        help="consider the possibility of outputing eos and placeholders at each steps during beam search. Deprecated. True by default.")
     
 
     output_group = parser.add_argument_group(_CONFIG_SECTION_TO_DESCRIPTION["output"])
@@ -93,7 +93,7 @@ def define_parser(parser):
     management_group.add_argument("--pp_command", help="command to call on the translation before sending the response to the client.")
     management_group.add_argument("--force_placeholders", default=False, action="store_true", 
                 help="force the generation of translations with placeholders")
-    management_group.add_argument("--units_placeholders", default=False, action="store_true", help="Use in conjunction with --force_placeholders if each placeholder is a subword unit in the vocabulary?")
+    management_group.add_argument("--units_placeholders", default=False, action="store_true", help="Use in conjunction with --force_placeholders if each placeholder is a subword unit in the vocabulary (deprecated, now True by default)")
     management_group.add_argument("--use_chainerx", default=False, action="store_true", 
                                     help="Use the chainerx library instead of chainer. Can provide speed improvement (if chainerx is installed)")
 
