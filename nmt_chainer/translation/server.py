@@ -226,6 +226,7 @@ class RequestHandler(six.moves.socketserver.BaseRequestHandler):
                 attempt_to_relocate_unk_source = ('true' == root.get(
                     'attempt_to_relocate_unk_source', 'false'))
                 log.info("Article id: %s" % article_id)
+                in_ = ""
                 out = ""
                 graph_data = []
                 segmented_input = []
@@ -277,6 +278,7 @@ class RequestHandler(six.moves.socketserver.BaseRequestHandler):
                                                                                              beam_score_length_normalization, beam_score_length_normalization_strength, post_score_length_normalization, post_score_length_normalization_strength, post_score_coverage_penalty, post_score_coverage_penalty_strength,
                                                                                              groundhog, force_finish, prob_space_combination, attn_graph_width, attn_graph_height)
                     translation = translation.decode('utf-8')
+                    in_ += text
                     out += translation
 
                     if self.server.pp_command is not None:
@@ -301,6 +303,7 @@ class RequestHandler(six.moves.socketserver.BaseRequestHandler):
 
                 response['article_id'] = article_id
                 response['sentence_number'] = sentence_number
+                response['in_'] = in_
                 response['out'] = out
                 response['segmented_input'] = segmented_input
                 response['segmented_output'] = segmented_output
