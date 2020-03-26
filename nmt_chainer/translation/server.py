@@ -138,6 +138,7 @@ class Translator(object):
             dest_file.seek(0)
             out = dest_file.read()
 
+            #print(rich_output_file.name)
             rich_output_file.seek(0)
             rich_output_data = json.loads(rich_output_file.read().decode('utf-8'))
             unk_mapping = rich_output_data[0]['unk_mapping']
