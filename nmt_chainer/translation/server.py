@@ -124,7 +124,8 @@ class Translator(object):
                                                replace_unk=True, src=sentence, dic=self.config_server.output.dic,
                                                remove_unk=remove_unk, normalize_unicode_unk=normalize_unicode_unk, attempt_to_relocate_unk_source=attempt_to_relocate_unk_source,
                                                constraints_fn_list=constraints_list,
-                                               use_chainerx = self.use_chainerx)
+                                               use_chainerx = self.use_chainerx,
+                                               show_progress_bar=False)
 
             dest_file.seek(0)
             out = dest_file.read()

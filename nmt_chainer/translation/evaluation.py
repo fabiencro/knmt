@@ -191,12 +191,18 @@ def beam_search_translate(encdec, eos_idx, src_data,
                           constraints_fn_list:Optional[List[beam_search.BeamSearchConstraints]]=None,
                           use_astar=False,
                           astar_params:beam_search.AStarParams=beam_search.AStarParams(),
-                          use_chainerx=False):
+                          use_chainerx=False,
+                          show_progress_bar=True):
     nb_ex = len(src_data)
 
     assert constraints_fn_list is None or len(constraints_fn_list) == nb_ex
 
-    for num_ex in tqdm.trange(nb_ex):
+    if show_progress_bar:
+        range_creator = tqdm.trange
+    else:
+        range_creator = range
+
+    for num_ex in range_creator(nb_ex):
         src_batch, src_mask = make_batch_src([src_data[num_ex]], gpu=gpu, use_chainerx=use_chainerx)
 
         assert len(src_mask) == 0
