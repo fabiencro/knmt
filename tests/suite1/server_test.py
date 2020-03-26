@@ -21,8 +21,12 @@ import time
 
 
 class TestServer:
-
-    def test_simple_query_to_server(self, tmpdir, gpu):
+    @pytest.mark.parametrize("variant_name, variant_options", [
+        ("no_attention_map",
+            "--no_attention_map_in_server_mode"),
+        ("with_attention_map",
+            "")])
+    def test_simple_query_to_server(self, tmpdir, gpu, variant_name, variant_options):
         """
         Test if the server can start and answers a simple translation query.
         """
@@ -40,6 +44,8 @@ class TestServer:
         #model_file = "tests/tests_data/models/result_invariability.train.model.best.npz"
         args_server = '--server 127.0.0.1:45766 --mode beam_search --segmenter_command="{0}" --segmenter_format {1} {2} {3}'.format(segmenter_command,
                                                                                                                                     segmenter_format, config_file, model_file)
+        
+        args_server += " " + variant_options
         print("args_server={0}".format(args_server))
         if gpu is not None:
             args_server += '--gpu {0}'.format(gpu)

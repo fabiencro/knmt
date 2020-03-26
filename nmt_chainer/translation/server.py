@@ -53,6 +53,8 @@ class Translator(object):
         else:
             self.make_constraints = None
 
+        self.produce_attention_graph = not config_server.output.no_attention_map_in_server_mode
+
         self.always_consider_eos_and_placeholders = config_server.method.always_consider_eos_and_placeholders
         self.use_chainerx = config_server.process.use_chainerx
 
@@ -60,6 +62,7 @@ class Translator(object):
                   remove_unk, normalize_unicode_unk, attempt_to_relocate_unk_source, beam_score_length_normalization, beam_score_length_normalization_strength, post_score_length_normalization, post_score_length_normalization_strength,
                   post_score_coverage_penalty, post_score_coverage_penalty_strength,
                   groundhog, force_finish, prob_space_combination, attn_graph_width, attn_graph_height):
+
         from nmt_chainer.utilities import visualisation
         log.info("processing source string %s" % sentence)
 
@@ -69,8 +72,13 @@ class Translator(object):
 
         dest_file = tempfile.NamedTemporaryFile()
         rich_output_file = tempfile.NamedTemporaryFile()
-        attn_graph_script_file = tempfile.NamedTemporaryFile()
-        attn_graph_div_file = tempfile.NamedTemporaryFile()
+
+        if self.produce_attention_graph:
+            attn_graph_script_file = tempfile.NamedTemporaryFile()
+            attn_graph_div_file = tempfile.NamedTemporaryFile()
+            generate_attention_html = (attn_graph_script_file.name, attn_graph_div_file.name)
+        else:
+            generate_attention_html = None
 
         try:
             out = ''
@@ -116,7 +124,7 @@ class Translator(object):
                                                tgt_unk_id=self.config_server.output.tgt_unk_id,
                                                tgt_indexer=self.tgt_indexer,
                                                prob_space_combination=prob_space_combination, reverse_encdec=self.reverse_encdec,
-                                               generate_attention_html=(attn_graph_script_file.name, attn_graph_div_file.name),
+                                               generate_attention_html=generate_attention_html,
                                                attn_graph_with_sum=False,
                                                attn_graph_attribs={'title': '', 'toolbar_location': 'below', 'plot_width': attn_graph_width, 'plot_height': attn_graph_height}, src_indexer=self.src_indexer,
                                                rich_output_filename=rich_output_file.name,
@@ -134,18 +142,21 @@ class Translator(object):
             rich_output_data = json.loads(rich_output_file.read().decode('utf-8'))
             unk_mapping = rich_output_data[0]['unk_mapping']
 
-            attn_graph_script_file.seek(0)
-            script = attn_graph_script_file.read()
+            if self.produce_attention_graph:
+                attn_graph_script_file.seek(0)
+                script = attn_graph_script_file.read()
 
-            attn_graph_div_file.seek(0)
-            div = attn_graph_div_file.read()
+                attn_graph_div_file.seek(0)
+                div = attn_graph_div_file.read()
 
         finally:
             src_file.close()
             dest_file.close()
             rich_output_file.close()
-            attn_graph_script_file.close()
-            attn_graph_div_file.close()
+
+            if self.produce_attention_graph:
+                attn_graph_script_file.close()
+                attn_graph_div_file.close()
 
         return out, script, div, unk_mapping
 

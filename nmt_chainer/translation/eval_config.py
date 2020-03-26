@@ -71,6 +71,8 @@ def define_parser(parser):
     output_group.add_argument("--normalize_unicode_unk", default=False, action="store_true")
     output_group.add_argument("--attempt_to_relocate_unk_source", default=False, action="store_true")
 
+    output_group.add_argument("--no_attention_map_in_server_mode", default=False, action="store_true")
+
     management_group = parser.add_argument_group(_CONFIG_SECTION_TO_DESCRIPTION["process"])
     management_group.add_argument("--gpu", type=int, help="specify gpu number to use, if any")
     management_group.add_argument("--max_nb_ex", type=int, help="only use the first MAX_NB_EX examples")
