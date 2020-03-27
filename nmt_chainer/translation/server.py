@@ -146,9 +146,11 @@ class Translator(object):
             if self.produce_attention_graph:
                 attn_graph_script_file.seek(0)
                 script = attn_graph_script_file.read()
+                script = script.decode('utf-8')
 
                 attn_graph_div_file.seek(0)
                 div = attn_graph_div_file.read()
+                div = div.decode('utf-8')
 
         finally:
             src_file.close()
@@ -324,7 +326,7 @@ class RequestHandler(six.moves.socketserver.BaseRequestHandler):
                 graphes = []
                 for gd in graph_data:
                     script, div = gd
-                    graphes.append({'script': script.decode('utf-8'), 'div': div.decode('utf-8')})
+                    graphes.append({'script': script, 'div': div})
                 response['attn_graphes'] = graphes
             except BaseException:
                 traceback.print_exc()
