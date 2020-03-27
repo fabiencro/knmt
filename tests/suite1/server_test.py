@@ -70,3 +70,12 @@ class TestServer:
             server_process.terminate()
 
         assert(resp_json['out'] == "die Brille sind rot\n")
+
+        if variant_name == "no_attention_map":
+            graph = resp_json['attn_graphes'][0]
+            assert graph["script"] == ""
+            assert graph["div"] == "<div/>"
+        else:
+            graph = resp_json['attn_graphes'][0]
+            assert graph["script"] != ""
+            assert graph["div"] != "<div/>"
