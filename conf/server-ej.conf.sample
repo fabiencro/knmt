@@ -5,9 +5,14 @@
 LANG_PAIR=ej
 LANG_SRC=en
 LANG_DST=ja
-HOST=localhost
+
+# The HOST contains the IP address or the hostname of the machine on which the KNMT server runs.
+# It's preferable to leave the HOST empty.
+# See https://stackoverflow.com/questions/16130786/why-am-i-getting-the-error-connection-refused-in-python-sockets
+HOST=
 PORT=44668
 
+LOGGING_CONF_FILE=conf/server-ej_logging.conf
 
 #
 # RNN-Search
