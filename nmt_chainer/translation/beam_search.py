@@ -1342,7 +1342,8 @@ def ensemble_astar_search(model_ensemble, src_batch, src_mask, nb_steps, eos_idx
                          #use_unfinished_translation_if_none_found=False,
                          constraints: Optional[BeamSearchConstraints] = None,
                          #constraints_fn=None,
-                         astar_params:AStarParams = AStarParams()):
+                         astar_params:AStarParams = AStarParams(),
+                         thread=None):
     """
     Compute translations using a astar-search algorithm.
 
@@ -1364,6 +1365,7 @@ def ensemble_astar_search(model_ensemble, src_batch, src_mask, nb_steps, eos_idx
         constraints_fn: function for enforcing constraints on translations. takes a translation as input. Return 1 if all constraints
                         are satisfied. -1 if constraints cannot be satisfied. 0<=v<1 if all constraints are not satisfied yet but can 
                         be satisfied (v being an hint on the number of constraints solved)
+        thread: stoppable thread in which the beam search is running.  If none, the beam search runs in the main thread and cannot be stopped.
     Return:
         list of translations
             each item in the list is a tuple (translation, score) or (translation, score, attention) if need_attention = True
@@ -1411,6 +1413,10 @@ def ensemble_astar_search(model_ensemble, src_batch, src_mask, nb_steps, eos_idx
         
         # Proceed with the search
         for num_step in six.moves.range(nb_steps):
+            # Interrupt the search when the thread is forcefully stopped.
+            if thread is not None and thread.stopped():
+                break
+
             #breakpoint()
             #print("num_step len", num_step, len(astar_queue.queue))
             still_options_to_explore = astar_update(

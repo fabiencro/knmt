@@ -145,7 +145,8 @@ def beam_search_all(gpu, encdec, eos_idx, src_data,
                     use_astar=False,
                     astar_params:beam_search.AStarParams=beam_search.AStarParams(),
                     use_chainerx=False,
-                    show_progress_bar=True):
+                    show_progress_bar=True,
+                    thread=None):
 
     log.info("starting beam search translation of %i sentences" % len(src_data))
     if isinstance(encdec, (list, tuple)) and len(encdec) > 1:
@@ -171,7 +172,8 @@ def beam_search_all(gpu, encdec, eos_idx, src_data,
             use_astar=use_astar,
             astar_params=astar_params,
             use_chainerx=use_chainerx,
-            show_progress_bar=show_progress_bar)
+            show_progress_bar=show_progress_bar,
+            thread=thread)
 
         for num_t, translations in enumerate(translations_gen):
             res_trans = []
@@ -236,7 +238,8 @@ def translate_to_file_with_beam_search(dest_fn, gpu, encdec, eos_idx, src_data,
                                        use_astar=False,
                                        astar_params:beam_search.AStarParams=beam_search.AStarParams(),
                                        use_chainerx=False,
-                                       show_progress_bar=True):
+                                       show_progress_bar=True,
+                                       thread=None):
 
     log.info("writing translation to %s " % dest_fn)
     out = io.open(dest_fn, "wt", encoding="utf8")
@@ -261,7 +264,8 @@ def translate_to_file_with_beam_search(dest_fn, gpu, encdec, eos_idx, src_data,
                                            use_astar=use_astar,
                                            astar_params=astar_params,
                                            use_chainerx=use_chainerx,
-                                           show_progress_bar=show_progress_bar)
+                                           show_progress_bar=show_progress_bar,
+                                           thread=thread)
 
     attn_vis = None
     if generate_attention_html is not None:
@@ -541,7 +545,7 @@ def do_eval(config_eval):
 
     make_constraints_dict = None
 
-    if config_eval.process.server is None:
+    if config_eval.process.server is None and config_eval.process.multiserver_config is None:
         encdec_list, eos_idx, src_indexer, tgt_indexer, reverse_encdec, model_infos_list = create_encdec(config_eval)
 
         eval_dir_placeholder = "@eval@/"
@@ -706,6 +710,9 @@ def do_eval(config_eval):
         if config_eval.process.server is not None:
             from nmt_chainer.translation.server import do_start_server
             do_start_server(config_eval)
+        elif config_eval.process.multiserver_config is not None:
+            from nmt_chainer.translation.multiserver import do_start_server
+            do_start_server(config_eval.process.multiserver_config, config_eval.output.log_config)
         else:
 
 

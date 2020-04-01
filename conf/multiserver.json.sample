@@ -1,0 +1,22 @@
+{
+    "host": "",
+    "port": 45000,
+    "servers": {
+        "ja-en_model1": [
+            {"host": "localhost", "port": 44200},
+            {"host": "localhost", "port": 44201},
+        ],
+        "ja-en_model2": [
+            {"host": "localhost", "port": 44202},
+            {"host": "localhost", "port": 44203}
+        ],
+        "en-ja": [
+            {"host": "localhost", "port": 44300},
+            {"host": "localhost", "port": 44301},
+            {"host": "localhost", "port": 44302},
+            {"host": "localhost", "port": 44303}
+        ]
+    },
+    "text_to_sentences_splitter": "echo '%s' | bin/split_sentences $lang_source $lang_target"
+}
+

@@ -192,7 +192,8 @@ def beam_search_translate(encdec, eos_idx, src_data,
                           use_astar=False,
                           astar_params:beam_search.AStarParams=beam_search.AStarParams(),
                           use_chainerx=False,
-                          show_progress_bar=True):
+                          show_progress_bar=True,
+                          thread=None):
     nb_ex = len(src_data)
 
     assert constraints_fn_list is None or len(constraints_fn_list) == nb_ex
@@ -240,7 +241,8 @@ def beam_search_translate(encdec, eos_idx, src_data,
                                                         constraints=constraints_fn,
                                                         use_astar=use_astar,
                                                         astar_params=astar_params,
-                                                        gpu=gpu)
+                                                        gpu=gpu,
+                                                        thread=thread)
 
         # TODO: This is a quick patch, but actually ensemble_beam_search probably should not return empty translations except when no translation found
         if len(translations) > 1:
