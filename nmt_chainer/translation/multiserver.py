@@ -190,6 +190,7 @@ class Worker(threading.Thread):
                     self.log.debug("TRANSLATION: {0}".format(json_resp['out']))
                     if not self.current_client_key in self.manager.client_cancellations or not self.manager.client_cancellations[self.current_client_key]:
                         response_queue = self.manager.client_responses[self.current_client_key]
+                        self.log.debug("adding translation to queue {0} [key:{1}]".format(repr(response_queue), self.current_client_key))
                         response_queue.put(json_resp)
             except BaseException as err:
                 self.log.info("An error has occurred when the client named '{0}' performed a TRANSLATE query for the '{1}' category: '{2}'".format(self.name, self.category, err))
@@ -262,7 +263,9 @@ class Manager(object):
             self.log.debug("req/work={0} r={1} c={2} w={3} f={4}".format(req_per_worker, resp['workload']['requests'], resp['workload']['clients'], resp['workload']['workers'], resp['workload']['factor']))
 
         responses = []
+        #print(f"client_id:{client_id} in:{client_id in self.client_responses}")
         if client_id in self.client_responses:
+            #print(f"clresp:{repr(self.client_responses[client_id])} empty:{self.client_responses[client_id].empty()}")
             while not self.client_responses[client_id].empty():
                 responses.append(self.client_responses[client_id].get(False))
         resp['responses'] = responses;
@@ -366,8 +369,9 @@ class Server(socketserver.ThreadingMixIn, socketserver.TCPServer):
                 super(ServerRequestHandler, self).__init__(*args, **kwargs)
 
             def handle(self):
+
                 start_request = timeit.default_timer()
-                self.log.debug("Handling request...")
+                self.log.debug("Handling request....")
 
                 # Read until EOM delimiter is met. 
                 total_data = []
