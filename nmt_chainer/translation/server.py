@@ -44,17 +44,20 @@ PAGE_SIZE = 5000
 
 log = None
 
+
 class TranslatorThread(threading.Thread):
     """Thread class with a stop() method useful to interrupt the translation before it ends."""
 
     def __init__(self, 
-                 dest_filename, gpu, encdec, eos_idx, src_data, beam_width, beam_pruning_margin,
-                 beam_score_coverage_penalty=None,
-                 beam_score_coverage_penalty_strength=None,
+                 dest_filename, gpu, encdec, eos_idx, src_data, 
+                 beam_search_params,
+                 #beam_width, beam_pruning_margin,
+                 #beam_score_coverage_penalty=None,
+                 #beam_score_coverage_penalty_strength=None,
                  nb_steps=None,
                  nb_steps_ratio=None,
-                 beam_score_length_normalization=None,
-                 beam_score_length_normalization_strength=None,
+                 #beam_score_length_normalization=None,
+                 #beam_score_length_normalization_strength=None,
                  post_score_length_normalization=None,
                  post_score_length_normalization_strength=None,
                  post_score_coverage_penalty=None,
@@ -62,15 +65,18 @@ class TranslatorThread(threading.Thread):
                  groundhog=None,
                  tgt_unk_id=None,
                  tgt_indexer=None,
-                 force_finish=None,
+                 #force_finish=None,
                  prob_space_combination=None, reverse_encdec=None,
                  generate_attention_html=None,
                  attn_graph_with_sum=None,
                  attn_graph_attribs=None, src_indexer=None,
                  rich_output_filename=None,
-                 use_unfinished_translation_if_none_found=None,
+                 #use_unfinished_translation_if_none_found=None,
                  replace_unk=None, src=None, dic=None,
-                 remove_unk=None, normalize_unicode_unk=None, attempt_to_relocate_unk_source=None):
+                 remove_unk=None, normalize_unicode_unk=None, attempt_to_relocate_unk_source=None,
+                 constraints_fn_list=None,
+                 use_chainerx = False):
+
         threading.Thread.__init__(self)
         self._stop_event = threading.Event()
         self.dest_filename = dest_filename
@@ -78,14 +84,16 @@ class TranslatorThread(threading.Thread):
         self.encdec = encdec
         self.eos_idx = eos_idx
         self.src_data = src_data
-        self.beam_width = beam_width
-        self.beam_pruning_margin = beam_pruning_margin
-        self.beam_score_coverage_penalty=beam_score_coverage_penalty
-        self.beam_score_coverage_penalty_strength=beam_score_coverage_penalty_strength
+
+        self.beam_search_params = beam_search_params
+        # self.beam_width = beam_width
+        # self.beam_pruning_margin = beam_pruning_margin
+        # self.beam_score_coverage_penalty=beam_score_coverage_penalty
+        # self.beam_score_coverage_penalty_strength=beam_score_coverage_penalty_strength
         self.nb_steps=nb_steps
         self.nb_steps_ratio=nb_steps_ratio
-        self.beam_score_length_normalization=beam_score_length_normalization
-        self.beam_score_length_normalization_strength=beam_score_length_normalization_strength
+        # self.beam_score_length_normalization=beam_score_length_normalization
+        # self.beam_score_length_normalization_strength=beam_score_length_normalization_strength
         self.post_score_length_normalization=post_score_length_normalization
         self.post_score_length_normalization_strength=post_score_length_normalization_strength
         self.post_score_coverage_penalty=post_score_coverage_penalty
@@ -93,7 +101,7 @@ class TranslatorThread(threading.Thread):
         self.groundhog=groundhog
         self.tgt_unk_id=tgt_unk_id
         self.tgt_indexer=tgt_indexer
-        self.force_finish=force_finish
+        # self.force_finish=force_finish
         self.prob_space_combination=prob_space_combination
         self.reverse_encdec=reverse_encdec
         self.generate_attention_html=generate_attention_html
@@ -101,13 +109,16 @@ class TranslatorThread(threading.Thread):
         self.attn_graph_attribs=attn_graph_attribs
         self.src_indexer=src_indexer
         self.rich_output_filename=rich_output_filename
-        self.use_unfinished_translation_if_none_found=use_unfinished_translation_if_none_found
+        # self.use_unfinished_translation_if_none_found=use_unfinished_translation_if_none_found
         self.replace_unk=replace_unk
         self.src=src
         self.dic=dic
         self.remove_unk=remove_unk
         self.normalize_unicode_unk=normalize_unicode_unk
         self.attempt_to_relocate_unk_source=attempt_to_relocate_unk_source
+
+        self.constraints_fn_list = constraints_fn_list
+        self.use_chainerx = use_chainerx
 
     def stop(self):
         self._stop_event.set()
@@ -117,13 +128,15 @@ class TranslatorThread(threading.Thread):
 
     def run(self):
         from nmt_chainer.translation.eval import translate_to_file_with_beam_search
-        translate_to_file_with_beam_search(self.dest_filename, self.gpu, self.encdec, self.eos_idx, self.src_data, self.beam_width, self.beam_pruning_margin,
-                                           beam_score_coverage_penalty=self.beam_score_coverage_penalty,
-                                           beam_score_coverage_penalty_strength=self.beam_score_coverage_penalty_strength,
+        translate_to_file_with_beam_search(self.dest_filename, self.gpu, self.encdec, self.eos_idx, self.src_data,
+                                            beam_search_params=self.beam_search_params,
+                                           #self.beam_width, self.beam_pruning_margin,
+                                           #beam_score_coverage_penalty=self.beam_score_coverage_penalty,
+                                           #beam_score_coverage_penalty_strength=self.beam_score_coverage_penalty_strength,
                                            nb_steps=self.nb_steps,
                                            nb_steps_ratio=self.nb_steps_ratio,
-                                           beam_score_length_normalization=self.beam_score_length_normalization,
-                                           beam_score_length_normalization_strength=self.beam_score_length_normalization_strength,
+                                           #beam_score_length_normalization=self.beam_score_length_normalization,
+                                           #beam_score_length_normalization_strength=self.beam_score_length_normalization_strength,
                                            post_score_length_normalization=self.post_score_length_normalization,
                                            post_score_length_normalization_strength=self.post_score_length_normalization_strength,
                                            post_score_coverage_penalty=self.post_score_coverage_penalty,
@@ -131,15 +144,17 @@ class TranslatorThread(threading.Thread):
                                            groundhog=self.groundhog,
                                            tgt_unk_id=self.tgt_unk_id,
                                            tgt_indexer=self.tgt_indexer,
-                                           force_finish=self.force_finish,
+                                           #force_finish=self.force_finish,
                                            prob_space_combination=self.prob_space_combination, reverse_encdec=self.reverse_encdec,
                                            generate_attention_html=self.generate_attention_html,
                                            attn_graph_with_sum=self.attn_graph_with_sum,
                                            attn_graph_attribs=self.attn_graph_attribs, src_indexer=self.src_indexer,
                                            rich_output_filename=self.rich_output_filename,
-                                           use_unfinished_translation_if_none_found=self.use_unfinished_translation_if_none_found,
+                                           #use_unfinished_translation_if_none_found=self.use_unfinished_translation_if_none_found,
                                            replace_unk=self.replace_unk, src=self.src, dic=self.dic,
                                            remove_unk=self.remove_unk, normalize_unicode_unk=self.normalize_unicode_unk, attempt_to_relocate_unk_source=self.attempt_to_relocate_unk_source, 
+                                           constraints_fn_list=self.constraints_fn_list,
+                                           use_chainerx = self.use_chainerx,
                                            thread=self)
 
 from .eval import placeholder_constraints_builder
@@ -247,8 +262,8 @@ class Translator(object):
                                                  #beam_score_coverage_penalty_strength=beam_score_coverage_penalty_strength,
                                                  nb_steps=nb_steps,
                                                  nb_steps_ratio=nb_steps_ratio,
-                                                 beam_score_length_normalization=beam_score_length_normalization,
-                                                 beam_score_length_normalization_strength=beam_score_length_normalization_strength,
+                                                 #beam_score_length_normalization=beam_score_length_normalization,
+                                                 #beam_score_length_normalization_strength=beam_score_length_normalization_strength,
                                                  post_score_length_normalization=post_score_length_normalization,
                                                  post_score_length_normalization_strength=post_score_length_normalization_strength,
                                                  post_score_coverage_penalty=post_score_coverage_penalty,
@@ -256,15 +271,17 @@ class Translator(object):
                                                  groundhog=groundhog,
                                                  tgt_unk_id=self.config_server.output.tgt_unk_id,
                                                  tgt_indexer=self.tgt_indexer,
-                                                 force_finish=force_finish,
+                                                 #force_finish=force_finish,
                                                  prob_space_combination=prob_space_combination, reverse_encdec=self.reverse_encdec,
                                                  generate_attention_html=None,
                                                  attn_graph_with_sum=False,
                                                  attn_graph_attribs={'title': '', 'toolbar_location': 'below', 'plot_width': attn_graph_width, 'plot_height': attn_graph_height}, src_indexer=self.src_indexer,
                                                  rich_output_filename=rich_output_file.name,
-                                                 use_unfinished_translation_if_none_found=True,
+                                                 #use_unfinished_translation_if_none_found=True,
                                                  replace_unk=True, src=sentence, dic=self.config_server.output.dic,
-                                                 remove_unk=remove_unk, normalize_unicode_unk=normalize_unicode_unk, attempt_to_relocate_unk_source=attempt_to_relocate_unk_source)
+                                                 remove_unk=remove_unk, normalize_unicode_unk=normalize_unicode_unk, attempt_to_relocate_unk_source=attempt_to_relocate_unk_source,
+                                                 constraints_fn_list=constraints_list,
+                                                 use_chainerx = self.use_chainerx)
             self.translator_thread.start()
             self.translator_thread.join()
 
@@ -274,7 +291,7 @@ class Translator(object):
             #print(rich_output_file.name)
             rich_output_file.seek(0)
             rich_output_data = json.loads(rich_output_file.read().decode('utf-8'))
-            unk_mapping = rich_output_data[0]['unk_mapping']
+            #unk_mapping = rich_output_data[0]['unk_mapping']
 
             if self.produce_attention_graph:
                 attn_graph_script_file.seek(0)

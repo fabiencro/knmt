@@ -901,7 +901,8 @@ def ensemble_beam_search(model_ensemble, src_batch, src_mask, nb_steps, eos_idx,
                          constraints:Optional[BeamSearchConstraints] = None,
                          use_astar: bool = False,
                          astar_params:AStarParams = AStarParams(),
-                         gpu=None
+                         gpu=None,
+                         thread=None
                          ):
     """
     Compute translations using a beam-search algorithm.
@@ -921,6 +922,8 @@ def ensemble_beam_search(model_ensemble, src_batch, src_mask, nb_steps, eos_idx,
         constraints: function for enforcing constraints on translations. takes a translation as input. Return 1 if all constraints
                         are satisfied. -1 if constraints cannot be satisfied. 0<=v<1 if all constraints are not satisfied yet but can 
                         be satisfied (v being an hint on the number of constraints solved)
+        thread: stoppable thread in which the beam search is running.  If none, the beam search runs in the main thread and cannot be stopped.
+
     Return:
         list of translations
             each item in the list is a tuple (translation, score) or (translation, score, attention) if need_attention = True
@@ -937,7 +940,8 @@ def ensemble_beam_search(model_ensemble, src_batch, src_mask, nb_steps, eos_idx,
                          need_attention=need_attention,
                          prob_space_combination=prob_space_combination, 
                          constraints=constraints,
-                         astar_params=astar_params)
+                         astar_params=astar_params,
+                         thread=thread)
 
     with chainer.using_config("train", False), chainer.no_backprop_mode():
         mb_size = src_batch[0].data.shape[0]
@@ -965,6 +969,8 @@ def ensemble_beam_search(model_ensemble, src_batch, src_mask, nb_steps, eos_idx,
     
         # Proceed with the search
         for num_step in six.moves.range(nb_steps):
+            if thread is not None and thread.stopped():
+                break
             current_translations_states = advance_one_step(
                 dec_cell_ensemble,
                 eos_idx,
