@@ -155,6 +155,7 @@ class TranslatorThread(threading.Thread):
                                            remove_unk=self.remove_unk, normalize_unicode_unk=self.normalize_unicode_unk, attempt_to_relocate_unk_source=self.attempt_to_relocate_unk_source, 
                                            constraints_fn_list=self.constraints_fn_list,
                                            use_chainerx = self.use_chainerx,
+                                           show_progress_bar=False,
                                            thread=self)
 
 from .eval import placeholder_constraints_builder
@@ -205,6 +206,8 @@ class Translator(object):
 
         try:
             out = ''
+            script = ''
+            div = '<div/>'
             unk_mapping = []
 
             #src_data, stats_src_pp = build_dataset_one_side_pp(src_file.name, self.src_indexer, max_nb_ex=self.config_server.process.max_nb_ex)
@@ -273,7 +276,7 @@ class Translator(object):
                                                  tgt_indexer=self.tgt_indexer,
                                                  #force_finish=force_finish,
                                                  prob_space_combination=prob_space_combination, reverse_encdec=self.reverse_encdec,
-                                                 generate_attention_html=None,
+                                                 generate_attention_html=generate_attention_html,
                                                  attn_graph_with_sum=False,
                                                  attn_graph_attribs={'title': '', 'toolbar_location': 'below', 'plot_width': attn_graph_width, 'plot_height': attn_graph_height}, src_indexer=self.src_indexer,
                                                  rich_output_filename=rich_output_file.name,
@@ -314,7 +317,7 @@ class Translator(object):
                 attn_graph_script_file.close()
                 attn_graph_div_file.close()
 
-        return out, unk_mapping
+        return out, script, div, unk_mapping
 
     def stop(self):
         if self.translator_thread:
@@ -448,6 +451,7 @@ class RequestHandler(six.moves.socketserver.BaseRequestHandler):
                     log.debug("Article id: %s" % article_id)
                     in_ = ""
                     out = ""
+                    graph_data = []
                     segmented_input = []
                     segmented_output = []
                     mapping = []
@@ -497,7 +501,7 @@ class RequestHandler(six.moves.socketserver.BaseRequestHandler):
                         #decoded_sentence = splitted_sentence.decode('utf-8')
                         # log.info("decoded_sentence={0}".format(decoded_sentence))
                         # translation, unk_mapping = self.server.translator.translate(decoded_sentence,
-                        translation, unk_mapping = self.server.translator.translate(splitted_sentence,
+                        translation, script, div, unk_mapping = self.server.translator.translate(splitted_sentence,
                                                                                                  beam_width, beam_pruning_margin, beam_score_coverage_penalty, beam_score_coverage_penalty_strength, nb_steps, nb_steps_ratio, remove_unk, normalize_unicode_unk, attempt_to_relocate_unk_source,
                                                                                                  beam_score_length_normalization, beam_score_length_normalization_strength, post_score_length_normalization, post_score_length_normalization_strength, post_score_coverage_penalty, post_score_coverage_penalty_strength,
                                                                                                  groundhog, force_finish, prob_space_combination, attn_graph_width, attn_graph_height)
@@ -522,6 +526,7 @@ class RequestHandler(six.moves.socketserver.BaseRequestHandler):
                         segmented_input.append(splitted_sentence)
                         segmented_output.append(translation)
                         mapping.append(unk_mapping)
+                        graph_data.append((script, div))
 
                         # There should always be only one sentence for now. - FB
                         break
@@ -535,6 +540,11 @@ class RequestHandler(six.moves.socketserver.BaseRequestHandler):
                     response['segmented_input'] = segmented_input
                     response['segmented_output'] = segmented_output
                     response['mapping'] = list(map(lambda x: ' '.join(x), mapping))
+                    graphes = []
+                    for gd in graph_data:
+                        script, div = gd
+                        graphes.append({'script': script, 'div': div})
+                    response['attn_graphes'] = graphes
 
             except BaseException:
                 traceback.print_exc()
@@ -596,3 +606,7 @@ def do_start_server(config_server):
         server.server_close()
 
     sys.exit(0)
+
+
+if __name__ == '__main__':
+    command_line()
