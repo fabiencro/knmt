@@ -154,7 +154,7 @@ class AttentionModule(Chain):
                                                          (current_mb_size * nb_elems, self.Ha))), (current_mb_size, nb_elems))
 
 
-#             with cuda.get_device(used_concatenated_mask.data):
+#             with cuda.get_device_from_array(used_concatenated_mask.data):
 #                 a_coeffs = a_coeffs - 10000 * (1-used_concatenated_mask.data)
 
             attn = F.softmax(a_coeffs)
