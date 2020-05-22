@@ -22,7 +22,6 @@ import subprocess
 from collections import deque
 
 from urllib.parse import urlencode
-import requests
 import queue
 import os
 from os import listdir
